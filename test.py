@@ -7,6 +7,8 @@ import numpy as np
 
 import torchbraid
 
+from mpi4py import MPI
+
 class BasicBlock(nn.Module):
   def __init__(self,dim=10):
     super(BasicBlock, self).__init__()
@@ -32,7 +34,7 @@ class TestTorchBraid(unittest.TestCase):
     Tf        = 2.0
     num_steps = 1
   
-    m = torchbraid.Model(BasicBlock,num_steps,Tf)
+    m = torchbraid.Model(MPI.COMM_WORLD,BasicBlock,num_steps,Tf)
     m.setInitial(x)
   
     out = torchbraid.cloneInitVector(m)
@@ -46,7 +48,7 @@ class TestTorchBraid(unittest.TestCase):
     Tf        = 2.0
     num_steps = 1
   
-    m = torchbraid.Model(BasicBlock,num_steps,Tf)
+    m = torchbraid.Model(MPI.COMM_WORLD,BasicBlock,num_steps,Tf)
   
     out = torchbraid.cloneVector(m,x)
     nrm = torch.norm(x-out)
@@ -58,7 +60,7 @@ class TestTorchBraid(unittest.TestCase):
     Tf        = 2.0
     num_steps = 1
   
-    m = torchbraid.Model(BasicBlock,num_steps,Tf)
+    m = torchbraid.Model(MPI.COMM_WORLD,BasicBlock,num_steps,Tf)
 
     x     = 2.0*torch.ones(2,3) 
     y     = 1.0*torch.ones(2,3) 
@@ -78,7 +80,7 @@ class TestTorchBraid(unittest.TestCase):
     x         = torch.randn(5,10) 
     norm_x    = torch.norm(x) 
 
-    m = torchbraid.Model(BasicBlock,num_steps,Tf)
+    m = torchbraid.Model(MPI.COMM_WORLD,BasicBlock,num_steps,Tf)
   
     norm_x_c = torchbraid.vectorNorm(m,x)
     self.assertEqual(norm_x,norm_x_c)
@@ -91,7 +93,7 @@ class TestTorchBraid(unittest.TestCase):
     cnt        = 5*10*3*9
     sizeof_dbl = np.dtype(np.float).itemsize
 
-    m = torchbraid.Model(BasicBlock,num_steps,Tf)
+    m = torchbraid.Model(MPI.COMM_WORLD,BasicBlock,num_steps,Tf)
     m.setInitial(x)
   
     cnt_c = torchbraid.bufSize(m)
@@ -111,7 +113,7 @@ class TestTorchBraid(unittest.TestCase):
           l += 1.0
     # end for i,j,k
 
-    m = torchbraid.Model(BasicBlock,num_steps,Tf)
+    m = torchbraid.Model(MPI.COMM_WORLD,BasicBlock,num_steps,Tf)
     m.setInitial(x)
 
     # we allocate the buffer
@@ -136,7 +138,7 @@ class TestTorchBraid(unittest.TestCase):
     num_steps = 10
 
     # this is the class being tested (the forward propagation)
-    m = torchbraid.Model(basic_block,num_steps,Tf,max_levels=2,max_iters=10)
+    m = torchbraid.Model(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_levels=2,max_iters=10)
 
     # this is the reference "solution"
     dt = Tf/num_steps

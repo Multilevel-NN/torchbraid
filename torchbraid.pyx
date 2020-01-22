@@ -19,13 +19,36 @@ include "./torchbraid_callbacks.pyx"
 #  a python level module
 ##########################################################
 
+cdef class MPIData:
+  cdef MPI.Comm comm
+  cdef int rank
+  cdef int size
+
+  def __cinit__(self,comm):
+    self.comm = comm
+    self.rank = self.comm.Get_rank()
+    self.size = self.comm.Get_size()
+
+  def getComm(self):
+    return self.comm
+
+  def getRank(self):
+    return self.rank 
+
+  def getRank(self):
+    return self.size
+# helper class for the MPI communicator
+
 class Model(torch.nn.Module):
-  def __init__(self,layer_block,num_steps,Tf,max_levels=1,max_iters=10):
+
+  def __init__(self,comm,layer_block,num_steps,Tf,max_levels=1,max_iters=10):
     super(Model,self).__init__()
 
+    # optional parameters
     self.max_levels = max_levels
     self.max_iters  = max_iters
 
+    self.mpi_data = MPIData(comm)
     self.Tf = Tf
     self.num_steps = num_steps
   
@@ -96,14 +119,13 @@ class Model(torch.nn.Module):
     cdef braid_Core core
     cdef double tstart
     cdef double tstop
-    cdef MPI.Comm comm = MPI.COMM_WORLD
     cdef int ntime
-    cdef int rank
+    cdef MPI.Comm comm = self.mpi_data.getComm()
+    cdef int rank = self.mpi_data.getRank()
 
     ntime = self.num_steps
     tstart = 0.0
     tstop = self.Tf
-    rank = comm.Get_rank()
 
     braid_Init(comm.ob_mpi, comm.ob_mpi, 
                tstart, tstop, ntime, 

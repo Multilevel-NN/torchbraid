@@ -4,6 +4,8 @@ import torch.nn.functional as F
 
 import torchbraid
 
+from mpi4py import MPI
+
 class BasicBlock(nn.Module):
   def __init__(self,dim):
     super(BasicBlock, self).__init__()
@@ -35,7 +37,7 @@ basic_block = lambda: BasicBlock(dim)
 
 Tf = 2.0
 num_steps = 10
-m = torchbraid.Model(basic_block,num_steps,Tf,max_levels=2,max_iters=2)
+m = torchbraid.Model(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_levels=2,max_iters=2)
 
 x = torch.randn(5,10) 
 
