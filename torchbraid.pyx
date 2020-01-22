@@ -35,7 +35,7 @@ class Model(torch.nn.Module):
   # end __init__
 
   def __del__(self):
-    print('DEL: Model')
+    pass
 
   def forward(self,x):
     self.setInitial(x)
@@ -76,7 +76,6 @@ class Model(torch.nn.Module):
       return x+dt*self.layer_models[self.getLayerIndex(tstart)](x)
 
   def access(self,t,u):
-    #print('access %f' % t)
     if t==self.Tf:
       self.x_final = u.clone()
 

@@ -10,7 +10,7 @@ class BasicBlock(nn.Module):
     self.lin = nn.Linear(dim, dim)
 
   def __del__(self):
-    print('DEL: BasicBlock')
+    pass
 
   def forward(self, x):
     return F.relu(self.lin(x))
@@ -24,7 +24,7 @@ class ODEBlock(nn.Module):
     self.layer = layer
 
   def __del__(self):
-    print('DEL: ODEBlock')
+    pass
 
   def forward(self, x):
     return x + self.dt*self.layer(x)
