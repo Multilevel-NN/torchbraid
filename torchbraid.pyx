@@ -30,7 +30,6 @@ class Model(torch.nn.Module):
     self.num_steps = num_steps
   
     self.layer_models = [layer_block() for i in range(self.num_steps)]
-
     self.local_layers = torch.nn.Sequential(*self.layer_models)
   # end __init__
 
@@ -38,6 +37,7 @@ class Model(torch.nn.Module):
     pass
 
   def forward(self,x):
+
     self.setInitial(x)
     py_core = self.initCore()
 
@@ -46,14 +46,24 @@ class Model(torch.nn.Module):
     # Set Braid options
     braid_SetMaxLevels(core, self.max_levels)
     braid_SetMaxIter(core, self.max_iters)
-
+ 
     # Run Braid
     braid_Drive(core)
 
-    # Destroy Braid Core C-Struct
-    braid_Destroy(core)
-   
-    return self.getFinal()
+#    # Destroy Braid Core C-Struct
+# 
+# This line causes now end of suffering, with essentially
+# random failures on exit associated with a seg fault
+# or incorrectly freed piece of memory.
+#
+# Clearly this is the wrong thing to do, but for now,
+# lets work with it (See Issue#1)
+#
+#    braid_Destroy(core)
+
+    f = self.getFinal()
+
+    return f
   # end forward
 
   def getLayerIndex(self,t):
