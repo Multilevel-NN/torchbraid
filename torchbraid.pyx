@@ -35,7 +35,7 @@ cdef class MPIData:
   def getRank(self):
     return self.rank 
 
-  def getRank(self):
+  def getSize(self):
     return self.size
 # helper class for the MPI communicator
 
@@ -50,14 +50,24 @@ class Model(torch.nn.Module):
 
     self.mpi_data = MPIData(comm)
     self.Tf = Tf
-    self.num_steps = num_steps
+    self.local_num_steps = num_steps
+    self.num_steps       = num_steps*self.mpi_data.getSize()
+
+    self.dt = Tf/self.num_steps
+    self.t0_local = self.mpi_data.getRank()*num_steps*self.dt
+    self.tf_local = (self.mpi_data.getRank()+1.0)*num_steps*self.dt
   
-    self.layer_models = [layer_block() for i in range(self.num_steps)]
+    self.layer_models = [layer_block() for i in range(self.local_num_steps)]
     self.local_layers = torch.nn.Sequential(*self.layer_models)
+
+    self.x_final = None
   # end __init__
 
   def __del__(self):
     pass
+ 
+  def getMPIData(self):
+    return self.mpi_data
 
   def forward(self,x):
 
@@ -90,8 +100,7 @@ class Model(torch.nn.Module):
   # end forward
 
   def getLayerIndex(self,t):
-    dt = self.Tf/self.num_steps
-    return round(t / dt)
+    return round((t-self.t0_local) / self.dt)
 
   def setInitial(self,x0):
     self.x0 = x0
@@ -105,8 +114,8 @@ class Model(torch.nn.Module):
     #                                        self.getLayerIndex(tstart),
     #                                        self.getLayerIndex(tstop)))
     with torch.no_grad(): 
-      dt = tstop-tstart
-      return x+dt*self.layer_models[self.getLayerIndex(tstart)](x)
+      #print('what = %d,%d' % (self.mpi_data.getRank(),self.getLayerIndex(tstart)))
+      return x+self.dt*self.layer_models[self.getLayerIndex(tstart)](x)
 
   def access(self,t,u):
     if t==self.Tf:
