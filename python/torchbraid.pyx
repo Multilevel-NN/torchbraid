@@ -1,3 +1,6 @@
+# cython: profile=True
+# cython: linetrace=True
+
 import torch
 import numpy as np
 from collections import OrderedDict
