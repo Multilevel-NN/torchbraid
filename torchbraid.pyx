@@ -107,6 +107,8 @@ class Model(torch.nn.Module):
 
   def buildInit(self,t):
     x = self.x0.clone()
+    if t>0:
+      x[:] = 0.0
     return x
 
   def eval(self,x,tstart,tstop):
@@ -114,7 +116,6 @@ class Model(torch.nn.Module):
     #                                        self.getLayerIndex(tstart),
     #                                        self.getLayerIndex(tstop)))
     with torch.no_grad(): 
-      #print('what = %d,%d' % (self.mpi_data.getRank(),self.getLayerIndex(tstart)))
       return x+self.dt*self.layer_models[self.getLayerIndex(tstart)](x)
 
   def access(self,t,u):

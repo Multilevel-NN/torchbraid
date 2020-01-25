@@ -16,7 +16,6 @@ cdef int my_access(braid_App app,braid_Vector u,braid_AccessStatus status):
   ten_u = <object> u
 
   braid_AccessStatusGetT(status, &t)
-  #print(u_np[0], t)
 
   pyApp.access(t,ten_u)
   return 0
@@ -115,10 +114,10 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   my_clone(app,c_x,u_ptr)
 
   ten_U = <object> u_ptr[0]
-  np_U  = ten_U.numpy() 
+  np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
 
-  k = 0
-  for item in np_U.flat: 
-    item = np_U[k]
+  # this is almost certainly slow
+  for k in range(len(np_U)):
+    np_U[k] = dbuffer[k]
 
   return 0

@@ -151,9 +151,10 @@ class TestTorchBraid(unittest.TestCase):
     yf = f(x)
 
     # check some values
-    self.assertTrue(torch.norm(ym)>0.0)
-    self.assertTrue(torch.norm(yf)>0.0)
-    self.assertTrue(torch.norm(ym-yf)<=1e-6)
+    if m.getMPIData().getRank()==m.getMPIData().getSize()-1:
+      self.assertTrue(torch.norm(ym)>0.0)
+      self.assertTrue(torch.norm(yf)>0.0)
+      self.assertTrue(torch.norm(ym-yf)<=1e-6)
   # test_forwardPropSerial
 
 if __name__ == '__main__':
