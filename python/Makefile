@@ -12,4 +12,4 @@ $(MODULE_NAME).cpython-37m-darwin.so: $(MODULE_NAME).pyx
 	CC=mpicc python setup.py install
 
 clean:
-	rm -fr $(MODULE_NAME).c $(MODULE_NAME).h ${MODULE_NAME}_callbacks.c braid.o libbraid.a build $(MODULE_NAME).cpython-37m-darwin.so
+	rm -fr $(MODULE_NAME).c $(MODULE_NAME).h ${MODULE_NAME}_callbacks.c braid.o libbraid.a build $(MODULE_NAME).cpython-37m-darwin.so *.html braid.out.cycle

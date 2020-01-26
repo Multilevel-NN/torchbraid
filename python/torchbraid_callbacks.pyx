@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+cimport numpy as np
 
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
@@ -31,7 +32,7 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
   braid_StepStatusGetTstartTstop(status, &tstart, &tstop)
 
   temp = pyApp.eval(ten_u,tstart,tstop)
-  ten_u[:] = temp[:]
+  ten_u.copy_(temp[:])
 
   return 0
 # end my_access
@@ -53,12 +54,13 @@ cdef int my_free(braid_App app, braid_Vector u):
 
 cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_Vector y):
   # Cast x and y as a PyBraid_Vector
-  ten_X = <object> x
-  ten_Y = <object> y
-  ten_T = ten_Y.clone()
+  cdef np.ndarray[float,ndim=1] np_X = (<object> x).numpy().ravel()
+  cdef np.ndarray[float,ndim=1] np_Y = (<object> y).numpy().ravel()
 
   # in place copy (this is inefficient because of the copy/allocation to ten_T
-  ten_Y[:] = alpha*ten_X+beta*ten_T
+  cdef int sz = len(np_X)
+  for k in range(sz):
+    np_Y[k] = alpha*np_X[k]+beta*np_Y[k]
 
   return 0
 
@@ -89,18 +91,15 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
 cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStatus status):
     # Cast u as a PyBraid_Vector
     ten_U = <object> u
-    np_U  = ten_U.numpy() 
+    cdef np.ndarray[float,ndim=1] np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
 
     # Convert void * to a double array (note dbuffer is a C-array, so no bounds checking is done) 
-    cdef double * dbuffer = <double*>(buffer)
-    cdef int dval = <int>(dbuffer)
-    cdef int val = <int>(buffer)
+    cdef double * dbuffer = <double *>(buffer)
 
     # Pack buffer
-    k = 0
-    for item in np_U.flat: 
-      dbuffer[k] = item
-      k += 1
+    cdef int sz = len(np_U)
+    for k in range(sz):
+      dbuffer[k] = np_U[k]
     # end for item
 
     return 0
@@ -114,10 +113,11 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   my_clone(app,c_x,u_ptr)
 
   ten_U = <object> u_ptr[0]
-  np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
+  cdef np.ndarray[float,ndim=1] np_U = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
 
   # this is almost certainly slow
-  for k in range(len(np_U)):
+  cdef int sz = len(np_U)
+  for k in range(sz):
     np_U[k] = dbuffer[k]
 
   return 0
