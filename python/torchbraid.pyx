@@ -56,8 +56,9 @@ class Model(torch.nn.Module):
     super(Model,self).__init__()
 
     # optional parameters
-    self.max_levels = max_levels
-    self.max_iters  = max_iters
+    self.max_levels  = max_levels
+    self.max_iters   = max_iters
+    self.print_level = 2
 
     self.mpi_data = MPIData(comm)
     self.Tf = Tf
@@ -73,10 +74,10 @@ class Model(torch.nn.Module):
 
     self.x_final = None
   # end __init__
-
-  def __del__(self):
-    pass
  
+  def setPrintLevel(self,print_level):
+    self.print_level = print_level
+
   def getMPIData(self):
     return self.mpi_data
 
@@ -90,6 +91,7 @@ class Model(torch.nn.Module):
     # Set Braid options
     braid_SetMaxLevels(core, self.max_levels)
     braid_SetMaxIter(core, self.max_iters)
+    braid_SetPrintLevel(core,self.print_level)
  
     # Run Braid
     braid_Drive(core)
