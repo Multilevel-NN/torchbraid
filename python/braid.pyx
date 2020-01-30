@@ -181,41 +181,41 @@ cdef extern from "braid.h":
     int braid_Destroy (braid_Core core)
 
 
-cdef object convert_carray_to_numpy(double * v, dim1, dim2=1, dim3=1):
-    '''
-    Helper function to cast C array v to an (dim1 x dim2 x dim3) 
-    numpy array. Note, no copying of data is done.
-
-    Input
-    -----
-    v     <double *>:   C data array to cast
-    dim1  <int>     :   First dimension of v
-    dim2  <int>     :   Second dimension of v (optional)
-    dim3  <int>     :   Third dimension of v (optional)
-    
-    Output
-    ----
-    v_view          :   Numpy array that points to same memory as input v
-
-    '''
-
-    assert(dim1 > 0), "Array dimensions must be positive, dim1=%d"%dim1
-    assert(dim2 >= 0), "Array dimensions must be positive, dim2=%d"%dim2
-    assert(dim3 >= 0), "Array dimensions must be positive, dim3=%d"%dim3
-    
-    # Convert v to a linear array of size dim1*dim2*dim3
-    dim = dim1*dim2*dim3
-    cdef double[:] v_view = <double[:dim]> v
-    v_np = np.asarray(v_view)
-
-    if dim2 > 1 and dim3 == 1:
-       v_np = v_np.reshape(dim1, dim2)        
-    elif dim2 > 1 and dim3 > 1:
-       v_np = v_np.reshape(dim1, dim2, dim3)        
-    
-    # TODO, test this for 1D, 2D, and 3D arrays, making sure that no copies are done
-
-    return v_np
+# cdef object convert_carray_to_numpy(double * v, dim1, dim2=1, dim3=1):
+#     '''
+#     Helper function to cast C array v to an (dim1 x dim2 x dim3) 
+#     numpy array. Note, no copying of data is done.
+# 
+#     Input
+#     -----
+#     v     <double *>:   C data array to cast
+#     dim1  <int>     :   First dimension of v
+#     dim2  <int>     :   Second dimension of v (optional)
+#     dim3  <int>     :   Third dimension of v (optional)
+#     
+#     Output
+#     ----
+#     v_view          :   Numpy array that points to same memory as input v
+# 
+#     '''
+# 
+#     assert(dim1 > 0), "Array dimensions must be positive, dim1=%d"%dim1
+#     assert(dim2 >= 0), "Array dimensions must be positive, dim2=%d"%dim2
+#     assert(dim3 >= 0), "Array dimensions must be positive, dim3=%d"%dim3
+#     
+#     # Convert v to a linear array of size dim1*dim2*dim3
+#     dim = dim1*dim2*dim3
+#     cdef double[:] v_view = <double[:dim]> v
+#     v_np = np.asarray(v_view)
+# 
+#     if dim2 > 1 and dim3 == 1:
+#        v_np = v_np.reshape(dim1, dim2)        
+#     elif dim2 > 1 and dim3 > 1:
+#        v_np = v_np.reshape(dim1, dim2, dim3)        
+#     
+#     # TODO, test this for 1D, 2D, and 3D arrays, making sure that no copies are done
+# 
+#     return v_np
 
 
 cdef class PyBraid_Core:
@@ -239,20 +239,20 @@ cdef class PyBraid_Core:
         return self.core
 
 
-cdef double* PyBraid_VoidToDoubleArray(void *buffer):
-    '''
-    Convert void * array to a double array 
-    Note dbuffer is a C-array, so no bounds checking is done
-    '''
-    cdef double *dbuffer = <double*> buffer
-    return dbuffer 
-
-
-cdef int* PyBraid_VoidToIntArray(void *buffer):
-    '''
-    Convert void * array to a double array 
-    Note ibuffer is a C-array, so no bounds checking is done
-    '''
-    cdef int *ibuffer = <int*> buffer
-    return ibuffer 
+# cdef double* PyBraid_VoidToDoubleArray(void *buffer):
+#     '''
+#     Convert void * array to a double array 
+#     Note dbuffer is a C-array, so no bounds checking is done
+#     '''
+#     cdef double *dbuffer = <double*> buffer
+#     return dbuffer 
+# 
+# 
+# cdef int* PyBraid_VoidToIntArray(void *buffer):
+#     '''
+#     Convert void * array to a double array 
+#     Note ibuffer is a C-array, so no bounds checking is done
+#     '''
+#     cdef int *ibuffer = <int*> buffer
+#     return ibuffer 
 

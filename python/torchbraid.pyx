@@ -12,8 +12,16 @@ from mpi4py import MPI
 cimport mpi4py.MPI as MPI
 cimport mpi4py.libmpi as libmpi
 
-ctypedef PyObject* braid_App
+ctypedef PyObject _braid_App_struct 
+ctypedef _braid_App_struct* braid_App
+
 ctypedef PyObject* braid_Vector
+
+# to supress a warning from numpy
+cdef extern from *:
+  """
+  #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+  """
 
 include "./braid.pyx"
 
@@ -135,6 +143,17 @@ class Model(torch.nn.Module):
     cdef int ntime
     cdef MPI.Comm comm = self.mpi_data.getComm()
     cdef int rank = self.mpi_data.getRank()
+    cdef braid_App app = <braid_App> self
+    cdef braid_PtFcnStep  b_step  = <braid_PtFcnStep> my_step
+    cdef braid_PtFcnInit  b_init  = <braid_PtFcnInit> my_init
+    cdef braid_PtFcnClone b_clone = <braid_PtFcnClone> my_clone
+    cdef braid_PtFcnFree  b_free  = <braid_PtFcnFree> my_free
+    cdef braid_PtFcnSum   b_sum   = <braid_PtFcnSum> my_sum
+    cdef braid_PtFcnSpatialNorm b_norm = <braid_PtFcnSpatialNorm> my_norm
+    cdef braid_PtFcnAccess b_access = <braid_PtFcnAccess> my_access
+    cdef braid_PtFcnBufSize b_bufsize = <braid_PtFcnBufSize> my_bufsize
+    cdef braid_PtFcnBufPack b_bufpack = <braid_PtFcnBufPack> my_bufpack
+    cdef braid_PtFcnBufUnpack b_bufunpack = <braid_PtFcnBufUnpack> my_bufunpack
 
     ntime = self.num_steps
     tstart = 0.0
@@ -142,9 +161,11 @@ class Model(torch.nn.Module):
 
     braid_Init(comm.ob_mpi, comm.ob_mpi, 
                tstart, tstop, ntime, 
-               <braid_App> self, my_step,
-               my_init, my_clone, my_free, my_sum, my_norm, my_access, my_bufsize,
-               my_bufpack, my_bufunpack, 
+               app,
+               b_step, b_init, 
+               b_clone, b_free, 
+               b_sum, b_norm, b_access, 
+               b_bufsize, b_bufpack, b_bufunpack, 
                &core)
 
     return <object> core
@@ -200,7 +221,7 @@ def vectorNorm(app,x):
 def bufSize(app):
   cdef braid_App c_app = <PyObject*>app
   cdef int [1] sz = [0]
-  cdef braid_BufferStatus status
+  cdef braid_BufferStatus status = NULL
   
   my_bufsize(c_app,sz,status)
 
@@ -218,7 +239,7 @@ def pack(app,vec,obuffer):
   cdef braid_App c_app    = <PyObject*>app
   cdef braid_Vector c_vec = <PyObject*>vec
   cdef void * buffer = <void*> obuffer
-  cdef braid_BufferStatus status 
+  cdef braid_BufferStatus status = NULL
 
   cdef double * dbuffer = <double*> buffer
 
@@ -228,7 +249,7 @@ def unpack(app,obuffer):
   cdef braid_App c_app    = <PyObject*>app
   cdef braid_Vector c_vec    
   cdef void * buffer = <void*> obuffer
-  cdef braid_BufferStatus status 
+  cdef braid_BufferStatus status = NULL
   
   my_bufunpack(c_app,buffer,&c_vec,status)
 
