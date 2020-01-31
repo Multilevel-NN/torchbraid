@@ -59,6 +59,8 @@ class Model(torch.nn.Module):
     self.max_levels  = max_levels
     self.max_iters   = max_iters
     self.print_level = 2
+    self.nrelax = 0
+    self.cfactor = 2
 
     self.mpi_data = MPIData(comm)
     self.Tf = Tf
@@ -78,6 +80,12 @@ class Model(torch.nn.Module):
   def setPrintLevel(self,print_level):
     self.print_level = print_level
 
+  def setNumRelax(self,relax):
+    self.nrelax = relax 
+
+  def setCFactor(self,cfactor):
+    self.cfactor = cfactor 
+
   def getMPIData(self):
     return self.mpi_data
 
@@ -92,6 +100,8 @@ class Model(torch.nn.Module):
     braid_SetMaxLevels(core, self.max_levels)
     braid_SetMaxIter(core, self.max_iters)
     braid_SetPrintLevel(core,self.print_level)
+    braid_SetNRelax(core,-1,self.nrelax)
+    braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
  
     # Run Braid
     braid_Drive(core)

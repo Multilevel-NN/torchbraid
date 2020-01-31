@@ -62,6 +62,8 @@ image_size      = 256
 Tf              = 2.0
 run_serial      = False
 print_level     = 0
+nrelax          = 1
+cfactor         = 2
 
 # parse the input arguments
 ###########################################
@@ -74,6 +76,8 @@ parser.add_argument("--channels",  type=int,   default=channels,    help="number
 parser.add_argument("--images",    type=int,   default=images,      help="number of images")
 parser.add_argument("--pxwidth",   type=int,   default=image_size,  help="Width/height of images in pixels")
 parser.add_argument("--verbosity", type=int,   default=print_level, help="The verbosity level, 0 - little, 3 - lots")
+parser.add_argument("--cfactor",   type=int,   default=cfactor,     help="The coarsening factor")
+parser.add_argument("--nrelax",    type=int,   default=nrelax,      help="The number of relaxation sweeps")
 parser.add_argument("--tf",        type=float, default=Tf,          help="final time for ODE")
 parser.add_argument("--serial",  default=run_serial, action="store_true", help="Run the serial version (1 processor only)")
 args = parser.parse_args()
@@ -103,6 +107,8 @@ if args.channels:  channels    = args.channels
 if args.images:    images      = args.images
 if args.pxwidth:   image_size  = args.pxwidth
 if args.verbosity: print_level = args.verbosity
+if args.cfactor:   cfactor     = args.cfactor
+if args.nrelax :   nrelax      = args.nrelax
 if args.tf:        Tf          = args.tf
 if args.serial:    run_serial  = args.serial
 
@@ -131,6 +137,8 @@ else:
   # build the parallel neural network
   parallel_nn   = torchbraid.Model(comm,basic_block,local_num_steps,Tf,max_levels=max_levels,max_iters=max_iters)
   parallel_nn.setPrintLevel(print_level)
+  parallel_nn.setCFactor(cfactor)
+  parallel_nn.setNumRelax(nrelax)
 
   t0 = time.time()
   y_parallel = parallel_nn(x)
