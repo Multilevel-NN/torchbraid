@@ -76,7 +76,7 @@ cdef extern from "braid_status.h":
     ##
     # Wrap BufferStatus Routines
     int braid_BufferStatusGetMessageType (braid_BufferStatus status, int *messagetype_ptr)
-    int braid_BufferStatusSetSize ( braid_BufferStatus status, int size);
+    int braid_BufferStatusSetSize ( braid_BufferStatus status, int size)
 
 cdef extern from "braid.h":
     

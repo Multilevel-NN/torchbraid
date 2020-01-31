@@ -18,10 +18,10 @@ ctypedef _braid_App_struct* braid_App
 ctypedef PyObject* braid_Vector
 
 # to supress a warning from numpy
-cdef extern from *:
-  """
-  #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-  """
+#cdef extern from *:
+#  """
+#  #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#  """
 
 include "./braid.pyx"
 
@@ -190,7 +190,7 @@ class Model(torch.nn.Module):
 # using the `my_free` function. 
 def freeVector(app,u):
   cdef braid_App c_app = <PyObject*>app
-  cdef braid_Vector c_u = <PyObject*>u;
+  cdef braid_Vector c_u = <PyObject*>u
 
   my_free(c_app,c_u)
 
