@@ -5,12 +5,11 @@ import numpy
 import os
 
 module_name = 'torchbraid'
-on_mac = True
+on_mac = False
 
 if not on_mac:
 
   braid_dir = '/home/eccyr/Packages/xbraid/braid'
-  braid_dir = '/Users/eccyr/Packages/xbraid/braid'
   
   os.environ["CC"] = 'mpicc'
   os.environ["LDSHARED"] = 'mpicc -shared'

@@ -2,7 +2,7 @@ MODULE_NAME=torchbraid
 
 LIB_NAME=$(MODULE_NAME).cpython-37m-darwin.so            # for MAC
 LIB_NAME=$(MODULE_NAME).cpython-36m-darwin.so            # for MAC
-# LIB_NAME=$(MODULE_NAME).cpython-36m-x86_64-linux-gnu.so  # for linux
+LIB_NAME=$(MODULE_NAME).cpython-36m-x86_64-linux-gnu.so  # for linux
 
 all: $(LIB_NAME)
 
