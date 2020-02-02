@@ -2,6 +2,7 @@
 # cython: linetrace=True
 
 import torch
+import torch.nn as nn
 import numpy as np
 from collections import OrderedDict
 
@@ -49,6 +50,17 @@ cdef class MPIData:
   def getSize(self):
     return self.size
 # helper class for the MPI communicator
+
+class ODEBlock(nn.Module):
+  def __init__(self,layer,dt):
+    super(ODEBlock, self).__init__()
+
+    self.dt = dt
+    self.layer = layer
+
+  def forward(self, x):
+    return x + self.dt*self.layer(x)
+# end ODEBlock
 
 class Model(torch.nn.Module):
 
@@ -140,6 +152,28 @@ class Model(torch.nn.Module):
     #                                        self.getLayerIndex(tstop)))
     with torch.no_grad(): 
       return x+self.dt*self.layer_models[self.getLayerIndex(tstart)](x)
+
+  # This method copies the layerr parameters and can be used for verification
+  def buildSequentialOnRoot(self):
+    ode_layers    = [ODEBlock(l,self.dt) for l in self.layer_models]
+    remote_layers = ode_layers
+    build_seq_tag = 12         # this 
+    comm          = self.mpi_data.getComm()
+    my_rank       = self.mpi_data.getRank()
+    num_ranks     = self.mpi_data.getSize()
+
+    # short circuit for serial case
+    if num_ranks==1:
+      return torch.nn.Sequential(*remote_layers)
+
+    if my_rank==0:
+      for i in range(1,self.mpi_data.getSize()):
+        remote_layers += comm.recv(source=i,tag=build_seq_tag)
+      return torch.nn.Sequential(*remote_layers)
+    else:
+      comm.send(ode_layers,dest=0,tag=build_seq_tag)
+      return None
+  # end buildSequentialOnRoot
 
   def access(self,t,u):
     if t==self.Tf:

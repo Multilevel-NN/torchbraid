@@ -129,9 +129,13 @@ if run_serial:
   root_print(my_rank,'Running PyTorch: %d' % comm.Get_size())
   layers = [basic_block() for i in range(num_steps)]
   serial_nn = torch.nn.Sequential(*layers)
-  t0 = time.time()
+  t0_serial = time.time()
   y_serial = serial_nn(x)
-  tf = time.time()
+  tf_serial = time.time()
+
+  t0_parallel = 0.0
+  tf_parallel = 1.0
+  error       = -1.0
 else:
   root_print(my_rank,'Running TorchBraid: %d' % comm.Get_size())
   # build the parallel neural network
@@ -140,12 +144,38 @@ else:
   parallel_nn.setCFactor(cfactor)
   parallel_nn.setNumRelax(nrelax)
 
-  t0 = time.time()
+  t0_parallel = time.time()
   y_parallel = parallel_nn(x)
   comm.barrier()
-  tf = time.time()
-
+  tf_parallel = time.time()
   comm.barrier()
+
+  serial_nn = parallel_nn.buildSequentialOnRoot() 
+  comm.barrier()
+
+  if last_rank>0:
+    if my_rank==0:
+      y_parallel = comm.recv(source=last_rank,tag=7)
+    else:
+      comm.send(y_parallel,dest=0,tag=7)
+  # end if last_rank
+
+  if serial_nn!=None:
+    # do this only on the root
+
+    t0_serial = time.time()
+    y_serial = serial_nn(x)
+    tf_serial = time.time()
+
+    error = torch.norm(y_serial-y_parallel)
+  else:
+    t0_serial = 0.0
+    tf_serial = 1.0
+    error = 1.0e10
+  # end if serial_nn
 # end if not run_serial
 
-root_print(my_rank,'Run  Time: %.6e' % (tf-t0))
+root_print(my_rank,'Error:       %.6e' % error)
+root_print(my_rank,'Run    Time: %.6e' % (tf_parallel-t0_parallel))
+root_print(my_rank,'Serial Time: %.6e' % (tf_serial-t0_serial))
+root_print(my_rank,'Speedup:     %.6e' % ((tf_serial-t0_serial)/(tf_parallel-t0_parallel)))
