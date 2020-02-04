@@ -80,6 +80,7 @@ parser.add_argument("--cfactor",   type=int,   default=cfactor,     help="The co
 parser.add_argument("--nrelax",    type=int,   default=nrelax,      help="The number of relaxation sweeps")
 parser.add_argument("--tf",        type=float, default=Tf,          help="final time for ODE")
 parser.add_argument("--serial",  default=run_serial, action="store_true", help="Run the serial version (1 processor only)")
+parser.add_argument("--optstr",  default=False,      action="store_true", help="Output the options string")
 args = parser.parse_args()
 
 # the number of steps is not valid, then return
@@ -112,6 +113,41 @@ if args.nrelax :   nrelax      = args.nrelax
 if args.tf:        Tf          = args.tf
 if args.serial:    run_serial  = args.serial
 
+class Options:
+  def __init__(self):
+    self.num_procs   = comm.Get_size()
+    self.num_steps   = args.steps
+    self.max_levels  = args.levels
+    self.max_iters   = args.iters
+    self.channels    = args.channels
+    self.images      = args.images
+    self.image_size  = args.pxwidth
+    self.print_level = args.verbosity
+    self.cfactor     = args.cfactor
+    self.nrelax      = args.nrelax
+    self.Tf          = args.tf
+    self.run_serial  = args.serial
+
+  def __str__(self):
+    s_net = 'net:ns=%04d_ch=%04d_im=%05d_is=%05d_Tf=%.2e' % (self.num_steps,
+                                                             self.channels,
+                                                             self.images,
+                                                             self.image_size,
+                                                             self.Tf)
+    s_alg = '__alg:ml=%02d_mi=%02d_cf=%01d_nr=%02d' % (self.max_levels,
+                                                       self.max_iters,
+                                                       self.cfactor,
+                                                       self.nrelax)
+    return s_net+s_alg
+
+opts_obj = Options()
+
+if args.optstr==True:
+  if comm.Get_rank()==0:
+    print(opts_obj)
+  sys.exit(0)
+    
+
 # build the neural network
 ###########################################
 
@@ -129,13 +165,9 @@ if run_serial:
   root_print(my_rank,'Running PyTorch: %d' % comm.Get_size())
   layers = [basic_block() for i in range(num_steps)]
   serial_nn = torch.nn.Sequential(*layers)
-  t0_serial = time.time()
+  t0_parallel = time.time()
   y_serial = serial_nn(x)
-  tf_serial = time.time()
-
-  t0_parallel = 0.0
-  tf_parallel = 1.0
-  error       = -1.0
+  tf_parallel = time.time()
 else:
   root_print(my_rank,'Running TorchBraid: %d' % comm.Get_size())
   # build the parallel neural network
@@ -149,33 +181,6 @@ else:
   comm.barrier()
   tf_parallel = time.time()
   comm.barrier()
-
-  serial_nn = parallel_nn.buildSequentialOnRoot() 
-  comm.barrier()
-
-  if last_rank>0:
-    if my_rank==0:
-      y_parallel = comm.recv(source=last_rank,tag=7)
-    else:
-      comm.send(y_parallel,dest=0,tag=7)
-  # end if last_rank
-
-  if serial_nn!=None:
-    # do this only on the root
-
-    t0_serial = time.time()
-    y_serial = serial_nn(x)
-    tf_serial = time.time()
-
-    error = torch.norm(y_serial-y_parallel)
-  else:
-    t0_serial = 0.0
-    tf_serial = 1.0
-    error = 1.0e10
-  # end if serial_nn
 # end if not run_serial
 
-root_print(my_rank,'Error:       %.6e' % error)
 root_print(my_rank,'Run    Time: %.6e' % (tf_parallel-t0_parallel))
-root_print(my_rank,'Serial Time: %.6e' % (tf_serial-t0_serial))
-root_print(my_rank,'Speedup:     %.6e' % ((tf_serial-t0_serial)/(tf_parallel-t0_parallel)))
