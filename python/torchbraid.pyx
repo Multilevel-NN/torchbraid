@@ -86,6 +86,7 @@ class Model(torch.nn.Module):
     self.layer_models = [layer_block() for i in range(self.local_num_steps)]
     self.local_layers = torch.nn.Sequential(*self.layer_models)
 
+    self.py_core = None
     self.x_final = None
   # end __init__
  
@@ -104,31 +105,18 @@ class Model(torch.nn.Module):
   def forward(self,x):
 
     self.setInitial(x)
-    py_core = self.initCore()
 
-    cdef braid_Core core = <braid_Core> py_core
- 
-    # Set Braid options
-    braid_SetMaxLevels(core, self.max_levels)
-    braid_SetMaxIter(core, self.max_iters)
-    braid_SetPrintLevel(core,self.print_level)
-    braid_SetNRelax(core,-1,self.nrelax)
-    braid_SetNRelax(core,0,0) # fast F only coarse grid
-    braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
- 
+    if self.py_core==None:
+      self.py_core = self.initCore()
+
+    cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
+    cdef braid_Core core = py_core.getCore()
+
     # Run Braid
     braid_Drive(core)
 
-#    # Destroy Braid Core C-Struct
-# 
-# This line causes now end of suffering, with essentially
-# random failures on exit associated with a seg fault
-# or incorrectly freed piece of memory.
-#
-# Clearly this is the wrong thing to do, but for now,
-# lets work with it (See Issue#1)
-#
-#    braid_Destroy(core)
+    # Destroy Braid Core C-Struct
+    braid_Destroy(core)
 
     f = self.getFinal()
 
@@ -215,7 +203,18 @@ class Model(torch.nn.Module):
                b_bufsize, b_bufpack, b_bufunpack, 
                &core)
 
-    return <object> core
+    # Set Braid options
+    braid_SetMaxLevels(core, self.max_levels)
+    braid_SetMaxIter(core, self.max_iters)
+    braid_SetPrintLevel(core,self.print_level)
+    braid_SetNRelax(core,-1,self.nrelax)
+    braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
+
+    # store the c pointer
+    py_core = PyBraid_Core()
+    py_core.setCore(core)
+
+    return py_core
 # end Model
 
 # Other helper functions (mostly for testing)
