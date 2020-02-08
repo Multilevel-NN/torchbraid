@@ -121,3 +121,31 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
     np_U[k] = dbuffer[k]
 
   return 0
+
+cdef int my_coarsen(braid_App app, braid_Vector fu, braid_Vector *cu_ptr, braid_CoarsenRefStatus status):
+  pyApp  = <object> app
+  ten_fu =  <object> fu
+
+  cdef int level = -1
+  braid_CoarsenRefStatusGetLevel(status,&level)
+
+  cu_mem = pyApp.coarsen(ten_fu,level)
+  Py_INCREF(cu_mem) # why do we need this?
+
+  cu_ptr[0] = <braid_Vector> cu_mem
+
+  return 0
+
+cdef int my_refine(braid_App app, braid_Vector cu, braid_Vector *fu_ptr, braid_CoarsenRefStatus status):
+  pyApp  = <object> app
+  ten_cu =  <object> cu
+
+  cdef int level = -1
+  braid_CoarsenRefStatusGetNRefine(status,&level)
+
+  fu_mem = pyApp.refine(ten_cu,level)
+  Py_INCREF(fu_mem) # why do we need this?
+
+  fu_ptr[0] = <braid_Vector> fu_mem
+
+  return 0

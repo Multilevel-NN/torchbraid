@@ -64,7 +64,9 @@ class ODEBlock(nn.Module):
 
 class Model(torch.nn.Module):
 
-  def __init__(self,comm,layer_block,num_steps,Tf,max_levels=1,max_iters=10):
+  def __init__(self,comm,layer_block,num_steps,Tf,max_levels=1,max_iters=10,
+                    coarsen=None,
+                    refine=None):
     super(Model,self).__init__()
 
     # optional parameters
@@ -88,6 +90,15 @@ class Model(torch.nn.Module):
 
     self.py_core = None
     self.x_final = None
+
+    if coarsen==None or refine==None:
+      assert(coarsen==refine) # both should be None
+      self.refinement_on = False
+    else:
+      self.refinement_on = True
+
+    self.coarsen = coarsen
+    self.refine  = refine
   # end __init__
  
   def setPrintLevel(self,print_level):
@@ -202,6 +213,11 @@ class Model(torch.nn.Module):
                b_sum, b_norm, b_access, 
                b_bufsize, b_bufpack, b_bufunpack, 
                &core)
+
+    if self.refinement_on:
+      braid_SetSpatialCoarsen(core,my_coarsen)
+      braid_SetSpatialRefine(core,my_refine)
+    # end if refinement_on
 
     # Set Braid options
     braid_SetMaxLevels(core, self.max_levels)
