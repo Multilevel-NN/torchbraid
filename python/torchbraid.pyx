@@ -104,6 +104,7 @@ class Model(torch.nn.Module):
     self.t0_local = self.mpi_data.getRank()*num_steps*self.dt
     self.tf_local = (self.mpi_data.getRank()+1.0)*num_steps*self.dt
   
+    self.layer_block = layer_block
     self.layer_models = [layer_block() for i in range(self.local_num_steps)]
     self.local_layers = torch.nn.Sequential(*self.layer_models)
 
@@ -153,8 +154,8 @@ class Model(torch.nn.Module):
     return f
   # end forward
 
-  def getLayerIndex(self,t):
-    return round((t-self.t0_local) / self.dt)
+  def getLayer(self,t,level):
+    return self.layer_models[round((t-self.t0_local) / self.dt)]
 
   def setInitial(self,x0):
     self.x0 = BraidVector(x0,0)
@@ -167,12 +168,10 @@ class Model(torch.nn.Module):
     return x
 
   def eval(self,x,tstart,tstop):
-    #print('evaluating = (%f,%f) - %d,%d' % (tstart,tstop,
-    #                                        self.getLayerIndex(tstart),
-    #                                        self.getLayerIndex(tstop)))
     with torch.no_grad(): 
       t_x = x.tensor()
-      t_y = t_x+self.dt*self.layer_models[self.getLayerIndex(tstart)](t_x)
+      layer = self.getLayer(tstart,x.level())
+      t_y = t_x+self.dt*layer(t_x)
       return BraidVector(t_y,x.level()) 
 
   # This method copies the layerr parameters and can be used for verification
