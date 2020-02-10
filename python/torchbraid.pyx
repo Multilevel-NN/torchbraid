@@ -113,6 +113,7 @@ class Model(torch.nn.Module):
     braid_SetMaxIter(core, self.max_iters)
     braid_SetPrintLevel(core,self.print_level)
     braid_SetNRelax(core,-1,self.nrelax)
+    braid_SetNRelax(core,0,0) # fast F only coarse grid
     braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
  
     # Run Braid
