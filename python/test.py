@@ -96,7 +96,7 @@ class TestTorchBraid(unittest.TestCase):
     m = torchbraid.Model(MPI.COMM_WORLD,BasicBlock,num_steps,Tf)
     m.setInitial(x)
   
-    cnt_c = torchbraid.bufSize(m)
+    cnt_c = torchbraid.bufSize(m) 
     self.assertEqual(cnt*sizeof_dbl,cnt_c)
   # end test_bufSize
 
@@ -120,14 +120,15 @@ class TestTorchBraid(unittest.TestCase):
     buffer = torchbraid.allocBuffer(m) # this is allocated from x0
 
     # we pack the solution into the buffer
-    torchbraid.pack(m,x,buffer)
+    torchbraid.pack(m,x,buffer,3)
 
     # we unpack the solution and build a new tensor
-    u = torchbraid.unpack(m,buffer)
+    u,l = torchbraid.unpack(m,buffer)
 
     # we free the buffer
     torchbraid.freeBuffer(m,buffer)
 
+    self.assertEqual(l,3)
     self.assertEqual(torch.norm(u-x),0.0)
 
   def test_forwardPropSerial(self):
@@ -139,6 +140,7 @@ class TestTorchBraid(unittest.TestCase):
 
     # this is the class being tested (the forward propagation)
     m = torchbraid.Model(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_levels=2,max_iters=10)
+    m.setPrintLevel(0)
 
     # this is the reference "solution"
     dt = Tf/num_steps
@@ -165,10 +167,8 @@ class TestTorchBraid(unittest.TestCase):
     num_steps = 10
 
     def coarsen(x,level):
-      print('coarsen level = %d' % level)
       return x.clone()
     def refine(x,level):
-      print('refine level = %d' % level)
       return x.clone()
 
     # this is the class being tested (the forward propagation)

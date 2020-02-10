@@ -16,13 +16,32 @@ cimport mpi4py.libmpi as libmpi
 ctypedef PyObject _braid_App_struct 
 ctypedef _braid_App_struct* braid_App
 
-ctypedef PyObject* braid_Vector
+class BraidVector:
+  def __init__(self,tensor,level):
+    self.tensor_ = tensor 
+    self.level_  = level
+
+  def tensor(self):
+    return self.tensor_
+
+  def level(self):
+    return self.level_
+  
+  def clone(self):
+    cl = BraidVector(self.tensor().clone(),self.level())
+    return cl
+
+ctypedef PyObject _braid_Vector_struct
+ctypedef _braid_Vector_struct *braid_Vector
+
+##
+# Define your Python Braid Vector
 
 # to supress a warning from numpy
-#cdef extern from *:
-#  """
-#  #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#  """
+cdef extern from *:
+  """
+  #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+  """
 
 include "./braid.pyx"
 
@@ -138,12 +157,13 @@ class Model(torch.nn.Module):
     return round((t-self.t0_local) / self.dt)
 
   def setInitial(self,x0):
-    self.x0 = x0
+    self.x0 = BraidVector(x0,0)
 
   def buildInit(self,t):
     x = self.x0.clone()
     if t>0:
-      x[:] = 0.0
+      t_x = x.tensor()
+      t_x[:] = 0.0
     return x
 
   def eval(self,x,tstart,tstop):
@@ -151,7 +171,9 @@ class Model(torch.nn.Module):
     #                                        self.getLayerIndex(tstart),
     #                                        self.getLayerIndex(tstop)))
     with torch.no_grad(): 
-      return x+self.dt*self.layer_models[self.getLayerIndex(tstart)](x)
+      t_x = x.tensor()
+      t_y = t_x+self.dt*self.layer_models[self.getLayerIndex(tstart)](t_x)
+      return BraidVector(t_y,x.level()) 
 
   # This method copies the layerr parameters and can be used for verification
   def buildSequentialOnRoot(self):
@@ -180,7 +202,12 @@ class Model(torch.nn.Module):
       self.x_final = u.clone()
 
   def getFinal(self):
-    return self.x_final
+    if self.x_final==None:
+      return None
+
+    # asse the level
+    assert(self.x_final.level()==0)
+    return self.x_final.tensor()
 
   def initCore(self):
     cdef braid_Core core
@@ -200,6 +227,8 @@ class Model(torch.nn.Module):
     cdef braid_PtFcnBufSize b_bufsize = <braid_PtFcnBufSize> my_bufsize
     cdef braid_PtFcnBufPack b_bufpack = <braid_PtFcnBufPack> my_bufpack
     cdef braid_PtFcnBufUnpack b_bufunpack = <braid_PtFcnBufUnpack> my_bufunpack
+    cdef braid_PtFcnSCoarsen b_coarsen = <braid_PtFcnSCoarsen> my_coarsen
+    cdef braid_PtFcnSRefine  b_refine  = <braid_PtFcnSRefine> my_refine
 
     ntime = self.num_steps
     tstart = 0.0
@@ -215,8 +244,8 @@ class Model(torch.nn.Module):
                &core)
 
     if self.refinement_on:
-      braid_SetSpatialCoarsen(core,my_coarsen)
-      braid_SetSpatialRefine(core,my_refine)
+      braid_SetSpatialCoarsen(core,b_coarsen)
+      braid_SetSpatialRefine(core,b_refine)
     # end if refinement_on
 
     # Set Braid options
@@ -240,7 +269,7 @@ class Model(torch.nn.Module):
 # using the `my_free` function. 
 def freeVector(app,u):
   cdef braid_App c_app = <PyObject*>app
-  cdef braid_Vector c_u = <PyObject*>u
+  cdef braid_Vector c_u = <braid_Vector> u
 
   my_free(c_app,c_u)
 
@@ -250,30 +279,37 @@ def cloneInitVector(app):
   cdef braid_App c_app = <PyObject*>app
   cdef braid_Vector v_vec
   my_init(c_app,0.0,&v_vec)
-  return (<object> v_vec)
+  return (<object> v_vec).tensor()
 
 # This builds a close of the initial vector
 # using the `my_clone` 
 def cloneVector(app,x):
+  b_vec = BraidVector(x,0)
+
   cdef braid_App c_app = <PyObject*>app
-  cdef braid_Vector c_x = <PyObject*>x
+  cdef braid_Vector c_x = <braid_Vector> b_vec
   cdef braid_Vector v 
   my_clone(c_app,c_x,&v)
 
-  return <object> v
+  return (<object> v).tensor()
 
-def addVector(app,alpha,x,beta,y):
+def addVector(app,alpha,ten_x,beta,ten_y):
+  x = BraidVector(ten_x,0)
+  y = BraidVector(ten_y,0)
+
   cdef braid_App c_app = <PyObject*>app
   cdef double dalpha = alpha
-  cdef braid_Vector c_x = <PyObject*>x
+  cdef braid_Vector c_x = <braid_Vector>x
   cdef double dbeta  = beta
-  cdef braid_Vector c_y = <PyObject*>y
+  cdef braid_Vector c_y = <braid_Vector>y
 
   my_sum(c_app,dalpha,c_x,dbeta,c_y)
 
-def vectorNorm(app,x):
+def vectorNorm(app,ten_x):
+  x = BraidVector(ten_x,0)
+
   cdef braid_App c_app = <PyObject*>app
-  cdef braid_Vector c_x = <PyObject*>x
+  cdef braid_Vector c_x = <braid_Vector>x
   cdef double [1] norm = [ 0.0 ]
   
   my_norm(c_app,c_x,norm)
@@ -287,7 +323,8 @@ def bufSize(app):
   
   my_bufsize(c_app,sz,status)
 
-  return sz[0]
+  # subtract the int size (for testing purposes)
+  return sz[0] - sizeof(int)
 
 def allocBuffer(app):
   cdef void * buffer = PyMem_Malloc(bufSize(app))
@@ -297,13 +334,13 @@ def freeBuffer(app,obuffer):
   cdef void * buffer = <void*> obuffer
   PyMem_Free(buffer)
 
-def pack(app,vec,obuffer):
-  cdef braid_App c_app    = <PyObject*>app
-  cdef braid_Vector c_vec = <PyObject*>vec
-  cdef void * buffer = <void*> obuffer
-  cdef braid_BufferStatus status = NULL
+def pack(app,ten_vec,obuffer,level):
+  vec = BraidVector(ten_vec,level)
 
-  cdef double * dbuffer = <double*> buffer
+  cdef braid_App c_app    = <PyObject*>app
+  cdef braid_Vector c_vec = <braid_Vector> vec
+  cdef braid_BufferStatus status = NULL
+  cdef void * buffer = <void*> obuffer
 
   my_bufpack(c_app, c_vec, buffer,status)
 
@@ -315,4 +352,5 @@ def unpack(app,obuffer):
   
   my_bufunpack(c_app,buffer,&c_vec,status)
 
-  return <object> c_vec
+  vec = <object> c_vec
+  return (vec.tensor(),vec.level())
