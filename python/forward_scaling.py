@@ -165,9 +165,10 @@ if run_serial:
   root_print(my_rank,'Running PyTorch: %d' % comm.Get_size())
   layers = [basic_block() for i in range(num_steps)]
   serial_nn = torch.nn.Sequential(*layers)
-  t0_parallel = time.time()
-  y_serial = serial_nn(x)
-  tf_parallel = time.time()
+  with torch.no_grad(): 
+    t0_parallel = time.time()
+    y_serial = serial_nn(x)
+    tf_parallel = time.time()
 else:
   root_print(my_rank,'Running TorchBraid: %d' % comm.Get_size())
   # build the parallel neural network

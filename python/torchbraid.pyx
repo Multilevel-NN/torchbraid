@@ -97,16 +97,19 @@ class Model(torch.nn.Module):
 
     self.mpi_data = MPIData(comm)
     self.Tf = Tf
-    self.local_num_steps = num_steps
-    self.num_steps       = num_steps*self.mpi_data.getSize()
+    self.local_num_steps = dict()
+    self.local_num_steps[0] = num_steps
+    self.num_steps = dict()
+    self.num_steps[0] = num_steps*self.mpi_data.getSize()
 
-    self.dt = Tf/self.num_steps
+    self.dt = Tf/self.num_steps[0]
     self.t0_local = self.mpi_data.getRank()*num_steps*self.dt
     self.tf_local = (self.mpi_data.getRank()+1.0)*num_steps*self.dt
   
     self.layer_block = layer_block
-    self.layer_models = [layer_block() for i in range(self.local_num_steps)]
-    self.local_layers = torch.nn.Sequential(*self.layer_models)
+    self.layer_models = dict()
+    self.layer_models[0] = [layer_block() for i in range(self.local_num_steps[0])]
+    self.local_layers = torch.nn.Sequential(*self.layer_models[0])
 
     self.py_core = None
     self.x_final = None
@@ -155,7 +158,7 @@ class Model(torch.nn.Module):
   # end forward
 
   def getLayer(self,t,level):
-    return self.layer_models[round((t-self.t0_local) / self.dt)]
+    return self.layer_models[0][round((t-self.t0_local) / self.dt)]
 
   def setInitial(self,x0):
     self.x0 = BraidVector(x0,0)
@@ -176,7 +179,7 @@ class Model(torch.nn.Module):
 
   # This method copies the layerr parameters and can be used for verification
   def buildSequentialOnRoot(self):
-    ode_layers    = [ODEBlock(l,self.dt) for l in self.layer_models]
+    ode_layers    = [ODEBlock(l,self.dt) for l in self.layer_models[0]]
     remote_layers = ode_layers
     build_seq_tag = 12         # this 
     comm          = self.mpi_data.getComm()
@@ -229,7 +232,7 @@ class Model(torch.nn.Module):
     cdef braid_PtFcnSCoarsen b_coarsen = <braid_PtFcnSCoarsen> my_coarsen
     cdef braid_PtFcnSRefine  b_refine  = <braid_PtFcnSRefine> my_refine
 
-    ntime = self.num_steps
+    ntime = self.num_steps[0]
     tstart = 0.0
     tstop = self.Tf
 
