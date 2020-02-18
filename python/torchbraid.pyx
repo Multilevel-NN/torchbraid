@@ -308,7 +308,7 @@ class Model(torch.nn.Module):
         local_size = len(pickle.dumps(lm))
         self.param_size = max(local_size,self.param_size)
     
-    return 500
+    return self.param_size
   # end maxParameterSize
 
 # end Model
