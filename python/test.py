@@ -7,6 +7,9 @@ import numpy as np
 
 import torchbraid
 
+import faulthandler
+faulthandler.enable()
+
 from mpi4py import MPI
 
 class BasicBlock(nn.Module):
@@ -92,12 +95,13 @@ class TestTorchBraid(unittest.TestCase):
     x          = torch.randn(5,10,3,9) 
     cnt        = 5*10*3*9
     sizeof_dbl = np.dtype(np.float).itemsize
+    sizeof_int = np.dtype(np.int32).itemsize
 
     m = torchbraid.Model(MPI.COMM_WORLD,BasicBlock,num_steps,Tf)
     m.setInitial(x)
   
     cnt_c = torchbraid.bufSize(m) 
-    self.assertEqual(cnt*sizeof_dbl,cnt_c)
+    self.assertEqual(cnt*sizeof_dbl+sizeof_dbl+sizeof_int,cnt_c)
   # end test_bufSize
 
   def test_bufpackunpack(self):

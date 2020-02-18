@@ -85,7 +85,11 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
 
   # Note size_ptr is an integer array of size 1, and we index in at location [0]
   # the int size encodes the level
-  size_ptr[0] = sizeof(double)*cnt + sizeof(int)
+  size_ptr[0] = sizeof(double)*cnt + sizeof(double) + sizeof(int)
+              # vector                 time             level
+
+  #size_ptr[0] += pyApp.maxParameterSize()
+  print('size ptr = ',size_ptr[0])
 
   return 0
 
@@ -99,11 +103,12 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
     cdef double * dbuffer = <double *>(buffer+4)
 
     ibuffer[0] = (<object> u).level()
+    dbuffer[0] = (<object> u).getTime()
 
     # Pack buffer
     cdef int sz = len(np_U)
     for k in range(sz):
-      dbuffer[k] = np_U[k]
+      dbuffer[k+1] = np_U[k]
     # end for item
 
     return 0
@@ -118,13 +123,14 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   my_clone(app,c_x,u_ptr)
 
   (<object> u_ptr[0]).level_ = ibuffer[0]
+  (<object> u_ptr[0]).setTime(dbuffer[0])
   ten_U = (<object> u_ptr[0]).tensor()
   cdef np.ndarray[float,ndim=1] np_U = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
 
   # this is almost certainly slow
   cdef int sz = len(np_U)
   for k in range(sz):
-    np_U[k] = dbuffer[k]
+    np_U[k] = dbuffer[k+1]
 
   return 0
 

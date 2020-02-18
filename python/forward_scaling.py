@@ -147,6 +147,7 @@ if args.optstr==True:
     print(opts_obj)
   sys.exit(0)
     
+print(opts_obj)
 
 # build the neural network
 ###########################################
@@ -182,6 +183,16 @@ else:
   comm.barrier()
   tf_parallel = time.time()
   comm.barrier()
+
+  # check serial case
+  serial_nn = parallel_nn.buildSequentialOnRoot()
+  y_parallel = parallel_nn.getFinalOnRoot()
+  if my_rank==0:
+    with torch.no_grad():
+      y_serial = serial_nn(x)
+    
+    print('error = ',torch.norm(y_serial-y_parallel)/torch.norm(y_serial))
 # end if not run_serial
+
 
 root_print(my_rank,'Run    Time: %.6e' % (tf_parallel-t0_parallel))

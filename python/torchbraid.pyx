@@ -13,6 +13,8 @@ from mpi4py import MPI
 cimport mpi4py.MPI as MPI
 cimport mpi4py.libmpi as libmpi
 
+import pickle # we need this for building byte packs
+
 ctypedef PyObject _braid_App_struct 
 ctypedef _braid_App_struct* braid_App
 
@@ -20,6 +22,7 @@ class BraidVector:
   def __init__(self,tensor,level):
     self.tensor_ = tensor 
     self.level_  = level
+    self.time_   = np.nan
 
   def tensor(self):
     return self.tensor_
@@ -30,6 +33,12 @@ class BraidVector:
   def clone(self):
     cl = BraidVector(self.tensor().clone(),self.level())
     return cl
+
+  def setTime(self,t):
+    self.time_ = t
+
+  def getTime(self):
+    return self.time_
 
 ctypedef PyObject _braid_Vector_struct
 ctypedef _braid_Vector_struct *braid_Vector
@@ -122,6 +131,9 @@ class Model(torch.nn.Module):
 
     self.coarsen = coarsen
     self.refine  = refine
+
+    self.skip_downcycle = 0
+    self.param_size = 0
   # end __init__
  
   def setPrintLevel(self,print_level):
@@ -132,6 +144,9 @@ class Model(torch.nn.Module):
 
   def setCFactor(self,cfactor):
     self.cfactor = cfactor 
+
+  def setSkipDowncycle(self,skip):
+    self.skip_downcycle = skip
 
   def getMPIData(self):
     return self.mpi_data
@@ -157,7 +172,7 @@ class Model(torch.nn.Module):
     return f
   # end forward
 
-  def getLayer(self,t,level):
+  def getLayer(self,t,tf,level):
     return self.layer_models[0][round((t-self.t0_local) / self.dt)]
 
   def setInitial(self,x0):
@@ -173,7 +188,7 @@ class Model(torch.nn.Module):
   def eval(self,x,tstart,tstop):
     with torch.no_grad(): 
       t_x = x.tensor()
-      layer = self.getLayer(tstart,x.level())
+      layer = self.getLayer(tstart,tstop,x.level())
       t_y = t_x+self.dt*layer(t_x)
       return BraidVector(t_y,x.level()) 
 
@@ -207,9 +222,29 @@ class Model(torch.nn.Module):
     if self.x_final==None:
       return None
 
-    # asse the level
+    # assert the level
     assert(self.x_final.level()==0)
     return self.x_final.tensor()
+
+  def getFinalOnRoot(self):
+    build_seq_tag = 99        # this 
+    comm          = self.mpi_data.getComm()
+    my_rank       = self.mpi_data.getRank()
+    num_ranks     = self.mpi_data.getSize()
+
+    # short circuit for serial case
+    if num_ranks==1:
+      return self.getFinal()
+
+    # send the output of the last layer to the root
+    if my_rank==0:
+      remote_final = comm.recv(source=num_ranks-1,tag=build_seq_tag)
+      return remote_final
+    elif my_rank==num_ranks-1:
+      final = self.getFinal()
+      comm.send(final,dest=0,tag=build_seq_tag)
+
+    return None
 
   def initCore(self):
     cdef braid_Core core
@@ -256,12 +291,26 @@ class Model(torch.nn.Module):
     braid_SetPrintLevel(core,self.print_level)
     braid_SetNRelax(core,-1,self.nrelax)
     braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
+    braid_SetSkip(core,self.skip_downcycle)
 
     # store the c pointer
     py_core = PyBraid_Core()
     py_core.setCore(core)
 
     return py_core
+  # end initCore
+
+  def maxParameterSize(self):
+    if self.param_size==0:
+      # walk through the sublayers and figure
+      # out the largeset size
+      for lm in self.layer_models[0]:
+        local_size = len(pickle.dumps(lm))
+        self.param_size = max(local_size,self.param_size)
+    
+    return 500
+  # end maxParameterSize
+
 # end Model
 
 # Other helper functions (mostly for testing)
@@ -326,7 +375,7 @@ def bufSize(app):
   my_bufsize(c_app,sz,status)
 
   # subtract the int size (for testing purposes)
-  return sz[0] - sizeof(int)
+  return sz[0] 
 
 def allocBuffer(app):
   cdef void * buffer = PyMem_Malloc(bufSize(app))
