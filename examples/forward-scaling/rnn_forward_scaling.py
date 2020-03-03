@@ -225,7 +225,25 @@ if run_serial:
     
     tf_parallel = time.time()
 
+"""
+# TODO: distribute Neural Network
+###########################################
+on root
+  bb = build basic block
+  MPI_Send (bb, to all procs)
+else
+  bb = MPI_Recv (bb, root)
+
+# TODO: distribute data
+###########################################
+on root
+  MPI_Send (data, to all procs)
+else
+  MPI_Recv (data)
+"""
+
 # max_levels = 1 means serial version
+
 """
 else:
   root_print(my_rank,'Running TorchBraid: %d' % comm.Get_size())
