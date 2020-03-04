@@ -18,6 +18,9 @@ def root_print(rank,s):
   if rank==0:
     print(s)
 
+
+# LSTM tutorial: https://pytorch.org/docs/stable/nn.html
+
 class RNN_BasicBlock(nn.Module):
   def __init__(self, input_size, hidden_size, num_layers):
     super(RNN_BasicBlock, self).__init__()
@@ -30,13 +33,34 @@ class RNN_BasicBlock(nn.Module):
     pass
 
   def forward(self, x):
-    # Set initial hidden and cell states 
+    # Set initial hidden and cell states
+
+    # Inputs: input, (h_0, c_0)
+    # input of shape (batch, seq_len, input_size) or (seq_len, batch, input_size)
+    # h_0 of shape (num_layers * num_directions, batch, hidden_size)
+    # c_0 of shape (num_layers * num_directions, batch, hidden_size)
+
     h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
     c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
     # Forward propagate LSTM
-    out, _ = self.lstm(x, (h0, c0))
+    output, (hn, cn) = self.lstm(x, (h0, c0))
 
-    return out
+    # Outputs: output, (h_n, c_n)
+    # output of shape (batch, seq_len, num_directions * hidden_size) or (seq_len, batch, num_directions * hidden_size)
+    # h_n of shape (num_layers * num_directions, batch, hidden_size)
+    # c_n of shape (num_layers * num_directions, batch, hidden_size)
+
+    return output
+
+  # From the second block to the last block in the sequence
+  ###########################################
+  # def forward(self, x, hn, cn):
+  #   h0 = hn
+  #   c0 = cn
+  #   output, (hn, cn) = self.lstm(x, (h0, c0))
+  #   return output
+
+
 
 class ODEBlock(nn.Module):
   def __init__(self,layer,dt):
@@ -216,11 +240,12 @@ if run_serial:
   # final_output1 = serial_nn(X_sub1,result)
   # final_output2 = serial_nn(X_sub0,X_sub1)
 
+
   with torch.no_grad():
     t0_parallel = time.time()
 
     for i in range(len(x)):
-      images = x[i].reshape(-1, sequence_length, input_size)
+      images = x[i].reshape(-1, sequence_length, input_size) # (batch_size, seq_len, features)
       y_serial = serial_nn(images)
     
     tf_parallel = time.time()
