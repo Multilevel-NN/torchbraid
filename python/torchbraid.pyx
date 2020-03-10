@@ -120,7 +120,8 @@ class Model(torch.nn.Module):
     self.layer_models[0] = [layer_block() for i in range(self.local_num_steps[0])]
     self.local_layers = torch.nn.Sequential(*self.layer_models[0])
 
-    self.py_core = None
+    self.py_fwd_core = None
+    self.py_bwd_core = None
     self.x_final = None
 
     if coarsen==None or refine==None:
@@ -135,6 +136,26 @@ class Model(torch.nn.Module):
     self.skip_downcycle = 0
     self.param_size = 0
   # end __init__
+
+  def __del__(self):
+    cdef PyBraid_Core py_fwd_core
+    cdef braid_Core core
+
+    if self.py_bwd_core!=None:
+      py_bwd_core = <PyBraid_Core> self.py_bwd_core
+      core = py_bwd_core.getCore()
+
+      # Destroy Braid Core C-Struct
+      braid_Destroy(core)
+
+    if self.py_fwd_core!=None:
+      py_fwd_core = <PyBraid_Core> self.py_fwd_core
+      core = py_fwd_core.getCore()
+
+      # Destroy Braid Core C-Struct
+      braid_Destroy(core)
+
+    # end core
  
   def setPrintLevel(self,print_level):
     self.print_level = print_level
@@ -155,17 +176,15 @@ class Model(torch.nn.Module):
 
     self.setInitial(x)
 
-    if self.py_core==None:
-      self.py_core = self.initCore()
+    if self.py_fwd_core==None:
+      self.py_fwd_core = self.initForwardCore()
+      self.py_bwd_core = self.initBackwardCore(self.py_fwd_core)
 
-    cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
-    cdef braid_Core core = py_core.getCore()
+    cdef PyBraid_Core py_fwd_core = <PyBraid_Core> self.py_fwd_core
+    cdef braid_Core core = py_fwd_core.getCore()
 
     # Run Braid
     braid_Drive(core)
-
-    # Destroy Braid Core C-Struct
-    braid_Destroy(core)
 
     f = self.getFinal()
 
@@ -247,6 +266,9 @@ class Model(torch.nn.Module):
     return None
 
   def initCore(self):
+    return self.initForwardCore()
+
+  def initForwardCore(self):
     cdef braid_Core core
     cdef double tstart
     cdef double tstop
@@ -294,10 +316,22 @@ class Model(torch.nn.Module):
     braid_SetSkip(core,self.skip_downcycle)
 
     # store the c pointer
-    py_core = PyBraid_Core()
-    py_core.setCore(core)
+    py_fwd_core = PyBraid_Core()
+    py_fwd_core.setCore(core)
 
-    return py_core
+    return py_fwd_core
+  # end initCore
+
+  def initBackwardCore(self,PyBraid_Core py_fwd_core):
+    cdef PyBraid_Core py_bwd_core = self.initCore()
+
+    cdef braid_Core fwd_core = py_fwd_core.getCore()
+    cdef braid_Core bwd_core = py_bwd_core.getCore()
+
+    braid_SetStorage(fwd_core, 0)
+    # braid_SetRevertedRanks(bwd_core, 1)
+    
+    return py_bwd_core
   # end initCore
 
   def maxParameterSize(self):
