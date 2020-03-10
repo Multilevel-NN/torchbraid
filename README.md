@@ -19,6 +19,4 @@ To test:
 
   python test.py -v 
 
-To look at code (this is a simple usage scencario)
-
-  python sample.py
+To look at code in the examples directory.
