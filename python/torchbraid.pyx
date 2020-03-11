@@ -15,6 +15,8 @@ cimport mpi4py.libmpi as libmpi
 
 import pickle # we need this for building byte packs
 
+from torchbraid_function import BraidFunction
+
 ##
 # Define your Python Braid Vector
 
@@ -75,7 +77,10 @@ class Model(torch.nn.Module):
     return self.fwd_app.getMPIData()
 
   def forward(self,x):
-    return self.fwd_app.run(x)
+    # we are doing this to take adavtage of
+    # pytorch's autograd which functions "naturally"
+    # with the torch.autograd.function
+    return BraidFunction.apply(x,self.fwd_app) 
   # end forward
 
   def setInitial(self,x0):
