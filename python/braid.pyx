@@ -183,6 +183,8 @@ cdef extern from "braid.h":
     int braid_SetSeqSoln (braid_Core core, int seq_soln)
     int braid_GetMyID (braid_Core core, int *myid_ptr)
 
+    int braid_SetRevertedRanks(braid_Core core,int boolean)
+
     ##
     # Wrap Braid Init, Drive, and Destroy
     int braid_Init (libmpi.MPI_Comm comm_world, libmpi.MPI_Comm comm, 
