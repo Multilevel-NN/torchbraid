@@ -115,7 +115,7 @@ class BraidApp:
       core = py_core.getCore()
 
       # Destroy Braid Core C-Struct
-      braid_Destroy(core)
+      # FIXME: braid_Destroy(core) # this should be on
     # end core
 
   def getCore(self):

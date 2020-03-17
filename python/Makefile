@@ -11,4 +11,4 @@ $(LIB_NAME): $(MODULE_NAME).pyx ${MODULE_NAME}_callbacks.pyx
 	CC=mpicc python setup.py install
 
 clean:
-	rm -fr $(MODULE_NAME).c $(MODULE_NAME).h ${MODULE_NAME}_callbacks.c build braid.out.cycle *.html $(LIB_NAME) 
+	rm -fr $(MODULE_NAME).c $(MODULE_NAME).h ${MODULE_NAME}_callbacks.c build braid.out.cycle *.html __pycache__/ $(LIB_NAME)
