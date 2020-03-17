@@ -71,21 +71,22 @@ cdef class MPIData:
 
 class BraidApp:
 
-  def __init__(self,comm,layer_models,num_steps,Tf,max_levels=1,max_iters=10):
+  def __init__(self,comm,layer_models,num_steps,Tf,max_levels,max_iters,
+                    fwd_app=None):
 
     # optional parameters
     self.max_levels  = max_levels
     self.max_iters   = max_iters
     self.print_level = 2
-    self.nrelax = 0
-    self.cfactor = 2
+    self.nrelax      = 0
+    self.cfactor     = 2
 
-    self.mpi_data = MPIData(comm)
-    self.Tf = Tf
+    self.mpi_data        = MPIData(comm)
+    self.Tf              = Tf
     self.local_num_steps = num_steps
-    self.num_steps = num_steps*self.mpi_data.getSize()
+    self.num_steps       = num_steps*self.mpi_data.getSize()
 
-    self.dt = Tf/self.num_steps
+    self.dt       = Tf/self.num_steps
     self.t0_local = self.mpi_data.getRank()*num_steps*self.dt
     self.tf_local = (self.mpi_data.getRank()+1.0)*num_steps*self.dt
   
@@ -95,7 +96,17 @@ class BraidApp:
     self.x_final = None
 
     self.skip_downcycle = 0
-    self.param_size = 0
+    self.param_size     = 0
+
+    self.use_adjoint = False
+    self.fwd_app     = None
+    if fwd_app!=None:
+      # this is a adjoint/backprop application
+      self.use_adjoint = True
+      self.fwd_app     = fwd_app
+
+    # build up the core
+    self.py_core = self.initCore()
   # end __init__
 
   def __del__(self):
@@ -106,6 +117,9 @@ class BraidApp:
       # Destroy Braid Core C-Struct
       braid_Destroy(core)
     # end core
+
+  def getCore(self):
+    return self.py_core    
  
   def setPrintLevel(self,print_level):
     self.print_level = print_level
@@ -125,9 +139,6 @@ class BraidApp:
   def run(self,x):
 
     self.setInitial(x)
-
-    if self.py_core==None:
-      self.py_core = self.initCore()
 
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
     cdef braid_Core core = py_core.getCore()
@@ -153,13 +164,6 @@ class BraidApp:
       t_x[:] = 0.0
     return x
 
-  def eval(self,x,tstart,tstop):
-    with torch.no_grad(): 
-      t_x = x.tensor()
-      layer = self.getLayer(tstart,tstop,x.level())
-      t_y = t_x+self.dt*layer(t_x)
-      return BraidVector(t_y,x.level()) 
-
   def access(self,t,u):
     if t==self.Tf:
       self.x_final = u.clone()
@@ -172,8 +176,17 @@ class BraidApp:
     assert(self.x_final.level()==0)
     return self.x_final.tensor()
 
+  def eval(self,x,tstart,tstop):
+    with torch.no_grad(): 
+      t_x = x.tensor()
+      layer = self.getLayer(tstart,tstop,x.level())
+      t_y = t_x+self.dt*layer(t_x)
+      return BraidVector(t_y,x.level()) 
+
   def initCore(self):
     cdef braid_Core core
+    cdef PyBraid_Core py_fwd_core
+    cdef braid_Core fwd_core
     cdef double tstart
     cdef double tstop
     cdef int ntime
@@ -211,6 +224,16 @@ class BraidApp:
     braid_SetNRelax(core,-1,self.nrelax)
     braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
     braid_SetSkip(core,self.skip_downcycle)
+
+    # setup adjoint specific stuff
+    if self.use_adjoint:
+      py_fwd_core = self.fwd_app.getCore()
+      fwd_core = py_fwd_core.getCore()
+      braid_SetStorage(fwd_core,0)
+
+      # reverse ordering for adjoint/backprop
+      braid_SetRevertedRanks(core,1)
+       
 
     # store the c pointer
     py_core = PyBraid_Core()

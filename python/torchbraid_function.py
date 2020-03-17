@@ -2,19 +2,27 @@ import torch.autograd
 
 class BraidFunction(torch.autograd.Function):
   @staticmethod
-  def forward(ctx, x, fwd_app):
-    print('forward: %d' % fwd_app.getMPIData().getRank())
+  def forward(ctx, x, params, fwd_app, bwd_app):
+    # setup context
+    ctx.x       = x 
+    ctx.params  = params 
     ctx.fwd_app = fwd_app
+    ctx.bwd_app = bwd_app
+
     result = fwd_app.run(x)
-    result = BraidFunction.broadcastForwardResult(fwd_app.getMPIData(),result)
-    print('done forward: %d' % fwd_app.getMPIData().getRank())
-    return result
+    return BraidFunction.broadcastForwardResult(fwd_app.getMPIData(),result)
 
   @staticmethod
   def backward(ctx, grad_output):
+    x       = ctx.x 
+    params  = ctx.params 
     fwd_app = ctx.fwd_app
+    bwd_app = ctx.bwd_app
+
     print('backward: %d' % fwd_app.getMPIData().getRank())
-    return grad_output.clone()
+    result = bwd_app.run(grad_output)
+    result = BraidFunction.broadcastForwardResult(bwd_app.getMPIData(),result)
+    return result,None,None,None
 
   @staticmethod
   def broadcastForwardResult(mpi_data,result):

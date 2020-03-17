@@ -57,21 +57,26 @@ class Model(torch.nn.Module):
     self.local_layers = torch.nn.Sequential(*self.layer_models)
 
     self.fwd_app = BraidApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters)
+    self.bwd_app = BraidApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.fwd_app)
 
     self.param_size = 0
   # end __init__
 
   def setPrintLevel(self,print_level):
     self.fwd_app.setPrintLevel(print_level)
+    self.bwd_app.setPrintLevel(print_level)
 
   def setNumRelax(self,relax):
     self.fwd_app.setNumRelax(relax)
+    self.bwd_app.setNumRelax(relax)
 
   def setCFactor(self,cfactor):
     self.fwd_app.setCFactor(cfactor)
+    self.bwd_app.setCFactor(cfactor)
 
   def setSkipDowncycle(self,skip):
     self.fwd_app.setSkipDowncycle(skip)
+    self.bwd_app.setSkipDowncycle(skip)
 
   def getMPIData(self):
     return self.fwd_app.getMPIData()
@@ -80,7 +85,8 @@ class Model(torch.nn.Module):
     # we are doing this to take adavtage of
     # pytorch's autograd which functions "naturally"
     # with the torch.autograd.function
-    return BraidFunction.apply(x,self.fwd_app) 
+    params = list(self.parameters())
+    return BraidFunction.apply(x,params,self.fwd_app,self.bwd_app) 
   # end forward
 
   def setInitial(self,x0):
