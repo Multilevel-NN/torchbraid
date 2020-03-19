@@ -15,10 +15,7 @@ from mpi4py import MPI
 class LinearBlock(nn.Module):
   def __init__(self,dim=10):
     super(LinearBlock, self).__init__()
-    self.lin = nn.Linear(dim, dim)
-    self.lin.weights = torch.ones(dim,dim)
 
-    print(self.lin.weights)    
   def forward(self, x):
     return x
 # end layer
@@ -36,8 +33,12 @@ class ReLUBlock(nn.Module):
   def __init__(self,dim=10):
     super(ReLUBlock, self).__init__()
     self.lin = nn.Linear(dim, dim,bias=True)
-    self.lin.weight = torch.nn.Parameter(torch.ones(dim,dim))
-    self.lin.bias = torch.nn.Parameter(torch.ones(dim))
+
+    w = torch.randn(dim,dim)
+    self.lin.weight = torch.nn.Parameter(w)
+
+    b = torch.randn(dim)
+    self.lin.bias = torch.nn.Parameter(b)
 
   def forward(self, x):
     return F.relu(self.lin(x))

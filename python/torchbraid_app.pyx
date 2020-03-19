@@ -220,52 +220,19 @@ class BraidApp:
       t_px = px.tensor().clone()
       t_px.requires_grad = True
 
-      layer = self.fwd_app.getLayer(tstart,tstop,x.level())
+      # because we need to get the layer from the forward app, this
+      # transformation finds the right layer for the forward app seen
+      # from the backward apps perspective
+      layer = self.fwd_app.getLayer(self.Tf-tstop,self.Tf-tstart,x.level())
  
       # enables gradient calculation 
       with torch.enable_grad():
         t_py = t_px+dt*layer(t_px)
  
-      # # check the error
-      # if primal_index<9:
-      #  pq = <object> braid_UGetVector(self.fwd_app.getCore(),finegrid,primal_index+1)
-      #  print('error = ', torch.norm(pq.tensor()-t_py))
-      ## weird and expensive
-      
       t_x = x.tensor()
       t_py.backward(t_x)
 
       return BraidVector(t_px.grad,x.level()) 
-
-    #  /* Update gradient only on the finest grid */
-    #  pstatus.GetLevel(&level);
-    #  if (level == 0)
-    #    compute_gradient = 1;
-    #  else
-    #    compute_gradient = 0;
-    #
-    #  /* Get the time-step size and current time index*/
-    #  pstatus.GetTstartTstop(&tstart, &tstop);
-    #  ts_stop = GetTimeStepIndex(tstop);
-    #  deltaT = tstop - tstart;
-    #  primaltimestep = GetPrimalIndex(ts_stop);
-    #
-    #  /* Get the primal vector from the primal core */
-    #  _braid_UGetVectorRef(primalcore->GetCore(), finegrid, primaltimestep,
-    #                       &ubaseprimal);
-    #  uprimal = (myBraidVector *)ubaseprimal->userVector;
-    #
-    #  /* Reset gradient before the update */
-    #  if (compute_gradient)
-    #      vec_setZero(uprimal->getLayer()->getnDesign(), uprimal->getLayer()->getWeightsBar());
-    #
-    #  /* Take one step backwards, updates adjoint state and gradient, if desired. */
-    #  uprimal->getLayer()->setDt(deltaT);
-    #  for (int iex = 0; iex < nbatch; iex++) {
-    #    uprimal->getLayer()->applyBWD(uprimal->getState(iex), u->getState(iex),
-    #                                  compute_gradient);
-    #  }
-
 
   def initCore(self):
     cdef braid_Core core
