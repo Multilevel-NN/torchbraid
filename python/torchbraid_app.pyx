@@ -22,7 +22,7 @@ class BraidVector:
   def __init__(self,tensor,level):
     self.tensor_ = tensor 
     self.level_  = level
-    self.time_   = np.nan
+    self.time_   = np.nan # are we using this???
 
   def tensor(self):
     return self.tensor_
@@ -48,6 +48,13 @@ include "./torchbraid_callbacks.pyx"
 
 #  a python level module
 ##########################################################
+
+def braid_UGetVector(py_core, int level,int index):
+  cdef braid_Core core = (<PyBraid_Core> py_core).getCore()
+  cdef braid_BaseVector bv
+  _braid_UGetVectorRef(core, level, index,&bv)
+
+  return <object> bv.userVector
 
 cdef class MPIData:
   cdef MPI.Comm comm
@@ -124,14 +131,26 @@ class BraidApp:
   def setPrintLevel(self,print_level):
     self.print_level = print_level
 
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetPrintLevel(core,self.print_level)
+
   def setNumRelax(self,relax):
     self.nrelax = relax 
+
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetNRelax(core,-1,self.nrelax)
 
   def setCFactor(self,cfactor):
     self.cfactor = cfactor 
 
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
+
   def setSkipDowncycle(self,skip):
     self.skip_downcycle = skip
+
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetSkip(core,self.skip_downcycle)
 
   def getMPIData(self):
     return self.mpi_data
@@ -151,8 +170,15 @@ class BraidApp:
     return f
   # end forward
 
+  def getTimeStepIndex(self,t,tf,level):
+    return round((t-self.t0_local) / self.dt)
+
   def getLayer(self,t,tf,level):
-    return self.layer_models[round((t-self.t0_local) / self.dt)]
+    return self.layer_models[self.getTimeStepIndex(t,tf,level)]
+
+  def getPrimalIndex(self,t,tf,level):
+    ts = round(tf / self.dt)
+    return  self.num_steps - ts
 
   def setInitial(self,x0):
     self.x0 = BraidVector(x0,0)
@@ -177,11 +203,69 @@ class BraidApp:
     return self.x_final.tensor()
 
   def eval(self,x,tstart,tstop):
-    with torch.no_grad(): 
+    dt = tstop-tstart
+
+    if not self.use_adjoint:
+      with torch.no_grad(): 
+        t_x = x.tensor()
+        layer = self.getLayer(tstart,tstop,x.level())
+        t_y = t_x+dt*layer(t_x)
+        return BraidVector(t_y,x.level()) 
+    else:
+      finegrid = 0
+      primal_index = self.getPrimalIndex(tstart,tstop,x.level())
+
+      # get the primal vector from the forward app
+      px = <object> braid_UGetVector(self.fwd_app.getCore(),finegrid,primal_index)
+      t_px = px.tensor().clone()
+      t_px.requires_grad = True
+
+      layer = self.fwd_app.getLayer(tstart,tstop,x.level())
+ 
+      # enables gradient calculation 
+      with torch.enable_grad():
+        t_py = t_px+dt*layer(t_px)
+ 
+      # # check the error
+      # if primal_index<9:
+      #  pq = <object> braid_UGetVector(self.fwd_app.getCore(),finegrid,primal_index+1)
+      #  print('error = ', torch.norm(pq.tensor()-t_py))
+      ## weird and expensive
+      
       t_x = x.tensor()
-      layer = self.getLayer(tstart,tstop,x.level())
-      t_y = t_x+self.dt*layer(t_x)
-      return BraidVector(t_y,x.level()) 
+      t_py.backward(t_x)
+
+      return BraidVector(t_px.grad,x.level()) 
+
+    #  /* Update gradient only on the finest grid */
+    #  pstatus.GetLevel(&level);
+    #  if (level == 0)
+    #    compute_gradient = 1;
+    #  else
+    #    compute_gradient = 0;
+    #
+    #  /* Get the time-step size and current time index*/
+    #  pstatus.GetTstartTstop(&tstart, &tstop);
+    #  ts_stop = GetTimeStepIndex(tstop);
+    #  deltaT = tstop - tstart;
+    #  primaltimestep = GetPrimalIndex(ts_stop);
+    #
+    #  /* Get the primal vector from the primal core */
+    #  _braid_UGetVectorRef(primalcore->GetCore(), finegrid, primaltimestep,
+    #                       &ubaseprimal);
+    #  uprimal = (myBraidVector *)ubaseprimal->userVector;
+    #
+    #  /* Reset gradient before the update */
+    #  if (compute_gradient)
+    #      vec_setZero(uprimal->getLayer()->getnDesign(), uprimal->getLayer()->getWeightsBar());
+    #
+    #  /* Take one step backwards, updates adjoint state and gradient, if desired. */
+    #  uprimal->getLayer()->setDt(deltaT);
+    #  for (int iex = 0; iex < nbatch; iex++) {
+    #    uprimal->getLayer()->applyBWD(uprimal->getState(iex), u->getState(iex),
+    #                                  compute_gradient);
+    #  }
+
 
   def initCore(self):
     cdef braid_Core core

@@ -203,6 +203,22 @@ cdef extern from "braid.h":
     int braid_Destroy (braid_Core core)
 
 
+cdef extern from "_braid.h":
+
+    # Wrap Braid Core
+    cdef struct _braid_BaseVector_struct:
+      braid_Vector    userVector
+
+    ctypedef _braid_BaseVector_struct *braid_BaseVector
+
+
+    ## 
+    # helper functions for accessing primal vectors
+    int _braid_UGetVectorRef(braid_Core        core,
+                             int         level,
+                             int         index,
+                             braid_BaseVector *u_ptr);
+
 # cdef object convert_carray_to_numpy(double * v, dim1, dim2=1, dim3=1):
 #     '''
 #     Helper function to cast C array v to an (dim1 x dim2 x dim3) 
