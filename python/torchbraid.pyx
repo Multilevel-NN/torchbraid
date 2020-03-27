@@ -144,17 +144,6 @@ class Model(torch.nn.Module):
 
     return None
 
-  def maxParameterSize(self):
-    if self.param_size==0:
-      # walk through the sublayers and figure
-      # out the largeset size
-      for lm in self.layer_models:
-        local_size = len(pickle.dumps(lm))
-        self.param_size = max(local_size,self.param_size)
-    
-    return self.param_size
-  # end maxParameterSize
-
 # end Model
 
 # Other helper functions (mostly for testing)

@@ -88,8 +88,6 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   size_ptr[0] = sizeof(double)*cnt + sizeof(double) + sizeof(int)
               # vector                 time             level
 
-  size_ptr[0] += pyApp.maxParameterSize()
-
   return 0
 
 cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStatus status):
