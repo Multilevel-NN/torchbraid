@@ -97,7 +97,19 @@ class BraidApp:
     self.t0_local = self.mpi_data.getRank()*num_steps*self.dt
     self.tf_local = (self.mpi_data.getRank()+1.0)*num_steps*self.dt
   
-    self.layer_models = layer_models
+    # note that a simple equals would result in a shallow copy...bad!
+    self.layer_models = [l for l in layer_models]
+
+    comm          = self.getMPIData().getComm()
+    my_rank       = self.getMPIData().getRank()
+    num_ranks     = self.getMPIData().getSize()
+
+    # send everything to the left (this helps with the adjoint method)
+    if my_rank>0:
+      comm.send(self.layer_models[0],dest=my_rank-1,tag=22)
+    if my_rank<num_ranks-1:
+      neighbor_model = comm.recv(source=my_rank+1,tag=22)
+      self.layer_models.append(neighbor_model)
 
     self.py_core = None
     self.x_final = None
@@ -174,7 +186,8 @@ class BraidApp:
     return round((t-self.t0_local) / self.dt)
 
   def getLayer(self,t,tf,level):
-    return self.layer_models[self.getTimeStepIndex(t,tf,level)]
+    index = self.getTimeStepIndex(t,tf,level)
+    return self.layer_models[index]
 
   def getPrimalIndex(self,t,tf,level):
     ts = round(tf / self.dt)
@@ -212,7 +225,7 @@ class BraidApp:
         t_y = t_x+dt*layer(t_x)
         return BraidVector(t_y,x.level()) 
     else:
-      print('%d)   eval: %f,%f' % (self.getMPIData().getRank(),tstart,tstop))
+      print('%d)   bwd eval: %f,%f' % (self.getMPIData().getRank(),tstart,tstop))
 
       finegrid = 0
       primal_index = self.getPrimalIndex(tstart,tstop,x.level())
@@ -294,16 +307,5 @@ class BraidApp:
 
     return py_core
   # end initCore
-
-  def maxParameterSize(self):
-    if self.param_size==0:
-      # walk through the sublayers and figure
-      # out the largeset size
-      for lm in self.layer_models:
-        local_size = len(pickle.dumps(lm))
-        self.param_size = max(local_size,self.param_size)
-    
-    return self.param_size
-  # end maxParameterSize
 
 # end Model

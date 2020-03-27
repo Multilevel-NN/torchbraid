@@ -79,7 +79,7 @@ class TestTorchBraid(unittest.TestCase):
     print('----------------------------')
   # end test_nonlinearNet
 
-  def test_reLUNetSerial(self):
+  def atest_reLUNetSerial(self):
     dim = 2
     basic_block = lambda: ReLUBlock(dim)
 
@@ -92,7 +92,7 @@ class TestTorchBraid(unittest.TestCase):
 
   def backForwardProp(self,dim, basic_block,x0,w0,max_levels=1,max_iters=1):
     Tf = 2.0
-    num_steps = 10
+    num_steps = 4
 
     # this is the torchbraid class being tested 
     #######################################
@@ -113,7 +113,7 @@ class TestTorchBraid(unittest.TestCase):
     xm.requires_grad = True
 
     wm = m(xm)
-    #wm.backward(w0)
+    wm.backward(w0)
 
     wm = m.getFinalOnRoot()
 
@@ -135,7 +135,7 @@ class TestTorchBraid(unittest.TestCase):
 
       print('\n')
       print('fwd error = %.6e' % (torch.norm(wm-wf)/torch.norm(wf)))
-      #print('grad error = %.6e' % (torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad)))
+      print('grad error = %.6e' % (torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad)))
 
       self.assertTrue(torch.norm(wm-wf)/torch.norm(wf)<=1e-16)
       #self.assertTrue((torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad))<=1e-16)
