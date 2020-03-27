@@ -14,12 +14,8 @@ class BraidFunction(torch.autograd.Function):
 
   @staticmethod
   def backward(ctx, grad_output):
-    x       = ctx.x 
-    params  = ctx.params 
-    fwd_app = ctx.fwd_app
     bwd_app = ctx.bwd_app
 
-    print('backward: %d' % fwd_app.getMPIData().getRank())
     result = bwd_app.run(grad_output)
     result = BraidFunction.broadcastForwardResult(bwd_app.getMPIData(),result)
     return result,None,None,None

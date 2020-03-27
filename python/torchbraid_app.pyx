@@ -212,11 +212,14 @@ class BraidApp:
         t_y = t_x+dt*layer(t_x)
         return BraidVector(t_y,x.level()) 
     else:
+      print('%d)   eval: %f,%f' % (self.getMPIData().getRank(),tstart,tstop))
+
       finegrid = 0
       primal_index = self.getPrimalIndex(tstart,tstop,x.level())
 
       # get the primal vector from the forward app
       px = <object> braid_UGetVector(self.fwd_app.getCore(),finegrid,primal_index)
+
       t_px = px.tensor().clone()
       t_px.requires_grad = True
 
@@ -284,7 +287,6 @@ class BraidApp:
 
       # reverse ordering for adjoint/backprop
       braid_SetRevertedRanks(core,1)
-       
 
     # store the c pointer
     py_core = PyBraid_Core()
