@@ -225,8 +225,6 @@ class BraidApp:
         t_y = t_x+dt*layer(t_x)
         return BraidVector(t_y,x.level()) 
     else:
-      print('%d)   bwd eval: %f,%f' % (self.getMPIData().getRank(),tstart,tstop))
-
       finegrid = 0
       primal_index = self.getPrimalIndex(tstart,tstop,x.level())
 

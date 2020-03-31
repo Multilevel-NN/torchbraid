@@ -79,7 +79,7 @@ class TestTorchBraid(unittest.TestCase):
     print('----------------------------')
   # end test_nonlinearNet
 
-  def atest_reLUNetSerial(self):
+  def test_reLUNetSerial(self):
     dim = 2
     basic_block = lambda: ReLUBlock(dim)
 
@@ -90,9 +90,27 @@ class TestTorchBraid(unittest.TestCase):
     print('----------------------------')
   # end test_reLUNetSerial
 
+  def copyParametersToRoot(self,m):
+    comm     = m.getMPIData().getComm()
+    my_rank  = m.getMPIData().getRank()
+    num_proc = m.getMPIData().getSize()
+ 
+    params = list(m.parameters())
+
+    if my_rank==0:
+      for i in range(1,num_proc):
+        remote_p = comm.recv(source=i,tag=77)
+        params.extend(remote_p)
+
+      return params
+    else:
+      comm.send(params,dest=0,tag=77)
+      return None
+  # end copyParametersToRoot
+
   def backForwardProp(self,dim, basic_block,x0,w0,max_levels=1,max_iters=1):
     Tf = 2.0
-    num_steps = 4
+    num_steps = 10
 
     # this is the torchbraid class being tested 
     #######################################
@@ -118,6 +136,7 @@ class TestTorchBraid(unittest.TestCase):
     wm.backward(w0)
 
     wm = m.getFinalOnRoot()
+    m_params = self.copyParametersToRoot(m)
 
     # check some values
     if m.getMPIData().getRank()==0:
@@ -142,9 +161,12 @@ class TestTorchBraid(unittest.TestCase):
       self.assertTrue(torch.norm(wm-wf)/torch.norm(wf)<=1e-16)
       self.assertTrue((torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad))<=1e-16)
 
-      #for pf,pm in zip(f.parameters(),m.parameters()):
-      #  print('p grad error = %.6e (norm=%.6e, shape=%s)' % (torch.norm(pf.grad-pm.grad), torch.norm(pf.grad), pf.grad.shape))
-      #  self.assertTrue(torch.norm(pf.grad-pm.grad)<=1e-16)
+      #for pf,pm in zip(list(f.parameters()),m_params):
+      for pf,pm in zip(list(f.parameters()),m.parameters()):
+        self.assertTrue(not pm.grad is None)
+
+        print('p grad error = %.6e (norm=%.6e, shape=%s)' % (torch.norm(pf.grad-pm.grad), torch.norm(pf.grad), pf.grad.shape))
+        self.assertTrue(torch.norm(pf.grad-pm.grad)<=1e-16)
         
   # test_forwardPropSerial
 
