@@ -144,6 +144,25 @@ class Model(torch.nn.Module):
 
     return None
 
+  def copyVectorFromRoot(self,vec):
+    build_seq_tag = 99        # this 
+    comm          = self.getMPIData().getComm()
+    my_rank       = self.getMPIData().getRank()
+    num_ranks     = self.getMPIData().getSize()
+
+    # short circuit for serial case
+    if num_ranks==1:
+      return vec
+
+    # send the output of the last layer to the root
+    if my_rank==0:
+      for dest in range(1,num_ranks):
+        comm.send(vec,dest,tag=build_seq_tag)
+      return vec
+    else:
+      result = comm.recv(source=0,tag=build_seq_tag)
+      return result
+
 # end Model
 
 # Other helper functions (mostly for testing)

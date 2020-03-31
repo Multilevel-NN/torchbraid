@@ -99,6 +99,8 @@ class TestTorchBraid(unittest.TestCase):
     m = torchbraid.Model(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_levels=max_levels,max_iters=max_iters)
     m.setPrintLevel(0)
 
+    w0 = m.copyVectorFromRoot(w0)
+
     # this is the reference torch "solution"
     #######################################
     dt = Tf/num_steps
@@ -138,7 +140,7 @@ class TestTorchBraid(unittest.TestCase):
       print('grad error = %.6e' % (torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad)))
 
       self.assertTrue(torch.norm(wm-wf)/torch.norm(wf)<=1e-16)
-      #self.assertTrue((torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad))<=1e-16)
+      self.assertTrue((torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad))<=1e-16)
 
       #for pf,pm in zip(f.parameters(),m.parameters()):
       #  print('p grad error = %.6e (norm=%.6e, shape=%s)' % (torch.norm(pf.grad-pm.grad), torch.norm(pf.grad), pf.grad.shape))
