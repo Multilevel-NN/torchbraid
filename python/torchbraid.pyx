@@ -14,6 +14,7 @@ cimport mpi4py.MPI as MPI
 cimport mpi4py.libmpi as libmpi
 
 import pickle # we need this for building byte packs
+import copy
 
 from torchbraid_function import BraidFunction
 
@@ -86,7 +87,7 @@ class Model(torch.nn.Module):
     # pytorch's autograd which functions "naturally"
     # with the torch.autograd.function
     params = list(self.parameters())
-    return BraidFunction.apply(x,params,self.fwd_app,self.bwd_app) 
+    return BraidFunction.apply(self.fwd_app,self.bwd_app,x,*params) 
   # end forward
 
   def setInitial(self,x0):
@@ -101,7 +102,7 @@ class Model(torch.nn.Module):
 
   # This method copies the layerr parameters and can be used for verification
   def buildSequentialOnRoot(self):
-    ode_layers    = [ODEBlock(l,self.dt) for l in self.layer_models]
+    ode_layers    = [ODEBlock(copy.deepcopy(l),self.dt) for l in self.layer_models]
     remote_layers = ode_layers
     build_seq_tag = 12         # this 
     comm          = self.getMPIData().getComm()

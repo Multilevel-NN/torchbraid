@@ -173,11 +173,19 @@ class BraidApp:
 
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
     cdef braid_Core core = py_core.getCore()
+ 
+    self.my_params = []
 
     # Run Braid
     braid_Drive(core)
 
     f = self.getFinal()
+
+    if self.use_adjoint:
+      self.my_params.reverse()
+      self.grads = [item.grad.clone() for sublist in self.my_params for item in sublist]
+      for m in self.layer_models:
+        m.zero_grad()
 
     return f
   # end forward
@@ -246,6 +254,7 @@ class BraidApp:
       t_x = x.tensor()
       t_py.backward(t_x)
 
+      self.my_params += [layer.parameters()]
       return BraidVector(t_px.grad,x.level()) 
 
   def initCore(self):

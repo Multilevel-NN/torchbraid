@@ -34,9 +34,11 @@ class ReLUBlock(nn.Module):
     self.lin = nn.Linear(dim, dim,bias=True)
 
     w = torch.randn(dim,dim)
+    w = 2.3*torch.ones(dim,dim)
     self.lin.weight = torch.nn.Parameter(w)
 
     b = torch.randn(dim)
+    b = -1.22*torch.ones(dim)
     self.lin.bias = torch.nn.Parameter(b)
 
   def forward(self, x):
@@ -85,17 +87,22 @@ class TestTorchBraid(unittest.TestCase):
 
     x0 = torch.randn(5,dim) # forward initial cond
     w0 = torch.randn(5,dim) # adjoint initial cond
+    x0 = 12.0*torch.ones(5,dim) # forward initial cond
+    w0 = 8.0*torch.ones(5,dim) # adjoint initial cond
     self.backForwardProp(dim,basic_block,x0,w0)
 
     print('----------------------------')
   # end test_reLUNetSerial
 
-  def copyParametersToRoot(self,m):
+  def copyParameterGradToRoot(self,m):
     comm     = m.getMPIData().getComm()
     my_rank  = m.getMPIData().getRank()
     num_proc = m.getMPIData().getSize()
  
-    params = list(m.parameters())
+    params = [p.grad for p in list(m.parameters())]
+
+    if len(params)==0:
+      return params
 
     if my_rank==0:
       for i in range(1,num_proc):
@@ -122,7 +129,6 @@ class TestTorchBraid(unittest.TestCase):
     # this is the reference torch "solution"
     #######################################
     dt = Tf/num_steps
-    ode_layers = [ODEBlock(l,dt) for l in m.local_layers.children()]
     f = m.buildSequentialOnRoot()
 
     # run forward/backward propgation
@@ -136,16 +142,20 @@ class TestTorchBraid(unittest.TestCase):
     wm.backward(w0)
 
     wm = m.getFinalOnRoot()
-    m_params = self.copyParametersToRoot(m)
+    m_param_grad = self.copyParameterGradToRoot(m)
 
     # check some values
     if m.getMPIData().getRank()==0:
+ 
+      compute_grad = True
+
       # propogation with torch
       #######################################
       xf = x0.clone()
-      xf.requires_grad = True
+      xf.requires_grad = compute_grad
       
       wf = f(xf)
+ 
       wf.backward(w0)
 
       # compare the solutions
@@ -157,16 +167,17 @@ class TestTorchBraid(unittest.TestCase):
       print('\n')
       print('fwd error = %.6e' % (torch.norm(wm-wf)/torch.norm(wf)))
       print('grad error = %.6e' % (torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad)))
+      print('\n')
 
       self.assertTrue(torch.norm(wm-wf)/torch.norm(wf)<=1e-16)
       self.assertTrue((torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad))<=1e-16)
 
-      #for pf,pm in zip(list(f.parameters()),m_params):
-      for pf,pm in zip(list(f.parameters()),m.parameters()):
-        self.assertTrue(not pm.grad is None)
+      print(len(list(f.parameters())),len(m_param_grad))
+      for pf,pm_grad in zip(list(f.parameters()),m_param_grad):
+        self.assertTrue(not pm_grad is None)
 
-        print('p grad error = %.6e (norm=%.6e, shape=%s)' % (torch.norm(pf.grad-pm.grad), torch.norm(pf.grad), pf.grad.shape))
-        self.assertTrue(torch.norm(pf.grad-pm.grad)<=1e-16)
+        print('p grad error = %.6e (norm=%.6e, shape=%s)' % (torch.norm(pf.grad-pm_grad)/torch.norm(pf.grad), torch.norm(pf.grad), pf.grad.shape))
+        self.assertTrue(torch.norm(pf.grad-pm_grad)<=1e-16)
         
   # test_forwardPropSerial
 
