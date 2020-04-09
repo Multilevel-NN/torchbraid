@@ -184,7 +184,7 @@ class BraidApp:
     if self.use_adjoint:
       self.my_params.reverse()
       self.grads = [item.grad.clone() for sublist in self.my_params for item in sublist]
-      for m in self.layer_models:
+      for m in self.fwd_app.layer_models:
         m.zero_grad()
 
     return f

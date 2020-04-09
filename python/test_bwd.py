@@ -20,14 +20,6 @@ class LinearBlock(nn.Module):
     return x
 # end layer
 
-class NonlinearBlock(nn.Module):
-  def __init__(self,dim=10):
-    super(NonlinearBlock, self).__init__()
-
-  def forward(self, x):
-    return 0.5*x**2
-# end layer
-
 class ReLUBlock(nn.Module):
   def __init__(self,dim=10):
     super(ReLUBlock, self).__init__()
@@ -55,33 +47,33 @@ class ODEBlock(nn.Module):
     return x + self.dt*self.layer(x)
 
 class TestTorchBraid(unittest.TestCase):
-  def test_linearNetSerial(self):
+  def test_linearNet_Exact(self):
     dim = 2
     basic_block = lambda: LinearBlock(dim)
 
     x0 = torch.randn(5,dim) # forward initial cond
     w0 = torch.randn(5,dim) # adjoint initial cond
-    self.backForwardProp(dim,basic_block,x0,w0)
+    max_levels = 1
+    max_iters = 1
+    self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters)
 
     print('----------------------------')
   # end test_linearNet
 
-  def defunct_test_nonlinearNetSerial(self):
-    # this test isn't being uses because it doesn't give
-    # a reliably stable initial solution
-    # sometimes it blows up dramatically
-
+  def test_linearNet_Approx(self):
     dim = 2
-    basic_block = lambda: NonlinearBlock(dim)
+    basic_block = lambda: LinearBlock(dim)
 
     x0 = torch.randn(5,dim) # forward initial cond
     w0 = torch.randn(5,dim) # adjoint initial cond
-    self.backForwardProp(dim,basic_block,x0,w0)
+    max_levels = 3
+    max_iters = 8
+    self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6)
 
     print('----------------------------')
-  # end test_nonlinearNet
+  # end test_linearNet
 
-  def test_reLUNetSerial(self):
+  def test_reLUNet_Exact(self):
     dim = 2
     basic_block = lambda: ReLUBlock(dim)
 
@@ -89,7 +81,9 @@ class TestTorchBraid(unittest.TestCase):
     w0 = torch.randn(5,dim) # adjoint initial cond
     x0 = 12.0*torch.ones(5,dim) # forward initial cond
     w0 = 8.0*torch.ones(5,dim) # adjoint initial cond
-    self.backForwardProp(dim,basic_block,x0,w0)
+    max_levels = 1
+    max_iters = 1
+    self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters)
 
     print('----------------------------')
   # end test_reLUNetSerial
@@ -115,14 +109,14 @@ class TestTorchBraid(unittest.TestCase):
       return None
   # end copyParametersToRoot
 
-  def backForwardProp(self,dim, basic_block,x0,w0,max_levels=1,max_iters=1):
+  def backForwardProp(self,dim, basic_block,x0,w0,max_levels=1,max_iters=1,test_tol=1e-16):
     Tf = 2.0
     num_steps = 10
 
     # this is the torchbraid class being tested 
     #######################################
     m = torchbraid.Model(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_levels=max_levels,max_iters=max_iters)
-    m.setPrintLevel(0)
+    m.setPrintLevel(1)
 
     w0 = m.copyVectorFromRoot(w0)
 
@@ -169,17 +163,17 @@ class TestTorchBraid(unittest.TestCase):
       print('grad error = %.6e' % (torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad)))
       print('\n')
 
-      self.assertTrue(torch.norm(wm-wf)/torch.norm(wf)<=1e-16)
-      self.assertTrue((torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad))<=1e-16)
+      self.assertTrue(torch.norm(wm-wf)/torch.norm(wf)<=test_tol)
+      self.assertTrue((torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad))<=test_tol)
 
       print(len(list(f.parameters())),len(m_param_grad))
       for pf,pm_grad in zip(list(f.parameters()),m_param_grad):
         self.assertTrue(not pm_grad is None)
 
         print('p grad error = %.6e (norm=%.6e, shape=%s)' % (torch.norm(pf.grad-pm_grad)/torch.norm(pf.grad), torch.norm(pf.grad), pf.grad.shape))
-        self.assertTrue(torch.norm(pf.grad-pm_grad)<=1e-16)
+        self.assertTrue(torch.norm(pf.grad-pm_grad)<=test_tol)
         
-  # test_forwardPropSerial
+  # forwardPropSerial
 
 if __name__ == '__main__':
   unittest.main()
