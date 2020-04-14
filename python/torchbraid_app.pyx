@@ -175,16 +175,22 @@ class BraidApp:
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
     cdef braid_Core core = py_core.getCore()
  
-    self.my_params = []
-
     # Run Braid
     braid_Drive(core)
 
     f = self.getFinal()
 
     if self.use_adjoint:
-      self.my_params.reverse()
-      self.grads = [item.grad.clone() for sublist in self.my_params for item in sublist]
+      my_params = self.fwd_app.parameters()
+
+      # this code is due to how braid decomposes the backwards problem
+      # The ownership of the time steps is shifted to the left (and no longer balanced)
+      first = 1
+      if self.getMPIData().getRank()==0:
+        first = 0
+
+      # preserve the layerwise structure, to ease communication
+      self.grads = [ [item.grad.clone() for item in sublist] for sublist in my_params[first:]]
       for m in self.fwd_app.layer_models:
         m.zero_grad()
 
@@ -197,6 +203,9 @@ class BraidApp:
   def getLayer(self,t,tf,level):
     index = self.getTimeStepIndex(t,tf,level)
     return self.layer_models[index]
+
+  def parameters(self):
+    return [list(l.parameters()) for l in self.layer_models]
 
   def getPrimalIndex(self,t,tf,level):
     ts = round(tf / self.dt)
@@ -250,15 +259,31 @@ class BraidApp:
  
       # enables gradient calculation 
       with torch.enable_grad():
+        # turn off parameter gradients below the fine grid
+        #  - for posterity record their old value
+        grad_list = []
+        if level!=0:
+          for p in layer.parameters():
+            grad_list += [p.requires_grad]
+            p.requires_grad = False
+        else:
+          # clean up parameter gradients on fine level, 
+          # they are only computed once
+          layer.zero_grad()
+
         t_py = t_px+dt*layer(t_px)
+
+        # turn gradients back on
+        if level!=0:
+          for p,g in zip(layer.parameters(),grad_list):
+            p.requires_grad = g
+      # end with torch.enable_grad
  
       t_x = x.tensor()
       t_py.backward(t_x)
 
-      if level==0:
-        self.my_params += [layer.parameters()]
-
       return BraidVector(t_px.grad,level) 
+  # end eval
 
   def initCore(self):
     cdef braid_Core core

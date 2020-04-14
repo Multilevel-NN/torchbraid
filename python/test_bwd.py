@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import unittest
 import sys
 import numpy as np
+import statistics as stats
 
 import torchbraid
 
@@ -55,10 +56,10 @@ class TestTorchBraid(unittest.TestCase):
     w0 = torch.randn(5,dim) # adjoint initial cond
     max_levels = 1
     max_iters = 1
-    self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters)
+    self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-16,prefix='linearNet_Exact')
 
-    print('----------------------------')
-  # end test_linearNet
+    MPI.COMM_WORLD.barrier()
+  # end test_linearNet_Exact
 
   def test_linearNet_Approx(self):
     dim = 2
@@ -68,10 +69,10 @@ class TestTorchBraid(unittest.TestCase):
     w0 = torch.randn(5,dim) # adjoint initial cond
     max_levels = 3
     max_iters = 8
-    self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6)
+    self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='linearNet_Approx')
 
-    print('----------------------------')
-  # end test_linearNet
+    MPI.COMM_WORLD.barrier()
+  # end test_linearNet_Approx
 
   def test_reLUNet_Exact(self):
     dim = 2
@@ -83,10 +84,16 @@ class TestTorchBraid(unittest.TestCase):
     w0 = 8.0*torch.ones(5,dim) # adjoint initial cond
     max_levels = 1
     max_iters = 1
-    self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters)
 
-    print('----------------------------')
-  # end test_reLUNetSerial
+    # this catch block, augments the 
+    rank = MPI.COMM_WORLD.Get_rank()
+    try:
+      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-16,prefix='reLUNet_Exact')
+    except RuntimeError as err:
+      raise RuntimeError("proc=%d) reLUNet_Exact..failure" % rank) from err
+
+    MPI.COMM_WORLD.barrier()
+  # end test_reLUNet_Exact
 
   def test_reLUNet_Approx(self):
     dim = 2
@@ -98,10 +105,15 @@ class TestTorchBraid(unittest.TestCase):
     w0 = 8.0*torch.ones(5,dim) # adjoint initial cond
     max_levels = 3
     max_iters = 8
-    self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6)
+    # this catch block, augments the 
+    rank = MPI.COMM_WORLD.Get_rank()
+    try:
+      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx')
+    except RuntimeError as err:
+      raise RuntimeError("proc=%d) reLUNet_Approx..failure" % rank) from err
 
-    print('----------------------------')
-  # end test_reLUNetSerial
+    MPI.COMM_WORLD.barrier()
+  # end test_reLUNet_Approx
 
   def copyParameterGradToRoot(self,m):
     comm     = m.getMPIData().getComm()
@@ -124,14 +136,14 @@ class TestTorchBraid(unittest.TestCase):
       return None
   # end copyParametersToRoot
 
-  def backForwardProp(self,dim, basic_block,x0,w0,max_levels=1,max_iters=1,test_tol=1e-16):
+  def backForwardProp(self,dim, basic_block,x0,w0,max_levels,max_iters,test_tol,prefix):
     Tf = 2.0
-    num_steps = 10
+    num_steps = 4
 
     # this is the torchbraid class being tested 
     #######################################
     m = torchbraid.Model(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_levels=max_levels,max_iters=max_iters)
-    m.setPrintLevel(1)
+    m.setPrintLevel(0)
 
     w0 = m.copyVectorFromRoot(w0)
 
@@ -174,19 +186,26 @@ class TestTorchBraid(unittest.TestCase):
       self.assertTrue(torch.norm(wf)>0.0)
 
       print('\n')
-      print('fwd error = %.6e' % (torch.norm(wm-wf)/torch.norm(wf)))
-      print('grad error = %.6e' % (torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad)))
-      print('\n')
+      print('%s: fwd error = %.6e' % (prefix,torch.norm(wm-wf)/torch.norm(wf)))
+      print('%s: grad error = %.6e' % (prefix,torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad)))
 
       self.assertTrue(torch.norm(wm-wf)/torch.norm(wf)<=test_tol)
       self.assertTrue((torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad))<=test_tol)
 
-      print(len(list(f.parameters())),len(m_param_grad))
+      param_errors = []
       for pf,pm_grad in zip(list(f.parameters()),m_param_grad):
         self.assertTrue(not pm_grad is None)
 
-        print('p grad error = %.6e (norm=%.6e, shape=%s)' % (torch.norm(pf.grad-pm_grad)/torch.norm(pf.grad), torch.norm(pf.grad), pf.grad.shape))
+        # accumulate parameter errors for testing purposes
+        param_errors += [(torch.norm(pf.grad-pm_grad)/torch.norm(pf.grad)).item()]
+ 
+        # check the error conditions
         self.assertTrue(torch.norm(pf.grad-pm_grad)<=test_tol)
+
+      if len(param_errors)>0:
+        print('%s: p grad error (mean,stddev) = %.6e, %.6e' % (prefix,stats.mean(param_errors),stats.stdev(param_errors)))
+
+      print('\n')
         
   # forwardPropSerial
 
