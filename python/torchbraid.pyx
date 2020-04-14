@@ -57,8 +57,8 @@ class Model(torch.nn.Module):
     self.layer_models = [layer_block() for i in range(num_steps)]
     self.local_layers = torch.nn.Sequential(*self.layer_models)
 
-    self.fwd_app = BraidApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters)
-    self.bwd_app = BraidApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.fwd_app)
+    self.fwd_app = ForewardBraidApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters)
+    self.bwd_app = BackwardBraidApp(self.fwd_app)
 
     self.param_size = 0
   # end __init__
