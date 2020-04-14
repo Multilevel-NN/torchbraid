@@ -14,6 +14,7 @@ cimport mpi4py.MPI as MPI
 cimport mpi4py.libmpi as libmpi
 
 import pickle # we need this for building byte packs
+import sys
 
 ctypedef PyObject _braid_App_struct 
 ctypedef _braid_App_struct* braid_App
@@ -223,7 +224,7 @@ class BraidApp:
     assert(self.x_final.level()==0)
     return self.x_final.tensor()
 
-  def eval(self,x,tstart,tstop):
+  def eval(self,x,tstart,tstop,level):
     dt = tstop-tstart
 
     if not self.use_adjoint:
@@ -234,7 +235,7 @@ class BraidApp:
         return BraidVector(t_y,x.level()) 
     else:
       finegrid = 0
-      primal_index = self.getPrimalIndex(tstart,tstop,x.level())
+      primal_index = self.getPrimalIndex(tstart,tstop,level)
 
       # get the primal vector from the forward app
       px = <object> braid_UGetVector(self.fwd_app.getCore(),finegrid,primal_index)
@@ -245,7 +246,7 @@ class BraidApp:
       # because we need to get the layer from the forward app, this
       # transformation finds the right layer for the forward app seen
       # from the backward apps perspective
-      layer = self.fwd_app.getLayer(self.Tf-tstop,self.Tf-tstart,x.level())
+      layer = self.fwd_app.getLayer(self.Tf-tstop,self.Tf-tstart,level)
  
       # enables gradient calculation 
       with torch.enable_grad():
@@ -254,8 +255,10 @@ class BraidApp:
       t_x = x.tensor()
       t_py.backward(t_x)
 
-      self.my_params += [layer.parameters()]
-      return BraidVector(t_px.grad,x.level()) 
+      if level==0:
+        self.my_params += [layer.parameters()]
+
+      return BraidVector(t_px.grad,level) 
 
   def initCore(self):
     cdef braid_Core core

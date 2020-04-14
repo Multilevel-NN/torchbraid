@@ -88,6 +88,21 @@ class TestTorchBraid(unittest.TestCase):
     print('----------------------------')
   # end test_reLUNetSerial
 
+  def test_reLUNet_Approx(self):
+    dim = 2
+    basic_block = lambda: ReLUBlock(dim)
+
+    x0 = torch.randn(5,dim) # forward initial cond
+    w0 = torch.randn(5,dim) # adjoint initial cond
+    x0 = 12.0*torch.ones(5,dim) # forward initial cond
+    w0 = 8.0*torch.ones(5,dim) # adjoint initial cond
+    max_levels = 3
+    max_iters = 8
+    self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6)
+
+    print('----------------------------')
+  # end test_reLUNetSerial
+
   def copyParameterGradToRoot(self,m):
     comm     = m.getMPIData().getComm()
     my_rank  = m.getMPIData().getRank()

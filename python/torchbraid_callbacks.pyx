@@ -27,11 +27,14 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
 
   cdef double tstart
   cdef double tstop
+  cdef int level
   tstart = 0.0
   tstop = 5.0
+  level = -1
   braid_StepStatusGetTstartTstop(status, &tstart, &tstop)
+  braid_StepStatusGetLevel(status, &level)
 
-  temp = pyApp.eval(u,tstart,tstop)
+  temp = pyApp.eval(u,tstart,tstop,level)
   u.tensor().copy_(temp.tensor())
 
   return 0
