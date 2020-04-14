@@ -63,6 +63,11 @@ class Model(torch.nn.Module):
     self.param_size = 0
   # end __init__
 
+  def zero_grad(self):
+    for l in self.fwd_app.layer_models:
+      l.zero_grad()
+    self.local_layers.zero_grad()
+
   def setPrintLevel(self,print_level):
     self.fwd_app.setPrintLevel(print_level)
     self.bwd_app.setPrintLevel(print_level)
@@ -89,9 +94,6 @@ class Model(torch.nn.Module):
     params = list(self.parameters())
     return BraidFunction.apply(self.fwd_app,self.bwd_app,x,*params) 
   # end forward
-
-  def setInitial(self,x0):
-    self.x0 = BraidVector(x0,0)
 
   def buildInit(self,t):
     x = self.x0.clone()

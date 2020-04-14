@@ -171,9 +171,7 @@ class BraidApp:
     # Run Braid
     braid_Drive(core)
 
-    f = self.getFinal()
-
-    return f
+    return self.getFinal()
 
   def getCore(self):
     return self.py_core    
@@ -228,7 +226,18 @@ class BraidApp:
     return  self.num_steps - ts
 
   def setInitial(self,x0):
+    cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
+    cdef braid_BaseVector bv 
+
     self.x0 = BraidVector(x0,0)
+
+    # set the appropriate initial condition
+    if core.warm_restart:
+      _braid_UGetVectorRef(core, 0, 0, &bv);
+      if not (bv is NULL):
+        py_bv = <object> bv.userVector
+        py_bv.tensor_ = x0
+
 
   def buildInit(self,t):
     x = self.x0.clone()
@@ -279,7 +288,8 @@ class ForewardBraidApp(BraidApp):
   # end __init__
 
   def run(self,x):
-    return self.runBraid(x)
+    y = self.runBraid(x)
+    return y
   # end forward
 
   def getLayer(self,t,tf,level):
@@ -338,7 +348,7 @@ class BackwardBraidApp(BraidApp):
     # preserve the layerwise structure, to ease communication
     self.grads = [ [item.grad.clone() for item in sublist] for sublist in my_params[first:]]
     for m in self.fwd_app.layer_models:
-      m.zero_grad()
+       m.zero_grad()
 
     return f
   # end forward

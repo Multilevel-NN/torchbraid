@@ -103,7 +103,8 @@ cdef extern from "braid.h":
     ##
     # Wrap Braid Core
     cdef struct _braid_Core_struct:
-        pass
+      int warm_restart
+
     ctypedef _braid_Core_struct *braid_Core
 
     ## 
