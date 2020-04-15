@@ -2,13 +2,16 @@ from __future__ import print_function
 import sys
 import argparse
 import torch
+import torchbraid
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import statistics as stats
+
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 
-import torchbraid
+from timeit import default_timer as timer
 
 from mpi4py import MPI
 
@@ -133,47 +136,59 @@ def test(rank, model, test_loader):
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-    parser.add_argument('--batch-size', type=int, default=64, metavar='N',
-                        help='input batch size for training (default: 64)')
+    parser.add_argument('--seed', type=int, default=1, metavar='S',
+                        help='random seed (default: 1)')
+    parser.add_argument('--log-interval', type=int, default=10, metavar='N',
+                        help='how many batches to wait before logging training status')
+
+    # artichtectural settings
+    parser.add_argument('--steps', type=int, default=4, metavar='N',
+                        help='Number of times steps in the resnet layer (default: 4)')
+    parser.add_argument('--channels', type=int, default=4, metavar='N',
+                        help='Number of channels in resnet layer (default: 4)')
+
+    # algorithmic settings (gradient descent and batching
+    parser.add_argument('--batch-size', type=int, default=50, metavar='N',
+                        help='input batch size for training (default: 50)')
+    parser.add_argument('--train-batches', type=int, default=50000/50, metavar='N',
+                        help='input batch size for training (default: %d)' % (50000/50))
+    parser.add_argument('--test-batches', type=int, default=10000/50, metavar='N',
+                        help='input batch size for training (default: %d)' % (10000/50))
     parser.add_argument('--epochs', type=int, default=2, metavar='N',
                         help='number of epochs to train (default: 2)')
     parser.add_argument('--lr', type=float, default=1.0, metavar='LR',
                         help='learning rate (default: 1.0)')
     parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
                         help='Learning rate step gamma (default: 0.7)')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
-                        help='disables CUDA training')
-    parser.add_argument('--seed', type=int, default=1, metavar='S',
-                        help='random seed (default: 1)')
-    parser.add_argument('--log-interval', type=int, default=10, metavar='N',
-                        help='how many batches to wait before logging training status')
-    parser.add_argument('--save-model', action='store_true', default=False,
-                        help='For Saving the current Model')
 
-    parser.add_argument('--use-parallel', action='store_true', default=False,
-                        help='Use parallel')
+    # algorithmic settings (parallel or serial)
+    parser.add_argument('--use-serial', action='store_true', default=False,
+                        help='Use serial')
     parser.add_argument('--lp-levels', type=int, default=3, metavar='N',
                         help='Layer parallel levels (default: 3)')
     parser.add_argument('--lp-iters', type=int, default=2, metavar='N',
                         help='Layer parallel iterations (default: 2)')
     parser.add_argument('--lp-print', type=int, default=0, metavar='N',
-                        help='Layer parallel print level edefault: 0)')
-    parser.add_argument('--local-steps', type=int, default=4, metavar='N',
-                        help='Layer parallel local steps (default: 4)')
+                        help='Layer parallel print level default: 0)')
 
-    rank = MPI.COMM_WORLD.Get_rank()
-
+    rank  = MPI.COMM_WORLD.Get_rank()
+    procs = MPI.COMM_WORLD.Get_size()
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
+
+    local_steps = int(args.steps/procs)
+    if args.steps % procs!=0:
+      root_print(rank,'Steps must be an even multiple of the number of processors: %d %d' % (args.steps,procs) )
+      sys.exit(0)
 
     dataset = datasets.MNIST('../data', download=True,
                              transform=transforms.Compose([
                                transforms.ToTensor(),
                                transforms.Normalize((0.1307,), (0.3081,))
                              ]))
-    train_set = torch.utils.data.Subset(dataset,range(args.batch_size*100))
-    test_set  = torch.utils.data.Subset(dataset,range(args.batch_size*100,args.batch_size*110))
+    train_set = torch.utils.data.Subset(dataset,range(args.batch_size*args.train_batches))
+    test_set  = torch.utils.data.Subset(dataset,range(args.batch_size*args.train_batches,args.batch_size*(args.train_batches+args.test_batches)))
  
 
     kwargs = { }
@@ -187,24 +202,29 @@ def main():
                                                shuffle=True, 
                                                **kwargs)
 
-    if args.use_parallel:
-      model = ParallelNet(local_steps=args.local_steps,
+    if args.use_serial:
+      model = SerialNet(channels=args.channels,local_steps=local_steps)
+    else:
+      model = ParallelNet(channels=args.channels,
+                          local_steps=local_steps,
                           max_levels=args.lp_levels,
                           max_iters=args.lp_iters,
                           print_level=args.lp_print)
-    else:
-      model = SerialNet(local_steps=args.local_steps)
 
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
 
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
+
+    epoch_times = []
     for epoch in range(1, args.epochs + 1):
+        start_time = timer()
         train(rank,args, model, train_loader, optimizer, epoch)
+        end_time = timer()
         test(rank,model, test_loader)
         scheduler.step()
+        epoch_times += [end_time-start_time]
 
-    if args.save_model:
-        torch.save(model.state_dict(), "mnist_cnn.pt")
+    root_print(rank,'TIME PER EPOCH: %.2e (1 std dev %.2e)' % (stats.mean(epoch_times),stats.stdev(epoch_times)))
 
 if __name__ == '__main__':
     main()
