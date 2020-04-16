@@ -173,7 +173,7 @@ if run_serial:
 else:
   root_print(my_rank,'Running TorchBraid: %d' % comm.Get_size())
   # build the parallel neural network
-  parallel_nn   = torchbraid.Model(comm,basic_block,local_num_steps,Tf,max_levels=max_levels,max_iters=max_iters)
+  parallel_nn   = torchbraid.LayerParallel(comm,basic_block,local_num_steps,Tf,max_levels=max_levels,max_iters=max_iters)
   parallel_nn.setPrintLevel(print_level)
   parallel_nn.setCFactor(cfactor)
   parallel_nn.setNumRelax(nrelax)

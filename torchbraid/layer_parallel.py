@@ -29,7 +29,7 @@ class ODEBlock(nn.Module):
     return x + self.dt*self.layer(x)
 # end ODEBlock
 
-class Model(nn.Module):
+class LayerParallel(nn.Module):
 
   def __init__(self,comm,layer_block,num_steps,Tf,max_levels=1,max_iters=10):
     super(Model,self).__init__()

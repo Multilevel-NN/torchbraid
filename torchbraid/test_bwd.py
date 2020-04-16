@@ -142,7 +142,7 @@ class TestTorchBraid(unittest.TestCase):
 
     # this is the torchbraid class being tested 
     #######################################
-    m = torchbraid.Model(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_levels=max_levels,max_iters=max_iters)
+    m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_levels=max_levels,max_iters=max_iters)
     m.setPrintLevel(0)
 
     w0 = m.copyVectorFromRoot(w0)
