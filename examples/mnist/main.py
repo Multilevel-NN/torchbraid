@@ -150,9 +150,9 @@ def main():
     # algorithmic settings (gradient descent and batching
     parser.add_argument('--batch-size', type=int, default=50, metavar='N',
                         help='input batch size for training (default: 50)')
-    parser.add_argument('--train-batches', type=int, default=50000/50, metavar='N',
+    parser.add_argument('--train-batches', type=int, default=int(50000/50), metavar='N',
                         help='input batch size for training (default: %d)' % (50000/50))
-    parser.add_argument('--test-batches', type=int, default=10000/50, metavar='N',
+    parser.add_argument('--test-batches', type=int, default=int(10000/50), metavar='N',
                         help='input batch size for training (default: %d)' % (10000/50))
     parser.add_argument('--epochs', type=int, default=2, metavar='N',
                         help='number of epochs to train (default: 2)')

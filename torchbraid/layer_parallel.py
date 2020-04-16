@@ -8,9 +8,9 @@ from mpi4py import MPI
 
 import copy
 
-from torchbraid_function import BraidFunction
+from torchbraid.torchbraid_function import BraidFunction
 
-import torchbraid_apps as apps
+import torchbraid.torchbraid_apps as apps
 
 ##
 # Define your Python Braid Vector
@@ -32,7 +32,7 @@ class ODEBlock(nn.Module):
 class LayerParallel(nn.Module):
 
   def __init__(self,comm,layer_block,num_steps,Tf,max_levels=1,max_iters=10):
-    super(Model,self).__init__()
+    super(LayerParallel,self).__init__()
 
     # optional parameters
     global_steps = num_steps*comm.Get_size()
@@ -152,4 +152,4 @@ class LayerParallel(nn.Module):
       result = comm.recv(source=0,tag=build_seq_tag)
       return result
 
-# end Model
+# end LayerParallel

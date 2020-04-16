@@ -1,1 +1,1 @@
-from layer_parallel import LayerParallel
+from .layer_parallel import LayerParallel
