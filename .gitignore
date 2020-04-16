@@ -1,5 +1,7 @@
-torchbraid/files.txt
+installed_files.txt
 braid.out.cycle
 
 __pycache__/
 examples/data/
+
+makefile.inc

@@ -1,17 +1,17 @@
+include ../makefile.inc
+
 MODULE_NAME=torchbraid
 
-LIB_NAME=$(MODULE_NAME)_app.cpython-37m-darwin.so            # for MAC
-LIB_NAME=$(MODULE_NAME)_app.cpython-36m-darwin.so            # for MAC
-#LIB_NAME=$(MODULE_NAME)_app.cpython-36m-x86_64-linux-gnu.so  # for linux
+LIB_NAME=$(MODULE_NAME)_app.$(POSTFIX)
 
 all: $(LIB_NAME)
 
-$(LIB_NAME): ${MODULE_NAME}_app.pyx ${MODULE_NAME}_callbacks.pyx ${MODULE_NAME}_test.pyx
-	CC=mpicc python setup.py install --record files.txt
+$(LIB_NAME): ${MODULE_NAME}_app.pyx ${MODULE_NAME}_callbacks.pyx
+	XBRAID_ROOT=$(XBRAID_ROOT) CC=$(CC) $(PYTHON) setup.py install --record installed_files.txt
 
 clean:
 	rm -fr $(MODULE_NAME)_app.c $(MODULE_NAME)_app.h ${MODULE_NAME}_callbacks.c build braid.out.cycle *.html __pycache__/ $(LIB_NAME)
 
 uninstall:
-	cat files.txt | xargs rm -fr # remove installation
-	rm -fr files.txt
+	cat installed_files.txt | xargs rm -fr # remove installation
+	rm -fr installed_files.txt

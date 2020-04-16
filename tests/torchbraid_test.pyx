@@ -1,22 +1,10 @@
 # cython: profile=True
 # cython: linetrace=True
 
-import torch
-import torch.nn as nn
-import numpy as np
-from collections import OrderedDict
+from cpython.mem cimport PyMem_Malloc, PyMem_Free
+from cpython.ref cimport PyObject
 
-from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
-from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
-
-from mpi4py import MPI
-cimport mpi4py.MPI as MPI
-cimport mpi4py.libmpi as libmpi
-
-import pickle # we need this for building byte packs
-import copy
-
-from torchbraid_function import BraidFunction
+include "../torchbraid/torchbraid_app.pyx"
 
 ##
 # Define your Python Braid Vector
@@ -26,8 +14,6 @@ cdef extern from *:
   """
   #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
   """
-
-include "./torchbraid_app.pyx"
 
 # Other helper functions (mostly for testing)
 #################################

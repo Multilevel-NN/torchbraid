@@ -4,7 +4,7 @@ from Cython.Build import cythonize
 import numpy
 import os
 
-module_name = 'torchbraid_app'
+module_name = 'torchbraid_test'
 
 braid_dir = os.environ["XBRAID_ROOT"]
 if "EXTRA_FLAGS" in os.environ.keys():
