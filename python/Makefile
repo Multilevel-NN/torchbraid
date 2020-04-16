@@ -7,8 +7,11 @@ LIB_NAME=$(MODULE_NAME).cpython-36m-darwin.so            # for MAC
 all: $(LIB_NAME)
 
 $(LIB_NAME): $(MODULE_NAME).pyx ${MODULE_NAME}_callbacks.pyx
-	#CC=mpicc python setup.py build_ext --inplace
-	CC=mpicc python setup.py install
+	CC=mpicc python setup.py install --record files.txt
 
 clean:
 	rm -fr $(MODULE_NAME).c $(MODULE_NAME).h ${MODULE_NAME}_callbacks.c build braid.out.cycle *.html __pycache__/ $(LIB_NAME)
+
+uninstall:
+	cat files.txt | xargs rm -fr # remove installation
+	rm -fr files.txt
