@@ -12,16 +12,23 @@ Requirements:
 
 To build:
 
-  1) Modify setup.py to point to xbraid library (lib and includes)
+  1) makefile.inc to include your build specifics
   2) Type make
   3) You will need to add 
-       `export PYTHONPATH=${TORCHBRAID_DIR}/python:${PYTHONPATH}` to your 
+       `export PYTHONPATH=${TORCHBRAID_DIR}:${PYTHONPATH}` to your 
      environment
 
 To test:
 
-  python test.py -v 
+  make tests
 
-To look at code in the examples directory.
+To clean the directory:
+
+   make clean
+
+To uninstall python
+
+   make uninstall
 
 
+Take look at code in the examples directory.

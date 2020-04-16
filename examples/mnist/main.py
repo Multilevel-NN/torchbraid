@@ -182,7 +182,6 @@ def main():
       root_print(rank,'Steps must be an even multiple of the number of processors: %d %d' % (args.steps,procs) )
       sys.exit(0)
 
-    root_print(rank,'LOCAL STEPS = %d' % local_steps)
     dataset = datasets.MNIST('../data', download=True,
                              transform=transforms.Compose([
                                transforms.ToTensor(),
@@ -204,8 +203,10 @@ def main():
                                                **kwargs)
 
     if args.use_serial:
+      root_print(rank,'Using Serial')
       model = SerialNet(channels=args.channels,local_steps=local_steps)
     else:
+      root_print(rank,'Using ParallelNet')
       model = ParallelNet(channels=args.channels,
                           local_steps=local_steps,
                           max_levels=args.lp_levels,
