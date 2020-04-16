@@ -182,6 +182,7 @@ def main():
       root_print(rank,'Steps must be an even multiple of the number of processors: %d %d' % (args.steps,procs) )
       sys.exit(0)
 
+    root_print(rank,'LOCAL STEPS = %d' % local_steps)
     dataset = datasets.MNIST('../data', download=True,
                              transform=transforms.Compose([
                                transforms.ToTensor(),
@@ -216,15 +217,22 @@ def main():
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
 
     epoch_times = []
+    test_times = []
     for epoch in range(1, args.epochs + 1):
         start_time = timer()
         train(rank,args, model, train_loader, optimizer, epoch)
         end_time = timer()
-        test(rank,model, test_loader)
-        scheduler.step()
         epoch_times += [end_time-start_time]
 
+        start_time = timer()
+        test(rank,model, test_loader)
+        end_time = timer()
+        test_times += [end_time-start_time]
+
+        scheduler.step()
+
     root_print(rank,'TIME PER EPOCH: %.2e (1 std dev %.2e)' % (stats.mean(epoch_times),stats.stdev(epoch_times)))
+    root_print(rank,'TIME PER TEST:  %.2e (1 std dev %.2e)' % (stats.mean(test_times), stats.stdev(test_times)))
 
 if __name__ == '__main__':
     main()
