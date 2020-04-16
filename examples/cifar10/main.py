@@ -19,6 +19,25 @@ def root_print(rank,s):
   if rank==0:
     print(s)
 
+class Net(nn.Module):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, 10)
+
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1, 16 * 5 * 5)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
 class OpenLayer(nn.Module):
   def __init__(self,channels):
     super(OpenLayer, self).__init__()
@@ -101,11 +120,13 @@ class ParallelNet(nn.Module):
 # end ParallelNet 
 
 def train(rank, args, model, train_loader, optimizer, epoch):
+    criterion = nn.CrossEntropyLoss()
+
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         optimizer.zero_grad()
         output = model(data)
-        loss = F.nll_loss(output, target)
+        loss = criterion(output, target)
         loss.backward()
         optimizer.step()
         if batch_idx % args.log_interval == 0:
@@ -118,11 +139,14 @@ def test(rank, model, test_loader):
     model.eval()
     test_loss = 0
     correct = 0
+    criterion = nn.CrossEntropyLoss()
+
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data, target
             output = model(data)
-            test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+            #test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+            test_loss += criterion(output, target) # ???
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
 
@@ -154,7 +178,7 @@ def main():
                         help='input batch size for training (default: %d)' % (50000/50))
     parser.add_argument('--test-batches', type=int, default=int(10000/50), metavar='N',
                         help='input batch size for training (default: %d)' % (10000/50))
-    parser.add_argument('--epochs', type=int, default=2, metavar='N',
+    parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of epochs to train (default: 2)')
     parser.add_argument('--lr', type=float, default=1.0, metavar='LR',
                         help='learning rate (default: 1.0)')
@@ -182,38 +206,38 @@ def main():
       root_print(rank,'Steps must be an even multiple of the number of processors: %d %d' % (args.steps,procs) )
       sys.exit(0)
 
-    dataset = datasets.MNIST('./data', download=True,
-                             transform=transforms.Compose([
-                               transforms.ToTensor(),
-                               transforms.Normalize((0.1307,), (0.3081,))
-                             ]))
-    train_set = torch.utils.data.Subset(dataset,range(args.batch_size*args.train_batches))
-    test_set  = torch.utils.data.Subset(dataset,range(args.batch_size*args.train_batches,args.batch_size*(args.train_batches+args.test_batches)))
+    transform = transforms.Compose(
+        [transforms.ToTensor(),
+         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+
+    train_set = datasets.CIFAR10(root='./data', train=True,
+                                        download=True, transform=transform)
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=4,
+                                          shuffle=True, num_workers=2)
+
+    test_set = datasets.CIFAR10(root='./data', train=False,
+                                       download=True, transform=transform)
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=4,
+                                              shuffle=False, num_workers=2)
+
  
+    classes = ('plane', 'car', 'bird', 'cat',
+               'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
-    kwargs = { }
+    #if args.use_serial:
+    #  root_print(rank,'Using Serial')
+    #  model = SerialNet(channels=args.channels,local_steps=local_steps)
+    #else:
+    #  root_print(rank,'Using ParallelNet')
+    #  model = ParallelNet(channels=args.channels,
+    #                      local_steps=local_steps,
+    #                      max_levels=args.lp_levels,
+    #                      max_iters=args.lp_iters,
+    #                      print_level=args.lp_print)
+    model = Net()
 
-    train_loader = torch.utils.data.DataLoader(train_set,
-                                               batch_size=args.batch_size, 
-                                               shuffle=True, 
-                                               **kwargs)
-    test_loader  = torch.utils.data.DataLoader(test_set,
-                                               batch_size=args.batch_size, 
-                                               shuffle=True, 
-                                               **kwargs)
-
-    if args.use_serial:
-      root_print(rank,'Using Serial')
-      model = SerialNet(channels=args.channels,local_steps=local_steps)
-    else:
-      root_print(rank,'Using ParallelNet')
-      model = ParallelNet(channels=args.channels,
-                          local_steps=local_steps,
-                          max_levels=args.lp_levels,
-                          max_iters=args.lp_iters,
-                          print_level=args.lp_print)
-
-    optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
 
