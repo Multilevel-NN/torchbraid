@@ -4,7 +4,7 @@ from Cython.Build import cythonize
 import numpy
 import os
 
-module_name = 'torchbraid'
+module_name = 'torchbraid_app'
 on_mac = False
 on_mac = True
 
