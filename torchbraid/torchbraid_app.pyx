@@ -38,11 +38,11 @@ class BraidVector:
 ctypedef PyObject _braid_Vector_struct
 ctypedef _braid_Vector_struct *braid_Vector
 
-# to supress a warning from numpy
-cdef extern from *:
-  """
-  #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-  """
+## to supress a warning from numpy
+#cdef extern from *:
+#  """
+#  #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#  """
 
 include "./braid.pyx"
 include "./torchbraid_callbacks.pyx"
