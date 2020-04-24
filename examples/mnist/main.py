@@ -132,6 +132,25 @@ def test(rank, model, test_loader):
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
 
+def forward_backward_perf(rank,model,train_loader):
+  model.train()
+  model.zero_grad()
+
+  data, target = list(train_loader)[0]
+
+  start_fore = timer()
+  output = model(data)
+  end_fore = timer()
+
+  loss = F.nll_loss(output, target)
+
+  start_back = timer()
+  loss.backward()
+  end_back = timer()
+
+  root_print(rank,'TIME FORWARD:  %.2e' % (end_fore-start_fore))
+  root_print(rank,'TIME BACKWARD: %.2e' % (end_back-start_back))
+# end  forward_backward_perf
 
 def main():
     # Training settings
@@ -162,8 +181,8 @@ def main():
                         help='Learning rate step gamma (default: 0.7)')
 
     # algorithmic settings (parallel or serial)
-    parser.add_argument('--use-serial', action='store_true', default=False,
-                        help='Use serial')
+    parser.add_argument('--force-lp', action='store_true', default=False,
+                        help='Use layer parallel even if there is only 1 MPI rank')
     parser.add_argument('--lp-levels', type=int, default=3, metavar='N',
                         help='Layer parallel levels (default: 3)')
     parser.add_argument('--lp-iters', type=int, default=2, metavar='N',
@@ -174,6 +193,15 @@ def main():
     rank  = MPI.COMM_WORLD.Get_rank()
     procs = MPI.COMM_WORLD.Get_size()
     args = parser.parse_args()
+
+    # some logic to default to Serial if on one processor,
+    # can be overriden by the user to run layer-parallel
+    if args.force_lp:
+      force_lp = True
+    elif procs>1:
+      force_lp = True
+    else:
+      force_lp = False
 
     torch.manual_seed(args.seed)
 
@@ -202,16 +230,19 @@ def main():
                                                shuffle=True, 
                                                **kwargs)
 
-    if args.use_serial:
-      root_print(rank,'Using Serial')
-      model = SerialNet(channels=args.channels,local_steps=local_steps)
-    else:
+    if force_lp :
       root_print(rank,'Using ParallelNet')
       model = ParallelNet(channels=args.channels,
                           local_steps=local_steps,
                           max_levels=args.lp_levels,
                           max_iters=args.lp_iters,
                           print_level=args.lp_print)
+    else:
+      root_print(rank,'Using Serial')
+      model = SerialNet(channels=args.channels,local_steps=local_steps)
+
+    forward_backward_perf(rank,model,train_loader)
+    sys.exit(0)
 
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
 
