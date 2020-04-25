@@ -38,7 +38,7 @@ class ForewardBraidApp(BraidApp):
   # end forward
 
   def getLayer(self,t,tf,level):
-    index = self.getTimeStepIndex(t,tf,level)
+    index = self.getLocalTimeStepIndex(t,tf,level)
     return self.layer_models[index]
 
   def parameters(self):
@@ -53,6 +53,44 @@ class ForewardBraidApp(BraidApp):
       t_y = t_x+dt*layer(t_x)
       return BraidVector(t_y,x.level()) 
   # end eval
+
+  def evalFwdWithGrad(self,tstart,tstop,level):
+    dt = tstop-tstart
+    finegrid = 0
+ 
+    ts_index = self.getGlobalTimeStepIndex(tstart,tstop,level)
+
+    # get the primal vector from the forward app
+    px = self.getUVector(finegrid,ts_index)
+
+    t_px = px.tensor().clone()
+    t_px.requires_grad = True
+
+    layer = self.getLayer(tstart,tstop,level)
+
+    # enables gradient calculation 
+    with torch.enable_grad():
+      # turn off parameter gradients below the fine grid
+      #  - for posterity record their old value
+      grad_list = []
+      if level!=0:
+        for p in layer.parameters():
+          grad_list += [p.requires_grad]
+          p.requires_grad = False
+      else:
+        # clean up parameter gradients on fine level, 
+        # they are only computed once
+        layer.zero_grad()
+
+      t_py = t_px+dt*layer(t_px)
+
+      # turn gradients back on
+      if level!=0:
+        for p,g in zip(layer.parameters(),grad_list):
+          p.requires_grad = g
+    # end with torch.enable_grad
+    
+    return t_py,t_px
 # end ForwardBraidApp
 
 ##############################################################
@@ -99,43 +137,9 @@ class BackwardBraidApp(BraidApp):
   # end forward
 
   def eval(self,x,tstart,tstop,level):
-    dt = tstop-tstart
-
-    finegrid = 0
-    primal_index = self.getPrimalIndex(tstart,tstop,level)
-
-    # get the primal vector from the forward app
-    px = self.fwd_app.getUVector(finegrid,primal_index)
-
-    t_px = px.tensor().clone()
-    t_px.requires_grad = True
-
-    # because we need to get the layer from the forward app, this
-    # transformation finds the right layer for the forward app seen
-    # from the backward apps perspective
-    layer = self.fwd_app.getLayer(self.Tf-tstop,self.Tf-tstart,level)
-
-    # enables gradient calculation 
-    with torch.enable_grad():
-      # turn off parameter gradients below the fine grid
-      #  - for posterity record their old value
-      grad_list = []
-      if level!=0:
-        for p in layer.parameters():
-          grad_list += [p.requires_grad]
-          p.requires_grad = False
-      else:
-        # clean up parameter gradients on fine level, 
-        # they are only computed once
-        layer.zero_grad()
-
-      t_py = t_px+dt*layer(t_px)
-
-      # turn gradients back on
-      if level!=0:
-        for p,g in zip(layer.parameters(),grad_list):
-          p.requires_grad = g
-    # end with torch.enable_grad
+    # we need to adjust the time step values to reverse with the adjoint
+    # this is so that the renumbering used by the backward problem is properly adjusted
+    t_py,t_px = self.fwd_app.evalFwdWithGrad(self.Tf-tstop,self.Tf-tstart,level)
 
     t_x = x.tensor()
     t_py.backward(t_x)

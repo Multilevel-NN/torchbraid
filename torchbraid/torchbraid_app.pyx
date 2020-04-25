@@ -218,12 +218,11 @@ class BraidApp:
   def getMPIData(self):
     return self.mpi_data
 
-  def getTimeStepIndex(self,t,tf,level):
+  def getLocalTimeStepIndex(self,t,tf,level):
     return round((t-self.t0_local) / self.dt)
 
-  def getPrimalIndex(self,t,tf,level):
-    ts = round(tf / self.dt)
-    return  self.num_steps - ts
+  def getGlobalTimeStepIndex(self,t,tf,level):
+    return round(t / self.dt)
 
   def setInitial(self,x0):
     cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
