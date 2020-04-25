@@ -242,7 +242,8 @@ def main():
       model = SerialNet(channels=args.channels,local_steps=local_steps)
 
     forward_backward_perf(rank,model,train_loader)
-    sys.exit(0)
+    model = None
+    return 
 
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
 

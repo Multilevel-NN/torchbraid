@@ -1,3 +1,6 @@
+# cython: profile=True
+# cython: linetrace=True
+
 '''
 Cython header file defining the Braid-Python interface
 '''

@@ -1,3 +1,6 @@
+# cython: profile=True
+# cython: linetrace=True
+
 import torch
 import numpy as np
 cimport numpy as np
@@ -131,34 +134,5 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   cdef int sz = len(np_U)
   for k in range(sz):
     np_U[k] = dbuffer[k+1]
-
-  return 0
-
-cdef int my_coarsen(braid_App app, braid_Vector vec_fu, braid_Vector *cu_ptr, braid_CoarsenRefStatus status):
-  pyApp  = <object> app
-  fu =  <object> vec_fu
-
-  cdef int level = -1
-
-  cu_mem = pyApp.coarsen(fu.tensor(),fu.level())
-
-  cu = BraidVector(cu_mem,fu.level()+1)
-  Py_INCREF(cu) # why do we need this?
-
-  cu_ptr[0] = <braid_Vector> cu
-
-  return 0
-
-cdef int my_refine(braid_App app, braid_Vector cu_vec, braid_Vector *fu_ptr, braid_CoarsenRefStatus status):
-  pyApp  = <object> app
-  cu =  <object> cu_vec
-
-  cdef int level = -1
-
-  fu_mem = pyApp.refine(cu.tensor(),cu.level())
-  fu = BraidVector(fu_mem,cu.level()-1)
-  Py_INCREF(fu) # why do we need this?
-
-  fu_ptr[0] = <braid_Vector> fu
 
   return 0
