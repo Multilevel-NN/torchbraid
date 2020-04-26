@@ -16,5 +16,5 @@ uninstall:
 	cat installed_files.txt | xargs rm -fr # remove installation
 	rm -fr installed_files.txt
 
-tests:
+tests test:
 	$(MPIRUN) -n 3 $(PYTHON) test_bwd.py

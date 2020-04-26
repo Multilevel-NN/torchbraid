@@ -14,5 +14,5 @@ uninstall:
 	make -C ./torchbraid uninstall
 	make -C ./tests uninstall
 
-tests:
+tests test:
 	make -C ./tests tests
