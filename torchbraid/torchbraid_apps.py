@@ -7,7 +7,7 @@ from torchbraid_app import BraidVector
 
 from mpi4py import MPI
 
-class ForewardBraidApp(BraidApp):
+class ForwardBraidApp(BraidApp):
 
   def __init__(self,comm,layer_models,local_num_steps,Tf,max_levels,max_iters):
     BraidApp.__init__(self,comm,local_num_steps,Tf,max_levels,max_iters)
@@ -33,6 +33,7 @@ class ForewardBraidApp(BraidApp):
   # end __init__
 
   def run(self,x):
+    self.soln_store = dict()
     y = self.runBraid(x)
     return y
   # end forward
@@ -47,50 +48,74 @@ class ForewardBraidApp(BraidApp):
   def eval(self,x,tstart,tstop,level):
     dt = tstop-tstart
 
-    with torch.no_grad(): 
-      t_x = x.tensor()
-      layer = self.getLayer(tstart,tstop,x.level())
+    layer = self.getLayer(tstart,tstop,x.level())
+
+    t_x = x.tensor().clone()
+    with torch.enable_grad():
+      if level==0:
+        t_x.requires_grad = True 
+
       t_y = t_x+dt*layer(t_x)
-      return BraidVector(t_y,x.level()) 
+
+    if level==0:
+      ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
+      self.soln_store[ts_index] = (t_y,t_x)
+
+    return BraidVector(t_y,x.level()) 
   # end eval
 
-  def evalFwdWithGrad(self,tstart,tstop,level):
-    dt = tstop-tstart
-    finegrid = 0
- 
+  def getPrimalWithGrad(self,tstart,tstop,level):
+    """ 
+    Get the forward solution associated with this
+    time step and also get its derivative. This is
+    used by the BackkwardApp in computation of the
+    adjoint (backprop) state and parameter derivatives.
+    Its intent is to abstract the forward solution
+    so it can be stored internally instead of
+    being recomputed.
+    """
+    
+#    dt = tstop-tstart
+#    finegrid = 0
+# 
+#    ts_index = self.getGlobalTimeStepIndex(tstart,tstop,level)
+#
+#     # get the primal vector from the forward app
+#     px = self.getUVector(finegrid,ts_index)
+# 
+#     t_px = px.tensor().clone()
+#     t_px.requires_grad = True
+# 
+#     layer = self.getLayer(tstart,tstop,level)
+# 
+#     # enables gradient calculation 
+#     with torch.enable_grad():
+#       # turn off parameter gradients below the fine grid
+#       #  - for posterity record their old value
+#       grad_list = []
+#       if level!=0:
+#         for p in layer.parameters():
+#           grad_list += [p.requires_grad]
+#           p.requires_grad = False
+#       else:
+#         # clean up parameter gradients on fine level, 
+#         # they are only computed once
+#         layer.zero_grad()
+# 
+#       t_py = t_px+dt*layer(t_px)
+# 
+#       # turn gradients back on
+#       if level!=0:
+#         for p,g in zip(layer.parameters(),grad_list):
+#           p.requires_grad = g
+#     # end with torch.enable_grad
+#    
+#     return t_py,t_px
+
     ts_index = self.getGlobalTimeStepIndex(tstart,tstop,level)
-
-    # get the primal vector from the forward app
-    px = self.getUVector(finegrid,ts_index)
-
-    t_px = px.tensor().clone()
-    t_px.requires_grad = True
-
     layer = self.getLayer(tstart,tstop,level)
 
-    # enables gradient calculation 
-    with torch.enable_grad():
-      # turn off parameter gradients below the fine grid
-      #  - for posterity record their old value
-      grad_list = []
-      if level!=0:
-        for p in layer.parameters():
-          grad_list += [p.requires_grad]
-          p.requires_grad = False
-      else:
-        # clean up parameter gradients on fine level, 
-        # they are only computed once
-        layer.zero_grad()
-
-      t_py = t_px+dt*layer(t_px)
-
-      # turn gradients back on
-      if level!=0:
-        for p,g in zip(layer.parameters(),grad_list):
-          p.requires_grad = g
-    # end with torch.enable_grad
-    
-    return t_py,t_px
+    return self.soln_store[ts_index],layer
 # end ForwardBraidApp
 
 ##############################################################
@@ -139,10 +164,27 @@ class BackwardBraidApp(BraidApp):
   def eval(self,x,tstart,tstop,level):
     # we need to adjust the time step values to reverse with the adjoint
     # this is so that the renumbering used by the backward problem is properly adjusted
-    t_py,t_px = self.fwd_app.evalFwdWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+    (t_py,t_px),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+
+    # t_px should have no gradient
+    if not t_px.grad is None:
+      t_px.grad.data.zero_()
+
+    # play with the layers gradient to make sure they are on apprpriately
+    for p in layer.parameters(): 
+      if level==0:
+        if not p.grad is None:
+          p.grad.data.zero_()
+      else:
+        # if you are not on the fine level, compute n gradients
+        for p in layer.parameters():
+          p.requires_grad = False
 
     t_x = x.tensor()
-    t_py.backward(t_x)
+    t_py.backward(t_x,retain_graph=True)
+
+    for p in layer.parameters():
+      p.requires_grad = True
 
     return BraidVector(t_px.grad,level) 
   # end eval

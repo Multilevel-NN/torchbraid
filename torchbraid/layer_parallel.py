@@ -43,7 +43,7 @@ class LayerParallel(nn.Module):
     self.layer_models = [layer_block() for i in range(num_steps)]
     self.local_layers = nn.Sequential(*self.layer_models)
 
-    self.fwd_app = apps.ForewardBraidApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters)
+    self.fwd_app = apps.ForwardBraidApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters)
     self.bwd_app = apps.BackwardBraidApp(self.fwd_app)
 
     self.param_size = 0
