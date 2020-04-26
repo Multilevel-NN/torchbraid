@@ -34,7 +34,10 @@ class ForwardBraidApp(BraidApp):
 
   def run(self,x):
     self.soln_store = dict()
+
+    # run the braid solver
     y = self.runBraid(x)
+
     return y
   # end forward
 
@@ -46,22 +49,44 @@ class ForwardBraidApp(BraidApp):
     return [list(l.parameters()) for l in self.layer_models]
 
   def eval(self,x,tstart,tstop,level):
+    """
+    Method called by "my_step" in braid. This is
+    required to propagate from tstart to tstop, with the initial
+    condition x. The level is defined by braid
+    """
+
+    # there are two paths by which eval is called:
+    #  1. x is a BraidVector: my step has called this method
+    #  2. x is a torch tensor: called internally (probably at the behest
+    #                          of the adjoint)
+
+    # determine if braid or tensor version is called
+    t_x = x
+    use_braidvec = False
+    if isinstance(x,BraidVector):
+      t_x = x.tensor().clone()
+      use_braidvec = True
+
+    # get some information about what to do
     dt = tstop-tstart
+    layer = self.getLayer(tstart,tstop,level)
 
-    layer = self.getLayer(tstart,tstop,x.level())
-
-    t_x = x.tensor().clone()
     with torch.enable_grad():
       if level==0:
         t_x.requires_grad = True 
 
       t_y = t_x+dt*layer(t_x)
 
-    if level==0:
+    # store off the solution for later adjoints
+    if level==0 and use_braidvec:
       ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
       self.soln_store[ts_index] = (t_y,t_x)
 
-    return BraidVector(t_y,x.level()) 
+    # return a braid or tensor depending on what came in
+    if use_braidvec:
+      return BraidVector(t_y,level) 
+    else:
+      return t_y 
   # end eval
 
   def getPrimalWithGrad(self,tstart,tstop,level):
@@ -75,47 +100,22 @@ class ForwardBraidApp(BraidApp):
     being recomputed.
     """
     
-#    dt = tstop-tstart
-#    finegrid = 0
-# 
-#    ts_index = self.getGlobalTimeStepIndex(tstart,tstop,level)
-#
-#     # get the primal vector from the forward app
-#     px = self.getUVector(finegrid,ts_index)
-# 
-#     t_px = px.tensor().clone()
-#     t_px.requires_grad = True
-# 
-#     layer = self.getLayer(tstart,tstop,level)
-# 
-#     # enables gradient calculation 
-#     with torch.enable_grad():
-#       # turn off parameter gradients below the fine grid
-#       #  - for posterity record their old value
-#       grad_list = []
-#       if level!=0:
-#         for p in layer.parameters():
-#           grad_list += [p.requires_grad]
-#           p.requires_grad = False
-#       else:
-#         # clean up parameter gradients on fine level, 
-#         # they are only computed once
-#         layer.zero_grad()
-# 
-#       t_py = t_px+dt*layer(t_px)
-# 
-#       # turn gradients back on
-#       if level!=0:
-#         for p,g in zip(layer.parameters(),grad_list):
-#           p.requires_grad = g
-#     # end with torch.enable_grad
-#    
-#     return t_py,t_px
-
     ts_index = self.getGlobalTimeStepIndex(tstart,tstop,level)
     layer = self.getLayer(tstart,tstop,level)
 
-    return self.soln_store[ts_index],layer
+    # the idea here is store it internally, failing
+    # that the values need to be recomputed locally. This may be
+    # because you are at a processor boundary, or decided not
+    # to start the value 
+    if ts_index in self.soln_store:
+      return self.soln_store[ts_index],layer
+
+    # value wasn't found, recompute it and return.
+    x_old = self.soln_store[ts_index-1][0].clone()
+    return (self.eval(x_old,tstart,tstop,0),x_old), layer
+
+  # end getPrimalWithGrad
+
 # end ForwardBraidApp
 
 ##############################################################
@@ -180,6 +180,7 @@ class BackwardBraidApp(BraidApp):
         for p in layer.parameters():
           p.requires_grad = False
 
+    # perform adjoint computation
     t_x = x.tensor()
     t_py.backward(t_x,retain_graph=True)
 

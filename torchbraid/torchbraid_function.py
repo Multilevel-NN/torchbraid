@@ -24,7 +24,8 @@ class BraidFunction(torch.autograd.Function):
     my_rank       = ctx.bwd_app.getMPIData().getRank()
     num_ranks     = ctx.bwd_app.getMPIData().getSize()
 
-    # send everything to the right (this helps with the adjoint method)
+    # send everything to the right (braid doesn't maintain symmetry with the forward and
+    # adjoint problems)
     grads = ctx.bwd_app.grads
     if len(grads)>0:
       if my_rank<num_ranks-1:
@@ -33,7 +34,7 @@ class BraidFunction(torch.autograd.Function):
         neighbor_model = comm.recv(source=my_rank-1,tag=22)
         grads.insert(0,neighbor_model)
 
-    # flatten the gradds array
+    # flatten the grads array
     grads = [g for sublist in grads for g in sublist]
 
     for grad_needed,param in zip(ctx.needs_input_grad[3:],grads):
