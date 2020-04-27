@@ -18,3 +18,4 @@ uninstall:
 
 tests test:
 	$(MPIRUN) -n 3 $(PYTHON) test_bwd.py
+	$(PYTHON) test_ContextTimer.py
