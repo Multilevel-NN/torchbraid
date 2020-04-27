@@ -26,8 +26,6 @@ class ForwardBraidApp(BraidApp):
       neighbor_model = comm.recv(source=my_rank+1,tag=22)
       self.layer_models.append(neighbor_model)
 
-    self.x_final = None
-
     # build up the core
     self.py_core = self.initCore()
   # end __init__

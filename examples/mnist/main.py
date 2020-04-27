@@ -91,6 +91,7 @@ class ParallelNet(nn.Module):
     self.open_nn = OpenLayer(channels)
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_levels=max_levels,max_iters=max_iters)
     self.parallel_nn.setPrintLevel(print_level)
+    self.parallel_nn.setCFactor(4)
     self.close_nn = CloseLayer(channels)
  
   def forward(self, x):
