@@ -9,6 +9,7 @@ from mpi4py import MPI
 import copy
 
 from torchbraid.torchbraid_function import BraidFunction
+from torchbraid.utils import ContextTimerManager
 
 import torchbraid.torchbraid_apps as apps
 
@@ -34,6 +35,8 @@ class LayerParallel(nn.Module):
   def __init__(self,comm,layer_block,num_steps,Tf,max_levels=1,max_iters=10):
     super(LayerParallel,self).__init__()
 
+    self.comm = comm
+
     # optional parameters
     global_steps = num_steps*comm.Get_size()
 
@@ -43,8 +46,10 @@ class LayerParallel(nn.Module):
     self.layer_models = [layer_block() for i in range(num_steps)]
     self.local_layers = nn.Sequential(*self.layer_models)
 
-    self.fwd_app = apps.ForwardBraidApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters)
-    self.bwd_app = apps.BackwardBraidApp(self.fwd_app)
+    self.timer_manager = ContextTimerManager()
+
+    self.fwd_app = apps.ForwardBraidApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.timer_manager)
+    self.bwd_app = apps.BackwardBraidApp(self.fwd_app,self.timer_manager)
 
     self.param_size = 0
   # end __init__
@@ -53,6 +58,12 @@ class LayerParallel(nn.Module):
     for l in self.fwd_app.layer_models:
       l.zero_grad()
     self.local_layers.zero_grad()
+
+  def getTimerManager(self):
+    """
+    Get a TimerContextManager that describes how much time is taken by what.
+    """
+    return self.timer_manager
 
   def setPrintLevel(self,print_level):
     self.fwd_app.setPrintLevel(print_level)
@@ -151,5 +162,30 @@ class LayerParallel(nn.Module):
     else:
       result = comm.recv(source=0,tag=build_seq_tag)
       return result
+
+  def getTimersString(self):
+    """
+    Print the timers recored by the model.
+    """
+    comm     = self.comm
+    my_rank  = self.comm.Get_rank() 
+    num_proc = self.comm.Get_size() 
+
+    result = ""
+    if my_rank==0:
+      format_str = "\n   *** Proc = {rank:<8d} ***\n"
+      result += format_str.format(rank=my_rank)
+      result += self.timer_manager.getResultString()
+
+      for remote in range(1,num_proc):
+        result += format_str.format(rank=remote)
+        result += comm.recv(source=remote,tag=73)
+      # for remote
+    else:
+      local_result = self.timer_manager.getResultString()
+      comm.send(local_result,dest=0,tag=73)
+    # end if
+    return result
+  # end getTimersString
 
 # end LayerParallel

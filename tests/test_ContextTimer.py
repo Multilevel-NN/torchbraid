@@ -10,7 +10,7 @@ class TestContextTimer(unittest.TestCase):
   def test_ContextTiming(self):
 
      comm = None
-     mgr = utils.ContextTimerManager(comm)
+     mgr = utils.ContextTimerManager()
      clock = mgr.timer("hello")
 
      self.assertTrue(not clock.isTiming())

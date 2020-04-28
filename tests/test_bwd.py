@@ -165,8 +165,13 @@ class TestTorchBraid(unittest.TestCase):
     wm = m.getFinalOnRoot()
     m_param_grad = self.copyParameterGradToRoot(m)
 
+    # print time results
+    timer_str = m.getTimersString() 
+
     # check some values
     if m.getMPIData().getRank()==0:
+
+      print(timer_str)
  
       compute_grad = True
 

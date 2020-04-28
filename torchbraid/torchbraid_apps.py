@@ -9,7 +9,7 @@ from mpi4py import MPI
 
 class ForwardBraidApp(BraidApp):
 
-  def __init__(self,comm,layer_models,local_num_steps,Tf,max_levels,max_iters):
+  def __init__(self,comm,layer_models,local_num_steps,Tf,max_levels,max_iters,timer_manager):
     BraidApp.__init__(self,comm,local_num_steps,Tf,max_levels,max_iters)
 
     # note that a simple equals would result in a shallow copy...bad!
@@ -28,13 +28,16 @@ class ForwardBraidApp(BraidApp):
 
     # build up the core
     self.py_core = self.initCore()
+
+    self.timer_manager = timer_manager
   # end __init__
 
   def run(self,x):
     self.soln_store = dict()
 
     # run the braid solver
-    y = self.runBraid(x)
+    with self.timer_manager.timer("ForWD::runBraid"):
+      y = self.runBraid(x)
 
     return y
   # end forward
@@ -120,7 +123,7 @@ class ForwardBraidApp(BraidApp):
 
 class BackwardBraidApp(BraidApp):
 
-  def __init__(self,fwd_app):
+  def __init__(self,fwd_app,timer_manager):
     # call parent constructor
     BraidApp.__init__(self,fwd_app.getMPIData().getComm(),
                            fwd_app.local_num_steps,
@@ -138,10 +141,14 @@ class BackwardBraidApp(BraidApp):
 
     # reverse ordering for adjoint/backprop
     self.setRevertedRanks(1)
+
+    self.timer_manager = timer_manager
   # end __init__
 
   def run(self,x):
-    f = self.runBraid(x)
+
+    with self.timer_manager.timer("BckWD::runBraid"):
+      f = self.runBraid(x)
 
     my_params = self.fwd_app.parameters()
 

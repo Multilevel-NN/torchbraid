@@ -3,8 +3,7 @@ from .context_timer import ContextTimer
 import statistics as stats
 
 class ContextTimerManager:
-  def __init__(self,comm):
-    self.comm = comm
+  def __init__(self):
     self.timers = dict()
 
   def timer(self,name): 
@@ -25,15 +24,25 @@ class ContextTimerManager:
     for name,timer in self.timers.items():
       max_width = max(max_width,len(name))
 
-    str_format = "  {name:<{width}} || {mean:^16.4e} | {stdev:^16.4e} |\n" 
+    str_format = "  {name:<{width}} || {count:^16d} | {mean:^16.4e} | {stdev:^16.4e} |\n" 
 
     result = ""
-    result += "  {name:^{width}} || {mean:^16} | {stdev:^16} |\n".format(name="timer",mean="mean",stdev="stdev",width=max_width)
+    result +=    "  {name:^{width}} || {count:^16} | {mean:^16} | {stdev:^16} |\n".format(name="timer",
+                                                                                          count="count",
+                                                                                          mean="mean",
+                                                                                          stdev="stdev",
+                                                                                          width=max_width)
     result += "======================================================\n"
     for name,timer in self.timers.items():
-      mean  = stats.mean(timer.getTimes())
-      stdev = stats.stdev(timer.getTimes())
-      result += str_format.format(name=name,mean=mean,stdev=stdev,width=max_width)
+      times = timer.getTimes()
+      mean  = stats.mean(times)
+
+      if len(times)>1:
+        stdev = stats.stdev(times)
+      else:
+        stdev = 0.0
+
+      result += str_format.format(name=name,count=len(times),mean=mean,stdev=stdev,width=max_width)
 
     return result
   # end getResultString
