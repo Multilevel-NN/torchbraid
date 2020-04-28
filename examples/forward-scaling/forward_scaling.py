@@ -2,13 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import torchbraid
 import time
 
 import getopt,sys
 import argparse
-
-from mpi4py import MPI
 
 # only print on rank==0
 def root_print(rank,s):
@@ -46,16 +43,12 @@ def build_block_with_dim(channels):
 # some default input arguments
 ###########################################
 
-comm = MPI.COMM_WORLD
-my_rank   = comm.Get_rank()
-last_rank = comm.Get_size()-1
-
+my_rank   = 0
 # some default input arguments
 ###########################################
 max_levels      = 3
 max_iters       = 1
 local_num_steps = 5
-num_steps       = int(local_num_steps*comm.Get_size())
 channels        = 16
 images          = 10
 image_size      = 256
@@ -69,7 +62,7 @@ cfactor         = 2
 ###########################################
 
 parser = argparse.ArgumentParser()
-parser.add_argument("steps",type=int,help="total numbere of steps, must be product of proc count (p=%d)" % comm.Get_size())
+parser.add_argument("steps",type=int,help="total numbere of steps, must be product of proc count")
 parser.add_argument("--levels",    type=int,  default=max_levels,   help="maximum number of Layer-Parallel levels")
 parser.add_argument("--iters",     type=int,   default=max_iters,   help="maximum number of Layer-Parallel iterations")
 parser.add_argument("--channels",  type=int,   default=channels,    help="number of convolutional channels")
@@ -82,25 +75,9 @@ parser.add_argument("--tf",        type=float, default=Tf,          help="final 
 parser.add_argument("--serial",  default=run_serial, action="store_true", help="Run the serial version (1 processor only)")
 parser.add_argument("--optstr",  default=False,      action="store_true", help="Output the options string")
 args = parser.parse_args()
-
-# the number of steps is not valid, then return
-if not args.steps % comm.Get_size()==0:
-  if my_rank==0:
-    print('error in <steps> argument, must be a multiple of proc count: %d' % comm.Get_size())
-    parser.print_help()
-  sys.exit(0)
-# end if not args.steps
-
-if args.serial==True and comm.Get_size()!=1:
-  if my_rank==0:
-    print('The <--serial> optional argument, can only be run in serial (proc count: %d)' % comm.Get_size())
-    parser.print_help()
-  sys.exit(0)
-# end if not args.steps
    
 # determine the number of steps
 num_steps       = args.steps
-local_num_steps = int(num_steps/comm.Get_size())
 
 if args.levels:    max_levels  = args.levels
 if args.iters:     max_iters   = args.iters
@@ -115,7 +92,6 @@ if args.serial:    run_serial  = args.serial
 
 class Options:
   def __init__(self):
-    self.num_procs   = comm.Get_size()
     self.num_steps   = args.steps
     self.max_levels  = args.levels
     self.max_iters   = args.iters
@@ -143,10 +119,34 @@ class Options:
 opts_obj = Options()
 
 if args.optstr==True:
-  if comm.Get_rank()==0:
+  if my_rank==0:
     print(opts_obj)
   sys.exit(0)
-    
+
+import torchbraid
+from mpi4py import MPI
+
+comm = MPI.COMM_WORLD
+my_rank   = comm.Get_rank()
+last_rank = comm.Get_size()-1
+
+local_num_steps = int(num_steps/comm.Get_size())
+
+# the number of steps is not valid, then return
+if not args.steps % comm.Get_size()==0:
+  if my_rank==0:
+    print('error in <steps> argument, must be a multiple of proc count: %d' % comm.Get_size())
+    parser.print_help()
+  sys.exit(0)
+# end if not args.steps
+
+if args.serial==True and comm.Get_size()!=1:
+  if my_rank==0:
+    print('The <--serial> optional argument, can only be run in serial (proc count: %d)' % comm.Get_size())
+    parser.print_help()
+  sys.exit(0)
+# end if not args.steps
+
 print(opts_obj)
 
 # build the neural network
