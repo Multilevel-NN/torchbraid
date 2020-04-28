@@ -60,34 +60,36 @@ class ForwardBraidApp(BraidApp):
     #  1. x is a BraidVector: my step has called this method
     #  2. x is a torch tensor: called internally (probably at the behest
     #                          of the adjoint)
+  
+    with self.timer_manager.timer("ForWD::eval(level=%d)" % level):
 
-    # determine if braid or tensor version is called
-    t_x = x
-    use_braidvec = False
-    if isinstance(x,BraidVector):
-      t_x = x.tensor().clone()
-      use_braidvec = True
-
-    # get some information about what to do
-    dt = tstop-tstart
-    layer = self.getLayer(tstart,tstop,level)
-
-    with torch.enable_grad():
-      if level==0:
-        t_x.requires_grad = True 
-
-      t_y = t_x+dt*layer(t_x)
-
-    # store off the solution for later adjoints
-    if level==0 and use_braidvec:
-      ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
-      self.soln_store[ts_index] = (t_y,t_x)
-
-    # return a braid or tensor depending on what came in
-    if use_braidvec:
-      return BraidVector(t_y,level) 
-    else:
-      return t_y 
+      # determine if braid or tensor version is called
+      t_x = x
+      use_braidvec = False
+      if isinstance(x,BraidVector):
+        t_x = x.tensor().clone()
+        use_braidvec = True
+  
+      # get some information about what to do
+      dt = tstop-tstart
+      layer = self.getLayer(tstart,tstop,level)
+  
+      with torch.enable_grad():
+        if level==0:
+          t_x.requires_grad = True 
+  
+        t_y = t_x+dt*layer(t_x)
+  
+      # store off the solution for later adjoints
+      if level==0 and use_braidvec:
+        ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
+        self.soln_store[ts_index] = (t_y,t_x)
+  
+      # return a braid or tensor depending on what came in
+      if use_braidvec:
+        return BraidVector(t_y,level) 
+      else:
+        return t_y 
   # end eval
 
   def getPrimalWithGrad(self,tstart,tstop,level):
@@ -167,30 +169,31 @@ class BackwardBraidApp(BraidApp):
   # end forward
 
   def eval(self,x,tstart,tstop,level):
-    # we need to adjust the time step values to reverse with the adjoint
-    # this is so that the renumbering used by the backward problem is properly adjusted
-    (t_py,t_px),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
-
-    # t_px should have no gradient
-    if not t_px.grad is None:
-      t_px.grad.data.zero_()
-
-    # play with the layers gradient to make sure they are on apprpriately
-    for p in layer.parameters(): 
-      if level==0:
-        if not p.grad is None:
-          p.grad.data.zero_()
-      else:
-        # if you are not on the fine level, compute n gradients
-        for p in layer.parameters():
-          p.requires_grad = False
-
-    # perform adjoint computation
-    t_x = x.tensor()
-    t_py.backward(t_x,retain_graph=True)
-
-    for p in layer.parameters():
-      p.requires_grad = True
+    with self.timer_manager.timer("BckWD::eval(level=%d)" % level):
+      # we need to adjust the time step values to reverse with the adjoint
+      # this is so that the renumbering used by the backward problem is properly adjusted
+      (t_py,t_px),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  
+      # t_px should have no gradient
+      if not t_px.grad is None:
+        t_px.grad.data.zero_()
+  
+      # play with the layers gradient to make sure they are on apprpriately
+      for p in layer.parameters(): 
+        if level==0:
+          if not p.grad is None:
+            p.grad.data.zero_()
+        else:
+          # if you are not on the fine level, compute n gradients
+          for p in layer.parameters():
+            p.requires_grad = False
+  
+      # perform adjoint computation
+      t_x = x.tensor()
+      t_py.backward(t_x,retain_graph=True)
+  
+      for p in layer.parameters():
+        p.requires_grad = True
 
     return BraidVector(t_px.grad,level) 
   # end eval
