@@ -43,6 +43,8 @@ class TestContextTimer(unittest.TestCase):
      self.assertTrue(len(clock_save.getTimes())==5)
 
      self.assertTrue(len(mgr.getTimers())==2)
+
+     print(mgr.getResultString())
   # end test_ContextTiming(self):
 # end TestTimerContext
 
