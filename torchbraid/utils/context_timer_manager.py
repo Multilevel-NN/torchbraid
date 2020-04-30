@@ -24,11 +24,12 @@ class ContextTimerManager:
     for name,timer in self.timers.items():
       max_width = max(max_width,len(name))
 
-    str_format = "  {name:<{width}} || {count:^16d} | {mean:^16.4e} | {stdev:^16.4e} |\n" 
+    str_format = "  {name:<{width}} || {count:^16d} | {total:^16.4e} | {mean:^16.4e} | {stdev:^16.4e} |\n" 
 
     result = ""
-    result +=    "  {name:^{width}} || {count:^16} | {mean:^16} | {stdev:^16} |\n".format(name="timer",
+    result +=    "  {name:^{width}} || {count:^16} | {total:^16} | {mean:^16} | {stdev:^16} |\n".format(name="timer",
                                                                                           count="count",
+                                                                                          total="total",
                                                                                           mean="mean",
                                                                                           stdev="stdev",
                                                                                           width=max_width)
@@ -36,13 +37,14 @@ class ContextTimerManager:
     for name,timer in self.timers.items():
       times = timer.getTimes()
       mean  = stats.mean(times)
+      total  = sum(times)
 
       if len(times)>1:
         stdev = stats.stdev(times)
       else:
         stdev = 0.0
 
-      result += str_format.format(name=name,count=len(times),mean=mean,stdev=stdev,width=max_width)
+      result += str_format.format(name=name,count=len(times),total=total,mean=mean,stdev=stdev,width=max_width)
 
     return result
   # end getResultString

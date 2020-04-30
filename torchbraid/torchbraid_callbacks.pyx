@@ -97,24 +97,29 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   return 0
 
 cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStatus status):
+
+  # Convert void * to a double array (note dbuffer is a C-array, so no bounds checking is done) 
+  cdef int * ibuffer = <int *> buffer
+  cdef double * dbuffer = <double *>(buffer+4)
+  cdef np.ndarray[float,ndim=1] np_U
+  cdef int sz
+
+  py_app = <object>app
+  with py_app.timer_manager.timer("my_bufpack"):
     # Cast u as a PyBraid_Vector
     ten_U = (<object> u).tensor()
-    cdef np.ndarray[float,ndim=1] np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
-
-    # Convert void * to a double array (note dbuffer is a C-array, so no bounds checking is done) 
-    cdef int * ibuffer = <int *> buffer
-    cdef double * dbuffer = <double *>(buffer+4)
+    np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
 
     ibuffer[0] = (<object> u).level()
     dbuffer[0] = (<object> u).getTime()
 
     # Pack buffer
-    cdef int sz = len(np_U)
+    sz = len(np_U)
     for k in range(sz):
       dbuffer[k+1] = np_U[k]
     # end for item
 
-    return 0
+  return 0
 
 cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_BufferStatus status):
   py_app = <object>app
@@ -122,17 +127,21 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   cdef int * ibuffer = <int *> buffer
   cdef double * dbuffer = <double *>(buffer+4)
   cdef braid_Vector c_x = <braid_Vector> py_app.x0
+  cdef np.ndarray[float,ndim=1] np_U
+  cdef int sz
 
-  my_clone(app,c_x,u_ptr)
-
-  (<object> u_ptr[0]).level_ = ibuffer[0]
-  (<object> u_ptr[0]).setTime(dbuffer[0])
-  ten_U = (<object> u_ptr[0]).tensor()
-  cdef np.ndarray[float,ndim=1] np_U = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
-
-  # this is almost certainly slow
-  cdef int sz = len(np_U)
-  for k in range(sz):
-    np_U[k] = dbuffer[k+1]
+  with py_app.timer_manager.timer("my_bufunpack"):
+  
+    my_clone(app,c_x,u_ptr)
+  
+    (<object> u_ptr[0]).level_ = ibuffer[0]
+    (<object> u_ptr[0]).setTime(dbuffer[0])
+    ten_U = (<object> u_ptr[0]).tensor()
+    np_U = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
+  
+    # this is almost certainly slow
+    sz = len(np_U)
+    for k in range(sz):
+      np_U[k] = dbuffer[k+1]
 
   return 0
