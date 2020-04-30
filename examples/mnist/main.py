@@ -211,7 +211,7 @@ def main():
       root_print(rank,'Steps must be an even multiple of the number of processors: %d %d' % (args.steps,procs) )
       sys.exit(0)
 
-    dataset = datasets.MNIST('./data', download=True,
+    dataset = datasets.MNIST('./data', download=False,
                              transform=transforms.Compose([
                                transforms.ToTensor(),
                                transforms.Normalize((0.1307,), (0.3081,))
