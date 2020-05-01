@@ -7,6 +7,7 @@ cimport numpy as np
 
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
+from cython cimport view
 
 ##
 # Define your Python Braid Vector as a C-struct
@@ -91,18 +92,19 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
 
   # Note size_ptr is an integer array of size 1, and we index in at location [0]
   # the int size encodes the level
-  size_ptr[0] = sizeof(double)*cnt + sizeof(double) + sizeof(int)
+  size_ptr[0] = sizeof(float)*cnt + sizeof(float) + sizeof(int)
               # vector                 time             level
 
   return 0
 
 cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStatus status):
 
-  # Convert void * to a double array (note dbuffer is a C-array, so no bounds checking is done) 
+  # Convert void * to a double array (note fbuffer is a C-array, so no bounds checking is done) 
   cdef int * ibuffer = <int *> buffer
-  cdef double * dbuffer = <double *>(buffer+4)
+  cdef float * fbuffer = <float *>(buffer+sizeof(int))
   cdef np.ndarray[float,ndim=1] np_U
   cdef int sz
+  cdef view.array my_buf 
 
   py_app = <object>app
   with py_app.timer_manager.timer("my_bufpack"):
@@ -111,13 +113,12 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
     np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
 
     ibuffer[0] = (<object> u).level()
-    dbuffer[0] = (<object> u).getTime()
+    fbuffer[0] = (<object> u).getTime()
 
-    # Pack buffer
     sz = len(np_U)
-    for k in range(sz):
-      dbuffer[k+1] = np_U[k]
-    # end for item
+    my_buf = <float[:sz]> (fbuffer+1)
+
+    my_buf[:] = np_U
 
   return 0
 
@@ -125,23 +126,24 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   py_app = <object>app
 
   cdef int * ibuffer = <int *> buffer
-  cdef double * dbuffer = <double *>(buffer+4)
+  cdef float * fbuffer = <float *>(buffer+sizeof(int))
   cdef braid_Vector c_x = <braid_Vector> py_app.x0
   cdef np.ndarray[float,ndim=1] np_U
   cdef int sz
+  cdef view.array my_buf 
 
   with py_app.timer_manager.timer("my_bufunpack"):
   
     my_clone(app,c_x,u_ptr)
   
     (<object> u_ptr[0]).level_ = ibuffer[0]
-    (<object> u_ptr[0]).setTime(dbuffer[0])
+    (<object> u_ptr[0]).setTime(fbuffer[0])
+
     ten_U = (<object> u_ptr[0]).tensor()
     np_U = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
+    sz = len(np_U)
   
     # this is almost certainly slow
-    sz = len(np_U)
-    for k in range(sz):
-      np_U[k] = dbuffer[k+1]
-
+    my_buf = <float[:sz]> (fbuffer+1)
+    np_U[:] = my_buf
   return 0

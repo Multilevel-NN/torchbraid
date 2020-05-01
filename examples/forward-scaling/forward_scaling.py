@@ -184,6 +184,10 @@ else:
   tf_parallel = time.time()
   comm.barrier()
 
+  timer_str = parallel_nn.getTimersString()
+  if my_rank==0:
+    print(timer_str)
+
   # check serial case
   serial_nn = parallel_nn.buildSequentialOnRoot()
   y_parallel = parallel_nn.getFinalOnRoot()
