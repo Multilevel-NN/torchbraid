@@ -36,11 +36,14 @@ class ForwardBraidApp(BraidApp):
     self.soln_store = dict()
 
     # run the braid solver
-    with self.timer_manager.timer("ForWD::runBraid"):
+    with self.timer("runBraid"):
       y = self.runBraid(x)
 
     return y
   # end forward
+
+  def timer(self,name):
+    return self.timer_manager.timer("ForWD::"+name)
 
   def getLayer(self,t,tf,level):
     index = self.getLocalTimeStepIndex(t,tf,level)
@@ -61,7 +64,7 @@ class ForwardBraidApp(BraidApp):
     #  2. x is a torch tensor: called internally (probably at the behest
     #                          of the adjoint)
   
-    with self.timer_manager.timer("ForWD::eval(level=%d)" % level):
+    with self.timer("eval(level=%d)" % level):
 
       # determine if braid or tensor version is called
       t_x = x
@@ -147,9 +150,12 @@ class BackwardBraidApp(BraidApp):
     self.timer_manager = timer_manager
   # end __init__
 
+  def timer(self,name):
+    return self.timer_manager.timer("BckWD::"+name)
+
   def run(self,x):
 
-    with self.timer_manager.timer("BckWD::runBraid"):
+    with self.timer("runBraid"):
       f = self.runBraid(x)
 
     my_params = self.fwd_app.parameters()
@@ -169,7 +175,7 @@ class BackwardBraidApp(BraidApp):
   # end forward
 
   def eval(self,x,tstart,tstop,level):
-    with self.timer_manager.timer("BckWD::eval(level=%d)" % level):
+    with self.timer("eval(level=%d)" % level):
       # we need to adjust the time step values to reverse with the adjoint
       # this is so that the renumbering used by the backward problem is properly adjusted
       (t_py,t_px),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)

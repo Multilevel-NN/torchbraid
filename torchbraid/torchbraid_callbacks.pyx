@@ -66,7 +66,7 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
   cdef np.ndarray[float,ndim=1] np_Y
   cdef int sz
 
-  with py_app.timer_manager.timer("my_sum"):
+  with py_app.timer("my_sum"):
     # Cast x and y as a PyBraid_Vector
     #np_X = (<object> x).tensor().numpy().ravel()
     #np_Y = (<object> y).tensor().numpy().ravel()
@@ -120,7 +120,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   cdef view.array my_buf 
 
   py_app = <object>app
-  with py_app.timer_manager.timer("my_bufpack"):
+  with py_app.timer("my_bufpack"):
     # Cast u as a PyBraid_Vector
     ten_U = (<object> u).tensor()
     np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
@@ -145,7 +145,7 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   cdef int sz
   cdef view.array my_buf 
 
-  with py_app.timer_manager.timer("my_bufunpack"):
+  with py_app.timer("my_bufunpack"):
   
     my_clone(app,c_x,u_ptr)
   

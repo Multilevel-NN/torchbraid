@@ -34,7 +34,11 @@ class ContextTimerManager:
                                                                                           stdev="stdev",
                                                                                           width=max_width)
     result += "======================================================\n"
-    for name,timer in self.timers.items():
+
+    keys = list(self.timers.keys())
+    keys.sort()
+    for name in keys:
+      timer = self.timers[name]
       times = timer.getTimes()
       mean  = stats.mean(times)
       total  = sum(times)
