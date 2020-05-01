@@ -60,14 +60,21 @@ cdef int my_free(braid_App app, braid_Vector u):
   return 0
 
 cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_Vector y):
-  # Cast x and y as a PyBraid_Vector
-  cdef np.ndarray[float,ndim=1] np_X = (<object> x).tensor().numpy().ravel()
-  cdef np.ndarray[float,ndim=1] np_Y = (<object> y).tensor().numpy().ravel()
+  py_app = <object>app
 
-  # in place copy (this is inefficient because of the copy/allocation to ten_T
-  cdef int sz = len(np_X)
-  for k in range(sz):
-    np_Y[k] = alpha*np_X[k]+beta*np_Y[k]
+  cdef np.ndarray[float,ndim=1] np_X
+  cdef np.ndarray[float,ndim=1] np_Y
+  cdef int sz
+
+  with py_app.timer_manager.timer("my_sum"):
+    # Cast x and y as a PyBraid_Vector
+    np_X = (<object> x).tensor().numpy().ravel()
+    np_Y = (<object> y).tensor().numpy().ravel()
+    sz = len(np_X)
+
+    # in place copy (this is inefficient because of the copy/allocation to ten_T
+    for k in range(sz):
+      np_Y[k] = alpha*np_X[k]+beta*np_Y[k]
 
   return 0
 
