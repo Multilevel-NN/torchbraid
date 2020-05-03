@@ -16,3 +16,6 @@ uninstall:
 
 tests test:
 	make -C ./tests tests
+
+tests-serial test-serial:
+	make -C ./tests tests-serial

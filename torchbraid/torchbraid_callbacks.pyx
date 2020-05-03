@@ -60,6 +60,9 @@ cdef int my_free(braid_App app, braid_Vector u):
   return 0
 
 cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_Vector y):
+  # This routine cna be made faster by using the pyTorch tensor operations
+  # My initial attempt at this failed however
+
   py_app = <object>app
 
   cdef np.ndarray[float,ndim=1] np_X
@@ -68,19 +71,13 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
 
   with py_app.timer("my_sum"):
     # Cast x and y as a PyBraid_Vector
-    #np_X = (<object> x).tensor().numpy().ravel()
-    #np_Y = (<object> y).tensor().numpy().ravel()
-    #sz = len(np_X)
+    np_X = (<object> x).tensor().numpy().ravel()
+    np_Y = (<object> y).tensor().numpy().ravel()
+    sz = len(np_X)
 
-    ## in place copy (this is inefficient because of the copy/allocation to ten_T
-    #for k in range(sz):
-    #  np_Y[k] = alpha*np_X[k]+beta*np_Y[k]
-
-    tn_X = (<object> x).tensor()
-    tn_Y = (<object> y).tensor()
-
-    tn_Y.mul_(beta)
-    tn_Y.add_(tn_X,alpha)
+    # in place copy 
+    for k in range(sz):
+      np_Y[k] = alpha*np_X[k]+beta*np_Y[k]
 
   return 0
 

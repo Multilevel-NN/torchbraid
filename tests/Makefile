@@ -19,3 +19,7 @@ uninstall:
 tests test:
 	$(MPIRUN) -n 3 $(PYTHON) test_bwd.py
 	$(PYTHON) test_ContextTimer.py
+
+tests-serial test-serial:
+	$(MPIRUN) -n 1 $(PYTHON) test_bwd.py
+	$(PYTHON) test_ContextTimer.py
