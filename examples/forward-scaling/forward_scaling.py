@@ -13,17 +13,19 @@ def root_print(rank,s):
     print(s)
 
 class BasicBlock(nn.Module):
-  def __init__(self,channels):
+  def __init__(self,channels,timer_manager):
     super(BasicBlock, self).__init__()
     ker_width = 3
     self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1)
     self.conv2 = nn.Conv2d(channels,channels,ker_width,padding=1)
+    self.timer_manager = timer_manager
 
   def __del__(self):
     pass
 
   def forward(self, x):
-    return F.relu(self.conv2(F.relu(self.conv1(x))))
+    with self.timer_manager.timer("forward"): 
+      return F.relu(self.conv2(F.relu(self.conv1(x))))
 # end layer
 
 class ODEBlock(nn.Module):
@@ -36,8 +38,8 @@ class ODEBlock(nn.Module):
   def forward(self, x):
     return x + self.dt*self.layer(x)
 
-def build_block_with_dim(channels):
-  b = BasicBlock(channels)
+def build_block_with_dim(channels,timer_manager):
+  b = BasicBlock(channels,timer_manager)
   return b
 
 # some default input arguments
@@ -153,7 +155,8 @@ print(opts_obj)
 ###########################################
 
 # define the neural network parameters
-basic_block = lambda: build_block_with_dim(channels)
+timer_manager = torchbraid.utils.ContextTimerManager()
+basic_block = lambda: build_block_with_dim(channels,timer_manager)
 
 # build parallel information
 dt        = Tf/num_steps
@@ -170,6 +173,9 @@ if run_serial:
     t0_parallel = time.time()
     y_serial = serial_nn(x)
     tf_parallel = time.time()
+
+  timer_str = timer_manager.getResultString()
+  print(timer_str)
 else:
   root_print(my_rank,'Running TorchBraid: %d' % comm.Get_size())
   # build the parallel neural network
@@ -186,6 +192,10 @@ else:
   comm.barrier()
 
   timer_str = parallel_nn.getTimersString()
+  if my_rank==0:
+    print(timer_str)
+
+  timer_str = timer_manager.getResultString()
   if my_rank==0:
     print(timer_str)
 

@@ -5,6 +5,8 @@ import torch
 from torchbraid_app import BraidApp
 from torchbraid_app import BraidVector
 
+import sys
+
 from mpi4py import MPI
 
 class ForwardBraidApp(BraidApp):
@@ -30,6 +32,7 @@ class ForwardBraidApp(BraidApp):
     self.py_core = self.initCore()
 
     self.timer_manager = timer_manager
+    self.use_deriv = False
   # end __init__
 
   def run(self,x):
@@ -37,7 +40,13 @@ class ForwardBraidApp(BraidApp):
 
     # run the braid solver
     with self.timer("runBraid"):
+      # turn on derivative path (as requried)
+      self.use_deriv = x.requires_grad
+
       y = self.runBraid(x)
+
+      # reset derivative papth
+      self.use_deriv = False
 
     return y
   # end forward
@@ -52,7 +61,7 @@ class ForwardBraidApp(BraidApp):
   def parameters(self):
     return [list(l.parameters()) for l in self.layer_models]
 
-  def eval(self,x,tstart,tstop,level):
+  def eval(self,x,tstart,tstop,level,force_deriv=False):
     """
     Method called by "my_step" in braid. This is
     required to propagate from tstart to tstop, with the initial
@@ -63,31 +72,44 @@ class ForwardBraidApp(BraidApp):
     #  1. x is a BraidVector: my step has called this method
     #  2. x is a torch tensor: called internally (probably at the behest
     #                          of the adjoint)
+
+    # this determines if a derivative computation is required
+    require_derivatives = force_deriv or self.use_deriv
   
     with self.timer("eval(level=%d)" % level):
-
       # determine if braid or tensor version is called
       t_x = x
       use_braidvec = False
       if isinstance(x,BraidVector):
-        t_x = x.tensor().clone()
+        t_x = x.tensor()
         use_braidvec = True
-  
+
       # get some information about what to do
       dt = tstop-tstart
       layer = self.getLayer(tstart,tstop,level)
-  
-      with torch.enable_grad():
-        if level==0:
-          t_x.requires_grad = True 
-  
-        t_y = t_x+dt*layer(t_x)
-  
-      # store off the solution for later adjoints
-      if level==0 and use_braidvec:
-        ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
-        self.soln_store[ts_index] = (t_y,t_x)
-  
+
+      if require_derivatives:
+        # slow path requires derivatives
+
+        if use_braidvec:
+          t_x = x.tensor().clone()
+
+        with torch.enable_grad():
+          if level==0:
+            t_x.requires_grad = True 
+    
+          t_y = t_x+dt*layer(t_x)
+    
+        # store off the solution for later adjoints
+        if level==0 and use_braidvec:
+          ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
+          self.soln_store[ts_index] = (t_y,t_x)
+      else:
+        # fast pure forwrard mode
+        with torch.no_grad():
+          t_y = t_x+dt*layer(t_x)
+      # end if require_derivatives 
+    
       # return a braid or tensor depending on what came in
       if use_braidvec:
         return BraidVector(t_y,level) 
@@ -118,7 +140,7 @@ class ForwardBraidApp(BraidApp):
 
     # value wasn't found, recompute it and return.
     x_old = self.soln_store[ts_index-1][0].clone()
-    return (self.eval(x_old,tstart,tstop,0),x_old), layer
+    return (self.eval(x_old,tstart,tstop,0,force_deriv=True),x_old), layer
 
   # end getPrimalWithGrad
 
