@@ -184,6 +184,7 @@ else:
   parallel_nn.setSkipDowncycle(True)
   parallel_nn.setCFactor(cfactor)
   parallel_nn.setNumRelax(nrelax)
+  #parallel_nn.setNumRelax(nrelax,level=0)
 
   t0_parallel = time.time()
   y_parallel = parallel_nn(x)

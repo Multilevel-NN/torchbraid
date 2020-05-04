@@ -69,9 +69,9 @@ class LayerParallel(nn.Module):
     self.fwd_app.setPrintLevel(print_level)
     self.bwd_app.setPrintLevel(print_level)
 
-  def setNumRelax(self,relax):
-    self.fwd_app.setNumRelax(relax)
-    self.bwd_app.setNumRelax(relax)
+  def setNumRelax(self,relax,level=-1):
+    self.fwd_app.setNumRelax(relax,level=level)
+    self.bwd_app.setNumRelax(relax,level=level)
 
   def setCFactor(self,cfactor):
     self.fwd_app.setCFactor(cfactor)

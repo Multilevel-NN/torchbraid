@@ -143,6 +143,7 @@ class BraidApp:
     braid_SetMaxIter(core, self.max_iters)
     braid_SetPrintLevel(core,self.print_level)
     braid_SetNRelax(core,-1,self.nrelax)
+    braid_SetNRelax(core,0,0) # set F relax on fine grid
     braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
     braid_SetSkip(core,self.skip_downcycle)
 
@@ -182,11 +183,11 @@ class BraidApp:
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetPrintLevel(core,self.print_level)
 
-  def setNumRelax(self,relax):
+  def setNumRelax(self,relax,level=-1):
     self.nrelax = relax 
 
     core = (<PyBraid_Core> self.py_core).getCore()
-    braid_SetNRelax(core,-1,self.nrelax)
+    braid_SetNRelax(core,level,self.nrelax)
 
   def setCFactor(self,cfactor):
     self.cfactor = cfactor 
