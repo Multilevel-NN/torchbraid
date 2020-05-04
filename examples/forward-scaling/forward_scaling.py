@@ -42,6 +42,17 @@ def build_block_with_dim(channels,timer_manager):
   b = BasicBlock(channels,timer_manager)
   return b
 
+def compute_levels(num_steps,min_coarse_size,cfactor): 
+  from math import log, floor 
+  
+  # we want to find $L$ such that ( max_L min_coarse_size*cfactor**L <= num_steps)
+  levels =  floor(log(num_steps/min_coarse_size,cfactor))+1 
+
+  if levels<1:
+    levels = 1
+  return levels
+# end compute levels
+
 # some default input arguments
 ###########################################
 
@@ -81,6 +92,12 @@ args = parser.parse_args()
 # determine the number of steps
 num_steps       = args.steps
 
+# user wants us to determine how many levels
+if args.levels==-1:
+  min_coarse_size = 4
+  args.levels = compute_levels(num_steps,min_coarse_size,args.cfactor)
+# end args.levels
+
 if args.levels:    max_levels  = args.levels
 if args.iters:     max_iters   = args.iters
 if args.channels:  channels    = args.channels
@@ -91,6 +108,7 @@ if args.cfactor:   cfactor     = args.cfactor
 if args.nrelax :   nrelax      = args.nrelax
 if args.tf:        Tf          = args.tf
 if args.serial:    run_serial  = args.serial
+
 
 class Options:
   def __init__(self):
@@ -133,6 +151,7 @@ my_rank   = comm.Get_rank()
 last_rank = comm.Get_size()-1
 
 local_num_steps = int(num_steps/comm.Get_size())
+
 
 # the number of steps is not valid, then return
 if not args.steps % comm.Get_size()==0:
