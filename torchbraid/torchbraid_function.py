@@ -60,13 +60,9 @@ class BraidFunction(torch.autograd.Function):
     if num_ranks==1:
       return result
 
-    # send the output of the last layer to the root (if revsere is false)
+    # broadcast the output of the last layer (if reverse is false)
     if not reverse:
-      if my_rank==num_ranks-1:
-        for dest in range(my_rank):
-          comm.send(result,dest=dest,tag=build_seq_tag)
-      else:
-        result = comm.recv(source=num_ranks-1,tag=build_seq_tag)
+      result = comm.bcast(result,root=num_ranks-1)
     else:
       # no work to do here if reverse is True
       return result
