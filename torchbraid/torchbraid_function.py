@@ -3,14 +3,17 @@ import torch.autograd
 class BraidFunction(torch.autograd.Function):
   @staticmethod
   def forward(ctx, fwd_app, bwd_app, x, *params):
-    # setup context
-    ctx.fwd_app = fwd_app
-    ctx.bwd_app = bwd_app
-    ctx.save_for_backward(x, *params)
+    with fwd_app.timer_manager.timer("BraidFunction::forward::run"):
+      # setup context
+      ctx.fwd_app = fwd_app
+      ctx.bwd_app = bwd_app
+      ctx.save_for_backward(x, *params)
 
-    result = fwd_app.run(x)
+      result = fwd_app.run(x)
+
     with fwd_app.timer_manager.timer("BraidFunction::forward::broadCastForwardResult"):
       result = BraidFunction.broadcastForwardResult(fwd_app.getMPIData(),result,reverse=False)
+
     return result
 
   @staticmethod

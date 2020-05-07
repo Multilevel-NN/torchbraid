@@ -73,10 +73,10 @@ class ForwardBraidApp(BraidApp):
     #  2. x is a torch tensor: called internally (probably at the behest
     #                          of the adjoint)
 
-    # this determines if a derivative computation is required
-    require_derivatives = force_deriv or self.use_deriv
-  
     with self.timer("eval(level=%d)" % level):
+      # this determines if a derivative computation is required
+      require_derivatives = force_deriv or self.use_deriv
+  
       # determine if braid or tensor version is called
       t_x = x
       use_braidvec = False
@@ -180,18 +180,19 @@ class BackwardBraidApp(BraidApp):
     with self.timer("runBraid"):
       f = self.runBraid(x)
 
-    my_params = self.fwd_app.parameters()
+    with self.timer("run::extra"):
+      my_params = self.fwd_app.parameters()
 
-    # this code is due to how braid decomposes the backwards problem
-    # The ownership of the time steps is shifted to the left (and no longer balanced)
-    first = 1
-    if self.getMPIData().getRank()==0:
-      first = 0
+      # this code is due to how braid decomposes the backwards problem
+      # The ownership of the time steps is shifted to the left (and no longer balanced)
+      first = 1
+      if self.getMPIData().getRank()==0:
+        first = 0
 
-    # preserve the layerwise structure, to ease communication
-    self.grads = [ [item.grad.clone() for item in sublist] for sublist in my_params[first:]]
-    for m in self.fwd_app.layer_models:
-       m.zero_grad()
+      # preserve the layerwise structure, to ease communication
+      self.grads = [ [item.grad.clone() for item in sublist] for sublist in my_params[first:]]
+      for m in self.fwd_app.layer_models:
+         m.zero_grad()
 
     return f
   # end forward

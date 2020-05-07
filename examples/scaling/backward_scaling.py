@@ -207,7 +207,7 @@ else:
   comm.barrier()
 
   t0_bwd_parallel = time.time()
-  y_fwd_parallel.backward(w0)
+#  y_fwd_parallel.backward(w0)
   comm.barrier()
   tf_bwd_parallel = time.time()
   comm.barrier()
@@ -216,18 +216,24 @@ else:
   if my_rank==0:
     print(timer_str)
 
-  # check serial case
-  serial_nn = parallel_nn.buildSequentialOnRoot()
-  y_parallel = parallel_nn.getFinalOnRoot()
-  if my_rank==0:
-    x.requires_grad = True
+#  # check serial case
+#  serial_nn = parallel_nn.buildSequentialOnRoot()
+#  y_parallel = parallel_nn.getFinalOnRoot()
+#  if my_rank==0:
+#    x.requires_grad = True
+#
+#    y_fwd_serial = serial_nn(x)
+#    y_fwd_serial.backward(w)
+#
+#    print('fwd error = ',torch.norm(y_fwd_serial-y_fwd_parallel)/torch.norm(y_fwd_serial))
+#    print('bwd error = ',torch.norm(x.grad-x0.grad)/torch.norm(x.grad))
+## end if not run_serial
 
-    y_fwd_serial = serial_nn(x)
-    y_fwd_serial.backward(w)
+fwd_time_l = tf_fwd_parallel-t0_fwd_parallel
+bwd_time_l = tf_bwd_parallel-t0_bwd_parallel
 
-    print('fwd error = ',torch.norm(y_fwd_serial-y_fwd_parallel)/torch.norm(y_fwd_serial))
-    print('bwd error = ',torch.norm(x.grad-x0.grad)/torch.norm(x.grad))
-# end if not run_serial
+fwd_time = comm.allreduce(fwd_time_l,MPI.MAX)
+bwd_time = comm.allreduce(bwd_time_l,MPI.MAX)
 
-root_print(my_rank,'Run FWD Time: %.6e' % (tf_fwd_parallel-t0_fwd_parallel))
-root_print(my_rank,'Run BWD Time: %.6e' % (tf_bwd_parallel-t0_bwd_parallel))
+root_print(my_rank,'Run FWD Time: %.6e (%.6e)' % (fwd_time,fwd_time_l))
+root_print(my_rank,'Run BWD Time: %.6e (%.6e)' % (bwd_time,bwd_time_l))
