@@ -207,23 +207,25 @@ class BackwardBraidApp(BraidApp):
       if not t_px.grad is None:
         t_px.grad.data.zero_()
   
-      # play with the layers gradient to make sure they are on apprpriately
-      for p in layer.parameters(): 
-        if level==0:
-          if not p.grad is None:
-            p.grad.data.zero_()
-        else:
-          # if you are not on the fine level, compute n gradients
-          for p in layer.parameters():
+      with self.timer("eval(level=%d):set_grads" % level):
+        # play with the layers gradient to make sure they are on apprpriately
+        for p in layer.parameters(): 
+          if level==0:
+            if not p.grad is None:
+              p.grad.data.zero_()
+          else:
+            # if you are not on the fine level, compute n gradients
             p.requires_grad = False
   
       # perform adjoint computation
       t_x = x.tensor()
       t_py.backward(t_x,retain_graph=True)
   
-      for p in layer.parameters():
-        p.requires_grad = True
+      with self.timer("eval(level=%d):reset_grads" % level):
+        for p in layer.parameters():
+          p.requires_grad = True
 
     return BraidVector(t_px.grad,level) 
   # end eval
+
 # end BackwardBraidApp
