@@ -12,15 +12,13 @@ class BraidFunction(torch.autograd.Function):
       result = fwd_app.run(x)
 
     with fwd_app.timer_manager.timer("BraidFunction::forward::broadCastForwardResult"):
-      result = BraidFunction.broadcastForwardResult(fwd_app.getMPIData(),result,reverse=False)
+      result = BraidFunction.broadcastForwardResult(fwd_app.getMPIData(),result)
 
     return result
 
   @staticmethod
   def backward(ctx, grad_output):
     result = ctx.bwd_app.run(grad_output)
-    with ctx.bwd_app.fwd_app.timer_manager.timer("BraidFunction::backward::broadCastForwardResult"):
-      result = BraidFunction.broadcastForwardResult(ctx.bwd_app.getMPIData(),result,reverse=True)
 
     grad_input = (None,None)
     if ctx.needs_input_grad[2]:
@@ -30,7 +28,7 @@ class BraidFunction(torch.autograd.Function):
     my_rank       = ctx.bwd_app.getMPIData().getRank()
     num_ranks     = ctx.bwd_app.getMPIData().getSize()
 
-    # send everything to the right (braid doesn't maintain symmetry with the forward and
+    # send gradients to the right (braid doesn't maintain symmetry with the forward and
     # adjoint problems)
     with ctx.bwd_app.fwd_app.timer_manager.timer("BraidFunction::backward::propParameterDerivs"):
       grads = ctx.bwd_app.grads
@@ -53,7 +51,7 @@ class BraidFunction(torch.autograd.Function):
     return grad_input
 
   @staticmethod
-  def broadcastForwardResult(mpi_data,result,reverse):
+  def broadcastForwardResult(mpi_data,result):
     build_seq_tag = 96        # this 
     comm          = mpi_data.getComm()
     my_rank       = mpi_data.getRank()
@@ -63,12 +61,8 @@ class BraidFunction(torch.autograd.Function):
     if num_ranks==1:
       return result
 
-    # broadcast the output of the last layer (if reverse is false)
-    if not reverse:
-      result = comm.bcast(result,root=num_ranks-1)
-    else:
-      # no work to do here if reverse is True
-      return result
+    # broadcast the output of the last layer 
+    result = comm.bcast(result,root=num_ranks-1)
 
     return result
   # end broadcast
