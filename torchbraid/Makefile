@@ -18,5 +18,6 @@ clean:
 	make -C ./utils clean
 
 uninstall:
-	cat installed_files.txt | xargs rm -fr # remove installation
-	rm -fr installed_files.txt
+	#cat installed_files.txt | xargs rm -fr # remove installation
+	#rm -fr installed_files.txt	
+	echo "uninstall - no-op"
