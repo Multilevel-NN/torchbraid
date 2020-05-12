@@ -171,20 +171,21 @@ class LayerParallel(nn.Module):
     my_rank  = self.comm.Get_rank() 
     num_proc = self.comm.Get_size() 
 
-    result = ""
+    local_result = self.timer_manager.getResultString()
+    result = comm.gather(local_result,root=0)
+
     if my_rank==0:
       format_str = "\n   *** Proc = {rank:<8d} ***\n"
-      result += format_str.format(rank=my_rank)
-      result += self.timer_manager.getResultString()
 
-      for remote in range(1,num_proc):
-        result += format_str.format(rank=remote)
-        result += comm.recv(source=remote,tag=73)
+      result_str = ''
+      for remote,s in zip(range(0,num_proc),result):
+        result_str += format_str.format(rank=remote)
+        result_str += s
       # for remote
-    else:
-      local_result = self.timer_manager.getResultString()
-      comm.send(local_result,dest=0,tag=73)
-    # end if
+
+      result = result_str
+    # end if my_rank
+
     return result
   # end getTimersString
 
