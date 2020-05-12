@@ -171,7 +171,9 @@ class TestTorchBraid(unittest.TestCase):
     # check some values
     if m.getMPIData().getRank()==0:
 
-      print(timer_str)
+      # this is too much to print out every test run, but I'd like to make sure the
+      # code is execueted
+      self.assertTrue(len(timer_str)>0)
  
       compute_grad = True
 
