@@ -10,12 +10,17 @@ Requirements:
   + build of xbraid
   + MPI compiler
 
+To build xbraid:
+  1. Download from git@github.com:eric-c-cyr/xbraid.git
+  1. Checkout cython-adjoint branch: git checkout cython-adjoint
+  1. From the xbraid directory run `make debug=no braid`
+
 To build:
 
-  1) Copy makefile.inc.example to makefile.inc 
-  2) Modify makefile.inc to include your build specifics
-  3) Type make
-  4) You will need to add 
+  1. Copy makefile.inc.example to makefile.inc 
+  1. Modify makefile.inc to include your build specifics
+  1. Type make
+  1. You will need to add 
        `export PYTHONPATH=${TORCHBRAID_DIR}:${PYTHONPATH}` to your 
      environment, this makes sure that the python search path
      for modules is setup
