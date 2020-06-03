@@ -25,18 +25,18 @@ A braid interface to pytorch
      environment, this makes sure that the python search path
      for modules is setup
 
+Take look at code in the examples directory.
+
 ### To test:
 
-  make tests
-  make tests-serial
+ 1. `make tests`
+ 1. `make tests-serial`
 
 ### To clean the directory:
 
-   make clean
+   `make clean`
 
 ### To uninstall python (this may be a no-op)
 
-   make uninstall
+   `make uninstall`
 
-
-Take look at code in the examples directory.
