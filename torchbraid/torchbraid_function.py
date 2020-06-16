@@ -51,9 +51,9 @@ class BraidFunction(torch.autograd.Function):
   def backward(ctx, grad_output):
     result = ctx.bwd_app.run(grad_output)
 
-    grad_input = (None,None)
-    if ctx.needs_input_grad[2]:
-      grad_input += (result,)
+    # grad_input follows the input to forward: fwd_app, bwd_app, x, params
+    grad_input = (None,None) 
+    grad_input += (result,)
 
     comm          = ctx.bwd_app.getMPIData().getComm()
     my_rank       = ctx.bwd_app.getMPIData().getRank()
@@ -63,12 +63,11 @@ class BraidFunction(torch.autograd.Function):
     # adjoint problems)
     with ctx.bwd_app.fwd_app.timer_manager.timer("BraidFunction::backward::propParameterDerivs"):
       grads = ctx.bwd_app.grads
-      if len(grads)>0:
-        if my_rank<num_ranks-1:
-          comm.send(grads[-1],dest=my_rank+1,tag=22)
-        if my_rank>0:
-          neighbor_model = comm.recv(source=my_rank-1,tag=22)
-          grads.insert(0,neighbor_model)
+      if my_rank<num_ranks-1:
+        comm.send(grads[-1],dest=my_rank+1,tag=22)
+      if my_rank>0:
+        neighbor_model = comm.recv(source=my_rank-1,tag=22)
+        grads.insert(0,neighbor_model)
   
       # flatten the grads array
       grads = [g for sublist in grads for g in sublist]
