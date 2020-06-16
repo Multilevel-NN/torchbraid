@@ -238,7 +238,7 @@ else:
   comm.barrier()
 
   t0_bwd_parallel = time.time()
-#  y_fwd_parallel.backward(w0)
+  y_fwd_parallel.backward(w0)
   comm.barrier()
   tf_bwd_parallel = time.time()
   comm.barrier()
