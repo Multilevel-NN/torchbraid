@@ -1,0 +1,18 @@
+# This run MNIST just to demonstrate how the LayerParallel module might be used.
+# Note that MNIST is a poor case for LayerParallel as very effective relatvely
+# shallow neural networks can be used. Regardless, this is a good example for
+# understanding how to use the LayerParallel module for the time being (June 16, 2020)
+
+
+TRAIN_BATCHES=25
+TEST_BATCHES=5
+BATCH_SIZE=2000
+STEPS=16
+CHANNELS=4
+
+
+echo "TRUE SERIAL"
+python  main.py --steps ${STEPS} --channels ${CHANNELS} --train-batches ${TRAIN_BATCHES} --test-batches ${TEST_BATCHES} --batch-size ${BATCH_SIZE} | tee serial.out
+
+echo "LP ITERATE - MPI 4"
+mpirun -n 4 python main.py --steps ${STEPS} --channels ${CHANNELS} --train-batches ${TRAIN_BATCHES} --test-batches ${TEST_BATCHES} --batch-size ${BATCH_SIZE} --lp-levels 2 --lp-iters 2 --force-lp --lp-print 0 | tee parallel.out
