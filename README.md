@@ -21,7 +21,7 @@ A braid interface to pytorch
   1. Modify makefile.inc to include your build specifics
   1. Type make
   1. You will need to add 
-       `export PYTHONPATH=${TORCHBRAID_DIR}:${PYTHONPATH}` to your 
+       `export PYTHONPATH=${TORCHBRAID_DIR}/torchbraid:${TORCHBRAID_DIR}:${PYTHONPATH}` to your 
      environment, this makes sure that the python search path
      for modules is setup
 
