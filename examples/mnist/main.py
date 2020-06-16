@@ -242,7 +242,7 @@ def main():
       root_print(rank,'Steps must be an even multiple of the number of processors: %d %d' % (args.steps,procs) )
       sys.exit(0)
 
-    dataset = datasets.MNIST('./data', download=True,
+    dataset = datasets.MNIST('./data', download=False,
                              transform=transforms.Compose([
                                transforms.ToTensor(),
                                transforms.Normalize((0.1307,), (0.3081,))
@@ -273,16 +273,16 @@ def main():
       root_print(rank,'Using Serial')
       model = SerialNet(channels=args.channels,local_steps=local_steps)
 
-    forward_backward_perf(rank,model,train_loader)
+    #forward_backward_perf(rank,model,train_loader)
 
-    if force_lp:
-      timer_str = model.parallel_nn.getTimersString()
-      if rank==0:
-        print(timer_str)
-    # eend force_lp
+    #if force_lp:
+    #  timer_str = model.parallel_nn.getTimersString()
+    #  if rank==0:
+    #    print(timer_str)
+    ## eend force_lp
 
-    model = None
-    return 
+    #model = None
+    #return 
 
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
 
