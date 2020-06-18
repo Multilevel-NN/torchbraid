@@ -29,6 +29,16 @@
 # ************************************************************************
 #@HEADER
 
+# some helpful examples
+# 
+# BATCH_SIZE=50
+# STEPS=12
+# CHANNELS=8
+
+# IN SERIAL
+# python  main.py --steps ${STEPS} --channels ${CHANNELS} --batch-size ${BATCH_SIZE} --log-interval 100 --epochs 20 # 2>&1 | tee serial.out
+# mpirun -n 4 python  main.py --steps ${STEPS} --channels ${CHANNELS} --batch-size ${BATCH_SIZE} --log-interval 100 --epochs 20 # 2>&1 | tee serial.out
+
 from __future__ import print_function
 import sys
 import argparse
@@ -40,7 +50,6 @@ import torch.optim as optim
 import statistics as stats
 
 from torchvision import datasets, transforms
-from torch.optim.lr_scheduler import StepLR
 
 from timeit import default_timer as timer
 
@@ -182,8 +191,6 @@ def main():
                         help='number of epochs to train (default: 2)')
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
                         help='learning rate (default: 0.001)')
-    parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
-                        help='Learning rate step gamma (default: 0.7)')
 
     # algorithmic settings (parallel or serial)
     parser.add_argument('--force-lp', action='store_true', default=False,
@@ -242,8 +249,6 @@ def main():
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-    scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
-
     epoch_times = []
     test_times = []
     for epoch in range(1, args.epochs + 1):
@@ -257,7 +262,7 @@ def main():
         end_time = timer()
         test_times += [end_time-start_time]
 
-        scheduler.step()
+        optimizer.step()
 
     root_print(rank,'TIME PER EPOCH: %.2e (1 std dev %.2e)' % (stats.mean(epoch_times),stats.stdev(epoch_times)))
     root_print(rank,'TIME PER TEST:  %.2e (1 std dev %.2e)' % (stats.mean(test_times), stats.stdev(test_times)))
