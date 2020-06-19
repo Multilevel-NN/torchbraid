@@ -91,10 +91,12 @@ class StepLayer(nn.Module):
     super(StepLayer, self).__init__()
     ker_width = 3
     self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1)
+    self.bn1 = nn.BatchNorm2d(channels)
     self.conv2 = nn.Conv2d(channels,channels,ker_width,padding=1)
+    self.bn2 = nn.BatchNorm2d(channels)
 
   def forward(self, x):
-    return F.relu(self.conv2(F.relu(self.conv1(x))))
+    return F.relu(self.bn2(self.conv2(F.relu(self.bn1(self.conv1(x))))))
 # end layer
 
 class SerialNet(nn.Module):
