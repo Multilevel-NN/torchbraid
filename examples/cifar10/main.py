@@ -172,6 +172,17 @@ def test(rank, model, test_loader):
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
 
+def compute_levels(num_steps,min_coarse_size,cfactor): 
+  from math import log, floor 
+  
+  # we want to find $L$ such that ( max_L min_coarse_size*cfactor**L <= num_steps)
+  levels =  floor(log(num_steps/min_coarse_size,cfactor))+1 
+
+  if levels<1:
+    levels = 1
+  return levels
+# end compute levels
+
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='TORCHBRAID CIFAR10 Example')
@@ -218,6 +229,10 @@ def main():
       force_lp = False
 
     torch.manual_seed(args.seed)
+
+    if args.lp_levels==-1:
+      min_coarse_size = 2
+      args.lp_levels = compute_levels(args.steps,min_coarse_size,4)
 
     local_steps = int(args.steps/procs)
     if args.steps % procs!=0:
