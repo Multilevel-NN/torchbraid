@@ -30,5 +30,6 @@
 #@HEADER
 
 from .layer_parallel import LayerParallel
+from . import torchbraid_app
 
 from . import utils
