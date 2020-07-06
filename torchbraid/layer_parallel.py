@@ -81,8 +81,6 @@ class LayerParallel(nn.Module):
 
     self.fwd_app = apps.ForwardBraidApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.timer_manager)
     self.bwd_app = apps.BackwardBraidApp(self.fwd_app,self.timer_manager)
-
-    # self.param_size = 0
   # end __init__
 
   def zero_grad(self):
@@ -120,6 +118,7 @@ class LayerParallel(nn.Module):
     # pytorch's autograd which functions "naturally"
     # with the torch.autograd.function
     params = list(self.parameters())
+
     return BraidFunction.apply(self.fwd_app,self.bwd_app,x,*params) 
   # end forward
 

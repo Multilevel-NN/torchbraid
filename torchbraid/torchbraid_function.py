@@ -35,6 +35,10 @@ class BraidFunction(torch.autograd.Function):
   @staticmethod
   def forward(ctx, fwd_app, bwd_app, x, *params):
     with fwd_app.timer_manager.timer("BraidFunction::forward::run"):
+      # copy the input to all processors (ensure consistency)
+      comm = fwd_app.getMPIData().getComm()
+      x = comm.bcast(x,root=0)
+
       # setup context
       ctx.fwd_app = fwd_app
       ctx.bwd_app = bwd_app
