@@ -82,7 +82,7 @@ class LayerParallel(nn.Module):
     self.fwd_app = apps.ForwardBraidApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.timer_manager)
     self.bwd_app = apps.BackwardBraidApp(self.fwd_app,self.timer_manager)
 
-    self.param_size = 0
+    # self.param_size = 0
   # end __init__
 
   def zero_grad(self):
