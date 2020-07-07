@@ -34,6 +34,7 @@ import torch.autograd
 class BraidFunction(torch.autograd.Function):
   @staticmethod
   def forward(ctx, fwd_app, bwd_app, x, *params):
+    my_rank       = fwd_app.getMPIData().getRank()
     with fwd_app.timer_manager.timer("BraidFunction::forward::run"):
       # copy the input to all processors (ensure consistency)
       comm = fwd_app.getMPIData().getComm()
@@ -53,15 +54,18 @@ class BraidFunction(torch.autograd.Function):
 
   @staticmethod
   def backward(ctx, grad_output):
+    comm          = ctx.bwd_app.getMPIData().getComm()
+    my_rank       = ctx.bwd_app.getMPIData().getRank()
+    num_ranks     = ctx.bwd_app.getMPIData().getSize()
+
+    # copy the input to all processors (ensure consistency)
+    grad_output = comm.bcast(grad_output,root=0)
+
     result = ctx.bwd_app.run(grad_output)
 
     # grad_input follows the input to forward: fwd_app, bwd_app, x, params
     grad_input = (None,None) 
     grad_input += (result,)
-
-    comm          = ctx.bwd_app.getMPIData().getComm()
-    my_rank       = ctx.bwd_app.getMPIData().getRank()
-    num_ranks     = ctx.bwd_app.getMPIData().getSize()
 
     # send gradients to the right (braid doesn't maintain symmetry with the forward and
     # adjoint problems)
