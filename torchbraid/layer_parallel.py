@@ -39,7 +39,7 @@ from mpi4py import MPI
 
 import copy
 
-from torchbraid.torchbraid_function import BraidFunction
+from torchbraid.braid_function import BraidFunction
 from torchbraid.utils import ContextTimerManager
 
 import torchbraid.torchbraid_apps as apps
