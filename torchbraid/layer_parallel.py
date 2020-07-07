@@ -29,8 +29,7 @@
 # ************************************************************************
 #@HEADER
 
-# cython: profile=True
-# cython: linetrace=True
+import inspect
 
 import torch
 import torch.nn as nn
@@ -62,11 +61,51 @@ class ODEBlock(nn.Module):
 # end ODEBlock
 
 class LayerParallel(nn.Module):
+  
+  class ExecLP:
+    """Helper class for building composite neural network modules
+
+    This class is used by customers of the LayerParallel module to
+    allow construction of composite neural networks with the proper
+    parallel execution and gradients.
+
+    One naming convection is to use 'o' for a class of this type
+    signifying object compoistion.
+    """
+
+    def __init__(self,rank):
+      """Constructor setting the LP rank of this processor"""
+      self.my_rank = rank
+
+    def __call__(self,op,*args):
+      """Call an operator conditionally based on being on rank 0
+         
+         If op is a class, than this returns None on processors other
+         than rank 0.
+      """
+      
+      if self.my_rank==0:
+        return op(*args)
+
+      # this helps with makign constructos consistent
+      if inspect.isclass(op):
+        return None
+
+      # blindly assume that all the arguments are torch
+      # tensors, and propagate this through
+      value = torch.zeros(1)
+      for a in args:
+        value += torch.norm(a)
+
+       # so this is all a hack to get this thing to work
+      return torch.zeros(1)*value
 
   def __init__(self,comm,layer_block,num_steps,Tf,max_levels=1,max_iters=10):
     super(LayerParallel,self).__init__()
 
     self.comm = comm
+
+    self.exec_helper = self.ExecLP(comm.Get_rank())
 
     # optional parameters
     global_steps = num_steps*comm.Get_size()
@@ -82,6 +121,12 @@ class LayerParallel(nn.Module):
     self.fwd_app = apps.ForwardODENetApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.timer_manager)
     self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager)
   # end __init__
+
+  def comp_op(self):
+    """Short for compose operator, returns a functor that allows contstruction of composite neural 
+       networks using this LayerParallel module.
+    """
+    return self.exec_helper
 
   def zero_grad(self):
     for l in self.fwd_app.layer_models:

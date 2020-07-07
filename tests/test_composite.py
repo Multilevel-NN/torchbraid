@@ -78,25 +78,11 @@ class StepLayer(nn.Module):
     return F.relu(self.conv1(x))
 # end layer
 
-class ExecLP:
-  def __init__(self,rank):
-    self.my_rank = rank
-
-  def __call__(self,op,*args):
-    if self.my_rank==0:
-      return op(*args)
-
-    value = torch.zeros(1)
-    for a in args:
-      value += torch.norm(a)
-    return torch.zeros(1)*value
-
 class ParallelNet(nn.Module):
   def __init__(self,channels=4,local_steps=2,Tf=1.0,max_levels=1,max_iters=1,print_level=0):
     super(ParallelNet, self).__init__()
 
     self.rank = MPI.COMM_WORLD.Get_rank()
-    self.l = ExecLP(self.rank)
 
     self.channels = channels
     step_layer = lambda: StepLayer(channels)
@@ -104,20 +90,20 @@ class ParallelNet(nn.Module):
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_levels=max_levels,max_iters=max_iters)
     self.parallel_nn.setPrintLevel(print_level)
     self.parallel_nn.setCFactor(4)
+    self.o = self.parallel_nn.comp_op() # get tool to build up composition neural networks
 
-    if self.rank==0:
-      self.open_nn  = OpenLayer(channels)
-      self.close_nn = CloseLayer(channels)
-    else:
-      self.open_nn  = None
-      self.close_nn = None
+    # in this case, because OpenLayer/CloseLayer are classes, these return None on processors
+    # away from rank==0...this might be too cute
+    self.open_nn  = self.o(OpenLayer,channels)
+    self.close_nn = self.o(CloseLayer,channels)
 
   def forward(self, x):
-    l_ = self.l
+    o_ = self.o
 
-    x = l_(self.open_nn,x)
+    # here o_ is ensuring the gradients are handled yet no code is executed on rank!=0
+    x = o_(self.open_nn,x)
     x = self.parallel_nn(x)
-    x = l_(self.close_nn,x)
+    x = o_(self.close_nn,x)
 
     return x
 
@@ -197,9 +183,12 @@ class TestTorchBraid(unittest.TestCase):
     parallel_net.train()
     parallel_net.zero_grad()
 
-    l_ = parallel_net.l
+    # do forward propagation
     p_output = parallel_net(data)
-    p_loss = l_(criterion,p_output, target)
+
+    # here o_ is ensuring the gradients are handled yet no code is executed on rank!=0
+    o_ = parallel_net.o
+    p_loss = o_(criterion,p_output, target)
     p_loss.backward()
 
     for r in range(procs):
