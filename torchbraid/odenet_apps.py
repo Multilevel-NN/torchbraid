@@ -40,7 +40,7 @@ import sys
 
 from mpi4py import MPI
 
-class ForwardBraidApp(BraidApp):
+class ForwardODENetApp(BraidApp):
 
   def __init__(self,comm,layer_models,local_num_steps,Tf,max_levels,max_iters,timer_manager):
     BraidApp.__init__(self,comm,local_num_steps,Tf,max_levels,max_iters)
@@ -175,11 +175,11 @@ class ForwardBraidApp(BraidApp):
 
   # end getPrimalWithGrad
 
-# end ForwardBraidApp
+# end ForwardODENetApp
 
 ##############################################################
 
-class BackwardBraidApp(BraidApp):
+class BackwardODENetApp(BraidApp):
 
   def __init__(self,fwd_app,timer_manager):
     # call parent constructor
@@ -259,4 +259,4 @@ class BackwardBraidApp(BraidApp):
     return BraidVector(t_px.grad,level) 
   # end eval
 
-# end BackwardBraidApp
+# end BackwardODENetApp

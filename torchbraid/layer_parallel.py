@@ -42,7 +42,7 @@ import copy
 from torchbraid.braid_function import BraidFunction
 from torchbraid.utils import ContextTimerManager
 
-import torchbraid.torchbraid_apps as apps
+import torchbraid.odenet_apps as apps
 
 ##
 # Define your Python Braid Vector
@@ -79,8 +79,8 @@ class LayerParallel(nn.Module):
 
     self.timer_manager = ContextTimerManager()
 
-    self.fwd_app = apps.ForwardBraidApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.timer_manager)
-    self.bwd_app = apps.BackwardBraidApp(self.fwd_app,self.timer_manager)
+    self.fwd_app = apps.ForwardODENetApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.timer_manager)
+    self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager)
   # end __init__
 
   def zero_grad(self):
