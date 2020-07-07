@@ -5,3 +5,5 @@ __pycache__/
 examples/data/
 
 makefile.inc
+
+.DS_Store
