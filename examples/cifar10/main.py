@@ -124,27 +124,37 @@ class ParallelNet(nn.Module):
     super(ParallelNet, self).__init__()
 
     step_layer = lambda: StepLayer(channels)
-    
-    self.open_nn = OpenLayer(channels)
+
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_levels=max_levels,max_iters=max_iters)
     self.parallel_nn.setPrintLevel(print_level)
     self.parallel_nn.setCFactor(4)
-    self.close_nn = CloseLayer(channels)
+
+    # this object ensures that only the LayerParallel code runs on ranks!=0
+    compose = self.compose = self.parallel_nn.comp_op()
+    
+    # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels) 
+    # on processors not equal to 0, these will be None (there are no parameters to train there)
+    self.open_nn = compose(OpenLayer,channels)
+    self.close_nn = compose(CloseLayer,channels)
  
   def forward(self, x):
-    x = self.open_nn(x)
+    # by passing this through 'o' (mean composition: e.g. self.open_nn o x) 
+    # this makes sure this is run on only processor 0
+
+    x = self.compose(self.open_nn,x)
     x = self.parallel_nn(x)
-    x = self.close_nn(x)
+    x = self.compose(self.close_nn,x)
+
     return x
 # end ParallelNet 
 
-def train(rank, args, model, train_loader, optimizer, epoch):
+def train(rank, args, model, train_loader, optimizer, epoch,compose):
     model.train()
     criterion = nn.CrossEntropyLoss()
     for batch_idx, (data, target) in enumerate(train_loader):
         optimizer.zero_grad()
         output = model(data)
-        loss = criterion(output, target)
+        loss = compose(criterion,output,target)
         loss.backward()
         optimizer.step()
         if batch_idx % args.log_interval == 0:
@@ -153,7 +163,7 @@ def train(rank, args, model, train_loader, optimizer, epoch):
                 100. * batch_idx / len(train_loader), loss.item()))
 
 
-def test(rank, model, test_loader):
+def test(rank, model, test_loader,compose):
     model.eval()
     test_loss = 0
     correct = 0
@@ -162,7 +172,7 @@ def test(rank, model, test_loader):
         for data, target in test_loader:
             data, target = data, target
             output = model(data)
-            test_loss += criterion(output, target).item()
+            test_loss += compose(criterion,output,target).item()
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
 
@@ -202,8 +212,8 @@ def main():
                         help='input batch size for training (default: 50)')
     parser.add_argument('--epochs', type=int, default=2, metavar='N',
                         help='number of epochs to train (default: 2)')
-    parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
-                        help='learning rate (default: 0.001)')
+    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
+                        help='learning rate (default: 0.01)')
 
     # algorithmic settings (parallel or serial)
     parser.add_argument('--force-lp', action='store_true', default=False,
@@ -260,22 +270,24 @@ def main():
                           max_levels=args.lp_levels,
                           max_iters=args.lp_iters,
                           print_level=args.lp_print)
+      compose = model.compose
     else:
       root_print(rank,'Using Serial')
       model = SerialNet(channels=args.channels,local_steps=local_steps)
+      compose = lambda op,*p: op(*p)
 
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr,momentum=0.9)
 
     epoch_times = []
     test_times = []
     for epoch in range(1, args.epochs + 1):
         start_time = timer()
-        train(rank,args, model, train_loader, optimizer, epoch)
+        train(rank,args, model, train_loader, optimizer, epoch,compose)
         end_time = timer()
         epoch_times += [end_time-start_time]
 
         start_time = timer()
-        test(rank,model, test_loader)
+        test(rank,model, test_loader,compose)
         end_time = timer()
         test_times += [end_time-start_time]
 
