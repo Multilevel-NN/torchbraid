@@ -95,7 +95,8 @@ class LayerParallel(nn.Module):
       # tensors, and propagate this through
       value = torch.zeros(1)
       for a in args:
-        value += torch.norm(a)
+        if a.requires_grad:
+          value += torch.norm(a)
 
        # so this is all a hack to get this thing to work
       return torch.zeros(1)*value
