@@ -149,18 +149,22 @@ class ParallelNet(nn.Module):
 # end ParallelNet 
 
 def train(rank, args, model, train_loader, optimizer, epoch,compose):
-    model.train()
-    criterion = nn.CrossEntropyLoss()
-    for batch_idx, (data, target) in enumerate(train_loader):
-        optimizer.zero_grad()
-        output = model(data)
-        loss = compose(criterion,output,target)
-        loss.backward()
-        optimizer.step()
-        if batch_idx % args.log_interval == 0:
-            root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), loss.item()))
+  model.train()
+  criterion = nn.CrossEntropyLoss()
+  for batch_idx, (data, target) in enumerate(train_loader):
+      optimizer.zero_grad()
+      output = model(data)
+      loss = compose(criterion,output,target)
+      loss.backward()
+      optimizer.step()
+      if batch_idx % args.log_interval == 0:
+          root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+              epoch, batch_idx * len(data), len(train_loader.dataset),
+              100. * batch_idx / len(train_loader), loss.item()))
+
+  root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+      epoch, (batch_idx+1) * len(data), len(train_loader.dataset),
+      100. * (batch_idx+1) / len(train_loader), loss.item()))
 
 
 def test(rank, model, test_loader,compose):
@@ -173,6 +177,8 @@ def test(rank, model, test_loader,compose):
             data, target = data, target
             output = model(data)
             test_loss += compose(criterion,output,target).item()
+             
+            output = MPI.COMM_WORLD.bcast(output,root=0)
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
 
@@ -292,6 +298,10 @@ def main():
         test_times += [end_time-start_time]
 
         optimizer.step()
+
+    if force_lp:
+      timer_str = model.parallel_nn.getTimersString()
+      root_print(rank,timer_str)
 
     root_print(rank,'TIME PER EPOCH: %.2e (1 std dev %.2e)' % (stats.mean(epoch_times),stats.stdev(epoch_times)))
     root_print(rank,'TIME PER TEST:  %.2e (1 std dev %.2e)' % (stats.mean(test_times), stats.stdev(test_times)))
