@@ -77,7 +77,7 @@ class LayerParallel(nn.Module):
       """Constructor setting the LP rank of this processor"""
       self.my_rank = rank
 
-    def __call__(self,op,*args):
+    def __call__(self,op,*args,**kwargs):
       """Call an operator conditionally based on being on rank 0
          
          If op is a class, than this returns None on processors other
@@ -85,7 +85,7 @@ class LayerParallel(nn.Module):
       """
       
       if self.my_rank==0:
-        return op(*args)
+        return op(*args,**kwargs)
 
       # this helps with makign constructos consistent
       if inspect.isclass(op):
