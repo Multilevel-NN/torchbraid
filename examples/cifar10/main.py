@@ -129,6 +129,9 @@ class ParallelNet(nn.Module):
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_levels=max_levels,max_iters=max_iters)
     self.parallel_nn.setPrintLevel(print_level)
     self.parallel_nn.setCFactor(4)
+    self.parallel_nn.setSkipDowncycle(True)
+    self.parallel_nn.setNumRelax(1)         # FCF elsewehre
+    self.parallel_nn.setNumRelax(0,level=0) # F-Relaxation on the fine grid
 
     # this object ensures that only the LayerParallel code runs on ranks!=0
     compose = self.compose = self.parallel_nn.comp_op()
