@@ -117,7 +117,7 @@ class ForwardODENetApp(BraidApp):
 
       # get some information about what to do
       dt = tstop-tstart
-      layer = self.getLayer(tstart,tstop,level)
+      layer = self.getLayer(tstart,tstop,level) # resnet "basic block"
 
       if require_derivatives:
         # slow path requires derivatives

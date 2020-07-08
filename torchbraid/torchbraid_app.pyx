@@ -201,7 +201,7 @@ class BraidApp:
     self.setInitial(x)
  
     # Run Braid
-    braid_Drive(core)
+    braid_Drive(core) # my_step -> App:eval -> resnet "basic block"
 
     return self.getFinal()
 
