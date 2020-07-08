@@ -278,7 +278,7 @@ def main():
                           print_level=args.lp_print)
       compose = model.compose
     else:
-      root_print(rank,'Using Serial')
+      root_print(rank,'Using SerialNet')
       model = SerialNet(channels=args.channels,local_steps=local_steps)
       compose = lambda op,*p: op(*p)
 
