@@ -31,3 +31,11 @@
 
 from .context_timer import ContextTimer
 from .context_timer_manager import ContextTimerManager
+
+def seed_from_rank(seed,rank):
+ """Helper function to compute a new seed from the parallel rank using an LCG
+
+    Note that this is not a good parallel number generator, just a starting point.
+ """
+ # set the seed (using a LCG: from Wikipedia article, apparently Numerical recipes)
+ return (1664525*(seed+rank) + 1013904113)% 2**32
