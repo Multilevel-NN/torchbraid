@@ -7,12 +7,12 @@
 TRAIN_BATCHES=25
 TEST_BATCHES=5
 BATCH_SIZE=2000
-STEPS=16
+STEPS=4
 CHANNELS=4
 
 
 echo "TRUE SERIAL"
-python  main.py --steps ${STEPS} --channels ${CHANNELS} --train-batches ${TRAIN_BATCHES} --test-batches ${TEST_BATCHES} --batch-size ${BATCH_SIZE} | tee serial.out
+mpirun -n 1 python main.py --steps ${STEPS} --channels ${CHANNELS} --train-batches ${TRAIN_BATCHES} --test-batches ${TEST_BATCHES} --batch-size ${BATCH_SIZE} 
 
 echo "LP ITERATE - MPI 4"
-mpirun -n 4 python main.py --steps ${STEPS} --channels ${CHANNELS} --train-batches ${TRAIN_BATCHES} --test-batches ${TEST_BATCHES} --batch-size ${BATCH_SIZE} --lp-levels 2 --lp-iters 2 --force-lp --lp-print 0 | tee parallel.out
+mpirun -n 4 python main.py --steps ${STEPS} --channels ${CHANNELS} --train-batches ${TRAIN_BATCHES} --test-batches ${TEST_BATCHES} --batch-size ${BATCH_SIZE} --lp-levels 2 --lp-iters 2 --force-lp --lp-print 0 
