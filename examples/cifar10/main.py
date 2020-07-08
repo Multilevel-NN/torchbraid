@@ -44,6 +44,7 @@ import sys
 import argparse
 import torch
 import torchbraid
+import torchbraid.utils
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
@@ -152,15 +153,15 @@ def train(rank, args, model, train_loader, optimizer, epoch,compose):
   model.train()
   criterion = nn.CrossEntropyLoss()
   for batch_idx, (data, target) in enumerate(train_loader):
-      optimizer.zero_grad()
-      output = model(data)
-      loss = compose(criterion,output,target)
-      loss.backward()
-      optimizer.step()
-      if batch_idx % args.log_interval == 0:
-          root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-              epoch, batch_idx * len(data), len(train_loader.dataset),
-              100. * batch_idx / len(train_loader), loss.item()))
+    optimizer.zero_grad()
+    output = model(data)
+    loss = compose(criterion,output,target)
+    loss.backward()
+    optimizer.step()
+    if batch_idx % args.log_interval == 0:
+      root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+          epoch, batch_idx * len(data), len(train_loader.dataset),
+          100. * batch_idx / len(train_loader), loss.item()))
 
   root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
       epoch, (batch_idx+1) * len(data), len(train_loader.dataset),
@@ -168,25 +169,25 @@ def train(rank, args, model, train_loader, optimizer, epoch,compose):
 
 
 def test(rank, model, test_loader,compose):
-    model.eval()
-    test_loss = 0
-    correct = 0
-    criterion = nn.CrossEntropyLoss()
-    with torch.no_grad():
-        for data, target in test_loader:
-            data, target = data, target
-            output = model(data)
-            test_loss += compose(criterion,output,target).item()
-             
-            output = MPI.COMM_WORLD.bcast(output,root=0)
-            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-            correct += pred.eq(target.view_as(pred)).sum().item()
+  model.eval()
+  test_loss = 0
+  correct = 0
+  criterion = nn.CrossEntropyLoss()
+  with torch.no_grad():
+    for data, target in test_loader:
+      data, target = data, target
+      output = model(data)
+      test_loss += compose(criterion,output,target).item()
+       
+      output = MPI.COMM_WORLD.bcast(output,root=0)
+      pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+      correct += pred.eq(target.view_as(pred)).sum().item()
 
-    test_loss /= len(test_loader.dataset)
+  test_loss /= len(test_loader.dataset)
 
-    root_print(rank,'\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
+  root_print(rank,'\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+      test_loss, correct, len(test_loader.dataset),
+      100. * correct / len(test_loader.dataset)))
 
 def compute_levels(num_steps,min_coarse_size,cfactor): 
   from math import log, floor 
@@ -200,111 +201,109 @@ def compute_levels(num_steps,min_coarse_size,cfactor):
 # end compute levels
 
 def main():
-    # Training settings
-    parser = argparse.ArgumentParser(description='TORCHBRAID CIFAR10 Example')
-    parser.add_argument('--seed', type=int, default=1, metavar='S',
-                        help='random seed (default: 1)')
-    parser.add_argument('--log-interval', type=int, default=10, metavar='N',
-                        help='how many batches to wait before logging training status')
+  # Training settings
+  parser = argparse.ArgumentParser(description='TORCHBRAID CIFAR10 Example')
+  parser.add_argument('--seed', type=int, default=1, metavar='S',
+                      help='random seed (default: 1)')
+  parser.add_argument('--log-interval', type=int, default=10, metavar='N',
+                      help='how many batches to wait before logging training status')
 
-    # artichtectural settings
-    parser.add_argument('--steps', type=int, default=4, metavar='N',
-                        help='Number of times steps in the resnet layer (default: 4)')
-    parser.add_argument('--channels', type=int, default=4, metavar='N',
-                        help='Number of channels in resnet layer (default: 4)')
+  # artichtectural settings
+  parser.add_argument('--steps', type=int, default=4, metavar='N',
+                      help='Number of times steps in the resnet layer (default: 4)')
+  parser.add_argument('--channels', type=int, default=4, metavar='N',
+                      help='Number of channels in resnet layer (default: 4)')
 
-    # algorithmic settings (gradient descent and batching
-    parser.add_argument('--batch-size', type=int, default=50, metavar='N',
-                        help='input batch size for training (default: 50)')
-    parser.add_argument('--epochs', type=int, default=2, metavar='N',
-                        help='number of epochs to train (default: 2)')
-    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
-                        help='learning rate (default: 0.01)')
+  # algorithmic settings (gradient descent and batching
+  parser.add_argument('--batch-size', type=int, default=50, metavar='N',
+                      help='input batch size for training (default: 50)')
+  parser.add_argument('--epochs', type=int, default=2, metavar='N',
+                      help='number of epochs to train (default: 2)')
+  parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
+                      help='learning rate (default: 0.01)')
 
-    # algorithmic settings (parallel or serial)
-    parser.add_argument('--force-lp', action='store_true', default=False,
-                        help='Use layer parallel even if there is only 1 MPI rank')
-    parser.add_argument('--lp-levels', type=int, default=3, metavar='N',
-                        help='Layer parallel levels (default: 3)')
-    parser.add_argument('--lp-iters', type=int, default=2, metavar='N',
-                        help='Layer parallel iterations (default: 2)')
-    parser.add_argument('--lp-print', type=int, default=0, metavar='N',
-                        help='Layer parallel print level default: 0)')
+  # algorithmic settings (parallel or serial)
+  parser.add_argument('--force-lp', action='store_true', default=False,
+                      help='Use layer parallel even if there is only 1 MPI rank')
+  parser.add_argument('--lp-levels', type=int, default=3, metavar='N',
+                      help='Layer parallel levels (default: 3)')
+  parser.add_argument('--lp-iters', type=int, default=2, metavar='N',
+                      help='Layer parallel iterations (default: 2)')
+  parser.add_argument('--lp-print', type=int, default=0, metavar='N',
+                      help='Layer parallel print level default: 0)')
 
-    rank  = MPI.COMM_WORLD.Get_rank()
-    procs = MPI.COMM_WORLD.Get_size()
-    args = parser.parse_args()
+  rank  = MPI.COMM_WORLD.Get_rank()
+  procs = MPI.COMM_WORLD.Get_size()
+  args = parser.parse_args()
 
-    # some logic to default to Serial if on one processor,
-    # can be overriden by the user to run layer-parallel
-    if args.force_lp:
-      force_lp = True
-    elif procs>1:
-      force_lp = True
-    else:
-      force_lp = False
+  # some logic to default to Serial if on one processor,
+  # can be overriden by the user to run layer-parallel
+  if args.force_lp:
+    force_lp = True
+  elif procs>1:
+    force_lp = True
+  else:
+    force_lp = False
 
-    torch.manual_seed(args.seed)
+  torch.manual_seed(torchbraid.utils.seed_from_rank(args.seed,rank))
 
-    if args.lp_levels==-1:
-      min_coarse_size = 2
-      args.lp_levels = compute_levels(args.steps,min_coarse_size,4)
+  if args.lp_levels==-1:
+    min_coarse_size = 2
+    args.lp_levels = compute_levels(args.steps,min_coarse_size,4)
 
-    local_steps = int(args.steps/procs)
-    if args.steps % procs!=0:
-      root_print(rank,'Steps must be an even multiple of the number of processors: %d %d' % (args.steps,procs) )
-      sys.exit(0)
+  local_steps = int(args.steps/procs)
+  if args.steps % procs!=0:
+    root_print(rank,'Steps must be an even multiple of the number of processors: %d %d' % (args.steps,procs) )
+    sys.exit(0)
 
-    transform = transforms.Compose([transforms.ToTensor(),
-                                transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5))])
-    train_set = datasets.CIFAR10('./data', download=False,
-                                     transform=transform,train=True)
-    test_set  = datasets.CIFAR10('./data', download=False,
-                                     transform=transform,train=False)
+  transform = transforms.Compose([transforms.ToTensor(),
+                              transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5))])
+  train_set = datasets.CIFAR10('./data', download=False,
+                                   transform=transform,train=True)
+  test_set  = datasets.CIFAR10('./data', download=False,
+                                   transform=transform,train=False)
 
-    train_loader = torch.utils.data.DataLoader(train_set,
-                                               batch_size=args.batch_size, 
-                                               shuffle=True)
-    test_loader  = torch.utils.data.DataLoader(test_set,
-                                               batch_size=args.batch_size, 
-                                               shuffle=False)
+  train_loader = torch.utils.data.DataLoader(train_set,
+                                             batch_size=args.batch_size, 
+                                             shuffle=True)
+  test_loader  = torch.utils.data.DataLoader(test_set,
+                                             batch_size=args.batch_size, 
+                                             shuffle=False)
 
-    if force_lp :
-      root_print(rank,'Using ParallelNet')
-      model = ParallelNet(channels=args.channels,
-                          local_steps=local_steps,
-                          max_levels=args.lp_levels,
-                          max_iters=args.lp_iters,
-                          print_level=args.lp_print)
-      compose = model.compose
-    else:
-      root_print(rank,'Using SerialNet')
-      model = SerialNet(channels=args.channels,local_steps=local_steps)
-      compose = lambda op,*p: op(*p)
+  if force_lp :
+    root_print(rank,'Using ParallelNet')
+    model = ParallelNet(channels=args.channels,
+                        local_steps=local_steps,
+                        max_levels=args.lp_levels,
+                        max_iters=args.lp_iters,
+                        print_level=args.lp_print)
+    compose = model.compose
+  else:
+    root_print(rank,'Using SerialNet')
+    model = SerialNet(channels=args.channels,local_steps=local_steps)
+    compose = lambda op,*p: op(*p)
 
-    optimizer = optim.SGD(model.parameters(), lr=args.lr,momentum=0.9)
+  optimizer = optim.SGD(model.parameters(), lr=args.lr,momentum=0.9)
 
-    epoch_times = []
-    test_times = []
-    for epoch in range(1, args.epochs + 1):
-        start_time = timer()
-        train(rank,args, model, train_loader, optimizer, epoch,compose)
-        end_time = timer()
-        epoch_times += [end_time-start_time]
+  epoch_times = []
+  test_times = []
+  for epoch in range(1, args.epochs + 1):
+    start_time = timer()
+    train(rank,args, model, train_loader, optimizer, epoch,compose)
+    end_time = timer()
+    epoch_times += [end_time-start_time]
 
-        start_time = timer()
-        test(rank,model, test_loader,compose)
-        end_time = timer()
-        test_times += [end_time-start_time]
+    start_time = timer()
+    test(rank,model, test_loader,compose)
+    end_time = timer()
+    test_times += [end_time-start_time]
 
-        optimizer.step()
+  if force_lp:
+    timer_str = model.parallel_nn.getTimersString()
+    root_print(rank,timer_str)
 
-    if force_lp:
-      timer_str = model.parallel_nn.getTimersString()
-      root_print(rank,timer_str)
-
-    root_print(rank,'TIME PER EPOCH: %.2e (1 std dev %.2e)' % (stats.mean(epoch_times),stats.stdev(epoch_times)))
-    root_print(rank,'TIME PER TEST:  %.2e (1 std dev %.2e)' % (stats.mean(test_times), stats.stdev(test_times)))
+  root_print(rank,'TIME PER EPOCH: %.2e (1 std dev %.2e)' % (stats.mean(epoch_times),stats.stdev(epoch_times)))
+  root_print(rank,'TIME PER TEST:  %.2e (1 std dev %.2e)' % (stats.mean(test_times), stats.stdev(test_times)))
 
 if __name__ == '__main__':
-    main()
+  main()
