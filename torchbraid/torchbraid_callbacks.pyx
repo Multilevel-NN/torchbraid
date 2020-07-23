@@ -236,10 +236,10 @@ cdef int my_coarsen(braid_App app, braid_Vector fu, braid_Vector *cu_ptr, braid_
   cdef int level = -1
   braid_CoarsenRefStatusGetLevel(status,&level)
 
-  cu_mem = pyApp.spatial_coarsen(ten_fu,level)
+  cu_mem = pyApp.spatial_coarse(ten_fu,level)
   Py_INCREF(cu_mem) # why do we need this?
 
-  cu_ptr[0] = <braid_Vector> cu_mem
+  cu_ptr[0] = <braid_Vector> cu_mem 
 
   return 0
 

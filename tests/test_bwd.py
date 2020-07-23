@@ -126,6 +126,32 @@ class TestTorchBraid(unittest.TestCase):
     MPI.COMM_WORLD.barrier()
   # end test_reLUNet_Exact
 
+  def test_reLUNet_Approx_coarse_ref(self):
+    dim = 2
+    basic_block = lambda: ReLUBlock(dim)
+
+    x0 = torch.randn(5,dim) # forward initial cond
+    w0 = torch.randn(5,dim) # adjoint initial cond
+    x0 = 12.0*torch.ones(5,dim) # forward initial cond
+    w0 = 8.0*torch.ones(5,dim) # adjoint initial cond
+    max_levels = 3
+    max_iters = 8
+
+    def coarsen(x,level):
+      return x.clone()
+    def refine(x,level):
+      return x.clone()
+
+    # this catch block, augments the 
+    rank = MPI.COMM_WORLD.Get_rank()
+    try:
+      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx_coarse_ref',ref_pair=(coarsen,refine))
+    except RuntimeError as err:
+      raise RuntimeError("proc=%d) reLUNet_Exact..failure" % rank) from err
+
+    MPI.COMM_WORLD.barrier()
+  # end test_reLUNet_Exact
+
   def test_reLUNet_Approx(self):
     dim = 2
     basic_block = lambda: ReLUBlock(dim)
@@ -173,7 +199,7 @@ class TestTorchBraid(unittest.TestCase):
 
     # this is the torchbraid class being tested 
     #######################################
-    m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_levels=max_levels,max_iters=max_iters)
+    m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_levels=max_levels,max_iters=max_iters,spatial_ref_pair=ref_pair)
     m.setPrintLevel(0)
 
     w0 = m.copyVectorFromRoot(w0)
