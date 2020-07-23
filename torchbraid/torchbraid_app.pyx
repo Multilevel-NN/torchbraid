@@ -133,6 +133,7 @@ class BraidApp:
     self.py_core = None
 
     self.spatial_mg = False
+    self.spatial_ref_pair = spatial_ref_pair
     if spatial_ref_pair!=None:
       c,r = spatial_ref_pair
       self.spatial_coarse = c

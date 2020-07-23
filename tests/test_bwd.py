@@ -167,7 +167,7 @@ class TestTorchBraid(unittest.TestCase):
       return None
   # end copyParametersToRoot
 
-  def backForwardProp(self,dim, basic_block,x0,w0,max_levels,max_iters,test_tol,prefix):
+  def backForwardProp(self,dim, basic_block,x0,w0,max_levels,max_iters,test_tol,prefix,ref_pair=None):
     Tf = 2.0
     num_steps = 4
 
