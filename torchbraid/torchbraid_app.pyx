@@ -105,7 +105,8 @@ cdef class MPIData:
 
 class BraidApp:
 
-  def __init__(self,comm,local_num_steps,Tf,max_levels,max_iters):
+  def __init__(self,comm,local_num_steps,Tf,max_levels,max_iters,
+               spatial_ref_pair=None):
     # optional parameters
     self.max_levels  = max_levels
     self.max_iters   = max_iters
@@ -131,6 +132,14 @@ class BraidApp:
 
     self.py_core = None
 
+    self.spatial_mg = False
+    if spatial_ref_pair!=None:
+      c,r = spatial_ref_pair
+      self.spatial_coarse = c
+      self.spatial_refine = r
+      self.spatial_mg = True
+    # turn on spatial multigrid
+
     # build up the core
     self.py_core = self.initCore()
   # end __init__
@@ -155,6 +164,8 @@ class BraidApp:
     cdef braid_PtFcnBufSize b_bufsize = <braid_PtFcnBufSize> my_bufsize
     cdef braid_PtFcnBufPack b_bufpack = <braid_PtFcnBufPack> my_bufpack
     cdef braid_PtFcnBufUnpack b_bufunpack = <braid_PtFcnBufUnpack> my_bufunpack
+    cdef braid_PtFcnSCoarsen b_coarsen = <braid_PtFcnSCoarsen> my_coarsen
+    cdef braid_PtFcnSRefine b_refine = <braid_PtFcnSRefine> my_refine
 
     ntime = self.num_steps
     tstart = 0.0
@@ -168,6 +179,11 @@ class BraidApp:
                b_sum, b_norm, b_access, 
                b_bufsize, b_bufpack, b_bufunpack, 
                &core)
+
+    if self.spatial_mg:
+      braid_SetSpatialCoarsen(core,b_coarsen)
+      braid_SetSpatialRefine(core,b_refine)
+    # end if refinement_on
 
     # Set Braid options
     braid_SetMaxLevels(core, self.max_levels)
