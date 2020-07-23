@@ -146,22 +146,28 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   cdef int cnt 
   with pyApp.timer("my_bufsize"):
     cnt = pyApp.x0.tensor().size().numel()
+    rank = len(pyApp.x0.tensor().size())
 
     # Note size_ptr is an integer array of size 1, and we index in at location [0]
     # the int size encodes the level
-    size_ptr[0] = sizeof(float)*cnt + sizeof(float) + sizeof(int)
-                   # vector                 time             level
+    size_ptr[0] = sizeof(float)*cnt + sizeof(float) + sizeof(int) + sizeof(int) + rank*sizeof(int)
+                   # vector                 time       level          rank           shape
 
   return 0
 
 cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStatus status):
 
   # Convert void * to a double array (note fbuffer is a C-array, so no bounds checking is done) 
-  cdef int * ibuffer = <int *> buffer
-  cdef float * fbuffer = <float *>(buffer+sizeof(int))
+  cdef int * ibuffer
+  cdef float * fbuffer
   cdef np.ndarray[float,ndim=1] np_U
   cdef int sz
   cdef view.array my_buf 
+
+  sizes = list((<object> u).tensor().size())
+  
+  ibuffer = <int *> buffer
+  fbuffer = <float *>(buffer+(2+len(sizes))*sizeof(int)) # level, rank, sizes
 
   pyApp = <object>app
   with pyApp.timer("my_bufpack"):
@@ -169,10 +175,14 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
     ten_U = (<object> u).tensor()
     np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
 
+    sz = len(np_U)
+
     ibuffer[0] = (<object> u).level()
+    ibuffer[1] = len(sizes)
+    for i,s in enumerate(sizes):
+      ibuffer[2+i] = s
     fbuffer[0] = (<object> u).getTime()
 
-    sz = len(np_U)
     my_buf = <float[:sz]> (fbuffer+1)
 
     my_buf[:] = np_U
@@ -182,20 +192,31 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
 cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_BufferStatus status):
   pyApp = <object>app
 
-  cdef int * ibuffer = <int *> buffer
-  cdef float * fbuffer = <float *>(buffer+sizeof(int))
+  cdef int * ibuffer 
+  cdef float * fbuffer 
   cdef np.ndarray[float,ndim=1] np_U
   cdef int sz
   cdef view.array my_buf 
 
+  ibuffer = <int *> buffer
+
   with pyApp.timer("my_bufunpack"):
+
+    level = ibuffer[0]
+    rank  = ibuffer[1]
+    sizes = rank*[0]
+    for i in range(rank):
+      sizes[i] = ibuffer[2+i]
+
+    fbuffer = <float *>(buffer+(2+len(sizes))*sizeof(int)) # level, rank, sizes
   
     # allocate memory
-    u_obj = pyApp.x0.clone()
+    data = torch.zeros(sizes,dtype=pyApp.x0.tensor().dtype)
+    u_obj = BraidVector(data,level)
     Py_INCREF(u_obj) # why do we need this?
+
     u_ptr[0] = <braid_Vector> u_obj 
   
-    u_obj.level_ = ibuffer[0]
     u_obj.setTime(fbuffer[0])
 
     ten_U = u_obj.tensor()
