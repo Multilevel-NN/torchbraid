@@ -155,20 +155,25 @@ class ParallelNet(nn.Module):
 def train(rank, args, model, train_loader, optimizer, epoch,compose):
   model.train()
   criterion = nn.CrossEntropyLoss()
+  total_time = 0.0
   for batch_idx, (data, target) in enumerate(train_loader):
+    start_time = timer()
     optimizer.zero_grad()
     output = model(data)
     loss = compose(criterion,output,target)
     loss.backward()
+    stop_time = timer()
     optimizer.step()
-    if batch_idx % args.log_interval == 0:
-      root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-          epoch, batch_idx * len(data), len(train_loader.dataset),
-          100. * batch_idx / len(train_loader), loss.item()))
 
-  root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+    total_time += stop_time-start_time
+    if batch_idx % args.log_interval == 0:
+      root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
+          epoch, batch_idx * len(data), len(train_loader.dataset),
+          100. * batch_idx / len(train_loader), loss.item(),total_time/(batch_idx+1.0)))
+
+    root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
       epoch, (batch_idx+1) * len(data), len(train_loader.dataset),
-      100. * (batch_idx+1) / len(train_loader), loss.item()))
+      100. * (batch_idx+1) / len(train_loader), loss.item(),total_time/(batch_idx+1.0)))
 
 
 def test(rank, model, test_loader,compose):
@@ -251,7 +256,7 @@ def main():
   torch.manual_seed(torchbraid.utils.seed_from_rank(args.seed,rank))
 
   if args.lp_levels==-1:
-    min_coarse_size = 2
+    min_coarse_size = 7
     args.lp_levels = compute_levels(args.steps,min_coarse_size,4)
 
   local_steps = int(args.steps/procs)
