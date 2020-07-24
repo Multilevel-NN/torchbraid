@@ -246,6 +246,10 @@ cdef extern from "_braid.h":
 
     ctypedef _braid_BaseVector_struct *braid_BaseVector
 
+    ##
+    # helper function for initializing coarse vectors
+    int _braid_InitGuess(braid_Core  core,
+                         int   level);
 
     ## 
     # helper functions for accessing primal vectors

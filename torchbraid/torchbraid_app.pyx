@@ -143,6 +143,8 @@ class BraidApp:
 
     # build up the core
     self.py_core = self.initCore()
+
+    self.first = True
   # end __init__
 
   def initCore(self):
@@ -218,6 +220,9 @@ class BraidApp:
     self.setInitial(x)
  
     # Run Braid
+    if not self.first:
+      _braid_InitGuess(core,0)
+      self.first = False
     braid_Drive(core) # my_step -> App:eval -> resnet "basic block"
 
     return self.getFinal()
