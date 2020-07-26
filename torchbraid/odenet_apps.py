@@ -152,7 +152,7 @@ class ForwardODENetApp(BraidApp):
     """ 
     Get the forward solution associated with this
     time step and also get its derivative. This is
-    used by the BackkwardApp in computation of the
+    used by the BackwardApp in computation of the
     adjoint (backprop) state and parameter derivatives.
     Its intent is to abstract the forward solution
     so it can be stored internally instead of
@@ -229,15 +229,20 @@ class BackwardODENetApp(BraidApp):
     return f
   # end forward
 
-  def eval(self,x,tstart,tstop,level):
+  def eval(self,w,tstart,tstop,level):
+    """
+    Evaluate the adjoint problem for a single time step. Here 'w' is the
+    adjoint solution. The variables 'x_old' and 'x_new' refer to the forward
+    problem solutions at the beginning (x_old) and end (x_new) of the type step.
+    """
     with self.timer("eval(level=%d)" % level):
       # we need to adjust the time step values to reverse with the adjoint
       # this is so that the renumbering used by the backward problem is properly adjusted
-      (t_py,t_px),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+      (t_x_new,t_x_old),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
   
-      # t_px should have no gradient
-      if not t_px.grad is None:
-        t_px.grad.data.zero_()
+      # t_x_old should have no gradient
+      if not t_x_old.grad is None:
+        t_x_old.grad.data.zero_()
   
       with self.timer("eval(level=%d):set_grads" % level):
         # play with the layers gradient to make sure they are on apprpriately
@@ -246,18 +251,18 @@ class BackwardODENetApp(BraidApp):
             if not p.grad is None:
               p.grad.data.zero_()
           else:
-            # if you are not on the fine level, compute n gradients
+            # if you are not on the fine level, compute no gradients
             p.requires_grad = False
   
       # perform adjoint computation
-      t_x = x.tensor()
-      t_py.backward(t_x,retain_graph=True)
+      t_w = w.tensor()
+      t_x_new.backward(t_w,retain_graph=True)
   
       with self.timer("eval(level=%d):reset_grads" % level):
         for p in layer.parameters():
           p.requires_grad = True
 
-    return BraidVector(t_px.grad,level) 
+    return BraidVector(t_x_old.grad,level) 
   # end eval
 
 # end BackwardODENetApp
