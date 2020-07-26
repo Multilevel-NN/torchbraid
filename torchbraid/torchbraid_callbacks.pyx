@@ -231,28 +231,30 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
 
 cdef int my_coarsen(braid_App app, braid_Vector fu, braid_Vector *cu_ptr, braid_CoarsenRefStatus status):
   pyApp  = <object> app
-  ten_fu =  <object> fu
+  ten_fu =  (<object> fu).tensor()
 
   cdef int level = -1
   braid_CoarsenRefStatusGetLevel(status,&level)
 
   cu_mem = pyApp.spatial_coarse(ten_fu,level)
-  Py_INCREF(cu_mem) # why do we need this?
+  cu_vec = BraidVector(cu_mem,level)
+  Py_INCREF(cu_vec) # why do we need this?
 
-  cu_ptr[0] = <braid_Vector> cu_mem 
+  cu_ptr[0] = <braid_Vector> cu_vec
 
   return 0
 
 cdef int my_refine(braid_App app, braid_Vector cu, braid_Vector *fu_ptr, braid_CoarsenRefStatus status):
   pyApp  = <object> app
-  ten_cu =  <object> cu
+  ten_cu =  (<object> cu).tensor()
 
   cdef int level = -1
   braid_CoarsenRefStatusGetNRefine(status,&level)
 
   fu_mem = pyApp.spatial_refine(ten_cu,level)
-  Py_INCREF(fu_mem) # why do we need this?
+  fu_vec = BraidVector(fu_mem,level)
+  Py_INCREF(fu_vec) # why do we need this?
 
-  fu_ptr[0] = <braid_Vector> fu_mem
+  fu_ptr[0] = <braid_Vector> fu_vec
 
   return 0
