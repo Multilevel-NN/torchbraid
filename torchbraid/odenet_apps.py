@@ -66,6 +66,18 @@ class ForwardODENetApp(BraidApp):
     self.use_deriv = False
   # end __init__
 
+  def updateParallelWeights(self):
+    # send everything to the left (this helps with the adjoint method)
+    comm          = self.getMPIData().getComm()
+    my_rank       = self.getMPIData().getRank()
+    num_ranks     = self.getMPIData().getSize()
+
+    if my_rank>0:
+      comm.send(self.layer_models[0],dest=my_rank-1,tag=22)
+    if my_rank<num_ranks-1:
+      neighbor_model = comm.recv(source=my_rank+1,tag=22)
+      self.layer_models[-1] = neighbor_model
+
   def run(self,x):
     self.soln_store = dict()
 
@@ -73,6 +85,10 @@ class ForwardODENetApp(BraidApp):
     with self.timer("runBraid"):
       # turn on derivative path (as requried)
       self.use_deriv = x.requires_grad
+
+      # do boundary exchange for parallel weights
+      if self.use_deriv:
+        self.updateParallelWeights()
 
       y = self.runBraid(x)
 
