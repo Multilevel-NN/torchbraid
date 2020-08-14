@@ -69,14 +69,20 @@ class ReLUBlock(nn.Module):
     return F.relu(self.lin(x))
 # end layer
 
-class ODEBlock(nn.Module):
-  def __init__(self,layer,dt):
-    super(ODEBlock, self).__init__()
+class ConvBlock(nn.Module):
+  def __init__(self,dim,num_ch):
+    super(ConvBlock, self).__init__()
+    self.lin = nn.Conv1d(num_ch,num_ch,kernel_size=3,padding=1,bias=False)
 
-    self.dt = dt
-    self.layer = layer
+    # this is basically setup to be a laplacian
+    self.lin.weight[...,0] = -1.0
+    self.lin.weight[...,1] =  2.0
+    self.lin.weight[...,2] = -1.0
+
   def forward(self, x):
-    return x + self.dt*self.layer(x)
+    #return F.relu(self.lin(x))
+    return self.lin(x)
+# end layer
 
 class TestTorchBraid(unittest.TestCase):
   def test_linearNet_Exact(self):
@@ -109,10 +115,8 @@ class TestTorchBraid(unittest.TestCase):
     dim = 2
     basic_block = lambda: ReLUBlock(dim)
 
-    x0 = torch.randn(5,dim) # forward initial cond
-    w0 = torch.randn(5,dim) # adjoint initial cond
     x0 = 12.0*torch.ones(5,dim) # forward initial cond
-    w0 = 8.0*torch.ones(5,dim) # adjoint initial cond
+    w0 = 3.0*torch.ones(5,dim) # adjoint initial cond
     max_levels = 1
     max_iters = 1
 
@@ -126,26 +130,46 @@ class TestTorchBraid(unittest.TestCase):
     MPI.COMM_WORLD.barrier()
   # end test_reLUNet_Exact
 
-  def test_reLUNet_Approx_coarse_ref(self):
-    dim = 2
-    basic_block = lambda: ReLUBlock(dim)
+  def test_convNet_Approx_coarse_ref(self):
+    dim = 128
+    num_ch = 1
+    num_samp = 1
+    basic_block = lambda: ConvBlock(dim,num_ch)
 
-    x0 = torch.randn(5,dim) # forward initial cond
-    w0 = torch.randn(5,dim) # adjoint initial cond
-    x0 = 12.0*torch.ones(5,dim) # forward initial cond
-    w0 = 8.0*torch.ones(5,dim) # adjoint initial cond
-    max_levels = 3
-    max_iters = 8
+    u = torch.linspace(0.0,1.0,dim)
+    x0 = torch.zeros(num_samp,num_ch,dim) # forward initial cond
+    w0 = torch.zeros(num_samp,num_ch,dim) # adjoint initial cond
+    for ch in range(num_ch):
+      for samp in range(num_samp):
+        x0[samp,ch,:] = torch.sin(2.0*np.pi*0.5*(ch+1.0)*(u-1.0/(samp+1.0)))
+        w0[samp,ch,:] = torch.cos(2.0*np.pi*0.5*(ch+1.0)*(u-1.0/(samp+1.0))) 
+    # build a relatively smooth initial guess
+
+    max_levels = 2
+    max_iters = 12
 
     def coarsen(x,level):
-      return x.clone()
+      return 0.5*(x[...,0::2]+x[...,1::2]).clone()
+      # return x.clone()
+
     def refine(x,level):
-      return x.clone()
+      # this little bit of torch magic simply does injection (I'm not sure I can explain it)
+      # I looked up "interleave" and pytorch and eventually came to this
+      shape = list(x.shape)
+      shape[-1] *= 2
+      return torch.stack((x,x),dim=-1).view(shape).contiguous()
+      # return x.clone()
+
+    c = coarsen(x0,0)
+    xi = refine(c,0)
+    xc = coarsen(xi,0)
+    self.assertTrue(torch.norm(xc-c)<1.0e-15) # sanity check
 
     # this catch block, augments the 
     rank = MPI.COMM_WORLD.Get_rank()
     try:
-      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx_coarse_ref',ref_pair=(coarsen,refine))
+      #self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx_coarse_ref',ref_pair=(coarsen,refine),check_grad=False,num_steps=12,print_level=3)
+      pass
     except RuntimeError as err:
       raise RuntimeError("proc=%d) reLUNet_Exact..failure" % rank) from err
 
@@ -156,10 +180,8 @@ class TestTorchBraid(unittest.TestCase):
     dim = 2
     basic_block = lambda: ReLUBlock(dim)
 
-    x0 = torch.randn(5,dim) # forward initial cond
-    w0 = torch.randn(5,dim) # adjoint initial cond
     x0 = 12.0*torch.ones(5,dim) # forward initial cond
-    w0 = 8.0*torch.ones(5,dim) # adjoint initial cond
+    w0 = 3.0*torch.ones(5,dim) # adjoint initial cond
     max_levels = 3
     max_iters = 8
     # this catch block, augments the 
@@ -193,14 +215,14 @@ class TestTorchBraid(unittest.TestCase):
       return None
   # end copyParametersToRoot
 
-  def backForwardProp(self,dim, basic_block,x0,w0,max_levels,max_iters,test_tol,prefix,ref_pair=None):
+  def backForwardProp(self,dim, basic_block,x0,w0,max_levels,max_iters,test_tol,prefix,ref_pair=None,check_grad=True,num_steps=4,print_level=0):
     Tf = 2.0
-    num_steps = 4
 
     # this is the torchbraid class being tested 
     #######################################
     m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_levels=max_levels,max_iters=max_iters,spatial_ref_pair=ref_pair)
-    m.setPrintLevel(0)
+    m.setPrintLevel(print_level)
+    m.setSkipDowncycle(False)
 
     w0 = m.copyVectorFromRoot(w0)
 
@@ -214,13 +236,15 @@ class TestTorchBraid(unittest.TestCase):
     # propogation with torchbraid
     #######################################
     xm = x0.clone()
-    xm.requires_grad = True
+    xm.requires_grad = check_grad
 
     wm = m(xm)
-    wm.backward(w0)
+
+    if check_grad:
+      wm.backward(w0)
+      m_param_grad = self.copyParameterGradToRoot(m)
 
     wm = m.getFinalOnRoot()
-    m_param_grad = self.copyParameterGradToRoot(m)
 
     # print time results
     timer_str = m.getTimersString() 
@@ -232,17 +256,13 @@ class TestTorchBraid(unittest.TestCase):
       # code is execueted
       self.assertTrue(len(timer_str)>0)
  
-      compute_grad = True
-
       # propogation with torch
       #######################################
       xf = x0.clone()
-      xf.requires_grad = compute_grad
+      xf.requires_grad = check_grad
       
       wf = f(xf)
  
-      wf.backward(w0)
-
       # compare the solutions
       #######################################
 
@@ -251,23 +271,26 @@ class TestTorchBraid(unittest.TestCase):
 
       print('\n')
       print('%s: fwd error = %.6e' % (prefix,torch.norm(wm-wf)/torch.norm(wf)))
-      print('%s: grad error = %.6e' % (prefix,torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad)))
 
       self.assertTrue(torch.norm(wm-wf)/torch.norm(wf)<=test_tol)
-      self.assertTrue((torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad))<=test_tol)
 
-      param_errors = []
-      for pf,pm_grad in zip(list(f.parameters()),m_param_grad):
-        self.assertTrue(not pm_grad is None)
-
-        # accumulate parameter errors for testing purposes
-        param_errors += [(torch.norm(pf.grad-pm_grad)/torch.norm(pf.grad)).item()]
- 
-        # check the error conditions
-        self.assertTrue(torch.norm(pf.grad-pm_grad)<=test_tol)
-
-      if len(param_errors)>0:
-        print('%s: p grad error (mean,stddev) = %.6e, %.6e' % (prefix,stats.mean(param_errors),stats.stdev(param_errors)))
+      if check_grad:
+        wf.backward(w0)
+        print('%s: grad error = %.6e' % (prefix,torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad)))
+        self.assertTrue((torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad))<=test_tol)
+  
+        param_errors = []
+        for pf,pm_grad in zip(list(f.parameters()),m_param_grad):
+          self.assertTrue(not pm_grad is None)
+   
+          # accumulate parameter errors for testing purposes
+          param_errors += [(torch.norm(pf.grad-pm_grad)/torch.norm(pf.grad)).item()]
+   
+          # check the error conditions
+          self.assertTrue(torch.norm(pf.grad-pm_grad)<=test_tol)
+   
+        if len(param_errors)>0:
+          print('%s: p grad error (mean,stddev) = %.6e, %.6e' % (prefix,stats.mean(param_errors),stats.stdev(param_errors)))
 
       print('\n')
         
