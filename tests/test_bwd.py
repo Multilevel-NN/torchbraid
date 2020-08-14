@@ -38,7 +38,6 @@ import numpy as np
 import statistics as stats
 
 import torchbraid
-import matplotlib.pyplot as plt
 
 import faulthandler
 faulthandler.enable()
