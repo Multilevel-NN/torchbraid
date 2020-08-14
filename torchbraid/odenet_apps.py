@@ -37,6 +37,7 @@ from torchbraid_app import BraidApp
 from torchbraid_app import BraidVector
 
 import sys
+import traceback
 
 from mpi4py import MPI
 
@@ -120,7 +121,7 @@ class ForwardODENetApp(BraidApp):
     #  2. x is a torch tensor: called internally (probably at the behest
     #                          of the adjoint)
 
-    with self.timer("eval(level=%d)" % level):
+    try:
       # this determines if a derivative computation is required
       require_derivatives = force_deriv or self.use_deriv
   
@@ -156,12 +157,14 @@ class ForwardODENetApp(BraidApp):
         with torch.no_grad():
           t_y = t_x+dt*layer(t_x)
       # end if require_derivatives 
+    except:
+      traceback.print_exc()
     
-      # return a braid or tensor depending on what came in
-      if use_braidvec:
-        return BraidVector(t_y,level) 
-      else:
-        return t_y 
+    # return a braid or tensor depending on what came in
+    if use_braidvec:
+      return BraidVector(t_y,level) 
+    else:
+      return t_y 
   # end eval
 
   def getPrimalWithGrad(self,tstart,tstop,level):
@@ -225,10 +228,9 @@ class BackwardODENetApp(BraidApp):
 
   def run(self,x):
 
-    with self.timer("runBraid"):
+    try:
       f = self.runBraid(x)
 
-    with self.timer("run::extra"):
       my_params = self.fwd_app.parameters()
 
       # this code is due to how braid decomposes the backwards problem
@@ -241,6 +243,9 @@ class BackwardODENetApp(BraidApp):
       self.grads = [ [item.grad.clone() for item in sublist] for sublist in my_params[first:]]
       for m in self.fwd_app.layer_models:
          m.zero_grad()
+    except:
+      print('helere')
+      traceback.print_exc()
 
     return f
   # end forward
@@ -251,16 +256,15 @@ class BackwardODENetApp(BraidApp):
     adjoint solution. The variables 'x_old' and 'x_new' refer to the forward
     problem solutions at the beginning (x_old) and end (x_new) of the type step.
     """
-    with self.timer("eval(level=%d)" % level):
-      # we need to adjust the time step values to reverse with the adjoint
-      # this is so that the renumbering used by the backward problem is properly adjusted
-      (t_x_new,t_x_old),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
-  
-      # t_x_old should have no gradient
-      if not t_x_old.grad is None:
-        t_x_old.grad.data.zero_()
-  
-      with self.timer("eval(level=%d):set_grads" % level):
+    try:
+        # we need to adjust the time step values to reverse with the adjoint
+        # this is so that the renumbering used by the backward problem is properly adjusted
+        (t_x_new,t_x_old),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+
+        # t_x_old should have no gradient
+        if not t_x_old.grad is None:
+          t_x_old.grad.data.zero_()
+
         # play with the layers gradient to make sure they are on apprpriately
         for p in layer.parameters(): 
           if level==0:
@@ -269,14 +273,15 @@ class BackwardODENetApp(BraidApp):
           else:
             # if you are not on the fine level, compute no gradients
             p.requires_grad = False
-  
-      # perform adjoint computation
-      t_w = w.tensor()
-      t_x_new.backward(t_w,retain_graph=True)
-  
-      with self.timer("eval(level=%d):reset_grads" % level):
+
+        # perform adjoint computation
+        t_w = w.tensor()
+        t_x_new.backward(t_w,retain_graph=True)
+
         for p in layer.parameters():
           p.requires_grad = True
+    except:
+      traceback.print_exc()
 
     return BraidVector(t_x_old.grad,level) 
   # end eval

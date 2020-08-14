@@ -61,34 +61,31 @@ class BraidFunction(torch.autograd.Function):
     num_ranks     = ctx.bwd_app.getMPIData().getSize()
 
     # copy the input to all processors (ensure consistency)
-    with ctx.bwd_app.fwd_app.timer_manager.timer("BraidFunction::backward::bcast"):
-      grad_output = comm.bcast(grad_output,root=0)
+    grad_output = comm.bcast(grad_output,root=0)
 
-    with ctx.bwd_app.fwd_app.timer_manager.timer("BraidFunction::backward::run"):
-      result = ctx.bwd_app.run(grad_output)
+    result = ctx.bwd_app.run(grad_output)
 
     # send gradients to the right (braid doesn't maintain symmetry with the forward and
     # adjoint problems)
-    with ctx.bwd_app.fwd_app.timer_manager.timer("BraidFunction::backward::propParameterDerivs"):
-      # grad_input follows the input to forward: fwd_app, bwd_app, x, params
-      grad_input = (None,None) 
-      grad_input += (result,)
+    # grad_input follows the input to forward: fwd_app, bwd_app, x, params
+    grad_input = (None,None) 
+    grad_input += (result,)
 
-      grads = ctx.bwd_app.grads
-      if my_rank<num_ranks-1:
-        comm.send(grads[-1],dest=my_rank+1,tag=22)
-      if my_rank>0:
-        neighbor_model = comm.recv(source=my_rank-1,tag=22)
-        grads.insert(0,neighbor_model)
-  
-      # flatten the grads array
-      grads = [g for sublist in grads for g in sublist]
-  
-      for grad_needed,param in zip(ctx.needs_input_grad[3:],grads):
-        if grad_needed:
-          grad_input += (param,)
-        else:
-          grad_input += (None,)
+    grads = ctx.bwd_app.grads
+    if my_rank<num_ranks-1:
+      comm.send(grads[-1],dest=my_rank+1,tag=22)
+    if my_rank>0:
+      neighbor_model = comm.recv(source=my_rank-1,tag=22)
+      grads.insert(0,neighbor_model)
+
+    # flatten the grads array
+    grads = [g for sublist in grads for g in sublist]
+
+    for grad_needed,param in zip(ctx.needs_input_grad[3:],grads):
+      if grad_needed:
+        grad_input += (param,)
+      else:
+        grad_input += (None,)
 
     return grad_input
 
