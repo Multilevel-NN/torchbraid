@@ -77,10 +77,14 @@ class CloseLayer(nn.Module):
     super(CloseLayer, self).__init__()
     ker_width = 3
 
-    self.fc1 = nn.Linear(channels*32*32, 128)
-    self.fc2 = nn.Linear(128, 10)
+    # this is to really eliminate the size of image 
+    self.pool = nn.MaxPool2d(3)
+
+    self.fc1 = nn.Linear(channels*10*10, 16)
+    self.fc2 = nn.Linear(16, 10)
 
   def forward(self, x):
+    x = self.pool(x)
     x = torch.flatten(x, 1)
     x = self.fc1(x)
     x = F.relu(x)
@@ -216,12 +220,16 @@ def compute_levels(num_steps,min_coarse_size,cfactor):
 def duplicate(iterable,n):
   """A generator that repeats each entry n times"""
   for item in iterable:
+    first = True
     for _ in range(n):
-      yield item
+      yield item,first
+      first = False
 
-def initialize_weights(dest_model, src_model):
+def initialize_weights(dest_model, src_model,grad_by_level=True):
   # model's should have the same number of children
   assert(len(list(dest_model.children()))==len(list(src_model.children())))
+
+  rank  = MPI.COMM_WORLD.Get_rank()
 
   # loop over all the children, initializing the weights
   for dest,src in zip(dest_model.children(),src_model.children()):
@@ -230,11 +238,14 @@ def initialize_weights(dest_model, src_model):
       # both are layery parallel
       assert(type(dest) is type(src))
 
-      for lp_dest,lp_src in zip(dest.children(),duplicate(src.children(),2)):
+      for lp_dest,(lp_src,lp_f) in zip(dest.layer_models,duplicate(src.layer_models,2)):
         with torch.no_grad():
           for d,s in zip(lp_dest.parameters(),lp_src.parameters()):
             d.copy_(s)
-        
+             
+            # # if it's the first one, detach from the graph...making it faster (???)
+            if lp_f and grad_by_level: 
+              d.requires_grad = False
     else:
       with torch.no_grad():
         for d,s in zip(dest.parameters(),src.parameters()):
@@ -259,6 +270,8 @@ def main():
                       help='input batch size for training (default: 50)')
   parser.add_argument('--epochs', type=int, default=2, metavar='N',
                       help='number of epochs to train (default: 2)')
+  parser.add_argument('--samp-ratio', type=float, default=1.0, metavar='N',
+                      help='number of samples as a ratio of the total number of samples')
   parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                       help='learning rate (default: 0.01)')
 
@@ -270,7 +283,19 @@ def main():
   parser.add_argument('--lp-iters', type=int, default=2, metavar='N',
                       help='Layer parallel iterations (default: 2)')
   parser.add_argument('--lp-print', type=int, default=0, metavar='N',
-                      help='Layer parallel print level default: 0)')
+                      help='Layer parallel print level (default: 0)')
+
+  # algorithmic settings (nested iteration)
+  parser.add_argument('--ni-levels', type=int, default=3, metavar='N',
+                      help='Number of nested iteration levels (default: 3)')
+  parser.add_argument('--ni-rfactor', type=int, default=2, metavar='N',
+                      help='Refinment factor for nested iteration (default: 2)')
+  group = parser.add_mutually_exclusive_group(required=False)
+  group.add_argument('--ni-fixed-coarse', dest='ni_fixed_coarse', action='store_true',
+                      help='Fix the weights on the coarse levels once trained (default: off)')
+  group.add_argument('--ni-no-fixed-coarse', dest='ni_fixed_coarse', action='store_false',
+                      help='Fix the weights on the coarse levels once trained (default: off)')
+  parser.set_defaults(ni_fixed_coarse=False)
 
   rank  = MPI.COMM_WORLD.Get_rank()
   procs = MPI.COMM_WORLD.Get_size()
@@ -286,8 +311,8 @@ def main():
     root_print(rank,'Steps must be an even multiple of the number of processors: %d %d' % (args.steps,procs) )
     sys.exit(0)
 
-  ni_levels = 3
-  ni_rfactor = 2
+  ni_levels = args.ni_levels
+  ni_rfactor = args.ni_rfactor
   if args.steps % ni_rfactor**(ni_levels-1) != 0:
     root_print(rank,'Steps combined with the coarsest nested iteration level must be an even multiple: %d %d %d' % (args.steps,ni_rfactor,ni_levels-1))
     sys.exit(0)
@@ -304,8 +329,8 @@ def main():
                                    transform=transform,train=False)
 
   # reduce the number of samples for faster execution
-  train_set = torch.utils.data.Subset(train_set,range(500))
-  test_set = torch.utils.data.Subset(test_set,range(100))
+  train_set = torch.utils.data.Subset(train_set,range(int(50000*args.samp_ratio)))
+  test_set = torch.utils.data.Subset(test_set,range(int(10000*args.samp_ratio)))
 
   train_loader = torch.utils.data.DataLoader(train_set,
                                              batch_size=args.batch_size, 
@@ -321,7 +346,6 @@ def main():
   root_print(rank,'Using ParallelNet')
   model_previous = None
   for steps in ni_steps:
-    root_print(rank,'------------------------ optimizing %d steps' % steps)
 
     local_steps = int(steps/procs)
     model = ParallelNet(channels=args.channels,
@@ -332,8 +356,20 @@ def main():
 
     # pass the weights along to the next iteration
     if model_previous is not None:
-      initialize_weights(model, model_previous)
-      root_print(rank,'not_none')
+      initialize_weights(model, model_previous, args.ni_fixed_coarse)
+
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+    counts = MPI.COMM_WORLD.gather((total_params,trainable_params))
+
+    if rank==0:
+      root_print(rank,'-------------------------------------')
+      root_print(rank,'-- optimizing %d steps\n' % steps)
+      root_print(rank,'-- total params: {}'.format([c[0] for c in counts]))
+      root_print(rank,'-- train params: {}'.format([c[1] for c in counts]))
+      root_print(rank,'-------------------------------------\n')
+    
 
     # the idea of this object is to handle the parallel communication associated
     # with layer parallel

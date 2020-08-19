@@ -231,7 +231,6 @@ class BackwardODENetApp(BraidApp):
     try:
       f = self.runBraid(x)
 
-      my_params = self.fwd_app.parameters()
 
       # this code is due to how braid decomposes the backwards problem
       # The ownership of the time steps is shifted to the left (and no longer balanced)
@@ -239,8 +238,23 @@ class BackwardODENetApp(BraidApp):
       if self.getMPIData().getRank()==0:
         first = 0
 
+      self.grads = []
+
       # preserve the layerwise structure, to ease communication
-      self.grads = [ [item.grad.clone() for item in sublist] for sublist in my_params[first:]]
+      # - note the prection of the 'None' case, this is so that individual layers
+      # - can have gradient's turned off
+      my_params = self.fwd_app.parameters()
+      for sublist in my_params[first:]:
+        sub_gradlist = [] 
+        for item in sublist:
+          if item.grad is not None:
+            sub_gradlist += [ item.grad.clone() ] 
+          else:
+            sub_gradlist += [ None ]
+
+        self.grads += [ sub_gradlist ]
+      # end for sublist
+
       for m in self.fwd_app.layer_models:
          m.zero_grad()
     except:
@@ -265,8 +279,13 @@ class BackwardODENetApp(BraidApp):
         if not t_x_old.grad is None:
           t_x_old.grad.data.zero_()
 
+        # we are going to change the required gradient, make sure they return
+        # to where they started!
+        required_grad_state = []
+
         # play with the layers gradient to make sure they are on apprpriately
         for p in layer.parameters(): 
+          required_grad_state += [p.requires_grad]
           if level==0:
             if not p.grad is None:
               p.grad.data.zero_()
@@ -278,8 +297,8 @@ class BackwardODENetApp(BraidApp):
         t_w = w.tensor()
         t_x_new.backward(t_w,retain_graph=True)
 
-        for p in layer.parameters():
-          p.requires_grad = True
+        for p,s in zip(layer.parameters(),required_grad_state):
+          p.requires_grad = s
     except:
       traceback.print_exc()
 
