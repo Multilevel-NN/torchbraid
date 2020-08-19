@@ -18,13 +18,13 @@ uninstall:
 	rm -fr installed_files.txt
 
 tests test:
-	$(MPIRUN) -n 3 $(PYTHON) test_bwd.py
+	$(MPIRUN) -n 3 $(PYTHON) test_layer_parallel.py
 	$(MPIRUN) -n 3 $(PYTHON) test_composite.py
 	$(MPIRUN) -n 3 $(PYTHON) test_grad_update.py
 	$(PYTHON) test_ContextTimer.py
 
 tests-serial test-serial:
-	$(MPIRUN) -n 1 $(PYTHON) test_bwd.py
+	$(MPIRUN) -n 1 $(PYTHON) test_layer_parallel.py
 	$(MPIRUN) -n 1 $(PYTHON) test_composite.py
 	$(MPIRUN) -n 1 $(PYTHON) test_grad_update.py
 	$(PYTHON) test_ContextTimer.py
