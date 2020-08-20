@@ -121,17 +121,18 @@ class SerialNet(nn.Module):
 # end SerialNet 
 
 class ParallelNet(nn.Module):
-  def __init__(self,channels=12,local_steps=8,Tf=1.0,max_levels=1,max_iters=1,print_level=0):
+  def __init__(self,channels=12,local_steps=8,Tf=1.0,max_levels=1,max_iters=1,print_level=0,cfactor=4,fine_fcf=False,skip_downcycle=True):
     super(ParallelNet, self).__init__()
 
     step_layer = lambda: StepLayer(channels)
 
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_levels=max_levels,max_iters=max_iters)
     self.parallel_nn.setPrintLevel(print_level)
-    self.parallel_nn.setCFactor(4)
-    self.parallel_nn.setSkipDowncycle(True)
+    self.parallel_nn.setCFactor(cfactor)
+    self.parallel_nn.setSkipDowncycle(skip_downcycle)
     self.parallel_nn.setNumRelax(1)         # FCF elsewehre
-    self.parallel_nn.setNumRelax(0,level=0) # F-Relaxation on the fine grid
+    if not fine_fcf:
+      self.parallel_nn.setNumRelax(0,level=0) # F-Relaxation on the fine grid
 
     # this object ensures that only the LayerParallel code runs on ranks!=0
     compose = self.compose = self.parallel_nn.comp_op()
@@ -238,7 +239,13 @@ def main():
   parser.add_argument('--lp-iters', type=int, default=2, metavar='N',
                       help='Layer parallel iterations (default: 2)')
   parser.add_argument('--lp-print', type=int, default=0, metavar='N',
-                      help='Layer parallel print level default: 0)')
+                      help='Layer parallel print level (default: 0)')
+  parser.add_argument('--lp-cfactor', type=int, default=4, metavar='N',
+                      help='Layer parallel coarsening factor (default: 4)')
+  parser.add_argument('--lp-finefcf',action='store_true', default=False, 
+                      help='Layer parallel fine FCF on or off (default: False)')
+  parser.add_argument('--lp-use_downcycle',action='store_true', default=False, 
+                      help='Layer parallel use downcycle on or off (default: False)')
 
   rank  = MPI.COMM_WORLD.Get_rank()
   procs = MPI.COMM_WORLD.Get_size()
@@ -279,12 +286,15 @@ def main():
                                              shuffle=False)
 
   if force_lp :
-    root_print(rank,'Using ParallelNet')
+    root_print(rank,'Using ParallelNet: finefcf {}, use_downcycle {}'.format(args.lp_finefcf,args.lp_use_downcycle))
     model = ParallelNet(channels=args.channels,
                         local_steps=local_steps,
                         max_levels=args.lp_levels,
                         max_iters=args.lp_iters,
-                        print_level=args.lp_print)
+                        print_level=args.lp_print,
+                        cfactor=args.lp_cfactor,
+                        fine_fcf=args.lp_finefcf,
+                        skip_downcycle=not args.lp_use_downcycle)
     compose = model.compose
   else:
     root_print(rank,'Using SerialNet')
