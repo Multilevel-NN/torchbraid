@@ -121,7 +121,7 @@ class SerialNet(nn.Module):
 # end SerialNet 
 
 class ParallelNet(nn.Module):
-  def __init__(self,channels=12,local_steps=8,Tf=1.0,max_levels=1,max_iters=1,print_level=0,cfactor=4,fine_fcf=False,skip_downcycle=True):
+  def __init__(self,channels=12,local_steps=8,Tf=1.0,max_levels=1,max_iters=1,print_level=0,cfactor=4,fine_fcf=False,skip_downcycle=True,fmg=False):
     super(ParallelNet, self).__init__()
 
     step_layer = lambda: StepLayer(channels)
@@ -130,6 +130,10 @@ class ParallelNet(nn.Module):
     self.parallel_nn.setPrintLevel(print_level)
     self.parallel_nn.setCFactor(cfactor)
     self.parallel_nn.setSkipDowncycle(skip_downcycle)
+
+    if fmg:
+      print('FMG ????') 
+      self.parallel_nn.setFMG(1)
     self.parallel_nn.setNumRelax(1)         # FCF elsewehre
     if not fine_fcf:
       self.parallel_nn.setNumRelax(0,level=0) # F-Relaxation on the fine grid
@@ -248,6 +252,8 @@ def main():
                       help='Layer parallel fine FCF on or off (default: False)')
   parser.add_argument('--lp-use-downcycle',action='store_true', default=False, 
                       help='Layer parallel use downcycle on or off (default: False)')
+  parser.add_argument('--lp-use-fmg',action='store_true', default=False, 
+                      help='Layer parallel use FMG for one cycle (default: False)')
 
   rank  = MPI.COMM_WORLD.Get_rank()
   procs = MPI.COMM_WORLD.Get_size()
@@ -296,7 +302,8 @@ def main():
                         print_level=args.lp_print,
                         cfactor=args.lp_cfactor,
                         fine_fcf=args.lp_finefcf,
-                        skip_downcycle=not args.lp_use_downcycle)
+                        skip_downcycle=not args.lp_use_downcycle,
+                        fmg=args.lp_use_fmg)
     compose = model.compose
   else:
     root_print(rank,'Using SerialNet')

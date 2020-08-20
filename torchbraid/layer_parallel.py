@@ -148,6 +148,10 @@ class LayerParallel(nn.Module):
     self.fwd_app.setNumRelax(relax,level=level)
     self.bwd_app.setNumRelax(relax,level=level)
 
+  def setFMG(self,cycles):
+    self.fwd_app.setFMG(cycles)
+    self.bwd_app.setFMG(cycles)
+
   def setCFactor(self,cfactor):
     self.fwd_app.setCFactor(cfactor)
     self.bwd_app.setCFactor(cfactor)
