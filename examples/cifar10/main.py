@@ -132,8 +132,7 @@ class ParallelNet(nn.Module):
     self.parallel_nn.setSkipDowncycle(skip_downcycle)
 
     if fmg:
-      print('FMG ????') 
-      self.parallel_nn.setFMG(1)
+      self.parallel_nn.setFMG()
     self.parallel_nn.setNumRelax(1)         # FCF elsewehre
     if not fine_fcf:
       self.parallel_nn.setNumRelax(0,level=0) # F-Relaxation on the fine grid

@@ -245,9 +245,9 @@ class BraidApp:
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetNRelax(core,level,self.nrelax)
 
-  def setFMG(self,cycles):
+  def setFMG(self):
     core = (<PyBraid_Core> self.py_core).getCore()
-    braid_SetNFMG(core,cycles)
+    braid_SetFMG(core)
 
   def setCFactor(self,cfactor):
     self.cfactor = cfactor 
