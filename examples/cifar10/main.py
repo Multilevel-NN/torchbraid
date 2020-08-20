@@ -133,6 +133,8 @@ class ParallelNet(nn.Module):
     self.parallel_nn.setNumRelax(1)         # FCF elsewehre
     if not fine_fcf:
       self.parallel_nn.setNumRelax(0,level=0) # F-Relaxation on the fine grid
+    else:
+      self.parallel_nn.setNumRelax(1,level=0) # F-Relaxation on the fine grid
 
     # this object ensures that only the LayerParallel code runs on ranks!=0
     compose = self.compose = self.parallel_nn.comp_op()
@@ -202,7 +204,7 @@ def compute_levels(num_steps,min_coarse_size,cfactor):
   from math import log, floor 
   
   # we want to find $L$ such that ( max_L min_coarse_size*cfactor**L <= num_steps)
-  levels =  floor(log(num_steps/min_coarse_size,cfactor))+1 
+  levels =  floor(log(float(num_steps)/min_coarse_size,cfactor))+1 
 
   if levels<1:
     levels = 1
@@ -244,7 +246,7 @@ def main():
                       help='Layer parallel coarsening factor (default: 4)')
   parser.add_argument('--lp-finefcf',action='store_true', default=False, 
                       help='Layer parallel fine FCF on or off (default: False)')
-  parser.add_argument('--lp-use_downcycle',action='store_true', default=False, 
+  parser.add_argument('--lp-use-downcycle',action='store_true', default=False, 
                       help='Layer parallel use downcycle on or off (default: False)')
 
   rank  = MPI.COMM_WORLD.Get_rank()
@@ -263,8 +265,8 @@ def main():
   torch.manual_seed(torchbraid.utils.seed_from_rank(args.seed,rank))
 
   if args.lp_levels==-1:
-    min_coarse_size = 7
-    args.lp_levels = compute_levels(args.steps,min_coarse_size,4)
+    min_coarse_size = 3
+    args.lp_levels = compute_levels(args.steps,min_coarse_size,args.lp_cfactor)
 
   local_steps = int(args.steps/procs)
   if args.steps % procs!=0:

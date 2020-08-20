@@ -195,7 +195,10 @@ class BraidApp:
     braid_SetNRelax(core,-1,self.nrelax)
     braid_SetNRelax(core,0,0) # set F relax on fine grid
     braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
-    braid_SetSkip(core,self.skip_downcycle)
+    if self.skip_downcycle==0:
+      braid_SetSkip(core,0)
+    else:
+      braid_SetSkip(core,1)
 
     # store the c pointer
     py_core = PyBraid_Core()
@@ -249,7 +252,10 @@ class BraidApp:
     braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
 
   def setSkipDowncycle(self,skip):
-    self.skip_downcycle = skip
+    if skip:
+      self.skip_downcycle = 1 
+    else:
+      self.skip_downcycle = 0 
 
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetSkip(core,self.skip_downcycle)
