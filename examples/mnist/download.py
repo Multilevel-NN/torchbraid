@@ -33,3 +33,4 @@ from torchvision import datasets, transforms
 
 
 datasets.MNIST('./data', download=True)
+datasets.FashionMNIST('./fashion-data', download=True)

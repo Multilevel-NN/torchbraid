@@ -60,14 +60,27 @@ def root_print(rank,s):
   if rank==0:
     print(s)
 
-class OpenLayer(nn.Module):
+class OpenConvLayer(nn.Module):
   def __init__(self,channels):
-    super(OpenLayer, self).__init__()
+    super(OpenConvLayer, self).__init__()
     ker_width = 3
     self.conv = nn.Conv2d(1,channels,ker_width,padding=1)
 
   def forward(self, x):
     return F.relu(self.conv(x))
+# end layer
+
+class OpenLayer(nn.Module):
+  def __init__(self,channels):
+    super(OpenLayer, self).__init__()
+    self.channels = channels
+
+  def forward(self, x):
+    # this bit of python magic simply replicates each image in the batch
+    s = len(x.shape)*[1]
+    s[1] = self.channels
+    x = x.repeat(s)
+    return x
 # end layer
 
 class CloseLayer(nn.Module):
@@ -81,8 +94,7 @@ class CloseLayer(nn.Module):
     x = self.fc1(x)
     x = F.relu(x)
     x = self.fc2(x)
-    output = F.log_softmax(x, dim=1)
-    return output
+    return F.log_softmax(x, dim=1)
 # end layer
 
 class StepLayer(nn.Module):
@@ -175,9 +187,9 @@ def train(rank, args, model, train_loader, optimizer, epoch,compose):
           epoch, batch_idx * len(data), len(train_loader.dataset),
           100. * batch_idx / len(train_loader), loss.item(),total_time/(batch_idx+1.0)))
 
-    root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
-      epoch, (batch_idx+1) * len(data), len(train_loader.dataset),
-      100. * (batch_idx+1) / len(train_loader), loss.item(),total_time/(batch_idx+1.0)))
+  root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
+    epoch, (batch_idx+1) * len(data), len(train_loader.dataset),
+    100. * (batch_idx+1) / len(train_loader), loss.item(),total_time/(batch_idx+1.0)))
 
 
 def test(rank, model, test_loader,compose):
@@ -225,6 +237,8 @@ def main():
                       help='Number of times steps in the resnet layer (default: 4)')
   parser.add_argument('--channels', type=int, default=4, metavar='N',
                       help='Number of channels in resnet layer (default: 4)')
+  parser.add_argument('--digits',action='store_true', default=False, 
+                      help='Train with the MNIST digit recognition problem (default: False)')
 
   # algorithmic settings (gradient descent and batching
   parser.add_argument('--batch-size', type=int, default=50, metavar='N',
@@ -276,17 +290,45 @@ def main():
     root_print(rank,'Steps must be an even multiple of the number of processors: %d %d' % (args.steps,procs) )
     sys.exit(0)
 
-  transform = transforms.Compose([transforms.ToTensor(),
-                                  transforms.Normalize((0.1307,), (0.3081,))
-                                 ])
-  dataset = datasets.MNIST('./data', download=False,transform=transform)
+  root_print(rank,'MNIST ODENet:')
+
+  # read in Digits MNIST or Fashion MNIST
+  if args.digits:
+    root_print(rank,'-- Using Digit MNIST')
+    transform = transforms.Compose([transforms.ToTensor(),
+                                    transforms.Normalize((0.1307,), (0.3081,))
+                                   ])
+    dataset = datasets.MNIST('./data', download=False,transform=transform)
+  else:
+    root_print(rank,'-- Using Fashion MNIST')
+    transform = transforms.Compose([transforms.ToTensor()])
+    dataset = datasets.FashionMNIST('./fashion-data', download=False,transform=transform)
+  # if args.digits
+
+  root_print(rank,'-- procs    = {}\n'
+                  '-- channels = {}\n'
+                  '-- steps    = {}'.format(procs,args.channels,args.steps))
+
   train_set = torch.utils.data.Subset(dataset,range(50000))
   test_set  = torch.utils.data.Subset(dataset,range(50000,60000))
   train_loader = torch.utils.data.DataLoader(train_set,batch_size=args.batch_size,shuffle=True)
   test_loader = torch.utils.data.DataLoader(test_set,batch_size=args.batch_size,shuffle=True)
 
+  root_print(rank,'')
+
   if force_lp :
-    root_print(rank,'Using ParallelNet: finefcf {}, use_downcycle {}'.format(args.lp_finefcf,args.lp_use_downcycle))
+    root_print(rank,'Using ParallelNet:')
+    root_print(rank,'-- max_levels = {}\n'
+                    '-- max_iters  = {}\n'
+                    '-- cfactor    = {}\n'
+                    '-- fine fcf   = {}\n'
+                    '-- skip down  = {}\n'
+                    '-- fmg        = {}\n'.format(args.lp_levels,
+                                                  args.lp_iters,
+                                                  args.lp_cfactor,
+                                                  args.lp_finefcf,
+                                                  not args.lp_use_downcycle,
+                                                  args.lp_use_fmg))
     model = ParallelNet(channels=args.channels,
                         local_steps=local_steps,
                         max_levels=args.lp_levels,
@@ -296,9 +338,11 @@ def main():
                         fine_fcf=args.lp_finefcf,
                         skip_downcycle=not args.lp_use_downcycle,
                         fmg=args.lp_use_fmg)
+
+
     compose = model.compose
   else:
-    root_print(rank,'Using SerialNet')
+    root_print(rank,'Using SerialNet\n')
     model = SerialNet(channels=args.channels,local_steps=local_steps)
     compose = lambda op,*p: op(*p)
 
@@ -317,9 +361,9 @@ def main():
     end_time = timer()
     test_times += [end_time-start_time]
 
-  if force_lp:
-    timer_str = model.parallel_nn.getTimersString()
-    root_print(rank,timer_str)
+  #if force_lp:
+  #  timer_str = model.parallel_nn.getTimersString()
+  #  root_print(rank,timer_str)
 
   root_print(rank,'TIME PER EPOCH: %.2e (1 std dev %.2e)' % (stats.mean(epoch_times),stats.stdev(epoch_times)))
   root_print(rank,'TIME PER TEST:  %.2e (1 std dev %.2e)' % (stats.mean(test_times), stats.stdev(test_times)))
