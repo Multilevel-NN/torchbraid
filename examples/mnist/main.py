@@ -70,9 +70,9 @@ class OpenConvLayer(nn.Module):
     return F.relu(self.conv(x))
 # end layer
 
-class OpenLayer(nn.Module):
+class OpenFlatLayer(nn.Module):
   def __init__(self,channels):
-    super(OpenLayer, self).__init__()
+    super(OpenFlatLayer, self).__init__()
     self.channels = channels
 
   def forward(self, x):
@@ -116,7 +116,7 @@ class SerialNet(nn.Module):
 
     step_layer = lambda: StepLayer(channels)
     
-    self.open_nn = OpenLayer(channels)
+    self.open_nn = OpenFlatLayer(channels)
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_levels=1,max_iters=1)
     self.parallel_nn.setPrintLevel(0)
     
@@ -152,9 +152,9 @@ class ParallelNet(nn.Module):
     # this object ensures that only the LayerParallel code runs on ranks!=0
     compose = self.compose = self.parallel_nn.comp_op()
     
-    # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels) 
+    # by passing this through 'compose' (mean composition: e.g. OpenFlatLayer o channels) 
     # on processors not equal to 0, these will be None (there are no parameters to train there)
-    self.open_nn = compose(OpenLayer,channels)
+    self.open_nn = compose(OpenFlatLayer,channels)
     self.close_nn = compose(CloseLayer,channels)
  
   def forward(self, x):
