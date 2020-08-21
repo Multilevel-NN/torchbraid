@@ -144,6 +144,12 @@ class BraidApp:
     # build up the core
     self.py_core = self.initCore()
 
+    # this tracks if you are training or not,
+    # this is intended to match the behavior of
+    # the PyTorch Module class, note though torchbraid
+    # uses evalNetwork and trainNetwork
+    self.training = True
+
     self.first = True
   # end __init__
 
@@ -320,5 +326,11 @@ class BraidApp:
     # assert the level
     assert(self.x_final.level()==0)
     return self.x_final.tensor()
+
+  def evalNetwork(self):
+    self.training = False
+
+  def trainNetwork(self):
+    self.training = True
 
 # end BraidApp

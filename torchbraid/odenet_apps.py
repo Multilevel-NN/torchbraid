@@ -82,10 +82,11 @@ class ForwardODENetApp(BraidApp):
   def run(self,x):
     self.soln_store = dict()
 
+    # turn on derivative path (as requried)
+    self.use_deriv = self.training
+
     # run the braid solver
     with self.timer("runBraid"):
-      # turn on derivative path (as requried)
-      self.use_deriv = x.requires_grad
 
       # do boundary exchange for parallel weights
       if self.use_deriv:
@@ -190,6 +191,7 @@ class ForwardODENetApp(BraidApp):
 
     # value wasn't found, recompute it and return.
     x_old = self.soln_store[ts_index-1][0].clone()
+
     return (self.eval(x_old,tstart,tstop,0,force_deriv=True),x_old), layer
 
   # end getPrimalWithGrad

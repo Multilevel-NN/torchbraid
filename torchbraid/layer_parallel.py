@@ -169,6 +169,13 @@ class LayerParallel(nn.Module):
     # with the torch.autograd.function
     params = list(self.parameters())
 
+    if self.training:
+      self.fwd_app.trainNetwork()
+      self.bwd_app.trainNetwork() # for consistency, though the bwd_app should *only* be used in training
+    else:
+      self.fwd_app.evalNetwork()
+      self.bwd_app.evalNetwork()
+
     return BraidFunction.apply(self.fwd_app,self.bwd_app,x,*params) 
   # end forward
 
