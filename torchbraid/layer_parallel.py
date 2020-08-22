@@ -140,9 +140,15 @@ class LayerParallel(nn.Module):
     """
     return self.timer_manager
 
-  def setPrintLevel(self,print_level):
-    self.fwd_app.setPrintLevel(print_level)
-    self.bwd_app.setPrintLevel(print_level)
+  def setPrintLevel(self,print_level,tb_print=False):
+    """
+    Set the print level for this module. If tb_print (torchbraid print) is
+    set to true this method sets the internal printing diagnostics. If it is
+    false, the print level is passed along to xbraid. 
+    """
+
+    self.fwd_app.setPrintLevel(print_level,tb_print)
+    self.bwd_app.setPrintLevel(print_level,tb_print)
 
   def setNumRelax(self,relax,level=-1):
     self.fwd_app.setNumRelax(relax,level=level)

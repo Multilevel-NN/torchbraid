@@ -44,7 +44,7 @@ from mpi4py import MPI
 class ForwardODENetApp(BraidApp):
 
   def __init__(self,comm,layer_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None):
-    BraidApp.__init__(self,comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair)
+    BraidApp.__init__(self,'FWDApp',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair)
 
     # note that a simple equals would result in a shallow copy...bad!
     self.layer_models = [l for l in layer_models]
@@ -204,7 +204,8 @@ class BackwardODENetApp(BraidApp):
 
   def __init__(self,fwd_app,timer_manager):
     # call parent constructor
-    BraidApp.__init__(self,fwd_app.getMPIData().getComm(),
+    BraidApp.__init__(self,'BWDApp',
+                           fwd_app.getMPIData().getComm(),
                            fwd_app.local_num_steps,
                            fwd_app.Tf,
                            fwd_app.max_levels,

@@ -131,13 +131,14 @@ class SerialNet(nn.Module):
 # end SerialNet 
 
 class ParallelNet(nn.Module):
-  def __init__(self,channels=12,local_steps=8,Tf=1.0,max_levels=1,max_iters=1,print_level=0,cfactor=4,fine_fcf=False,skip_downcycle=True,fmg=False):
+  def __init__(self,channels=12,local_steps=8,Tf=1.0,max_levels=1,max_iters=1,print_level=0,braid_print_level=0,cfactor=4,fine_fcf=False,skip_downcycle=True,fmg=False):
     super(ParallelNet, self).__init__()
 
     step_layer = lambda: StepLayer(channels)
 
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_levels=max_levels,max_iters=max_iters)
-    self.parallel_nn.setPrintLevel(print_level)
+    self.parallel_nn.setPrintLevel(print_level,True)
+    self.parallel_nn.setPrintLevel(braid_print_level,False)
     self.parallel_nn.setCFactor(cfactor)
     self.parallel_nn.setSkipDowncycle(skip_downcycle)
 
@@ -256,7 +257,9 @@ def main():
   parser.add_argument('--lp-iters', type=int, default=2, metavar='N',
                       help='Layer parallel iterations (default: 2)')
   parser.add_argument('--lp-print', type=int, default=0, metavar='N',
-                      help='Layer parallel print level (default: 0)')
+                      help='Layer parallel internal print level (default: 0)')
+  parser.add_argument('--lp-braid-print', type=int, default=0, metavar='N',
+                      help='Layer parallel braid print level (default: 0)')
   parser.add_argument('--lp-cfactor', type=int, default=4, metavar='N',
                       help='Layer parallel coarsening factor (default: 4)')
   parser.add_argument('--lp-finefcf',action='store_true', default=False, 
@@ -336,6 +339,7 @@ def main():
                         max_levels=args.lp_levels,
                         max_iters=args.lp_iters,
                         print_level=args.lp_print,
+                        braid_print_level=args.lp_braid_print,
                         cfactor=args.lp_cfactor,
                         fine_fcf=args.lp_finefcf,
                         skip_downcycle=not args.lp_use_downcycle,

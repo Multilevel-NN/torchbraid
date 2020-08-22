@@ -105,8 +105,12 @@ cdef class MPIData:
 
 class BraidApp:
 
-  def __init__(self,comm,local_num_steps,Tf,max_levels,max_iters,
+  def __init__(self,prefix_str,comm,local_num_steps,Tf,max_levels,max_iters,
                spatial_ref_pair=None):
+
+    self.prefix_str = prefix_str # prefix string for helping to debug hopefully
+    self.tb_print_level = 0      # set print level internally to zero
+
     # optional parameters
     self.max_levels  = max_levels
     self.max_iters   = max_iters
@@ -234,16 +238,53 @@ class BraidApp:
       self.first = False
     braid_Drive(core) # my_step -> App:eval -> resnet "basic block"
 
+    self.printBraidStats()
+    
+
     return self.getFinal()
+
+  def printBraidStats(self):
+    cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
+    cdef braid_Core core = py_core.getCore()
+
+    cdef double resnorm 
+    cdef int iter_cnt 
+    cdef int niter = -1 # used for lookup
+
+    # no printing internally enabled
+    if self.tb_print_level==0:
+      return
+
+    braid_GetNumIter(core, &iter_cnt);
+
+    niter = -1
+    braid_GetRNorms(core, &niter, &resnorm);
+
+    my_rank       = self.getMPIData().getRank()
+    if my_rank==0:
+      print('  -- \"%s\" %03d iters yields rnorm of %.6e' % (self.prefix_str,iter_cnt,resnorm))
+  # end printBraidStats
+
 
   def getCore(self):
     return self.py_core    
  
-  def setPrintLevel(self,print_level):
-    self.print_level = print_level
+  def setPrintLevel(self,print_level,tb_print=False):
+    """
+    Set the print level for this object. If tb_print (torchbraid print) is
+    set to true this method sets the internal printing diagnostics. If it is
+    false, the print level is passed along to xbraid.
+    """
 
-    core = (<PyBraid_Core> self.py_core).getCore()
-    braid_SetPrintLevel(core,self.print_level)
+    if tb_print:
+      # short circuit and set internal level
+      self.tb_print_level = print_level
+    else:
+      # set (default) xbraid printing 
+      self.print_level = print_level
+
+      core = (<PyBraid_Core> self.py_core).getCore()
+      braid_SetPrintLevel(core,self.print_level)
 
   def setNumRelax(self,relax,level=-1):
     self.nrelax = relax 
