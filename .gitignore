@@ -2,8 +2,20 @@ installed_files.txt
 braid.out.cycle
 
 __pycache__/
-examples/data/
+examples/mnist/data/
+examples/mnist/fashion-data/
 
 makefile.inc
 
 .DS_Store
+
+tests/build/
+tests/torchbraid_test.c
+tests/torchbraid_test.cpython-36m-darwin.so
+tests/torchbraid_test.html
+torchbraid/braid.html
+torchbraid/build/
+torchbraid/torchbraid_app.c
+torchbraid/torchbraid_app.*.so
+torchbraid/torchbraid_app.html
+torchbraid/torchbraid_callbacks.html
