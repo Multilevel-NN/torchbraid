@@ -309,8 +309,10 @@ def main():
                   '-- channels = {}\n'
                   '-- steps    = {}'.format(procs,args.channels,args.steps))
 
-  train_set = torch.utils.data.Subset(dataset,range(50000))
-  test_set  = torch.utils.data.Subset(dataset,range(50000,60000))
+  train_size = 50000
+  test_size  = 10000
+  train_set = torch.utils.data.Subset(dataset,range(train_size))
+  test_set  = torch.utils.data.Subset(dataset,range(train_size,train_size+test_size))
   train_loader = torch.utils.data.DataLoader(train_set,batch_size=args.batch_size,shuffle=True)
   test_loader = torch.utils.data.DataLoader(test_set,batch_size=args.batch_size,shuffle=True)
 
