@@ -38,6 +38,7 @@ import numpy as np
 import statistics as stats
 
 import torchbraid
+from torchbraid.utils import l2_reg
 
 import faulthandler
 faulthandler.enable()
@@ -147,6 +148,47 @@ class SerialNet(nn.Module):
 # end SerialNet 
 
 class TestTorchBraid(unittest.TestCase):
+
+  def test_l2(self):
+    my_rank = MPI.COMM_WORLD.Get_rank()
+    procs = MPI.COMM_WORLD.Get_size()
+
+    images   =  2
+    channels = 1
+    image_size = image_width
+    data = torch.randn(images,3,image_size,image_size) 
+    target = torch.randn(images,target_size)
+
+    parallel_net = ParallelNet(channels=channels)
+
+    # build and run the serial verson
+    serial_layers = parallel_net.parallel_nn.buildSequentialOnRoot()
+    if my_rank==0:
+      serial_net = SerialNet(serial_layers,parallel_net.open_nn,parallel_net.close_nn)
+
+      s_output = serial_net(data)
+      s_loss = l2_reg(serial_net)
+
+      print('serial value',s_loss)
+      print('serial grad size',len(list(serial_net.parameters())))
+    #######################
+
+    MPI.COMM_WORLD.Barrier()
+
+    parallel_net.eval()
+    p_output = parallel_net(data)
+    p_loss = l2_reg(parallel_net,MPI.COMM_WORLD)
+
+    if my_rank==0:
+      # Note that this is being computed (by default) in 32-bit floating
+      # point. The sorting done in the l2 function is a result of this and
+      # there are considerable failures if this is not sorted (e.g. hits
+      # roundoff more frequently)
+ 
+      self.assertTrue(s_loss>0.0)
+      self.assertTrue(p_loss>0.0)
+      self.assertTrue(abs(p_loss-s_loss)/s_loss <= 3e-7)
+
   def test_composite(self):
     my_rank = MPI.COMM_WORLD.Get_rank()
     procs = MPI.COMM_WORLD.Get_size()
@@ -165,17 +207,15 @@ class TestTorchBraid(unittest.TestCase):
     serial_layers = parallel_net.parallel_nn.buildSequentialOnRoot()
     if my_rank==0:
       serial_net   = SerialNet(serial_layers,parallel_net.open_nn,parallel_net.close_nn)
+      serial_net.train()
+      serial_net.zero_grad()
 
       s_output = serial_net(data)
-      s_loss = criterion(s_output, target)
+      s_loss = criterion(s_output, target) + l2_reg(serial_net)
       s_loss.backward()
 
       print('serial value',s_loss)
       print('serial grad size',len(list(serial_net.parameters())))
-      #print('serial grad')
-      #for p in serial_net.parameters():
-      #  print(p.grad)
-      print('-----------------------------------')
     #######################
 
     MPI.COMM_WORLD.Barrier()
@@ -188,18 +228,10 @@ class TestTorchBraid(unittest.TestCase):
 
     # here o_ is ensuring the gradients are handled yet no code is executed on rank!=0
     o_ = parallel_net.o
-    p_loss = o_(criterion,p_output, target)
+    p_loss = o_(criterion,p_output, target) + l2_reg(parallel_net,MPI.COMM_WORLD)
     p_loss.backward()
 
-    for r in range(procs):
-      if r==my_rank:
-        print('para %02d value' % my_rank,p_loss)
-        print('para %02d grad size' % my_rank,len(list(parallel_net.parameters())))
-        #print('para %02d grad' % my_rank)
-        #for p in parallel_net.parameters():
-        #  print(p.grad)
-        print('-----------------------------------')
-      MPI.COMM_WORLD.Barrier()
+    MPI.COMM_WORLD.Barrier()
 
     p_grads = parallel_net.copyParameterGradToRoot()
     if my_rank==0:
@@ -207,11 +239,13 @@ class TestTorchBraid(unittest.TestCase):
 
       self.assertTrue(torch.norm(s_loss)>0.0)
       self.assertTrue(torch.norm(p_loss)>0.0)
+      print('error in {} ?= {} (rel diff = {})'.format(p_loss,s_loss,(p_loss-s_loss)/s_loss))
 
       for s_grad,p_grad in zip(s_grads,p_grads):
-        # check the error conditions
+        # check the error conditions for the gradient of the parameters
         self.assertTrue(torch.norm(s_grad-p_grad)<=1e-15)
   # end test_linearNet_Exact
 
 if __name__ == '__main__':
+  #torch.set_default_dtype(torch.float64)
   unittest.main()
