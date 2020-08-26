@@ -229,7 +229,7 @@ def main():
   # Training settings
   parser = argparse.ArgumentParser(description='TORCHBRAID CIFAR10 Example')
   parser.add_argument('--seed', type=int, default=1, metavar='S',
-                      help='random seed (default: 1)')
+                      help='random seed (default: 783253419)')
   parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                       help='how many batches to wait before logging training status')
 
