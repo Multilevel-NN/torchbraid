@@ -114,18 +114,29 @@ class StepLayer(nn.Module):
 # end layer
 
 class SerialNet(nn.Module):
-  def __init__(self,channels=12,local_steps=8,Tf=1.0):
+  def __init__(self,channels=12,local_steps=8,Tf=1.0,serial_nn=None,open_nn=None,close_nn=None):
     super(SerialNet, self).__init__()
 
-    step_layer = lambda: StepLayer(channels)
     
-    self.open_nn = OpenFlatLayer(channels)
-    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_levels=1,max_iters=1)
-    self.parallel_nn.setPrintLevel(0)
+    if open_nn is None:
+      self.open_nn = OpenFlatLayer(channels)
+    else:
+      self.open_nn = open_nn
+
+    if serial_nn is None:
+      step_layer = lambda: StepLayer(channels)
+      parallel_nn = torchbraid.LayerParallel(MPI.COMM_SELF,step_layer,local_steps,Tf,max_levels=1,max_iters=1)
+      parallel_nn.setPrintLevel(0)
     
-    self.serial_nn   = self.parallel_nn.buildSequentialOnRoot()
-    self.close_nn = CloseLayer(channels)
- 
+      self.serial_nn   = parallel_nn.buildSequentialOnRoot()
+    else:
+      self.serial_nn = serial_nn
+
+    if close_nn is None:
+      self.close_nn = CloseLayer(channels)
+    else:
+      self.close_nn = close_nn
+
   def forward(self, x):
     x = self.open_nn(x)
     x = self.serial_nn(x)
@@ -160,6 +171,13 @@ class ParallelNet(nn.Module):
     # on processors not equal to 0, these will be None (there are no parameters to train there)
     self.open_nn = compose(OpenFlatLayer,channels)
     self.close_nn = compose(CloseLayer,channels)
+
+  def saveSerialNet(self,name):
+    serial_nn = self.parallel_nn.buildSequentialOnRoot()
+    if MPI.COMM_WORLD.Get_rank()==0:
+      s_net = SerialNet(-1,-1,-1,serial_nn=serial_nn,open_nn=self.open_nn,close_nn=self.close_nn)
+      s_net.eval()
+      torch.save(s_net,name)
 
   def getDiagnostics(self):
     return self.parallel_nn.getDiagnostics()
@@ -284,6 +302,8 @@ def main():
                       help='Number of channels in resnet layer (default: 4)')
   parser.add_argument('--digits',action='store_true', default=False, 
                       help='Train with the MNIST digit recognition problem (default: False)')
+  parser.add_argument('--serial-file',type=str,default=None,
+                      help='Load the serial proble from file')
 
   # algorithmic settings (gradient descent and batching
   parser.add_argument('--batch-size', type=int, default=50, metavar='N',
@@ -326,7 +346,8 @@ def main():
   else:
     force_lp = False
 
-  torch.manual_seed(torchbraid.utils.seed_from_rank(args.seed,rank))
+  #torch.manual_seed(torchbraid.utils.seed_from_rank(args.seed,rank))
+  torch.manual_seed(args.seed)
 
   if args.lp_levels==-1:
     min_coarse_size = 3
@@ -360,8 +381,8 @@ def main():
   test_size  = 10000
   train_set = torch.utils.data.Subset(dataset,range(train_size))
   test_set  = torch.utils.data.Subset(dataset,range(train_size,train_size+test_size))
-  train_loader = torch.utils.data.DataLoader(train_set,batch_size=args.batch_size,shuffle=True)
-  test_loader = torch.utils.data.DataLoader(test_set,batch_size=args.batch_size,shuffle=True)
+  train_loader = torch.utils.data.DataLoader(train_set,batch_size=args.batch_size,shuffle=False)
+  test_loader = torch.utils.data.DataLoader(test_set,batch_size=args.batch_size,shuffle=False)
 
   root_print(rank,'')
 
@@ -390,10 +411,17 @@ def main():
                         fmg=args.lp_use_fmg)
 
 
+    if args.serial_file is not None:
+      model.saveSerialNet(args.serial_file)
     compose = model.compose
   else:
     root_print(rank,'Using SerialNet\n')
-    model = SerialNet(channels=args.channels,local_steps=local_steps)
+    root_print(rank,'-- serial file = {}\n'.format(args.serial_file))
+    if args.serial_file is not None:
+      print('loading model')
+      model = torch.load(args.serial_file)
+    else:
+      model = SerialNet(channels=args.channels,local_steps=local_steps)
     compose = lambda op,*p: op(*p)
 
   optimizer = optim.SGD(model.parameters(), lr=args.lr,momentum=0.9)
