@@ -100,6 +100,30 @@ class ForwardODENetApp(BraidApp):
     return y
   # end forward
 
+  def getSolnDiagnostics(self):
+    """
+    Compute and return a vector of all the local solutions.
+    This does no parallel computation. The result is a dictionary
+    with hopefully self explanatory names.
+    """
+
+    # make sure you could store this
+    assert(self.enable_diagnostics)
+    assert(self.soln_store is not None)
+
+    result = dict()
+    result['timestep_index'] = []
+    result['step_in'] = []
+    result['step_out'] = []
+    for ts in sorted(self.soln_store):
+      x,y = self.soln_store[ts]
+
+      result['timestep_index'] += [ts]
+      result['step_in']        += [torch.norm(x).item()]
+      result['step_out']       += [torch.norm(y).item()]
+
+    return result 
+
   def timer(self,name):
     return self.timer_manager.timer("ForWD::"+name)
 
@@ -154,9 +178,13 @@ class ForwardODENetApp(BraidApp):
           ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
           self.soln_store[ts_index] = (t_y,t_x)
       else:
-        # fast pure forwrard mode
+        # fast pure forward mode
         with torch.no_grad():
           t_y = t_x+dt*layer(t_x)
+
+        if self.enable_diagnostics:
+          ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
+          self.soln_store[ts_index] = (t_y,t_x)
       # end if require_derivatives 
     except:
       traceback.print_exc()

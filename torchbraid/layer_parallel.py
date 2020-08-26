@@ -43,6 +43,8 @@ from torchbraid.utils import ContextTimerManager
 
 import torchbraid.odenet_apps as apps
 
+import numpy as np
+
 ##
 # Define your Python Braid Vector
 
@@ -63,7 +65,7 @@ class ODEBlock(nn.Module):
 class LayerParallel(nn.Module):
   
   class ExecLP:
-    """Helper class for building composite neural network modules
+    """Helper class for btorchuilding composite neural network modules
 
     This class is used by customers of the LayerParallel module to
     allow construction of composite neural networks with the proper
@@ -121,6 +123,8 @@ class LayerParallel(nn.Module):
 
     self.fwd_app = apps.ForwardODENetApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.timer_manager,spatial_ref_pair=spatial_ref_pair)
     self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager)
+
+    self.enable_diagnostics = False
   # end __init__
 
   def comp_op(self):
@@ -185,6 +189,63 @@ class LayerParallel(nn.Module):
     return BraidFunction.apply(self.fwd_app,self.bwd_app,x,*params) 
   # end forward
 
+  def diagnostics(self,enable):
+    """
+    This method tells torchbraid, to keep track of the feature vectors
+    and parameters for eventual output. This is to help debug stability
+    questions and other potential issues
+    """
+
+    self.enable_diagnostics = enable
+
+    self.fwd_app.diagnostics(enable)
+    self.bwd_app.diagnostics(enable)
+
+  def getDiagnostics(self):
+    """
+    Get a dictionary with the diagnostics return by the forward application.
+    This method does some parallal communication (gather to root), for printing
+    purposes.
+
+    Note the method diagnostics(enable) must be called prior to this with
+    enable=True
+    """
+
+    assert(self.enable_diagnostics)
+
+    local_diag = self.fwd_app.getSolnDiagnostics()
+
+    # communicate everyone's diagnostics to root
+    diag_vector = self.comm.gather(local_diag) 
+    serial_net = self.buildSequentialOnRoot()
+
+    result = dict()
+    result['rank'] = self.comm.Get_rank()
+    result['timestep_index'] = []
+    result['step_in'] = []
+    result['step_out'] = []
+    result['params'] = []
+
+    # build up diagnostics on root
+    ########################################
+    if self.comm.Get_rank()==0:
+      for d in diag_vector:
+        result['timestep_index'] += d['timestep_index']
+        result['step_in'] += d['step_in']
+        result['step_out'] += d['step_out']
+
+      for c in serial_net.children():
+        params = []
+        for i,p in enumerate(c.parameters()):
+          params += [torch.norm(p).item()]
+        params = np.array(params)
+
+        result['params'] += [params]
+      # end for d,c
+    # end rank==0
+          
+    return result
+
   def buildInit(self,t):
     x = self.x0.clone()
     if t>0:
@@ -192,7 +253,7 @@ class LayerParallel(nn.Module):
       t_x[:] = 0.0
     return x
 
-  # This method copies the layerr parameters and can be used for verification
+  # This method copies the layer parameters and can be used for verification
   def buildSequentialOnRoot(self):
     ode_layers    = [ODEBlock(copy.deepcopy(l),self.dt) for l in self.layer_models]
     remote_layers = ode_layers

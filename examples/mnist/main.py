@@ -50,6 +50,9 @@ import torch.nn.functional as F
 import torch.optim as optim
 import statistics as stats
 
+import numpy as np
+import matplotlib.pyplot as pyplot
+
 from torchvision import datasets, transforms
 
 from timeit import default_timer as timer
@@ -157,6 +160,9 @@ class ParallelNet(nn.Module):
     # on processors not equal to 0, these will be None (there are no parameters to train there)
     self.open_nn = compose(OpenFlatLayer,channels)
     self.close_nn = compose(CloseLayer,channels)
+
+  def getDiagnostics(self):
+    return self.parallel_nn.getDiagnostics()
  
   def forward(self, x):
     # by passing this through 'o' (mean composition: e.g. self.open_nn o x) 
@@ -191,6 +197,44 @@ def train(rank, args, model, train_loader, optimizer, epoch,compose):
   root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
     epoch, (batch_idx+1) * len(data), len(train_loader.dataset),
     100. * (batch_idx+1) / len(train_loader), loss.item(),total_time/(batch_idx+1.0)))
+
+def diagnose(rank, model, test_loader,epoch):
+  model.parallel_nn.diagnostics(True)
+  model.eval()
+  test_loss = 0
+  correct = 0
+  criterion = nn.CrossEntropyLoss()
+
+  itr = iter(test_loader)
+  data,target = next(itr)
+
+  # compute the model and print out the diagnostic information 
+  with torch.no_grad():
+    output = model(data)
+
+  diagnostic = model.getDiagnostics()
+  #root_print(rank,diagnostic)
+
+  if rank!=0:
+    return
+
+  features = np.array([diagnostic['step_in'][0]]+diagnostic['step_out'])
+  params = np.array(diagnostic['params'])
+
+  fig,axs = pyplot.subplots(2,1)
+  axs[0].plot(range(len(features)),features)
+  axs[0].set_ylabel('Feature Norm')
+
+  coords = [0.5+i for i in range(len(features)-1)]
+  axs[1].set_xlim([0,len(features)-1])
+  axs[1].plot(coords,params,'*')
+  axs[1].set_ylabel('Parameter Norms: {}/tstep'.format(params.shape[1]))
+  axs[1].set_xlabel('Time Step')
+
+  fig.suptitle('Values in Epoch {}'.format(epoch))
+
+  #pyplot.show()
+  pyplot.savefig('diagnose{:03d}.png'.format(epoch))
 
 
 def test(rank, model, test_loader,compose):
@@ -356,6 +400,11 @@ def main():
 
   epoch_times = []
   test_times = []
+
+  # check out the initial conditions
+  if force_lp:
+    diagnose(rank, model, test_loader,0)
+
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
     train(rank,args, model, train_loader, optimizer, epoch,compose)
@@ -366,6 +415,10 @@ def main():
     test(rank,model, test_loader,compose)
     end_time = timer()
     test_times += [end_time-start_time]
+
+    # print out some diagnostics
+    if force_lp:
+      diagnose(rank, model, test_loader,epoch)
 
   #if force_lp:
   #  timer_str = model.parallel_nn.getTimersString()

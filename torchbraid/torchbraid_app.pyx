@@ -154,6 +154,8 @@ class BraidApp:
     # uses evalNetwork and trainNetwork
     self.training = True
 
+    self.enable_diagnostics = False
+
     self.first = True
   # end __init__
 
@@ -225,6 +227,15 @@ class BraidApp:
       # Destroy Braid Core C-Struct
       # FIXME: braid_Destroy(core) # this should be on
     # end core
+
+  def diagnostics(self,enable):
+    """
+    This method tells torchbraid, to keep track of the feature vectors
+    and parameters for eventual output. This is to help debug stability
+    questions and other potential issues
+    """
+
+    self.enable_diagnostics = enable
 
   def runBraid(self,x):
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
