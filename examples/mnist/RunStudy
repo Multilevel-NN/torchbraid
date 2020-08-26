@@ -1,18 +1,10 @@
-# This run MNIST just to demonstrate how the LayerParallel module might be used.
-# Note that MNIST is a poor case for LayerParallel as very effective relatvely
-# shallow neural networks can be used. Regardless, this is a good example for
-# understanding how to use the LayerParallel module for the time being (June 16, 2020)
+STEPS=12
 
+mpirun -n 1 python main.py --lp-levels 1 --lp-iters 1 --steps 4 --epochs 2 --log-interval 100 --serial-file serial.pth --force-lp 2>&1 | tee braid.out
+mpirun -n 1 python main.py --lp-levels 1 --lp-iters 1 --steps 4 --epochs 2 --log-interval 100 --serial-file serial.pth 2>&1            | tee torch.out
 
-TRAIN_BATCHES=25
-TEST_BATCHES=5
-BATCH_SIZE=2000
-STEPS=4
-CHANNELS=4
+mpirun -n 1 python main.py --lp-levels 3 --lp-iters 3 --steps 4 --epochs 2 --log-interval 100 --serial-file serial-siter.pth --force-lp 2>&1 | tee braid-siter.out
+mpirun -n 1 python main.py --lp-levels 1 --lp-iters 1 --steps 4 --epochs 2 --log-interval 100 --serial-file serial-siter.pth 2>&1            | tee torch-siter.out
 
-
-echo "TRUE SERIAL"
-mpirun -n 1 python main.py --steps ${STEPS} --channels ${CHANNELS} --train-batches ${TRAIN_BATCHES} --test-batches ${TEST_BATCHES} --batch-size ${BATCH_SIZE} 
-
-echo "LP ITERATE - MPI 4"
-mpirun -n 4 python main.py --steps ${STEPS} --channels ${CHANNELS} --train-batches ${TRAIN_BATCHES} --test-batches ${TEST_BATCHES} --batch-size ${BATCH_SIZE} --lp-levels 2 --lp-iters 2 --force-lp --lp-print 0 
+mpirun -n 2 python main.py --lp-levels 3 --lp-iters 3 --steps 4 --epochs 2 --log-interval 100 --serial-file serial-piter.pth --force-lp 2>&1 | tee braid-piter.out
+mpirun -n 1 python main.py --lp-levels 1 --lp-iters 1 --steps 4 --epochs 2 --log-interval 100 --serial-file serial-piter.pth 2>&1            | tee torch-piter.out
