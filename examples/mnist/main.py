@@ -105,12 +105,13 @@ class StepLayer(nn.Module):
     super(StepLayer, self).__init__()
     ker_width = 3
     self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1)
-    self.bn1 = nn.BatchNorm2d(channels)
+    #self.bn1 = nn.BatchNorm2d(channels)
     self.conv2 = nn.Conv2d(channels,channels,ker_width,padding=1)
-    self.bn2 = nn.BatchNorm2d(channels)
+    #self.bn2 = nn.BatchNorm2d(channels)
 
   def forward(self, x):
-    return F.relu(self.bn2(self.conv2(F.relu(self.bn1(self.conv1(x))))))
+    #return F.relu(self.bn2(self.conv2(F.relu(self.bn1(self.conv1(x))))))
+    return F.relu(self.conv2(F.relu(self.conv1(x))))
 # end layer
 
 class SerialNet(nn.Module):
@@ -145,12 +146,15 @@ class SerialNet(nn.Module):
 # end SerialNet 
 
 class ParallelNet(nn.Module):
-  def __init__(self,channels=12,local_steps=8,Tf=1.0,max_levels=1,max_iters=1,print_level=0,braid_print_level=0,cfactor=4,fine_fcf=False,skip_downcycle=True,fmg=False):
+  def __init__(self,channels=12,local_steps=8,Tf=1.0,max_levels=1,max_iters=1,fwd_max_iters=0,print_level=0,braid_print_level=0,cfactor=4,fine_fcf=False,skip_downcycle=True,fmg=False):
     super(ParallelNet, self).__init__()
 
     step_layer = lambda: StepLayer(channels)
 
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_levels=max_levels,max_iters=max_iters)
+    if fwd_max_iters>0:
+      print('fwd_amx_iters',fwd_max_iters)
+      self.parallel_nn.setFwdMaxIters(fwd_max_iters)
     self.parallel_nn.setPrintLevel(print_level,True)
     self.parallel_nn.setPrintLevel(braid_print_level,False)
     self.parallel_nn.setCFactor(cfactor)
@@ -231,7 +235,6 @@ def diagnose(rank, model, test_loader,epoch):
     output = model(data)
 
   diagnostic = model.getDiagnostics()
-  #root_print(rank,diagnostic)
 
   if rank!=0:
     return
@@ -294,6 +297,8 @@ def main():
                       help='random seed (default: 783253419)')
   parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                       help='how many batches to wait before logging training status')
+  parser.add_argument('--percent-data', type=float, default=1.0, metavar='N',
+                      help='how much of the data to read in and use for training/testing')
 
   # artichtectural settings
   parser.add_argument('--steps', type=int, default=4, metavar='N',
@@ -303,7 +308,9 @@ def main():
   parser.add_argument('--digits',action='store_true', default=False, 
                       help='Train with the MNIST digit recognition problem (default: False)')
   parser.add_argument('--serial-file',type=str,default=None,
-                      help='Load the serial proble from file')
+                      help='Load the serial problem from file')
+  parser.add_argument('--tf',type=float,default=1.0,
+                      help='Final time')
 
   # algorithmic settings (gradient descent and batching
   parser.add_argument('--batch-size', type=int, default=50, metavar='N',
@@ -320,6 +327,8 @@ def main():
                       help='Layer parallel levels (default: 3)')
   parser.add_argument('--lp-iters', type=int, default=2, metavar='N',
                       help='Layer parallel iterations (default: 2)')
+  parser.add_argument('--lp-fwd-iters', type=int, default=-1, metavar='N',
+                      help='Layer parallel (forward) iterations (default: -1, default --lp-iters)')
   parser.add_argument('--lp-print', type=int, default=0, metavar='N',
                       help='Layer parallel internal print level (default: 0)')
   parser.add_argument('--lp-braid-print', type=int, default=0, metavar='N',
@@ -375,10 +384,11 @@ def main():
 
   root_print(rank,'-- procs    = {}\n'
                   '-- channels = {}\n'
-                  '-- steps    = {}'.format(procs,args.channels,args.steps))
+                  '-- tf       = {}\n'
+                  '-- steps    = {}'.format(procs,args.channels,args.tf,args.steps))
 
-  train_size = 50000
-  test_size  = 10000
+  train_size = int(50000 * args.percent_data)
+  test_size  = int(10000 * args.percent_data)
   train_set = torch.utils.data.Subset(dataset,range(train_size))
   test_set  = torch.utils.data.Subset(dataset,range(train_size,train_size+test_size))
   train_loader = torch.utils.data.DataLoader(train_set,batch_size=args.batch_size,shuffle=False)
@@ -390,11 +400,13 @@ def main():
     root_print(rank,'Using ParallelNet:')
     root_print(rank,'-- max_levels = {}\n'
                     '-- max_iters  = {}\n'
+                    '-- fwd_iters  = {}\n'
                     '-- cfactor    = {}\n'
                     '-- fine fcf   = {}\n'
                     '-- skip down  = {}\n'
                     '-- fmg        = {}\n'.format(args.lp_levels,
                                                   args.lp_iters,
+                                                  args.lp_fwd_iters,
                                                   args.lp_cfactor,
                                                   args.lp_finefcf,
                                                   not args.lp_use_downcycle,
@@ -403,25 +415,26 @@ def main():
                         local_steps=local_steps,
                         max_levels=args.lp_levels,
                         max_iters=args.lp_iters,
+                        fwd_max_iters=args.lp_fwd_iters,
                         print_level=args.lp_print,
                         braid_print_level=args.lp_braid_print,
                         cfactor=args.lp_cfactor,
                         fine_fcf=args.lp_finefcf,
                         skip_downcycle=not args.lp_use_downcycle,
-                        fmg=args.lp_use_fmg)
+                        fmg=args.lp_use_fmg,Tf=args.tf)
 
 
     if args.serial_file is not None:
       model.saveSerialNet(args.serial_file)
     compose = model.compose
   else:
-    root_print(rank,'Using SerialNet\n')
+    root_print(rank,'Using SerialNet:')
     root_print(rank,'-- serial file = {}\n'.format(args.serial_file))
     if args.serial_file is not None:
       print('loading model')
       model = torch.load(args.serial_file)
     else:
-      model = SerialNet(channels=args.channels,local_steps=local_steps)
+      model = SerialNet(channels=args.channels,local_steps=local_steps,Tf=args.tf)
     compose = lambda op,*p: op(*p)
 
   optimizer = optim.SGD(model.parameters(), lr=args.lr,momentum=0.9)

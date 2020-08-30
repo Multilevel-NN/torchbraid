@@ -158,6 +158,16 @@ class LayerParallel(nn.Module):
     self.fwd_app.setNumRelax(relax,level=level)
     self.bwd_app.setNumRelax(relax,level=level)
 
+  def setMaxIters(self,max_iters):
+    self.fwd_app.setNumRelax(max_iters)
+    self.bwd_app.setNumRelax(max_iters)
+
+  def setFwdMaxIters(self,max_iters):
+    self.fwd_app.setMaxIters(max_iters)
+
+  def setBwdMaxIters(self,max_iters):
+    self.bwd_app.setMaxIters(max_iters)
+
   def setFMG(self):
     self.fwd_app.setFMG()
     self.bwd_app.setFMG()

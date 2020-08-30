@@ -178,6 +178,9 @@ class ForwardODENetApp(BraidApp):
           ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
           self.soln_store[ts_index] = (t_y,t_x)
       else:
+        if use_braidvec:
+          t_x = x.tensor().clone()
+
         # fast pure forward mode
         with torch.no_grad():
           t_y = t_x+dt*layer(t_x)
@@ -191,7 +194,8 @@ class ForwardODENetApp(BraidApp):
     
     # return a braid or tensor depending on what came in
     if use_braidvec:
-      return BraidVector(t_y,level) 
+      # braid doesn't need the derivatives, so this doesn't return them
+      return BraidVector(torch.empty_like(t_y).copy_(t_y),level) 
     else:
       return t_y 
   # end eval
@@ -215,12 +219,17 @@ class ForwardODENetApp(BraidApp):
     # because you are at a processor boundary, or decided not
     # to start the value 
     if ts_index in self.soln_store:
-      return self.soln_store[ts_index],layer
+      t_y = self.soln_store[ts_index][0]
+      t_x = self.soln_store[ts_index][1]
+
+      return [t_y,t_x],layer
 
     # value wasn't found, recompute it and return.
-    x_old = self.soln_store[ts_index-1][0].clone()
+    t_x = self.soln_store[ts_index-1][0]
+    x_o = torch.empty_like(t_x).copy_(t_x)
+    x_o.requires_grad = t_x.requires_grad
 
-    return (self.eval(x_old,tstart,tstop,0,force_deriv=True),x_old), layer
+    return (self.eval(x_o,tstart,tstop,0,force_deriv=True),x_o), layer
 
   # end getPrimalWithGrad
 
@@ -333,7 +342,7 @@ class BackwardODENetApp(BraidApp):
     except:
       traceback.print_exc()
 
-    return BraidVector(t_x_old.grad,level) 
+    return BraidVector(t_x_old.grad.clone(),level) 
   # end eval
 
 # end BackwardODENetApp

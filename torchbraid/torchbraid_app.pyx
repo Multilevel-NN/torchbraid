@@ -303,6 +303,12 @@ class BraidApp:
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetNRelax(core,level,self.nrelax)
 
+  def setMaxIters(self,max_iters):
+    self.max_iters = max_iters
+
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetMaxIter(core, self.max_iters)
+
   def setFMG(self):
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetFMG(core)
