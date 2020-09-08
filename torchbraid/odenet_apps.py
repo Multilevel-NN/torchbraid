@@ -152,7 +152,7 @@ class ForwardODENetApp(BraidApp):
   
       # determine if braid or tensor version is called
       if isinstance(x,BraidVector):
-        t_x = torch.empty_like(x.tensor()).copy_(x.tensor())
+        t_x = x.tensor().detach().clone()
       else: 
         t_x = x
 
