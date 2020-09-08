@@ -328,10 +328,6 @@ class BraidApp:
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetSkip(core,self.skip_downcycle)
 
-  def setStorage(self,storage):
-    core = (<PyBraid_Core> self.py_core).getCore()
-    braid_SetStorage(core,storage)
-
   def setRevertedRanks(self,reverted):
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetRevertedRanks(core,reverted)

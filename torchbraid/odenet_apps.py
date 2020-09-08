@@ -151,11 +151,10 @@ class ForwardODENetApp(BraidApp):
       require_derivatives = force_deriv or self.use_deriv
   
       # determine if braid or tensor version is called
-      t_x = x
-      use_braidvec = False
       if isinstance(x,BraidVector):
-        t_x = x.tensor()
-        use_braidvec = True
+        t_x = torch.empty_like(x.tensor()).copy_(x.tensor())
+      else: 
+        t_x = x
 
       # get some information about what to do
       dt = tstop-tstart
@@ -164,9 +163,6 @@ class ForwardODENetApp(BraidApp):
       if require_derivatives:
         # slow path requires derivatives
 
-        if use_braidvec:
-          t_x = x.tensor().clone()
-
         with torch.enable_grad():
           if level==0:
             t_x.requires_grad = True 
@@ -174,13 +170,10 @@ class ForwardODENetApp(BraidApp):
           t_y = t_x+dt*layer(t_x)
     
         # store off the solution for later adjoints
-        if level==0 and use_braidvec:
+        if level==0 and isinstance(x,BraidVector):
           ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
           self.soln_store[ts_index] = (t_y,t_x)
       else:
-        if use_braidvec:
-          t_x = x.tensor().clone()
-
         # fast pure forward mode
         with torch.no_grad():
           t_y = t_x+dt*layer(t_x)
@@ -190,12 +183,13 @@ class ForwardODENetApp(BraidApp):
           self.soln_store[ts_index] = (t_y,t_x)
       # end if require_derivatives 
     except:
+      print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
     
     # return a braid or tensor depending on what came in
-    if use_braidvec:
+    if isinstance(x,BraidVector):
       # braid doesn't need the derivatives, so this doesn't return them
-      return BraidVector(torch.empty_like(t_y).copy_(t_y),level) 
+      return BraidVector(t_y.detach(),level)
     else:
       return t_y 
   # end eval
@@ -254,9 +248,6 @@ class BackwardODENetApp(BraidApp):
     # build up the core
     self.py_core = self.initCore()
 
-    # setup adjoint specific stuff
-    self.fwd_app.setStorage(0)
-
     # reverse ordering for adjoint/backprop
     self.setRevertedRanks(1)
 
@@ -298,7 +289,7 @@ class BackwardODENetApp(BraidApp):
       for m in self.fwd_app.layer_models:
          m.zero_grad()
     except:
-      print('helere')
+      print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
 
     return f
@@ -316,7 +307,7 @@ class BackwardODENetApp(BraidApp):
         (t_x_new,t_x_old),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
 
         # t_x_old should have no gradient
-        if not t_x_old.grad is None:
+        if t_x_old.grad is not None:
           t_x_old.grad.data.zero_()
 
         # we are going to change the required gradient, make sure they return
@@ -335,14 +326,16 @@ class BackwardODENetApp(BraidApp):
 
         # perform adjoint computation
         t_w = w.tensor()
+        t_w.requires_grad = False
         t_x_new.backward(t_w,retain_graph=True)
 
         for p,s in zip(layer.parameters(),required_grad_state):
           p.requires_grad = s
     except:
+      print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
 
-    return BraidVector(t_x_old.grad.clone(),level) 
+    return BraidVector(t_x_old.grad.detach(),level) 
   # end eval
 
 # end BackwardODENetApp
