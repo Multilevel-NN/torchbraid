@@ -374,7 +374,13 @@ class BraidApp:
 
   def access(self,t,u):
     if t==self.Tf:
-      self.x_final = u.clone()
+      # not sure why this requires a clone
+      # if this needs only one processor
+      # it could be a problem in the future
+      if self.getMPIData().getSize()>1:
+        self.x_final = u
+      else:
+        self.x_final = u.clone()
 
   def getFinal(self):
     if self.x_final==None:
