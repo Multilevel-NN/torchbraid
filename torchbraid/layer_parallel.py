@@ -256,13 +256,6 @@ class LayerParallel(nn.Module):
           
     return result
 
-  def buildInit(self,t):
-    x = self.x0.clone()
-    if t>0:
-      t_x = x.tensor()
-      t_x[:] = 0.0
-    return x
-
   # This method copies the layer parameters and can be used for verification
   def buildSequentialOnRoot(self):
     ode_layers    = [ODEBlock(copy.deepcopy(l),self.dt) for l in self.layer_models]
