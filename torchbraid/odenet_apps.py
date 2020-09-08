@@ -220,7 +220,7 @@ class ForwardODENetApp(BraidApp):
 
     # value wasn't found, recompute it and return.
     t_x = self.soln_store[ts_index-1][0]
-    x_o = torch.empty_like(t_x).copy_(t_x)
+    x_o = t_x.detach()
     x_o.requires_grad = t_x.requires_grad
 
     return (self.eval(x_o,tstart,tstop,0,force_deriv=True),x_o), layer
