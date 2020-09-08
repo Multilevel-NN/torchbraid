@@ -34,6 +34,7 @@ from .context_timer_manager import ContextTimerManager
 
 # import some useful helper functions
 from .functional import l2_reg
+from .gittools import git_rev 
 
 def seed_from_rank(seed,rank):
  """Helper function to compute a new seed from the parallel rank using an LCG
