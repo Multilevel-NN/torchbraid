@@ -364,10 +364,12 @@ class BraidApp:
 
 
   def buildInit(self,t):
-    x = self.x0.clone()
     if t>0:
+      x = self.x0.clone()
       t_x = x.tensor()
       t_x[:] = 0.0
+    else:
+      x = self.x0
     return x
 
   def access(self,t,u):
