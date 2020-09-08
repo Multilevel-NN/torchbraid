@@ -34,6 +34,7 @@
 
 import torch
 import numpy as np
+import traceback
 
 from cpython.ref cimport PyObject
 
@@ -57,7 +58,7 @@ class BraidVector:
     return self.level_
   
   def clone(self):
-    cl = BraidVector(self.tensor().clone(),self.level())
+    cl = BraidVector(self.tensor().detach().clone(),self.level())
     return cl
 
   def setTime(self,t):
