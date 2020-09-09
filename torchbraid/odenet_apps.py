@@ -67,6 +67,9 @@ class ForwardODENetApp(BraidApp):
     self.use_deriv = False
   # end __init__
 
+  def __del__(self):
+    pass
+
   def updateParallelWeights(self):
     # send everything to the left (this helps with the adjoint method)
     comm          = self.getMPIData().getComm()
@@ -253,6 +256,9 @@ class BackwardODENetApp(BraidApp):
 
     self.timer_manager = timer_manager
   # end __init__
+
+  def __del__(self):
+    self.fwd_app = None
 
   def timer(self,name):
     return self.timer_manager.timer("BckWD::"+name)

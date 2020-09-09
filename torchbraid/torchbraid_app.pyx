@@ -221,12 +221,13 @@ class BraidApp:
   # end initCore
 
   def __del__(self):
+    print('destroy')
     if self.py_core!=None:
       py_core = <PyBraid_Core> self.py_core
       core = py_core.getCore()
 
       # Destroy Braid Core C-Struct
-      # FIXME: braid_Destroy(core) # this should be on
+      braid_Destroy(core) # this should be on
     # end core
 
   def diagnostics(self,enable):
