@@ -137,65 +137,48 @@ class ForwardODENetApp(BraidApp):
   def parameters(self):
     return [list(l.parameters()) for l in self.layer_models]
 
-  def eval(self,x,tstart,tstop,level,force_deriv=False):
+  def eval(self,y,tstart,tstop,level,force_deriv=False,x=None):
     """
     Method called by "my_step" in braid. This is
     required to propagate from tstart to tstop, with the initial
     condition x. The level is defined by braid
     """
 
-    # there are two paths by which eval is called:
-    #  1. x is a BraidVector: my step has called this method
-    #  2. x is a torch tensor: called internally (probably at the behest
-    #                          of the adjoint)
-
-    try:
-      # this determines if a derivative computation is required
-      require_derivatives = force_deriv or self.use_deriv
-  
-      # determine if braid or tensor version is called
-      if isinstance(x,BraidVector):
-        # FIXME: this is a source of memory growth, I'd like to remove it
-        t_x = x.tensor().detach().clone()
-      else: 
-        t_x = x
-
+    # this function is used twice below to define an in place evaluation
+    def in_place_eval(t_y,t_x,tstart,tstop,level):
       # get some information about what to do
       dt = tstop-tstart
       layer = self.getLayer(tstart,tstop,level) # resnet "basic block"
 
-      if require_derivatives:
-        # slow path requires derivatives
+      t_y.zero_()
+      with torch.enable_grad():
+        if level==0:
+          t_x.requires_grad = True 
 
-        with torch.enable_grad():
-          if level==0:
-            t_x.requires_grad = True 
-    
-          t_y = t_x+dt*layer(t_x)
-    
-        # store off the solution for later adjoints
-        if level==0 and isinstance(x,BraidVector):
-          ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
-          self.soln_store[ts_index] = (t_y,t_x)
-      else:
-        # fast pure forward mode
-        with torch.no_grad():
-          t_y = t_x+dt*layer(t_x)
+        t_y.copy_(t_x)
+        t_y.add_(dt*layer(t_x))
+    # end in_place_eval
 
-        if self.enable_diagnostics:
-          ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
-          self.soln_store[ts_index] = (t_y,t_x)
-      # end if require_derivatives 
-    except:
-      print('\n**** Torchbraid Internal Exception ****\n')
-      traceback.print_exc()
-    
-    # return a braid or tensor depending on what came in
-    if isinstance(x,BraidVector):
-      # braid doesn't need the derivatives, so this doesn't return them
-      return BraidVector(t_y.detach(),level)
-    else:
-      return t_y 
+    # there are two paths by which eval is called:
+    #  1. x is a BraidVector: my step has called this method
+    #  2. x is a torch tensor: called internally (probably for the adjoint) 
+
+    if isinstance(y,BraidVector):
+      # FIXME: this is a source of memory growth, I'd like to remove it
+      t_x = y.tensor().detach()
+      t_y = y.tensor().detach().clone()
+
+      in_place_eval(t_y,t_x,tstart,tstop,level)
+
+      # store off the solution for later adjoints
+      if level==0:
+        ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
+        self.soln_store[ts_index] = (t_y,t_x)
+
+      # change the pointer under the hood of teh braid vector
+      y.tensor_ = t_y.detach().clone()
+    else: 
+      in_place_eval(y,x,tstart,tstop,level)
   # end eval
 
   def getPrimalWithGrad(self,tstart,tstop,level):
@@ -227,7 +210,9 @@ class ForwardODENetApp(BraidApp):
     x_o = t_x.detach()
     x_o.requires_grad = t_x.requires_grad
 
-    return (self.eval(x_o,tstart,tstop,0,force_deriv=True),x_o), layer
+    y = x_o.detach().clone()
+    self.eval(y,tstart,tstop,0,force_deriv=True,x=x_o)
+    return (y, x_o), layer
 
   # end getPrimalWithGrad
 
@@ -347,7 +332,8 @@ class BackwardODENetApp(BraidApp):
       print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
 
-    return BraidVector(t_grad,level) 
+    w.tensor_ = t_grad
+    #return BraidVector(t_grad,level) 
   # end eval
 
 # end BackwardODENetApp

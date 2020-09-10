@@ -72,10 +72,9 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
     braid_StepStatusGetTstartTstop(status, &tstart, &tstop)
     braid_StepStatusGetLevel(status, &level)
 
+    # modify the state vector in place
     u =  <object> vec_u
-    temp = pyApp.eval(u,tstart,tstop,level)
-
-    u.tensor().copy_(temp.tensor())
+    pyApp.eval(u,tstart,tstop,level)
 
   return 0
 # end my_access
@@ -92,7 +91,6 @@ cdef int my_init(braid_App app, double t, braid_Vector *u_ptr):
 cdef int my_free(braid_App app, braid_Vector u):
   pyApp = <object> app
   with pyApp.timer("my_free"):
-
     # Cast u as a PyBraid_Vector
     pyU = <object> u
     # Decrement the smart pointer
@@ -137,7 +135,7 @@ cdef int my_norm(braid_App app, braid_Vector u, double *norm_ptr):
   with pyApp.timer("my_norm"):
     # Compute norm 
     ten_U = (<object> u).tensor()
-    norm_ptr[0] = torch.norm(ten_U)
+    norm_ptr[0] = torch.norm(ten_U).item()
 
   return 0
 
