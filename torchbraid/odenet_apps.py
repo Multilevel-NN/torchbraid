@@ -155,6 +155,7 @@ class ForwardODENetApp(BraidApp):
   
       # determine if braid or tensor version is called
       if isinstance(x,BraidVector):
+        # FIXME: this is a source of memory growth, I'd like to remove it
         t_x = x.tensor().detach().clone()
       else: 
         t_x = x
@@ -312,9 +313,8 @@ class BackwardODENetApp(BraidApp):
         # this is so that the renumbering used by the backward problem is properly adjusted
         (t_x_new,t_x_old),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
 
-        # t_x_old should have no gradient
-        if t_x_old.grad is not None:
-          t_x_old.grad.data.zero_()
+        # t_x_old should have no gradient (for memory reasons)
+        assert(t_x_old.grad is None)
 
         # we are going to change the required gradient, make sure they return
         # to where they started!
@@ -335,13 +335,19 @@ class BackwardODENetApp(BraidApp):
         t_w.requires_grad = False
         t_x_new.backward(t_w,retain_graph=True)
 
+        # this little bit of pytorch magic ensures the gradient isn't
+        # stored too long in this calculation (in particulcar setting
+        # the grad to None after saving it and returning it to braid)
+        t_grad = t_x_old.grad.detach() 
+        t_x_old.grad = None
+
         for p,s in zip(layer.parameters(),required_grad_state):
           p.requires_grad = s
     except:
       print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
 
-    return BraidVector(t_x_old.grad.detach(),level) 
+    return BraidVector(t_grad,level) 
   # end eval
 
 # end BackwardODENetApp
