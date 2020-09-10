@@ -31,5 +31,6 @@
 
 from .layer_parallel import LayerParallel
 from . import torchbraid_app
+from .torchbraid_app import BraidVector
 
 from . import utils
