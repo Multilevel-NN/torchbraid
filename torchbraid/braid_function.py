@@ -34,23 +34,24 @@ import torch.autograd
 class BraidFunction(torch.autograd.Function):
   @staticmethod
   def forward(ctx, fwd_app, bwd_app, x, *params):
-    my_rank       = fwd_app.getMPIData().getRank()
+    num_ranks     = fwd_app.getMPIData().getSize()
+    comm = fwd_app.getMPIData().getComm()
 
     with fwd_app.timer_manager.timer("BraidFunction::forward::bcast"):
       # copy the input to all processors (ensure consistency)
-      comm = fwd_app.getMPIData().getComm()
       x = comm.bcast(x,root=0)
 
     with fwd_app.timer_manager.timer("BraidFunction::forward::run"):
       # setup context
       ctx.fwd_app = fwd_app
       ctx.bwd_app = bwd_app
-      ctx.save_for_backward(x, *params)
+      ctx.save_for_backward(None, *params)
 
       result = fwd_app.run(x)
 
     with fwd_app.timer_manager.timer("BraidFunction::forward::broadCastForwardResult"):
-      result = BraidFunction.broadcastForwardResult(fwd_app.getMPIData(),result)
+      # broadcast the output of the last layer 
+      result = comm.bcast(result,root=num_ranks-1)
 
     return result
 
@@ -88,20 +89,3 @@ class BraidFunction(torch.autograd.Function):
         grad_input += (None,)
 
     return grad_input
-
-  @staticmethod
-  def broadcastForwardResult(mpi_data,result):
-    build_seq_tag = 96        # this 
-    comm          = mpi_data.getComm()
-    my_rank       = mpi_data.getRank()
-    num_ranks     = mpi_data.getSize()
-
-    # short circuit for serial case
-    if num_ranks==1:
-      return result
-
-    # broadcast the output of the last layer 
-    result = comm.bcast(result,root=num_ranks-1)
-
-    return result
-  # end broadcast
