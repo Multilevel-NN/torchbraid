@@ -150,35 +150,51 @@ class ForwardODENetApp(BraidApp):
       dt = tstop-tstart
       layer = self.getLayer(tstart,tstop,level) # resnet "basic block"
 
-      t_y.zero_()
-      with torch.enable_grad():
-        if level==0:
-          t_x.requires_grad = True 
-
-        t_y.copy_(t_x)
-        t_y.add_(dt*layer(t_x))
+      t_y.copy_(t_x)
+      t_y.add_(dt*layer(t_x))
     # end in_place_eval
 
     # there are two paths by which eval is called:
     #  1. x is a BraidVector: my step has called this method
     #  2. x is a torch tensor: called internally (probably for the adjoint) 
 
-    if isinstance(y,BraidVector):
+    if isinstance(y,BraidVector) and level==0:
       # FIXME: this is a source of memory growth, I'd like to remove it
       t_x = y.tensor().detach()
-      t_y = y.tensor().detach().clone()
+      t_x.requires_grad = True 
 
-      in_place_eval(t_y,t_x,tstart,tstop,level)
+      t_y = y.tensor().detach().clone()
+      t_y.zero_()
+
+      with torch.enable_grad():
+        in_place_eval(t_y,t_x,tstart,tstop,level)
 
       # store off the solution for later adjoints
-      if level==0:
-        ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
-        self.soln_store[ts_index] = (t_y,t_x)
+      ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
+      self.soln_store[ts_index] = (t_y,t_x)
 
       # change the pointer under the hood of teh braid vector
       y.tensor_ = t_y.detach().clone()
+    elif isinstance(y,BraidVector):
+      assert(level!=0)
+
+      # FIXME: this is a source of memory growth, I'd like to remove it
+      t_x = y.tensor().detach().clone()
+      t_x.requires_grad = False
+
+      t_y = y.tensor().detach()
+
+      # no gradients are necessary here, so don't compute them
+      with torch.no_grad():
+        t_y.zero_()
+        in_place_eval(t_y,t_x,tstart,tstop,level)
+
+      y.tensor_ = t_y
     else: 
-      in_place_eval(y,x,tstart,tstop,level)
+      x.requires_grad = True 
+      y.zero_()
+      with torch.enable_grad():
+        in_place_eval(y,x,tstart,tstop,level)
   # end eval
 
   def getPrimalWithGrad(self,tstart,tstop,level):
