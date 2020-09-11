@@ -143,8 +143,8 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   pyApp = <object> app
   cdef int cnt 
   with pyApp.timer("my_bufsize"):
-    cnt = pyApp.x0.tensor().size().numel()
-    rank = len(pyApp.x0.tensor().size())
+    cnt = pyApp.shape0.numel()
+    rank = len(pyApp.shape0)
 
     # Note size_ptr is an integer array of size 1, and we index in at location [0]
     # the int size encodes the level
@@ -209,7 +209,7 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
     fbuffer = <float *>(buffer+(2+len(sizes))*sizeof(int)) # level, rank, sizes
   
     # allocate memory
-    data = torch.zeros(sizes,dtype=pyApp.x0.tensor().dtype)
+    data = torch.zeros(sizes)
     u_obj = BraidVector(data,level)
     Py_INCREF(u_obj) # why do we need this?
 

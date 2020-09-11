@@ -130,6 +130,7 @@ class BraidApp:
     self.tf_local = (self.mpi_data.getRank()+1.0)*local_num_steps*self.dt
 
     self.x_final = None
+    self.shape0 = None
   
     comm          = self.getMPIData().getComm()
     my_rank       = self.getMPIData().getRank()
@@ -239,6 +240,10 @@ class BraidApp:
 
     self.enable_diagnostics = enable
 
+  def setShape(self,shape):
+    # the shape to use if non-exists for taking advantage of allocations in braid
+    self.shape0 = shape
+
   def runBraid(self,x):
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
     cdef braid_Core core = py_core.getCore()
@@ -252,7 +257,6 @@ class BraidApp:
     braid_Drive(core) # my_step -> App:eval -> resnet "basic block"
 
     self.printBraidStats()
-    
 
     return self.getFinal()
 
@@ -366,9 +370,7 @@ class BraidApp:
 
   def buildInit(self,t):
     if t>0:
-      x = self.x0.clone()
-      t_x = x.tensor()
-      t_x[:] = 0.0
+      x = BraidVector(torch.zeros(self.shape0),0)
     else:
       x = self.x0
     return x

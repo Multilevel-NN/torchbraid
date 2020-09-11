@@ -34,12 +34,13 @@ import torch.autograd
 class BraidFunction(torch.autograd.Function):
   @staticmethod
   def forward(ctx, fwd_app, bwd_app, x, *params):
+    my_rank       = fwd_app.getMPIData().getRank()
     num_ranks     = fwd_app.getMPIData().getSize()
     comm = fwd_app.getMPIData().getComm()
 
     with fwd_app.timer_manager.timer("BraidFunction::forward::bcast"):
       # copy the input to all processors (ensure consistency)
-      x = comm.bcast(x,root=0)
+      shape = comm.bcast(x.size(),root=0)
 
     with fwd_app.timer_manager.timer("BraidFunction::forward::run"):
       # setup context
@@ -47,7 +48,13 @@ class BraidFunction(torch.autograd.Function):
       ctx.bwd_app = bwd_app
       ctx.save_for_backward(None, *params)
 
-      result = fwd_app.run(x)
+      fwd_app.setShape(shape)
+      bwd_app.setShape(shape)
+
+      if my_rank==0:
+        result = fwd_app.run(x)
+      else:
+        result = fwd_app.run(None)
 
     with fwd_app.timer_manager.timer("BraidFunction::forward::broadCastForwardResult"):
       # broadcast the output of the last layer 
@@ -61,10 +68,17 @@ class BraidFunction(torch.autograd.Function):
     my_rank       = ctx.bwd_app.getMPIData().getRank()
     num_ranks     = ctx.bwd_app.getMPIData().getSize()
 
-    # copy the input to all processors (ensure consistency)
-    grad_output = comm.bcast(grad_output,root=0)
+    # copy the input to the final processor (where iter time integration begins)
+    if num_ranks>1:
+      if my_rank==0:
+        comm.send(grad_output,dest=num_ranks-1)
+      elif my_rank==num_ranks-1: 
+        grad_output = comm.recv(source=0)
 
-    result = ctx.bwd_app.run(grad_output)
+    if my_rank==num_ranks-1:
+      result = ctx.bwd_app.run(grad_output)
+    else:
+      result = ctx.bwd_app.run(None)
 
     # send gradients to the right (braid doesn't maintain symmetry with the forward and
     # adjoint problems)
