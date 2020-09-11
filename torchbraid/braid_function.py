@@ -38,9 +38,8 @@ class BraidFunction(torch.autograd.Function):
     num_ranks     = fwd_app.getMPIData().getSize()
     comm = fwd_app.getMPIData().getComm()
 
-    with fwd_app.timer_manager.timer("BraidFunction::forward::bcast"):
-      # copy the input to all processors (ensure consistency)
-      shape = comm.bcast(x.size(),root=0)
+    # copy the input to all processors (ensure consistency)
+    shape = comm.bcast(x.size(),root=0)
 
     with fwd_app.timer_manager.timer("BraidFunction::forward::run"):
       # setup context
@@ -56,9 +55,8 @@ class BraidFunction(torch.autograd.Function):
       else:
         result = fwd_app.run(None)
 
-    with fwd_app.timer_manager.timer("BraidFunction::forward::broadCastForwardResult"):
-      # broadcast the output of the last layer 
-      result = comm.bcast(result,root=num_ranks-1)
+    # broadcast the output of the last layer 
+    result = comm.bcast(result,root=num_ranks-1)
 
     return result
 
