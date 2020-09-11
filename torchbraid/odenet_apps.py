@@ -268,8 +268,15 @@ class BackwardODENetApp(BraidApp):
   def run(self,x):
 
     try:
+      # this is required to run the derivative calculation
+      assert(self.fwd_app.soln_store is not None)
+
       f = self.runBraid(x)
 
+      # this is for an agressive memory cleanup, if you need 
+      # multiple gradients (the assertion failed above) you
+      # should make this in option
+      self.fwd_app.soln_store = None
 
       # this code is due to how braid decomposes the backwards problem
       # The ownership of the time steps is shifted to the left (and no longer balanced)
@@ -328,7 +335,7 @@ class BackwardODENetApp(BraidApp):
             if not p.grad is None:
               p.grad.data.zero_()
           else:
-            # if you are not on the fine level, compute no gradients
+            # if you are not on the fine level, compute no parameter gradients
             p.requires_grad = False
 
         # perform adjoint computation
@@ -349,7 +356,6 @@ class BackwardODENetApp(BraidApp):
       traceback.print_exc()
 
     w.tensor_ = t_grad
-    #return BraidVector(t_grad,level) 
   # end eval
 
 # end BackwardODENetApp
