@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import argparse
 import torch
 from math import pi, sin
 import matplotlib.pyplot as plt
@@ -7,6 +8,11 @@ from torch.autograd import gradcheck
 import torchbraid
 from mpi4py import MPI
 # import torchbraid.utils
+
+
+def root_print(rank,s):
+  if rank==0:
+    print(s)
 
 
 class SineDataset(torch.utils.data.Dataset):
@@ -63,7 +69,6 @@ class StepLayer(torch.nn.Module):
         self.linearlayer = torch.nn.Linear(width, width)
 
     def forward(self, x):
-        # x = x + self.stepsize * torch.tanh(self.linearlayer(x))
         x = torch.tanh(self.linearlayer(x))
         return x
 
@@ -92,15 +97,14 @@ class SerialNet(torch.nn.Module):
 
 
 class ParallelNet(torch.nn.Module):
-    def __init__(self, Tstop=10.0, width=4, nlayers=10, max_levels=1, max_iters=1, fwd_max_iters=0, print_level=0, braid_print_level=0, cfactor=4, fine_fcf=False, skip_downcycle=True, fmg=False):
+    def __init__(self, Tstop=10.0, width=4, local_steps=10, max_levels=1, max_iters=1, fwd_max_iters=0, print_level=0, braid_print_level=0, cfactor=4, fine_fcf=False, skip_downcycle=True, fmg=False):
         super(ParallelNet, self).__init__()
 
         # Create lambda function for normal step layer
-        # stepsize = Tstop / float(nlayers)
         step_layer = lambda: StepLayer(width)
 
         # Create and store parallel net
-        self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD, step_layer, nlayers, Tstop, max_levels=max_levels, max_iters=max_iters)
+        self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD, step_layer, local_steps, Tstop, max_levels=max_levels, max_iters=max_iters)
 
         # Set options
         if fwd_max_iters > 0:
@@ -152,17 +156,40 @@ def gradnorm(parameters):
     norm = norm ** (1. / 2)
     return norm
 
+
+# Parse command line
+parser = argparse.ArgumentParser(description='TORCHBRAID Sine Example')
+parser.add_argument('--force-lp', action='store_true', default=False, help='Use layer parallel even if there is only 1 MPI rank')
+parser.add_argument('--epochs', type=int, default=2, metavar='N', help='number of epochs to train (default: 2)')
+parser.add_argument('--batch-size', type=int, default=20, metavar='N', help='batch size for training (default: 50)')
+args = parser.parse_args()
+
+
+# MPI Stuff
+rank  = MPI.COMM_WORLD.Get_rank()
+procs = MPI.COMM_WORLD.Get_size()
+
+
+# some logic to default to Serial if on one processor,
+# can be overriden by the user to run layer-parallel
+if args.force_lp:
+    force_lp = True
+elif procs>1:
+    force_lp = True
+else:
+    force_lp = False
+
 # Set a seed for reproducability
 torch.manual_seed(0)
 
 # Specify network
-width = 2
-nlayers =5
-Tstop = 1.0
+width = 4
+nlayers = 10
+Tstop = 10.0
 
 # Specify and training params
-batch_size = 5
-max_epochs = 20
+batch_size = args.batch_size
+max_epochs = args.epochs
 learning_rate = 1e-3
 
 
@@ -177,40 +204,41 @@ validation_generator = torch.utils.data.DataLoader(validation_set, batch_size=ba
 
 # Serial network model
 torch.manual_seed(0)
-model_serial = SerialNet(width, nlayers, Tstop)
+if not force_lp:
+    root_print(rank, "Building serial net")
+    model = SerialNet(width, nlayers, Tstop)
+    compose = lambda op,*p: op(*p)    # NO IDEA QHT THAT IS
+else:
+    root_print(rank, "Building parallel net")
+    # Layer-parallel parameters
+    lp_max_levels = 1
+    lp_max_iter = 10
+    lp_printlevel = 1
+    lp_braid_printlevel = 1
+    lp_cfactor = 2
+    # Number of local steps
+    local_steps  = int(nlayers / procs)
+    if nlayers % procs != 0:
+        print(rank,'NLayers must be an even multiple of the number of processors: %d %d' % (nlayers, procs) )
+        stop
 
-# Layer-parallel network model
-lp_max_levels = 1
-lp_max_iter = 10
-lp_printlevel = 1
-lp_cfactor = 2
-torch.manual_seed(0)
-model_lp = ParallelNet(Tstop=1.0,
-                    width=width,
-                    nlayers=nlayers,
-                    max_levels=lp_max_levels,
-                    max_iters=lp_max_iter,
-                    fwd_max_iters=10,
-                    print_level=lp_printlevel,
-                    braid_print_level=lp_printlevel,
-                    cfactor=lp_cfactor,
-                    fine_fcf=False,
-                    skip_downcycle=False,
-                    fmg=False)
-
+    # Create layer parallel network
+    model = ParallelNet(Tstop=Tstop,
+                        width=width,
+                        local_steps=local_steps,
+                        max_levels=lp_max_levels,
+                        max_iters=lp_max_iter,
+                        fwd_max_iters=10,
+                        print_level=lp_printlevel,
+                        braid_print_level=lp_braid_printlevel,
+                        cfactor=lp_cfactor,
+                        fine_fcf=False,
+                        skip_downcycle=False,
+                        fmg=False)
+    compose = model.compose   # NOT SO SURE WHAT THAT DOES
 
 # Construct loss function
 myloss = torch.nn.MSELoss(reduction='sum')
-
-
-for local_batch, local_labels in training_generator:
-    xdata = local_batch.reshape(len(local_batch),1)
-    ydata_serial = model_serial(xdata)
-    ydata_lp = model_lp(xdata)
-    error = ydata_serial - ydata_lp
-    print("max. error = ", max(error))
-
-    stop
 
 # Set up optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -225,11 +253,15 @@ for epoch in range(max_epochs):
 
         # Forward pass
         ypred = model(local_batch)
-        loss = myloss(ypred, local_labels)
+        loss = compose(myloss, ypred, local_labels)
 
         # Comput gradient through backpropagation
         optimizer.zero_grad()
         loss.backward()
+
+        # Print gradients
+        # for p in model.parameters():
+            # print("Serial grad: ", p.grad.data)
 
         # Update network parameters
         optimizer.step()
@@ -241,13 +273,13 @@ for epoch in range(max_epochs):
             local_batch = local_batch.reshape(len(local_batch),1)
             local_labels= local_labels.reshape(len(local_labels),1)
             ypred = model(local_batch)
-            loss_val = myloss(ypred, local_labels).item()
+            loss_val = compose(myloss, ypred, local_labels).item()
 
 
     # Output and stopping
     with torch.no_grad():
         gnorm = gradnorm(model.parameters())
-        print(epoch, loss.item(), loss_val, gnorm)
+        print(rank,epoch, loss.item(), loss_val, gnorm)
 
     # Stopping criterion
     if gnorm < 1e-4:
@@ -255,18 +287,19 @@ for epoch in range(max_epochs):
 
 
 
-# plot validation and training
-xtrain = torch.tensor(training_set[0:len(training_set)])[0].reshape(len(training_set),1)
-ytrain = model(xtrain).detach().numpy()
-xval = torch.tensor(validation_set[0:len(validation_set)])[0].reshape(len(validation_set),1)
-yval = model(xval).detach().numpy()
-
-plt.plot(xtrain, ytrain, 'ro')
-plt.plot(xval, yval, 'bo')
-# Groundtruth
-xtruth = np.arange(-pi, pi, 0.1)
-plt.plot(xtruth, np.sin(xtruth))
-
-# Shot the plot
-plt.legend(['training', 'validation', 'groundtruth'])
-# plt.show()
+# # plot validation and training
+# xtrain = torch.tensor(training_set[0:len(training_set)])[0].reshape(len(training_set),1)
+# ytrain = model(xtrain).detach().numpy()
+# xval = torch.tensor(validation_set[0:len(validation_set)])[0].reshape(len(validation_set),1)
+# yval = model(xval).detach().numpy()
+#
+# if rank == 0:
+#     plt.plot(xtrain, ytrain, 'ro')
+#     plt.plot(xval, yval, 'bo')
+#     # Groundtruth
+#     xtruth = np.arange(-pi, pi, 0.1)
+#     plt.plot(xtruth, np.sin(xtruth))
+#
+#     # Shot the plot
+#     plt.legend(['training', 'validation', 'groundtruth'])
+#     # plt.show()
