@@ -213,8 +213,8 @@ else:
     # Layer-parallel parameters
     lp_max_levels = 1
     lp_max_iter = 10
-    lp_printlevel = 1
-    lp_braid_printlevel = 1
+    lp_printlevel = 0
+    lp_braid_printlevel = 0
     lp_cfactor = 2
     # Number of local steps
     local_steps  = int(nlayers / procs)
@@ -279,7 +279,8 @@ for epoch in range(max_epochs):
     # Output and stopping
     with torch.no_grad():
         gnorm = gradnorm(model.parameters())
-        print(rank,epoch, loss.item(), loss_val, gnorm)
+        if rank == 0:
+            print(rank,epoch, loss.item(), loss_val, gnorm)
 
     # Stopping criterion
     if gnorm < 1e-4:
@@ -287,19 +288,21 @@ for epoch in range(max_epochs):
 
 
 
-# # plot validation and training
-# xtrain = torch.tensor(training_set[0:len(training_set)])[0].reshape(len(training_set),1)
-# ytrain = model(xtrain).detach().numpy()
-# xval = torch.tensor(validation_set[0:len(validation_set)])[0].reshape(len(validation_set),1)
-# yval = model(xval).detach().numpy()
-#
-# if rank == 0:
-#     plt.plot(xtrain, ytrain, 'ro')
-#     plt.plot(xval, yval, 'bo')
-#     # Groundtruth
-#     xtruth = np.arange(-pi, pi, 0.1)
-#     plt.plot(xtruth, np.sin(xtruth))
-#
-#     # Shot the plot
-#     plt.legend(['training', 'validation', 'groundtruth'])
-#     # plt.show()
+# plot validation and training
+xtrain = torch.tensor(training_set[0:len(training_set)])[0].reshape(len(training_set),1)
+ytrain = model(xtrain).detach().numpy()
+xval = torch.tensor(validation_set[0:len(validation_set)])[0].reshape(len(validation_set),1)
+yval = model(xval).detach().numpy()
+# ytrain = MPI.COMM_WORLD.bcast(ytrain,root=0)
+# yval = MPI.COMM_WORLD.bcast(yval,root=0)
+
+if rank == 0:
+    plt.plot(xtrain, ytrain, 'ro')
+    plt.plot(xval, yval, 'bo')
+    # Groundtruth
+    xtruth = np.arange(-pi, pi, 0.1)
+    plt.plot(xtruth, np.sin(xtruth))
+
+    # Shot the plot
+    plt.legend(['training', 'validation', 'groundtruth'])
+    plt.show()
