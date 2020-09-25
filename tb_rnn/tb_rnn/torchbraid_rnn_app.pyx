@@ -76,7 +76,7 @@ ctypedef _braid_Vector_struct *braid_Vector
 #  #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #  """
 
-include "./braid.pyx"
+include "./../../torchbraid/braid.pyx"
 include "./torchbraid_rnn_callbacks.pyx"
 
 #  a python level module
