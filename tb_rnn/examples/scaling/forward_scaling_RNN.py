@@ -360,8 +360,8 @@ if run_serial:
 
     tf_parallel = time.time()
 
-  timer_str = timer_manager.getResultString()
-  print(timer_str)
+  #timer_str = timer_manager.getResultString()
+  #print(timer_str)
 
 else:
   root_print(my_rank,'Running TorchBraid: %d' % comm.Get_size())
@@ -427,13 +427,13 @@ else:
   tf_parallel = time.time()
   comm.barrier()
 
-  timer_str = parallel_nn.getTimersString()
-  if my_rank==0:
-    print(timer_str)
+  #timer_str = parallel_nn.getTimersString()
+  #if my_rank==0:
+  #  print(timer_str)
 
-  timer_str = timer_manager.getResultString()
-  if my_rank==0:
-    print(timer_str)
+  #timer_str = timer_manager.getResultString()
+  #if my_rank==0:
+  #  print(timer_str)
 
   # check serial case
   # serial_nn = parallel_nn.buildSequentialOnRoot()
