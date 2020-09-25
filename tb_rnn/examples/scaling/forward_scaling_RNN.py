@@ -243,6 +243,7 @@ if args.optstr==True:
   sys.exit(0)
 
 import tb_rnn
+import torchbraid
 from mpi4py import MPI
 
 comm = MPI.COMM_WORLD
@@ -273,7 +274,7 @@ print(opts_obj)
 ###########################################
 
 # define the neural network parameters
-timer_manager = tb_rnn.utils.ContextTimerManager()
+timer_manager = torchbraid.utils.ContextTimerManager()
 # basic_block = lambda: build_block_with_dim(channels,timer_manager)
 
 # build parallel information

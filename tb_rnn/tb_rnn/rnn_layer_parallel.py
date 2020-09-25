@@ -40,7 +40,7 @@ from mpi4py import MPI
 import copy
 
 from tb_rnn.torchbraid_rnn_function import BraidFunction
-from tb_rnn.utils import ContextTimerManager
+from torchbraid.utils import ContextTimerManager
 
 import tb_rnn.torchbraid_rnn_apps as apps
 
