@@ -59,7 +59,9 @@ class ODEBlock(nn.Module):
     self.layer = layer
 
   def forward(self, x):
-    return x + self.dt*self.layer(x)
+    y = self.dt*self.layer(x)
+    y.add_(x)
+    return y
 # end ODEBlock
 
 class LayerParallel(nn.Module):

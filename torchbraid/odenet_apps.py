@@ -164,7 +164,6 @@ class ForwardODENetApp(BraidApp):
       t_x.requires_grad = True 
 
       t_y = y.tensor().detach().clone()
-      t_y.zero_()
 
       with torch.enable_grad():
         in_place_eval(t_y,t_x,tstart,tstop,level)
@@ -186,7 +185,6 @@ class ForwardODENetApp(BraidApp):
 
       # no gradients are necessary here, so don't compute them
       with torch.no_grad():
-        t_y.zero_()
         in_place_eval(t_y,t_x,tstart,tstop,level)
 
       y.tensor_ = t_y
