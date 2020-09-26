@@ -173,7 +173,7 @@ class ForwardODENetApp(BraidApp):
       self.soln_store[ts_index] = (t_y,t_x)
 
       # change the pointer under the hood of teh braid vector
-      y.tensor_ = t_y.detach().clone()
+      y.replaceTensor(t_y.detach().clone())
     elif isinstance(y,BraidVector):
       assert(level!=0)
 
@@ -187,7 +187,7 @@ class ForwardODENetApp(BraidApp):
       with torch.no_grad():
         in_place_eval(t_y,t_x,tstart,tstop,level)
 
-      y.tensor_ = t_y
+      y.replaceTensor(t_y)
     else: 
       x.requires_grad = True 
       y.zero_()
@@ -353,7 +353,7 @@ class BackwardODENetApp(BraidApp):
       print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
 
-    w.tensor_ = t_grad
+    w.replaceTensor(t_grad)
   # end eval
 
 # end BackwardODENetApp
