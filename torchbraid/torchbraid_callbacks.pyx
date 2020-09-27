@@ -179,7 +179,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
     ibuffer[1] = len(sizes)
     for i,s in enumerate(sizes):
       ibuffer[2+i] = s
-    fbuffer[0] = (<object> u).getTime()
+    fbuffer[0] = 0.0
 
     my_buf = <float[:sz]> (fbuffer+1)
 
@@ -215,7 +215,7 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
 
     u_ptr[0] = <braid_Vector> u_obj 
   
-    u_obj.setTime(fbuffer[0])
+    # obsolute: time noot needed: fbuffer[0]
 
     ten_U = u_obj.tensor()
     np_U = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array

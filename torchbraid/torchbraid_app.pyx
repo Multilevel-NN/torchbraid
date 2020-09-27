@@ -54,7 +54,6 @@ class BraidVector:
       self.tensor_data_ = (tensor,)
         
     self.level_  = level
-    self.time_   = np.nan # are we using this???
 
   def replaceTensor(self,t,i=0):
     """
@@ -87,12 +86,6 @@ class BraidVector:
     tensors = [t.detach().clone() for t in self.tensors()]
     cl = BraidVector(tuple(tensors),self.level())
     return cl
-
-  def setTime(self,t):
-    self.time_ = t
-
-  def getTime(self):
-    return self.time_
 
 ctypedef PyObject _braid_Vector_struct
 ctypedef _braid_Vector_struct *braid_Vector
