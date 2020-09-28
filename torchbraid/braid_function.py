@@ -34,9 +34,9 @@ import torch.autograd
 class BraidFunction(torch.autograd.Function):
   @staticmethod
   def forward(ctx, fwd_app, bwd_app, x, *params):
-    my_rank       = fwd_app.getMPIData().getRank()
-    num_ranks     = fwd_app.getMPIData().getSize()
-    comm = fwd_app.getMPIData().getComm()
+    comm          = fwd_app.getMPIComm()
+    my_rank       = fwd_app.getMPIComm().Get_rank()
+    num_ranks     = fwd_app.getMPIComm().Get_size()
 
     # copy the input to all processors (ensure consistency)
     shape = comm.bcast(x.size(),root=0)
@@ -62,9 +62,9 @@ class BraidFunction(torch.autograd.Function):
 
   @staticmethod
   def backward(ctx, grad_output):
-    comm          = ctx.bwd_app.getMPIData().getComm()
-    my_rank       = ctx.bwd_app.getMPIData().getRank()
-    num_ranks     = ctx.bwd_app.getMPIData().getSize()
+    comm          = ctx.bwd_app.getMPIComm()
+    my_rank       = ctx.bwd_app.getMPIComm().Get_rank()
+    num_ranks     = ctx.bwd_app.getMPIComm().Get_size()
 
     # copy the input to the final processor (where iter time integration begins)
     if num_ranks>1:

@@ -110,9 +110,9 @@ class ParallelNet(nn.Module):
 
   def copyParameterGradToRoot(self):
     # this will copy in a way consistent with the SerialNet
-    comm     = self.parallel_nn.getMPIData().getComm()
-    my_rank  = self.parallel_nn.getMPIData().getRank()
-    num_proc = self.parallel_nn.getMPIData().getSize()
+    comm     = self.parallel_nn.getMPIComm()
+    my_rank  = self.parallel_nn.getMPIComm().Get_rank()
+    num_proc = self.parallel_nn.getMPIComm().Get_size()
  
     params = [p.grad for p in list(self.parallel_nn.parameters())]
 

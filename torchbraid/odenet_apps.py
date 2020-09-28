@@ -49,9 +49,9 @@ class ForwardODENetApp(BraidApp):
     # note that a simple equals would result in a shallow copy...bad!
     self.layer_models = [l for l in layer_models]
 
-    comm          = self.getMPIData().getComm()
-    my_rank       = self.getMPIData().getRank()
-    num_ranks     = self.getMPIData().getSize()
+    comm          = self.getMPIComm()
+    my_rank       = self.getMPIComm().Get_rank()
+    num_ranks     = self.getMPIComm().Get_size()
 
     # send everything to the left (this helps with the adjoint method)
     if my_rank>0:
@@ -72,9 +72,9 @@ class ForwardODENetApp(BraidApp):
 
   def updateParallelWeights(self):
     # send everything to the left (this helps with the adjoint method)
-    comm          = self.getMPIData().getComm()
-    my_rank       = self.getMPIData().getRank()
-    num_ranks     = self.getMPIData().getSize()
+    comm          = self.getMPIComm()
+    my_rank       = self.getMPIComm().Get_rank()
+    num_ranks     = self.getMPIComm().Get_size()
 
     if my_rank>0:
       comm.send(self.layer_models[0],dest=my_rank-1,tag=22)
@@ -239,7 +239,7 @@ class BackwardODENetApp(BraidApp):
   def __init__(self,fwd_app,timer_manager):
     # call parent constructor
     BraidApp.__init__(self,'BWDApp',
-                           fwd_app.getMPIData().getComm(),
+                           fwd_app.getMPIComm(),
                            fwd_app.local_num_steps,
                            fwd_app.Tf,
                            fwd_app.max_levels,
@@ -279,7 +279,7 @@ class BackwardODENetApp(BraidApp):
       # this code is due to how braid decomposes the backwards problem
       # The ownership of the time steps is shifted to the left (and no longer balanced)
       first = 1
-      if self.getMPIData().getRank()==0:
+      if self.getMPIComm().Get_rank()==0:
         first = 0
 
       self.grads = []

@@ -62,28 +62,6 @@ include "./torchbraid_callbacks.pyx"
 #  a python level module
 ##########################################################
 
-cdef class MPIData:
-  cdef MPI.Comm comm
-  cdef int rank
-  cdef int size
-
-  def __cinit__(self,comm):
-    self.comm = comm
-    self.rank = self.comm.Get_rank()
-    self.size = self.comm.Get_size()
-
-  def getComm(self):
-    return self.comm
-
-  def getRank(self):
-    return self.rank 
-
-  def getSize(self):
-    return self.size
-# helper class for the MPI communicator
-
-##############################################################
-
 class BraidApp:
 
   def __init__(self,prefix_str,comm,local_num_steps,Tf,max_levels,max_iters,
@@ -100,21 +78,21 @@ class BraidApp:
     self.cfactor     = 2
     self.skip_downcycle = 0
 
-    self.mpi_data        = MPIData(comm)
+    self.mpi_comm        = comm
     self.Tf              = Tf
     self.local_num_steps = local_num_steps
-    self.num_steps       = local_num_steps*self.mpi_data.getSize()
+    self.num_steps       = local_num_steps*self.mpi_comm.Get_size()
 
     self.dt       = Tf/self.num_steps
-    self.t0_local = self.mpi_data.getRank()*local_num_steps*self.dt
-    self.tf_local = (self.mpi_data.getRank()+1.0)*local_num_steps*self.dt
+    self.t0_local = self.mpi_comm.Get_rank()*local_num_steps*self.dt
+    self.tf_local = (self.mpi_comm.Get_rank()+1.0)*local_num_steps*self.dt
 
     self.x_final = None
     self.shape0 = None
   
-    comm          = self.getMPIData().getComm()
-    my_rank       = self.getMPIData().getRank()
-    num_ranks     = self.getMPIData().getSize()
+    comm          = self.getMPIComm()
+    my_rank       = self.getMPIComm().Get_rank()
+    num_ranks     = self.getMPIComm().Get_size()
 
     self.py_core = None
 
@@ -148,8 +126,8 @@ class BraidApp:
     cdef double tstart
     cdef double tstop
     cdef int ntime
-    cdef MPI.Comm comm = self.mpi_data.getComm()
-    cdef int rank = self.mpi_data.getRank()
+    cdef MPI.Comm comm = self.getMPIComm()
+    cdef int rank      = self.getMPIComm().Get_rank()
     cdef braid_App app = <braid_App> self
     cdef braid_PtFcnStep  b_step  = <braid_PtFcnStep> my_step
     cdef braid_PtFcnInit  b_init  = <braid_PtFcnInit> my_init
@@ -257,7 +235,7 @@ class BraidApp:
     niter = -1
     braid_GetRNorms(core, &niter, &resnorm);
 
-    my_rank       = self.getMPIData().getRank()
+    my_rank       = self.getMPIComm().Get_rank()
     if my_rank==0:
       print('  -- \"%s\" %03d iters yields rnorm of %.6e' % (self.prefix_str,iter_cnt,resnorm))
   # end printBraidStats
@@ -325,8 +303,8 @@ class BraidApp:
 
     return <object> bv.userVector
 
-  def getMPIData(self):
-    return self.mpi_data
+  def getMPIComm(self):
+    return self.mpi_comm
 
   def getLocalTimeStepIndex(self,t,tf,level):
     return round((t-self.t0_local) / self.dt)
@@ -360,7 +338,7 @@ class BraidApp:
       # not sure why this requires a clone
       # if this needs only one processor
       # it could be a problem in the future
-      if self.getMPIData().getSize()>1:
+      if self.getMPIComm().Get_size()>1:
         self.x_final = u
       else:
         self.x_final = u.clone()

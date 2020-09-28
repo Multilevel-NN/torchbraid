@@ -105,9 +105,9 @@ class TestGradUpdate(unittest.TestCase):
   # end test_reLUNet_Approx
 
   def copyParameterGradToRoot(self,m):
-    comm     = m.getMPIData().getComm()
-    my_rank  = m.getMPIData().getRank()
-    num_proc = m.getMPIData().getSize()
+    comm     = m.getMPIComm()
+    my_rank  = m.getMPIComm().Get_rank()
+    num_proc = m.getMPIComm().Get_size()
  
     params = [p.grad.clone() for p in list(m.parameters())]
 
@@ -167,7 +167,7 @@ class TestGradUpdate(unittest.TestCase):
     timer_str = m.getTimersString() 
 
     # check some values
-    if m.getMPIData().getRank()==0:
+    if m.getMPIComm().Get_rank()==0:
 
       # this is too much to print out every test run, but I'd like to make sure the
       # code is execueted
