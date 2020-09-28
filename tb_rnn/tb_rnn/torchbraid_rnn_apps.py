@@ -34,7 +34,7 @@
 
 import torch
 from torchbraid_rnn_app import BraidApp
-from torchbraid_rnn_app import BraidVector
+from torchbraid import BraidVector
 
 import sys
 
