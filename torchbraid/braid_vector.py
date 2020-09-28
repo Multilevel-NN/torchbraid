@@ -29,8 +29,49 @@
 # ************************************************************************
 #@HEADER
 
-from .layer_parallel import LayerParallel
-from . import torchbraid_app
-from .braid_vector import BraidVector
+# cython: profile=True
+# cython: linetrace=True
 
-from . import utils
+import torch
+
+class BraidVector:
+  def __init__(self,tensor,level):
+    if isinstance(tensor,tuple):
+      # if the input is a tuple, that is the full data
+      self.tensor_data_ = tensor
+    else:
+      self.tensor_data_ = (tensor,)
+        
+    self.level_  = level
+
+  def replaceTensor(self,t,i=0):
+    """
+    Replace the teensor. This is a shallow
+    copy of the tensor. This method returns the old
+    tensor object.
+    """
+    assert(isinstance(t,torch.Tensor))
+    old_t = self.tensor_data_[i]
+    tensor_lst = list(self.tensor_data_)
+    tensor_lst[i] = t
+    self.tensor_data_= tuple(tensor_lst)
+
+    return old_t
+
+  def tensor(self,i=0):
+    """
+    Return a tensor from the tuple storage.
+    Defaults to the first one (index 0)
+    """
+    return self.tensor_data_[i]
+
+  def tensors(self):
+    return self.tensor_data_
+
+  def level(self):
+    return self.level_
+  
+  def clone(self):
+    tensors = [t.detach().clone() for t in self.tensors()]
+    cl = BraidVector(tuple(tensors),self.level())
+    return cl
