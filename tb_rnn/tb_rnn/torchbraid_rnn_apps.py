@@ -47,9 +47,9 @@ class ForwardBraidApp(BraidApp):
 
     self.RNN_models = RNN_models
 
-    comm          = self.getMPIData().getComm()
-    my_rank       = self.getMPIData().getRank()
-    num_ranks     = self.getMPIData().getSize()
+    comm          = self.getMPIComm()
+    my_rank       = self.getMPIComm().Get_rank()
+    num_ranks     = self.getMPIComm().Get_size()
 
     ## send everything to the left (this helps with the adjoint method)
     # if my_rank>0:
@@ -67,8 +67,6 @@ class ForwardBraidApp(BraidApp):
 
   def run(self,x):
 
-    # prefix_rank = self.getMPIData().getRank()
-    # print("Rank %d ForwardBraidApp -> run() - start" % prefix_rank)
 
     self.soln_store = dict()
 
@@ -99,9 +97,6 @@ class ForwardBraidApp(BraidApp):
   #   return [list(l.parameters()) for l in self.layer_models]
 
   def eval(self,g0,tstart,tstop,level,force_deriv=False):
-
-    # prefix_rank = self.getMPIData().getRank()
-    # print("Rank %d ForwardBraidApp -> eval() - start" % prefix_rank)
     """
     Method called by "my_step" in braid. This is
     required to propagate from tstart to tstop, with the initial

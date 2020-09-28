@@ -110,8 +110,8 @@ class RNN_Parallel(nn.Module):
     self.fwd_app.setSkipDowncycle(skip)
     # self.bwd_app.setSkipDowncycle(skip)
 
-  def getMPIData(self):
-    return self.fwd_app.getMPIData()
+  def getMPIComm(self):
+    return self.fwd_app.getMPIComm()
 
   def forward(self,x):
     # prefix_rank  = self.comm.Get_rank()
@@ -150,16 +150,16 @@ class RNN_Parallel(nn.Module):
     ode_layers    = [ODEBlock(copy.deepcopy(l),self.dt) for l in self.layer_models]
     remote_layers = ode_layers
     build_seq_tag = 12         # this 
-    comm          = self.getMPIData().getComm()
-    my_rank       = self.getMPIData().getRank()
-    num_ranks     = self.getMPIData().getSize()
+    comm          = self.getMPIComm()
+    my_rank       = self.getMPIComm().Get_rank()
+    num_ranks     = self.getMPIComm().Get_size()
     
     # short circuit for serial case
     if num_ranks==1:
       return nn.Sequential(*remote_layers)
 
     if my_rank==0:
-      for i in range(1,self.getMPIData().getSize()):
+      for i in range(1,self.getMPIComm().Get_size()):
         remote_layers += comm.recv(source=i,tag=build_seq_tag)
       return nn.Sequential(*remote_layers)
     else:
@@ -182,9 +182,9 @@ class RNN_Parallel(nn.Module):
     # print("Rank %d RNN_Parallel -> getFinalOnRoot() - called" % prefix_rank)
     
     build_seq_tag = 99        # this 
-    comm          = self.getMPIData().getComm()
-    my_rank       = self.getMPIData().getRank()
-    num_ranks     = self.getMPIData().getSize()
+    comm          = self.getMPIComm()
+    my_rank       = self.getMPIComm().Get_rank()
+    num_ranks     = self.getMPIComm().Get_size()
     
     # short circuit for serial case
     if num_ranks==1:
@@ -206,9 +206,9 @@ class RNN_Parallel(nn.Module):
     # print("Rank %d RNN_Parallel -> copyVectorFromRoot() - called" % prefix_rank)
 
     build_seq_tag = 99        # this 
-    comm          = self.getMPIData().getComm()
-    my_rank       = self.getMPIData().getRank()
-    num_ranks     = self.getMPIData().getSize()
+    comm          = self.getMPIComm()
+    my_rank       = self.getMPIComm().Get_rank()
+    num_ranks     = self.getMPIComm().Get_size()
 
     # short circuit for serial case
     if num_ranks==1:

@@ -89,9 +89,9 @@ class BraidFunction(torch.autograd.Function):
     grad_input = (None,None) 
     grad_input += (result,)
 
-    comm          = ctx.bwd_app.getMPIData().getComm()
-    my_rank       = ctx.bwd_app.getMPIData().getRank()
-    num_ranks     = ctx.bwd_app.getMPIData().getSize()
+    comm          = ctx.bwd_app.getMPIComm()
+    my_rank       = ctx.bwd_app.getMPIComm().Get_rank()
+    num_ranks     = ctx.bwd_app.getMPIComm().Get_size()
 
     # send gradients to the right (braid doesn't maintain symmetry with the forward and
     # adjoint problems)

@@ -54,28 +54,6 @@ include "./torchbraid_rnn_callbacks.pyx"
 #  a python level module
 ##########################################################
 
-cdef class MPIData:
-  cdef MPI.Comm comm
-  cdef int rank
-  cdef int size
-
-  def __cinit__(self,comm):
-    self.comm = comm
-    self.rank = self.comm.Get_rank()
-    self.size = self.comm.Get_size()
-
-  def getComm(self):
-    return self.comm
-
-  def getRank(self):
-    return self.rank 
-
-  def getSize(self):
-    return self.size
-# helper class for the MPI communicator
-
-##############################################################
-
 class BraidApp:
 
   def __init__(self,comm,local_num_steps,hidden_size,num_layers,Tf,max_levels,max_iters):
@@ -88,24 +66,24 @@ class BraidApp:
     self.skip_downcycle = 0
 
     local_num_steps = 1 # To make sure, set local_num_steps = 1
-    self.mpi_data        = MPIData(comm)
+    self.mpi_comm        = comm
     self.Tf              = Tf
     self.local_num_steps = local_num_steps
     # self.num_steps       = local_num_steps
-    self.num_steps       = local_num_steps*self.mpi_data.getSize()
+    self.num_steps       = local_num_steps*self.mpi_comm.Get_size()
 
     self.dt       = Tf/self.num_steps
-    self.t0_local = self.mpi_data.getRank()*local_num_steps*self.dt
-    self.tf_local = (self.mpi_data.getRank()+1.0)*local_num_steps*self.dt
+    self.t0_local = self.mpi_comm.Get_rank()*local_num_steps*self.dt
+    self.tf_local = (self.mpi_comm.Get_rank()+1.0)*local_num_steps*self.dt
 
     self.hidden_size = hidden_size
     self.num_layers = num_layers
 
     self.x_final = None
   
-    comm          = self.getMPIData().getComm()
-    my_rank       = self.getMPIData().getRank()
-    num_ranks     = self.getMPIData().getSize()
+    comm          = self.getMPIComm()
+    my_rank       = self.getMPIComm().Get_rank()
+    num_ranks     = self.getMPIComm().Get_size()
 
     self.py_core = None
 
@@ -120,8 +98,8 @@ class BraidApp:
     cdef double tstart
     cdef double tstop
     cdef int ntime
-    cdef MPI.Comm comm = self.mpi_data.getComm()
-    cdef int rank = self.mpi_data.getRank()
+    cdef MPI.Comm comm = self.mpi_comm
+    cdef int rank = self.mpi_comm.Get_rank()
     cdef braid_App app = <braid_App> self
     cdef braid_PtFcnStep  b_step  = <braid_PtFcnStep> my_step
     cdef braid_PtFcnInit  b_init  = <braid_PtFcnInit> my_init
@@ -174,14 +152,11 @@ class BraidApp:
 
   def runBraid(self,x):
 
-    # prefix_rank   = self.mpi_data.getRank()
-    # print("Rank %d BraidApp -> runBraid() - start" % prefix_rank)
-
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
     cdef braid_Core core = py_core.getCore()
 
-    total_ranks   = self.mpi_data.getSize()
-    comm_ = self.mpi_data.getComm()
+    total_ranks   = self.mpi_comm.Get_size()
+    comm_ = self.mpi_comm
 
     self.x = x
     
@@ -246,8 +221,8 @@ class BraidApp:
 
     return <object> bv.userVector
 
-  def getMPIData(self):
-    return self.mpi_data
+  def getMPIComm(self):
+    return self.mpi_comm
 
   def getLocalTimeStepIndex(self,t,tf,level):
     return round((t-self.t0_local) / self.dt)
@@ -256,9 +231,6 @@ class BraidApp:
     return round(t / self.dt)
 
   def setInitial_g(self,g0):
-
-    # prefix_rank   = self.mpi_data.getRank()
-    # print("Rank %d BraidApp -> setInitial_g() - start" % prefix_rank)
 
     cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
     cdef braid_BaseVector bv 
@@ -277,9 +249,6 @@ class BraidApp:
 
   def buildInit(self,t):
 
-    # prefix_rank   = self.mpi_data.getRank()
-    # print("Rank %d BraidApp -> buildInit() - start" % prefix_rank)
-
     g = self.g0.clone()
     if t>0:
       t_h,t_c = g.tensors()
@@ -291,18 +260,12 @@ class BraidApp:
 
   def access(self,t,u):
 
-    # prefix_rank   = self.mpi_data.getRank()
-    # print("Rank %d BraidApp -> access() - start" % prefix_rank)
-
     if t==self.Tf:
       self.x_final = u.clone()
 
     # print("Rank %d BraidApp -> access() - end" % prefix_rank)
 
   def getFinal(self):
-
-    # prefix_rank   = self.mpi_data.getRank()
-    # print("Rank %d BraidApp -> getFinal() - start" % prefix_rank)
 
     if self.x_final==None:
       return None
