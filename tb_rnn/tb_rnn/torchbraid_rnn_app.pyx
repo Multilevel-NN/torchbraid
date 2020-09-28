@@ -35,46 +35,18 @@
 import torch
 import numpy as np
 
-from cpython.ref cimport PyObject
-
+from torchbraid import BraidVector
 from mpi4py import MPI
+
 cimport mpi4py.MPI as MPI
 cimport mpi4py.libmpi as libmpi
+from cpython.ref cimport PyObject
 
 ctypedef PyObject _braid_App_struct 
 ctypedef _braid_App_struct* braid_App
 
-class BraidVector:
-  def __init__(self,tensor_tuple,level):
-    self.tensor_tuple_ = tensor_tuple
-    self.level_  = level
-    self.time_   = np.nan # are we using this???
-
-  def tensors(self):
-    return self.tensor_tuple_
-
-  def level(self):
-    return self.level_
-
-  def clone(self):
-    cloned_tuple = tuple([each_tensor.clone() for each_tensor in self.tensors()])
-    cl = BraidVector(cloned_tuple,self.level())
-    return cl
-
-  def setTime(self,t):
-    self.time_ = t
-
-  def getTime(self):
-    return self.time_
-
 ctypedef PyObject _braid_Vector_struct
 ctypedef _braid_Vector_struct *braid_Vector
-
-## to supress a warning from numpy
-#cdef extern from *:
-#  """
-#  #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#  """
 
 include "./../../torchbraid/braid.pyx"
 include "./torchbraid_rnn_callbacks.pyx"

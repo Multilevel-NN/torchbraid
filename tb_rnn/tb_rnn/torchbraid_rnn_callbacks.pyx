@@ -210,7 +210,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
     # np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
 
     ibuffer[0] = (<object> u).level()
-    fbuffer[0] = (<object> u).getTime()
+    fbuffer[0] = 0.0
 
     sz_h = len(np_U_h)
     sz_c = len(np_U_c)
@@ -262,7 +262,6 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   u_ptr[0] = <braid_Vector> u_obj 
 
   u_obj.level_ = ibuffer[0]
-  u_obj.setTime(fbuffer[0])
 
   tensors_U = u_obj.tensors()
   ten_U_h, ten_U_c = tensors_U
