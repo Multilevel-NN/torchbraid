@@ -44,20 +44,6 @@ from cython cimport view
 ##
 # Define your Python Braid Vector as a C-struct
 
-cdef int rnn_my_access(braid_App app,braid_Vector u,braid_AccessStatus status):
-  pyApp = <object> app
-
-  cdef double t
-
-  with pyApp.timer("rnn_my_access"):
-    # Create Numpy wrapper around u.v
-    ten_u = <object> u
-
-    braid_AccessStatusGetT(status, &t)
-
-    pyApp.access(t,ten_u)
-  return 0
-
 cdef int rnn_my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Vector vec_u, braid_StepStatus status):
   pyApp = <object> app
 
@@ -84,26 +70,6 @@ cdef int rnn_my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, brai
 
   return 0
 # end rnn_my_access
-
-cdef int rnn_my_init(braid_App app, double t, braid_Vector *u_ptr):
-  pyApp = <object> app
-  with pyApp.timer("rnn_my_init"):
-    u_mem = pyApp.buildInit(t)
-    Py_INCREF(u_mem) # why do we need this?
-    u_ptr[0] = <braid_Vector> u_mem
-
-  return 0
-
-cdef int rnn_my_free(braid_App app, braid_Vector u):
-  pyApp = <object> app
-  with pyApp.timer("rnn_my_free"):
-
-    # Cast u as a PyBraid_Vector
-    pyU = <object> u
-    # Decrement the smart pointer
-    Py_DECREF(pyU) 
-    del pyU
-  return 0
 
 cdef int rnn_my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_Vector y):
   # This routine cna be made faster by using the pyTorch tensor operations
@@ -139,31 +105,6 @@ cdef int rnn_my_sum(braid_App app, double alpha, braid_Vector x, double beta, br
       np_Y_h[k] = alpha*np_X_h[k]+beta*np_Y_h[k]
       np_Y_c[k] = alpha*np_X_c[k]+beta*np_Y_c[k]
       # np_Y[k] = alpha*np_X[k]+beta*np_Y[k]
-
-  return 0
-
-cdef int rnn_my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
-  pyApp = <object> app
-  with pyApp.timer("rnn_my_clone"):
-    ten_U = <object> u 
-    v_mem = ten_U.clone()
-    Py_INCREF(v_mem) # why do we need this?
-    v_ptr[0] = <braid_Vector> v_mem
-
-  return 0
-
-cdef int rnn_my_norm(braid_App app, braid_Vector u, double *norm_ptr):
-  pyApp = <object> app
-  with pyApp.timer("rnn_my_norm"):
-    # Compute norm 
-    # ten_U = (<object> u).tensor()
-    # norm_ptr[0] = torch.norm(ten_U)
-    tensors_U = (<object> u).tensors()
-    norm_ptr[0] = 0.0
-    for ten_U in tensors_U:
-      norm_ptr[0] += torch.norm(ten_U)**2
-
-    math.sqrt(norm_ptr[0])
 
   return 0
 

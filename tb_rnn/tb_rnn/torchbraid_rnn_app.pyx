@@ -49,6 +49,7 @@ ctypedef PyObject _braid_Vector_struct
 ctypedef _braid_Vector_struct *braid_Vector
 
 include "./../../torchbraid/braid.pyx"
+include "./../../torchbraid/torchbraid_callbacks.pyx"
 include "./torchbraid_rnn_callbacks.pyx"
 
 #  a python level module
@@ -102,12 +103,12 @@ class BraidApp:
     cdef int rank = self.mpi_comm.Get_rank()
     cdef braid_App app = <braid_App> self
     cdef braid_PtFcnStep  b_step  = <braid_PtFcnStep> rnn_my_step
-    cdef braid_PtFcnInit  b_init  = <braid_PtFcnInit> rnn_my_init
-    cdef braid_PtFcnClone b_clone = <braid_PtFcnClone> rnn_my_clone
-    cdef braid_PtFcnFree  b_free  = <braid_PtFcnFree> rnn_my_free
+    cdef braid_PtFcnInit  b_init  = <braid_PtFcnInit> my_init
+    cdef braid_PtFcnClone b_clone = <braid_PtFcnClone> my_clone
+    cdef braid_PtFcnFree  b_free  = <braid_PtFcnFree> my_free
     cdef braid_PtFcnSum   b_sum   = <braid_PtFcnSum> rnn_my_sum
-    cdef braid_PtFcnSpatialNorm b_norm = <braid_PtFcnSpatialNorm> rnn_my_norm
-    cdef braid_PtFcnAccess b_access = <braid_PtFcnAccess> rnn_my_access
+    cdef braid_PtFcnSpatialNorm b_norm = <braid_PtFcnSpatialNorm> my_norm
+    cdef braid_PtFcnAccess b_access = <braid_PtFcnAccess> my_access
     cdef braid_PtFcnBufSize b_bufsize = <braid_PtFcnBufSize> rnn_my_bufsize
     cdef braid_PtFcnBufPack b_bufpack = <braid_PtFcnBufPack> rnn_my_bufpack
     cdef braid_PtFcnBufUnpack b_bufunpack = <braid_PtFcnBufUnpack> rnn_my_bufunpack

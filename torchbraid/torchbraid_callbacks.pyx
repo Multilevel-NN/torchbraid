@@ -32,6 +32,7 @@
 # cython: profile=True
 # cython: linetrace=True
 
+import math
 import torch
 import numpy as np
 cimport numpy as np
@@ -102,21 +103,14 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
   # This routine cna be made faster by using the pyTorch tensor operations
   # My initial attempt at this failed however
 
-  pyApp = <object>app
-
-  cdef np.ndarray[float,ndim=1] np_X
-  cdef np.ndarray[float,ndim=1] np_Y
-  cdef int sz
+  pyApp = <object> app
 
   with pyApp.timer("my_sum"):
-    # Cast x and y as a PyBraid_Vector
-    np_X = (<object> x).tensor().numpy().ravel()
-    np_Y = (<object> y).tensor().numpy().ravel()
-    sz = len(np_X)
-
-    # in place copy 
-    for k in range(sz):
-      np_Y[k] = alpha*np_X[k]+beta*np_Y[k]
+    bv_X = <object> x
+    bv_Y = <object> y
+    for ten_X,ten_Y in zip(bv_X.tensors(),bv_Y.tensors()):
+      ten_Y.mul_(float(beta))
+      ten_Y.add_(ten_X,alpha=float(alpha))
 
   return 0
 
@@ -134,8 +128,12 @@ cdef int my_norm(braid_App app, braid_Vector u, double *norm_ptr):
   pyApp = <object> app
   with pyApp.timer("my_norm"):
     # Compute norm 
-    ten_U = (<object> u).tensor()
-    norm_ptr[0] = torch.norm(ten_U).item()
+    tensors_U = (<object> u).tensors()
+    norm_ptr[0] = 0.0
+    for ten_U in tensors_U:
+      norm_ptr[0] += torch.dot(ten_U,ten_U)
+
+    math.sqrt(norm_ptr[0])
 
   return 0
 
