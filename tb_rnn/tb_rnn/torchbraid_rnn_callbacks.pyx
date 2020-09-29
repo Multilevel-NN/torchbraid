@@ -44,12 +44,12 @@ from cython cimport view
 ##
 # Define your Python Braid Vector as a C-struct
 
-cdef int my_access(braid_App app,braid_Vector u,braid_AccessStatus status):
+cdef int rnn_my_access(braid_App app,braid_Vector u,braid_AccessStatus status):
   pyApp = <object> app
 
   cdef double t
 
-  with pyApp.timer("my_access"):
+  with pyApp.timer("rnn_my_access"):
     # Create Numpy wrapper around u.v
     ten_u = <object> u
 
@@ -58,14 +58,14 @@ cdef int my_access(braid_App app,braid_Vector u,braid_AccessStatus status):
     pyApp.access(t,ten_u)
   return 0
 
-cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Vector vec_u, braid_StepStatus status):
+cdef int rnn_my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Vector vec_u, braid_StepStatus status):
   pyApp = <object> app
 
   cdef double tstart
   cdef double tstop
   cdef int level
 
-  with pyApp.timer("my_step"):
+  with pyApp.timer("rnn_my_step"):
 
     tstart = 0.0
     tstop = 5.0
@@ -83,20 +83,20 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
     u_c.copy_(temp_c)
 
   return 0
-# end my_access
+# end rnn_my_access
 
-cdef int my_init(braid_App app, double t, braid_Vector *u_ptr):
+cdef int rnn_my_init(braid_App app, double t, braid_Vector *u_ptr):
   pyApp = <object> app
-  with pyApp.timer("my_init"):
+  with pyApp.timer("rnn_my_init"):
     u_mem = pyApp.buildInit(t)
     Py_INCREF(u_mem) # why do we need this?
     u_ptr[0] = <braid_Vector> u_mem
 
   return 0
 
-cdef int my_free(braid_App app, braid_Vector u):
+cdef int rnn_my_free(braid_App app, braid_Vector u):
   pyApp = <object> app
-  with pyApp.timer("my_free"):
+  with pyApp.timer("rnn_my_free"):
 
     # Cast u as a PyBraid_Vector
     pyU = <object> u
@@ -105,7 +105,7 @@ cdef int my_free(braid_App app, braid_Vector u):
     del pyU
   return 0
 
-cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_Vector y):
+cdef int rnn_my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_Vector y):
   # This routine cna be made faster by using the pyTorch tensor operations
   # My initial attempt at this failed however
 
@@ -125,7 +125,7 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
   # cdef np.ndarray[float,ndim=1] np_Y
   cdef int sz
 
-  with pyApp.timer("my_sum"):
+  with pyApp.timer("rnn_my_sum"):
     # Cast x and y as a PyBraid_Vector
     np_X_h = ten_X_h.numpy().ravel()
     np_X_c = ten_X_c.numpy().ravel()
@@ -142,9 +142,9 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
 
   return 0
 
-cdef int my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
+cdef int rnn_my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
   pyApp = <object> app
-  with pyApp.timer("my_clone"):
+  with pyApp.timer("rnn_my_clone"):
     ten_U = <object> u 
     v_mem = ten_U.clone()
     Py_INCREF(v_mem) # why do we need this?
@@ -152,9 +152,9 @@ cdef int my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
 
   return 0
 
-cdef int my_norm(braid_App app, braid_Vector u, double *norm_ptr):
+cdef int rnn_my_norm(braid_App app, braid_Vector u, double *norm_ptr):
   pyApp = <object> app
-  with pyApp.timer("my_norm"):
+  with pyApp.timer("rnn_my_norm"):
     # Compute norm 
     # ten_U = (<object> u).tensor()
     # norm_ptr[0] = torch.norm(ten_U)
@@ -167,10 +167,10 @@ cdef int my_norm(braid_App app, braid_Vector u, double *norm_ptr):
 
   return 0
 
-cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
+cdef int rnn_my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   pyApp = <object> app
   cdef int cnt 
-  with pyApp.timer("my_bufsize"):
+  with pyApp.timer("rnn_my_bufsize"):
     cnt = 0
     tensors_g0 = (<object> pyApp.g0).tensors()
     for ten_g0 in tensors_g0:
@@ -187,7 +187,7 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
 
   return 0
 
-cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStatus status):
+cdef int rnn_my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStatus status):
 
   # Convert void * to a double array (note fbuffer is a C-array, so no bounds checking is done) 
   cdef int * ibuffer = <int *> buffer
@@ -197,10 +197,10 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   # cdef np.ndarray[float,ndim=1] np_U
   cdef int sz_h
   cdef int sz_c
-  cdef view.array my_buf 
+  cdef view.array rnn_my_buf 
 
   pyApp = <object>app
-  with pyApp.timer("my_bufpack"):
+  with pyApp.timer("rnn_my_bufpack"):
     # Cast u as a PyBraid_Vector
     tensors_U = (<object> u).tensors()
     ten_U_h, ten_U_c = tensors_U
@@ -216,7 +216,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
     sz_c = len(np_U_c)
     # sz = len(np_U)
 
-    # TODO: Need to replace fbuffer with my_buf?
+    # TODO: Need to replace fbuffer with rnn_my_buf?
     # fbuffer size correct?
     # for k in range(sz_h):
     #   fbuffer[k+1] = np_U_h[k]
@@ -224,18 +224,18 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
     # for k in range(sz_c):
     #   fbuffer[sz_h+k+1] = np_U_c[k]
 
-    my_buf = <float[:sz_h]> (fbuffer+1)
-    my_buf[:] = np_U_h
+    rnn_my_buf = <float[:sz_h]> (fbuffer+1)
+    rnn_my_buf[:] = np_U_h
 
-    my_buf = <float[:sz_c]> (fbuffer+1+sz_h)
-    my_buf[:] = np_U_c
+    rnn_my_buf = <float[:sz_c]> (fbuffer+1+sz_h)
+    rnn_my_buf[:] = np_U_c
 
-    # my_buf = <float[:sz]> (fbuffer+1)
-    # my_buf[:] = np_U
+    # rnn_my_buf = <float[:sz]> (fbuffer+1)
+    # rnn_my_buf[:] = np_U
 
   return 0
 
-cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_BufferStatus status):
+cdef int rnn_my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_BufferStatus status):
   pyApp = <object>app
 
   cdef int * ibuffer = <int *> buffer
@@ -247,12 +247,12 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   cdef int sz_h
   cdef int sz_c
 
-  cdef view.array my_buf
+  cdef view.array rnn_my_buf
 
   # cdef braid_Vector c_x = <braid_Vector> pyApp.g0
-  # my_clone(app,c_x,u_ptr)
+  # rnn_my_clone(app,c_x,u_ptr)
 
-  # with pyApp.timer("my_bufunpack"):
+  # with pyApp.timer("rnn_my_bufunpack"):
   
   # allocate memory
   u_obj = pyApp.g0.clone()
@@ -279,7 +279,7 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   # print("sz_h: ", sz_h)
   # print("sz_c: ", sz_c)
 
-  # TODO: Need to replace fbuffer with my_buf?
+  # TODO: Need to replace fbuffer with rnn_my_buf?
   # fbuffer size correct?
   # for k in range(sz_h):
   #   np_U_h[k] = fbuffer[k+1]
@@ -287,13 +287,13 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   # for k in range(sz_c):
   #   np_U_c[k] = fbuffer[sz_h+k+1]
 
-  # my_buf = <float[:sz_h]> (fbuffer+1)
-  # np_U_h = my_buf[:]
+  # rnn_my_buf = <float[:sz_h]> (fbuffer+1)
+  # np_U_h = rnn_my_buf[:]
 
-  # print("my_bufunpack - 8")
+  # print("rnn_my_bufunpack - 8")
 
-  # my_buf = <float[:sz_c]> (fbuffer+1+sz_h)
-  # np_U_c = my_buf[:]
+  # rnn_my_buf = <float[:sz_c]> (fbuffer+1+sz_h)
+  # np_U_c = rnn_my_buf[:]
 
   # cdef int sz = len(np_U_h)
   for k in range(sz_h):
@@ -307,7 +307,7 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   # print("ten_U_c: ",ten_U_c)
 
     # sz = len(np_U)
-    # my_buf = <float[:sz]> (fbuffer+1)
-    # np_U[:] = my_buf
+    # rnn_my_buf = <float[:sz]> (fbuffer+1)
+    # np_U[:] = rnn_my_buf
 
   return 0
