@@ -103,9 +103,7 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
   # This routine cna be made faster by using the pyTorch tensor operations
   # My initial attempt at this failed however
 
-  pyApp = <object> app
-
-  with pyApp.timer("my_sum"):
+  with torch.no_grad():
     bv_X = <object> x
     bv_Y = <object> y
     for ten_X,ten_Y in zip(bv_X.tensors(),bv_Y.tensors()):

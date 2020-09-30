@@ -106,7 +106,7 @@ class BraidApp:
     cdef braid_PtFcnInit  b_init  = <braid_PtFcnInit> my_init
     cdef braid_PtFcnClone b_clone = <braid_PtFcnClone> my_clone
     cdef braid_PtFcnFree  b_free  = <braid_PtFcnFree> my_free
-    cdef braid_PtFcnSum   b_sum   = <braid_PtFcnSum> rnn_my_sum
+    cdef braid_PtFcnSum   b_sum   = <braid_PtFcnSum> my_sum
     cdef braid_PtFcnSpatialNorm b_norm = <braid_PtFcnSpatialNorm> my_norm
     cdef braid_PtFcnAccess b_access = <braid_PtFcnAccess> my_access
     cdef braid_PtFcnBufSize b_bufsize = <braid_PtFcnBufSize> rnn_my_bufsize

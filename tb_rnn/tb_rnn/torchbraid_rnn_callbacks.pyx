@@ -69,44 +69,6 @@ cdef int rnn_my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, brai
     u_c.copy_(temp_c)
 
   return 0
-# end rnn_my_access
-
-cdef int rnn_my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_Vector y):
-  # This routine cna be made faster by using the pyTorch tensor operations
-  # My initial attempt at this failed however
-
-  pyApp = <object>app
-
-  tensors_X = (<object> x).tensors()
-  tensors_Y = (<object> y).tensors()
-  ten_X_h, ten_X_c = tensors_X
-  ten_Y_h, ten_Y_c = tensors_Y
-
-  cdef np.ndarray[float,ndim=1] np_X_h
-  cdef np.ndarray[float,ndim=1] np_X_c
-  cdef np.ndarray[float,ndim=1] np_Y_h
-  cdef np.ndarray[float,ndim=1] np_Y_c
-
-  # cdef np.ndarray[float,ndim=1] np_X
-  # cdef np.ndarray[float,ndim=1] np_Y
-  cdef int sz
-
-  with pyApp.timer("rnn_my_sum"):
-    # Cast x and y as a PyBraid_Vector
-    np_X_h = ten_X_h.numpy().ravel()
-    np_X_c = ten_X_c.numpy().ravel()
-    np_Y_h = ten_Y_h.numpy().ravel()
-    np_Y_c = ten_Y_c.numpy().ravel()
-    # np_X = (<object> x).tensor().numpy().ravel()
-    # np_Y = (<object> y).tensor().numpy().ravel()
-    sz = len(np_X_h)
-    # in place copy 
-    for k in range(sz):
-      np_Y_h[k] = alpha*np_X_h[k]+beta*np_Y_h[k]
-      np_Y_c[k] = alpha*np_X_c[k]+beta*np_Y_c[k]
-      # np_Y[k] = alpha*np_X[k]+beta*np_Y[k]
-
-  return 0
 
 cdef int rnn_my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   pyApp = <object> app
