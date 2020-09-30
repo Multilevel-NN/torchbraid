@@ -138,14 +138,14 @@ cdef int my_norm(braid_App app, braid_Vector u, double *norm_ptr):
 cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   pyApp = <object> app
   cdef int cnt 
-  with pyApp.timer("my_bufsize"):
-    cnt = pyApp.shape0.numel()
-    rank = len(pyApp.shape0)
 
-    # Note size_ptr is an integer array of size 1, and we index in at location [0]
-    # the int size encodes the level
-    size_ptr[0] = sizeof(float)*cnt + sizeof(float) + sizeof(int) + sizeof(int) + rank*sizeof(int)
-                   # vector                 time       level          rank           shape
+  cnt = pyApp.shape0.numel()
+  rank = len(pyApp.shape0)
+
+  # Note size_ptr is an integer array of size 1, and we index in at location [0]
+  # the int size encodes the level
+  size_ptr[0] = sizeof(float)*cnt + sizeof(int) + sizeof(int) + rank*sizeof(int)
+                 # vector                 level          rank           shape
 
   return 0
 
@@ -175,9 +175,8 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
     ibuffer[1] = len(sizes)
     for i,s in enumerate(sizes):
       ibuffer[2+i] = s
-    fbuffer[0] = 0.0
 
-    my_buf = <float[:sz]> (fbuffer+1)
+    my_buf = <float[:sz]> (fbuffer)
 
     my_buf[:] = np_U
 
@@ -211,14 +210,12 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
 
     u_ptr[0] = <braid_Vector> u_obj 
   
-    # obsolute: time noot needed: fbuffer[0]
-
     ten_U = u_obj.tensor()
     np_U = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
   
     # this is almost certainly slow
     sz = len(np_U)
-    my_buf = <float[:sz]> (fbuffer+1)
+    my_buf = <float[:sz]> (fbuffer)
     np_U[:] = my_buf
 
   return 0

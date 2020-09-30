@@ -85,8 +85,8 @@ cdef int rnn_my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status)
 
     # Note size_ptr is an integer array of size 1, and we index in at location [0]
     # the int size encodes the level
-    size_ptr[0] = sizeof(float)*cnt + sizeof(float) + sizeof(int)
-                   # vector                 time             level
+    size_ptr[0] = sizeof(float)*cnt + sizeof(int)
+                   # vector                 level
 
   return 0
 
@@ -113,28 +113,15 @@ cdef int rnn_my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_Buffer
     # np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
 
     ibuffer[0] = (<object> u).level()
-    fbuffer[0] = 0.0
 
     sz_h = len(np_U_h)
     sz_c = len(np_U_c)
-    # sz = len(np_U)
 
-    # TODO: Need to replace fbuffer with rnn_my_buf?
-    # fbuffer size correct?
-    # for k in range(sz_h):
-    #   fbuffer[k+1] = np_U_h[k]
-
-    # for k in range(sz_c):
-    #   fbuffer[sz_h+k+1] = np_U_c[k]
-
-    rnn_my_buf = <float[:sz_h]> (fbuffer+1)
+    rnn_my_buf = <float[:sz_h]> (fbuffer)
     rnn_my_buf[:] = np_U_h
 
-    rnn_my_buf = <float[:sz_c]> (fbuffer+1+sz_h)
+    rnn_my_buf = <float[:sz_c]> (fbuffer+sz_h)
     rnn_my_buf[:] = np_U_c
-
-    # rnn_my_buf = <float[:sz]> (fbuffer+1)
-    # rnn_my_buf[:] = np_U
 
   return 0
 
@@ -152,15 +139,9 @@ cdef int rnn_my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid
 
   cdef view.array rnn_my_buf
 
-  # cdef braid_Vector c_x = <braid_Vector> pyApp.g0
-  # rnn_my_clone(app,c_x,u_ptr)
-
-  # with pyApp.timer("rnn_my_bufunpack"):
-  
   # allocate memory
   u_obj = pyApp.g0.clone()
 
-  # u_obj = pyApp.x0.clone()
   Py_INCREF(u_obj) # why do we need this?
   u_ptr[0] = <braid_Vector> u_obj 
 
@@ -179,38 +160,12 @@ cdef int rnn_my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid
   sz_h = len(np_U_h)
   sz_c = len(np_U_c)
 
-  # print("sz_h: ", sz_h)
-  # print("sz_c: ", sz_c)
-
-  # TODO: Need to replace fbuffer with rnn_my_buf?
-  # fbuffer size correct?
-  # for k in range(sz_h):
-  #   np_U_h[k] = fbuffer[k+1]
-
-  # for k in range(sz_c):
-  #   np_U_c[k] = fbuffer[sz_h+k+1]
-
-  # rnn_my_buf = <float[:sz_h]> (fbuffer+1)
-  # np_U_h = rnn_my_buf[:]
-
-  # print("rnn_my_bufunpack - 8")
-
-  # rnn_my_buf = <float[:sz_c]> (fbuffer+1+sz_h)
-  # np_U_c = rnn_my_buf[:]
-
   # cdef int sz = len(np_U_h)
   for k in range(sz_h):
-    np_U_h[k] = fbuffer[k+1]
+    np_U_h[k] = fbuffer[k]
 
   # cdef int sz_c = len(np_U_c)
   for k in range(sz_c):
-    np_U_c[k] = fbuffer[sz_h+k+1]
-
-  # print("ten_U_h: ",ten_U_h)
-  # print("ten_U_c: ",ten_U_c)
-
-    # sz = len(np_U)
-    # rnn_my_buf = <float[:sz]> (fbuffer+1)
-    # np_U[:] = rnn_my_buf
+    np_U_c[k] = fbuffer[sz_h+k]
 
   return 0
