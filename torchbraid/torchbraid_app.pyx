@@ -200,7 +200,10 @@ class BraidApp:
 
   def setShape(self,shape):
     # the shape to use if non-exists for taking advantage of allocations in braid
-    self.shape0 = shape
+    if isinstance(shape,torch.Size):
+      self.shape0 = (shape,)
+    else:
+      self.shape0 = shape
 
   def runBraid(self,x):
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
@@ -328,7 +331,8 @@ class BraidApp:
 
   def buildInit(self,t):
     if t>0:
-      x = BraidVector(torch.zeros(self.shape0),0)
+      zeros = [torch.zeros(s) for s in self.shape0]
+      x = BraidVector(tuple(zeros),0)
     else:
       x = self.x0
     return x

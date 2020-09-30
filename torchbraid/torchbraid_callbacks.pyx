@@ -139,8 +139,8 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   pyApp = <object> app
   cdef int cnt 
 
-  cnt = pyApp.shape0.numel()
-  rank = len(pyApp.shape0)
+  cnt = pyApp.shape0[0].numel()
+  rank = len(pyApp.shape0[0])
 
   # Note size_ptr is an integer array of size 1, and we index in at location [0]
   # the int size encodes the level
