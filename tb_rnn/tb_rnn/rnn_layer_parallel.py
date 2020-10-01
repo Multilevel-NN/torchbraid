@@ -39,10 +39,10 @@ from mpi4py import MPI
 
 import copy
 
-from tb_rnn.torchbraid_rnn_function import BraidFunction
 from torchbraid.utils import ContextTimerManager
+from tb_rnn.rnn_braid_function import BraidFunction
 
-import tb_rnn.torchbraid_rnn_apps as apps
+import tb_rnn.rnn_apps as apps
 
 ##
 # Define your Python Braid Vector
