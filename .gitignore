@@ -19,3 +19,6 @@ torchbraid/torchbraid_app.c
 torchbraid/torchbraid_app.*.so
 torchbraid/torchbraid_app.html
 torchbraid/torchbraid_callbacks.html
+torchbraid/rnn_braid_app.c
+torchbraid/rnn_braid_app.*.so
+torchbraid/rnn_braid_app.html
