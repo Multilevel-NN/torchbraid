@@ -137,15 +137,23 @@ cdef int my_norm(braid_App app, braid_Vector u, double *norm_ptr):
 
 cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   pyApp = <object> app
-  cdef int cnt 
 
-  cnt = pyApp.shape0[0].numel()
-  rank = len(pyApp.shape0[0])
+  num_tensors = len(pyApp.shape0)
+  cnt = 0
+  total_shape = 0
+  for s in pyApp.shape0:
+    cnt += pyApp.shape0[0].numel()
+    rank = len(pyApp.shape0[0])
+    total_shape += rank*sizeof(int)
+    
 
   # Note size_ptr is an integer array of size 1, and we index in at location [0]
-  # the int size encodes the level
-  size_ptr[0] = sizeof(float)*cnt + sizeof(int) + sizeof(int) + rank*sizeof(int)
-                 # vector                 level          rank           shape
+
+  # there are mulitple fields in a packed buffer, in orderr
+  #     level (1 int), num_tensors (1 int), [rank (1 int), sizes (rank int)] * (num_tensors), tensor data
+
+  size_ptr[0] = sizeof(int) + sizeof(int) + num_tensors*sizeof(int) + total_shape + sizeof(float)*cnt 
+                 #  level     num_tensors             rank             total_shape          vector_data
 
   return 0
 
@@ -155,30 +163,43 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   cdef int * ibuffer
   cdef float * fbuffer
   cdef np.ndarray[float,ndim=1] np_U
+  cdef int offset
   cdef int sz
   cdef view.array my_buf 
 
-  sizes = list((<object> u).tensor().size())
-  
-  ibuffer = <int *> buffer
-  fbuffer = <float *>(buffer+(2+len(sizes))*sizeof(int)) # level, rank, sizes
+  bv_u = <object> u
 
-  pyApp = <object>app
-  with pyApp.timer("my_bufpack"):
-    # Cast u as a PyBraid_Vector
-    ten_U = (<object> u).tensor()
+  ibuffer = <int *> buffer
+
+  # write out the buffer meta data
+  level       = bv_u.level()
+  num_tensors = len(bv_u.tensors())
+
+  ibuffer[0] = level
+  ibuffer[1] = num_tensors
+
+  offset = 0
+  for t in bv_u.tensors():
+    size = t.size() 
+    ibuffer[2+offset] = len(size)
+    for i,s in enumerate(size):
+      ibuffer[2+i+offset+1] = s
+        
+    offset += len(size)+1
+  # end for t
+
+  # copy the data
+  fbuffer = <float *>(buffer+(2+offset)*sizeof(int)) 
+  for ten_U in bv_u.tensors():
     np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
 
+    # copy the tensor into the buffer
     sz = len(np_U)
-
-    ibuffer[0] = (<object> u).level()
-    ibuffer[1] = len(sizes)
-    for i,s in enumerate(sizes):
-      ibuffer[2+i] = s
-
     my_buf = <float[:sz]> (fbuffer)
-
     my_buf[:] = np_U
+
+    # update the float buffer pointer
+    fbuffer = <float*> (fbuffer+sz)
 
   return 0
 
@@ -188,35 +209,47 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   cdef int * ibuffer 
   cdef float * fbuffer 
   cdef np.ndarray[float,ndim=1] np_U
+  cdef int offset
   cdef int sz
   cdef view.array my_buf 
 
+  # read in the buffer metda data
   ibuffer = <int *> buffer
 
-  with pyApp.timer("my_bufunpack"):
+  level       = ibuffer[0]
+  num_tensors = ibuffer[1]
 
-    level = ibuffer[0]
-    rank  = ibuffer[1]
-    sizes = rank*[0]
+  offset = 0
+  sizes = []
+  for t in range(num_tensors):
+    rank = ibuffer[2+offset]
+    size = rank*[0]
     for i in range(rank):
-      sizes[i] = ibuffer[2+i]
+      size[i] = ibuffer[2+i+offset+1]
+        
+    sizes += [size]
+    offset += len(size)+1
 
-    fbuffer = <float *>(buffer+(2+len(sizes))*sizeof(int)) # level, rank, sizes
-  
-    # allocate memory
-    data = torch.zeros(sizes)
-    u_obj = BraidVector(data,level)
-    Py_INCREF(u_obj) # why do we need this?
+  # build up the braid vector
+  tens = [torch.zeros(s) for s in sizes]
+  u_obj = BraidVector(tuple(tens),level)
+  Py_INCREF(u_obj) # why do we need this?
 
-    u_ptr[0] = <braid_Vector> u_obj 
-  
-    ten_U = u_obj.tensor()
+  # copy from the buffer into the braid vector
+  fbuffer = <float *>(buffer+(2+offset)*sizeof(int)) # level, rank, sizes
+  for ten_U in u_obj.tensors():
     np_U = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
   
-    # this is almost certainly slow
+    # copy the buffer into the tensor
     sz = len(np_U)
     my_buf = <float[:sz]> (fbuffer)
     np_U[:] = my_buf
+    
+    # update the float buffer pointer
+    fbuffer = <float*> (fbuffer+sz)
+
+  # set the pointer for output
+  u_ptr[0] = <braid_Vector> u_obj 
 
   return 0
 
