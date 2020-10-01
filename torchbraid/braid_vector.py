@@ -29,18 +29,28 @@
 # ************************************************************************
 #@HEADER
 
-# cython: profile=True
-# cython: linetrace=True
-
 import torch
+from collections.abc import Iterable
 
 class BraidVector:
   def __init__(self,tensor,level):
-    if isinstance(tensor,tuple):
-      # if the input is a tuple, that is the full data
-      self.tensor_data_ = tensor
-    else:
+    s = ''
+    if isinstance(tensor,Iterable):
+      s += 'iterable'
+
+    if isinstance(tensor,torch.Tensor):
       self.tensor_data_ = (tensor,)
+    elif isinstance(tensor,Iterable):
+      # pre-condition...Only tensors
+      for t in tensor:
+        assert(isinstance(t,torch.Tensor))
+
+      # if the input is a tuple, that is the full data
+      self.tensor_data_ = tuple(tensor)
+    elif tensor==None:
+      self.tensor_data_ = (tensor,)
+    else:
+      assert(false)
         
     self.level_  = level
 
