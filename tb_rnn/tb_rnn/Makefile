@@ -1,6 +1,6 @@
 include ../makefile.inc
 
-MODULE_NAME=torchbraid_rnn
+MODULE_NAME=rnn_braid
 
 LIB_NAME=$(MODULE_NAME)_app.$(POSTFIX)
 

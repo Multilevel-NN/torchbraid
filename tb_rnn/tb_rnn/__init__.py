@@ -30,4 +30,4 @@
 #@HEADER
 
 from .rnn_layer_parallel import RNN_Parallel
-from . import torchbraid_rnn_app
+from . import rnn_braid_app
