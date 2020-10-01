@@ -108,35 +108,20 @@ class ForwardBraidApp(BraidApp):
     #  2. x is a torch tensor: called internally (probably at the behest
     #                          of the adjoint)
 
-    with self.timer("eval(level=%d)" % level):
-      # require_derivatives = force_deriv or self.use_deriv
-      t_g = g0.tensors() # can we call tensors() in this ForwardBraidApp class?
-      t_h,t_c = t_g
-      t_x = self.x # defined in RNN_torchbraid_app.pyx line 228 in runBraid()
+    # require_derivatives = force_deriv or self.use_deriv
+    t_g = g0.tensors() # can we call tensors() in this ForwardBraidApp class?
+    t_h,t_c = t_g
+    t_x = self.x # defined in RNN_torchbraid_app.pyx line 228 in runBraid()
 
-      # print("t_x: ",t_x, " Rank: %d" % prefix_rank)
-      # print("t_h: ",t_h, " Rank: %d" % prefix_rank)
-      # print("t_c: ",t_c, " Rank: %d" % prefix_rank)
+    # print("t_x: ",t_x, " Rank: %d" % prefix_rank)
+    # print("t_h: ",t_h, " Rank: %d" % prefix_rank)
+    # print("t_c: ",t_c, " Rank: %d" % prefix_rank)
 
-      _, (t_yh,t_yc) = self.RNN_models(t_x,t_h,t_c)
+    _, (t_yh,t_yc) = self.RNN_models(t_x,t_h,t_c)
 
-      # print("t_yh: ",t_yh, " Rank: %d" % prefix_rank)
-
-      # print("Rank %d ForwardBraidApp -> eval() - end" % prefix_rank)
-
-      return BraidVector((t_yh,t_yc),0)
-
-    # t_g = g0.tensors() # can we call tensors() in this ForwardBraidApp class?
-    # t_h,t_c = t_g
-    # t_x = self.x # defined in RNN_torchbraid_app.pyx line 228 in runBraid()
-
-    # _, (t_yh,t_yc) = self.RNN_models(t_x,t_h,t_c)
-
-    # print("ForwardBraidApp -> eval() - end")
-
-    # return BraidVector((t_yh,t_yc),0)
-
-
+    g0.replaceTensor(t_yh,0)
+    g0.replaceTensor(t_yc,1)
+    #return BraidVector((t_yh,t_yc),0)
   # end eval
 
   # def getPrimalWithGrad(self,tstart,tstop,level):

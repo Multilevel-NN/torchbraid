@@ -50,7 +50,6 @@ ctypedef _braid_Vector_struct *braid_Vector
 
 include "./../../torchbraid/braid.pyx"
 include "./../../torchbraid/torchbraid_callbacks.pyx"
-include "./torchbraid_rnn_callbacks.pyx"
 
 #  a python level module
 ##########################################################
@@ -103,7 +102,7 @@ class BraidApp:
     cdef MPI.Comm comm = self.mpi_comm
     cdef int rank = self.mpi_comm.Get_rank()
     cdef braid_App app = <braid_App> self
-    cdef braid_PtFcnStep  b_step  = <braid_PtFcnStep> rnn_my_step
+    cdef braid_PtFcnStep  b_step  = <braid_PtFcnStep> my_step
     cdef braid_PtFcnInit  b_init  = <braid_PtFcnInit> my_init
     cdef braid_PtFcnClone b_clone = <braid_PtFcnClone> my_clone
     cdef braid_PtFcnFree  b_free  = <braid_PtFcnFree> my_free
