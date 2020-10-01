@@ -172,7 +172,7 @@ class ForwardODENetApp(BraidApp):
       ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
       self.soln_store[ts_index] = (t_y,t_x)
 
-      # change the pointer under the hood of teh braid vector
+      # change the pointer under the hood of the braid vector
       y.replaceTensor(t_y.detach().clone())
     elif isinstance(y,BraidVector):
       assert(level!=0)

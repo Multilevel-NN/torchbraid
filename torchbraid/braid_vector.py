@@ -50,7 +50,7 @@ class BraidVector:
     elif tensor==None:
       self.tensor_data_ = (tensor,)
     else:
-      assert(false)
+      assert(False)
         
     self.level_  = level
 
