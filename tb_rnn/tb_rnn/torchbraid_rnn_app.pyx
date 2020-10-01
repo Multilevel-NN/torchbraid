@@ -81,6 +81,7 @@ class BraidApp:
     self.num_layers = num_layers
 
     self.x_final = None
+    self.shape0 = None
   
     comm          = self.getMPIComm()
     rnn_my_rank       = self.getMPIComm().Get_rank()
@@ -109,9 +110,9 @@ class BraidApp:
     cdef braid_PtFcnSum   b_sum   = <braid_PtFcnSum> my_sum
     cdef braid_PtFcnSpatialNorm b_norm = <braid_PtFcnSpatialNorm> my_norm
     cdef braid_PtFcnAccess b_access = <braid_PtFcnAccess> my_access
-    cdef braid_PtFcnBufSize b_bufsize = <braid_PtFcnBufSize> rnn_my_bufsize
-    cdef braid_PtFcnBufPack b_bufpack = <braid_PtFcnBufPack> rnn_my_bufpack
-    cdef braid_PtFcnBufUnpack b_bufunpack = <braid_PtFcnBufUnpack> rnn_my_bufunpack
+    cdef braid_PtFcnBufSize b_bufsize = <braid_PtFcnBufSize> my_bufsize
+    cdef braid_PtFcnBufPack b_bufpack = <braid_PtFcnBufPack> my_bufpack
+    cdef braid_PtFcnBufUnpack b_bufunpack = <braid_PtFcnBufUnpack> my_bufunpack
 
     ntime = self.num_steps
     tstart = 0.0
@@ -150,6 +151,13 @@ class BraidApp:
       # Destroy Braid Core C-Struct
       # FIXME: braid_Destroy(core) # this should be on
     # end core
+
+  def setShape(self,shape):
+    # the shape to use if non-exists for taking advantage of allocations in braid
+    if isinstance(shape,torch.Size):
+      self.shape0 = (shape,)
+    else:
+      self.shape0 = shape
 
   def runBraid(self,x):
 
