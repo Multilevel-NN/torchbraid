@@ -242,7 +242,6 @@ if args.optstr==True:
     print(opts_obj)
   sys.exit(0)
 
-import tb_rnn
 import torchbraid
 from mpi4py import MPI
 
@@ -380,7 +379,7 @@ else:
   max_iters = 1 # for testing parallel rnn
   num_steps = 1
   # RNN_parallel.py -> RNN_Parallel() class
-  parallel_nn = tb_rnn.RNN_Parallel(comm,basic_block_parallel,num_steps,hidden_size,num_layers,Tf,max_levels=max_levels,max_iters=max_iters)
+  parallel_nn = torchbraid.RNN_Parallel(comm,basic_block_parallel,num_steps,hidden_size,num_layers,Tf,max_levels=max_levels,max_iters=max_iters)
 
   parallel_nn.setPrintLevel(print_level)
   parallel_nn.setSkipDowncycle(True)

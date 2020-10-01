@@ -19,3 +19,6 @@ tests test:
 
 tests-serial test-serial:
 	make -C ./tests tests-serial
+
+example examples:
+	make -C ./examples examples

@@ -6,7 +6,7 @@ LIB_NAME=$(MODULE_NAME)_app.$(POSTFIX)
 
 all: $(LIB_NAME) utils
 
-$(LIB_NAME): ${MODULE_NAME}_app.pyx ${MODULE_NAME}_callbacks.pyx
+$(LIB_NAME): ${MODULE_NAME}_app.pyx ${MODULE_NAME}_callbacks.pyx rnn_braid_app.pyx
 	#XBRAID_ROOT=$(XBRAID_ROOT) CC=$(CC) $(PYTHON) setup.py install --record installed_files.txt
 	XBRAID_ROOT=$(XBRAID_ROOT) CC=$(CC) $(PYTHON) setup.py build_ext --inplace
 
@@ -15,6 +15,7 @@ utils:
 
 clean:
 	rm -fr $(MODULE_NAME)_app.c $(MODULE_NAME)_app.h ${MODULE_NAME}_callbacks.c build braid.out.cycle *.html __pycache__/ $(LIB_NAME)
+	rm -fr rnn_braid_app.c rnn_braid_app.h build braid.out.cycle *.html __pycache__/ rnn_braid_app.$(POSTFIX)
 	make -C ./utils clean
 
 uninstall:

@@ -30,7 +30,9 @@
 #@HEADER
 
 from .layer_parallel import LayerParallel
-from . import torchbraid_app
+from .rnn_layer_parallel import RNN_Parallel
+
+#from . import torchbraid_app
 from .braid_vector import BraidVector
 
 from . import utils

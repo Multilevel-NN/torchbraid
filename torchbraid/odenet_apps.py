@@ -33,8 +33,9 @@
 # cython: linetrace=True
 
 import torch
+
+from braid_vector import BraidVector
 from torchbraid_app import BraidApp
-from torchbraid_app import BraidVector
 
 import sys
 import traceback
