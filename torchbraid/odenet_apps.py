@@ -174,7 +174,8 @@ class ForwardODENetApp(BraidApp):
       self.soln_store[ts_index] = (t_y,t_x)
 
       # change the pointer under the hood of the braid vector
-      y.replaceTensor(t_y.detach().clone())
+      old_y = y.replaceTensor(t_y.detach().clone())
+      del old_y
     elif isinstance(y,BraidVector):
       assert(level!=0)
 
@@ -188,7 +189,8 @@ class ForwardODENetApp(BraidApp):
       with torch.no_grad():
         in_place_eval(t_y,t_x,tstart,tstop,level)
 
-      y.replaceTensor(t_y)
+      old_y = y.replaceTensor(t_y)
+      del old_y
     else: 
       x.requires_grad = True 
       y.zero_()
@@ -275,6 +277,7 @@ class BackwardODENetApp(BraidApp):
       # this is for an agressive memory cleanup, if you need 
       # multiple gradients (the assertion failed above) you
       # should make this in option
+      del self.fwd_app.soln_store
       self.fwd_app.soln_store = None
 
       # this code is due to how braid decomposes the backwards problem
@@ -346,7 +349,7 @@ class BackwardODENetApp(BraidApp):
         # stored too long in this calculation (in particulcar setting
         # the grad to None after saving it and returning it to braid)
         t_grad = t_x_old.grad.detach() 
-        t_x_old.grad = None
+        del t_x_old.grad
 
         for p,s in zip(layer.parameters(),required_grad_state):
           p.requires_grad = s
@@ -354,7 +357,8 @@ class BackwardODENetApp(BraidApp):
       print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
 
-    w.replaceTensor(t_grad)
+    old_w = w.replaceTensor(t_grad)
+    del old_w
   # end eval
 
 # end BackwardODENetApp
