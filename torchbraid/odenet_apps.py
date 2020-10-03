@@ -138,7 +138,7 @@ class ForwardODENetApp(BraidApp):
   def parameters(self):
     return [list(l.parameters()) for l in self.layer_models]
 
-  def eval(self,y,tstart,tstop,level,force_deriv=False,x=None):
+  def eval(self,y,tstart,tstop,level,x=None):
     """
     Method called by "my_step" in braid. This is
     required to propagate from tstart to tstop, with the initial
@@ -170,27 +170,24 @@ class ForwardODENetApp(BraidApp):
         in_place_eval(t_y,t_x,tstart,tstop,level)
 
       # store off the solution for later adjoints
-      ts_index = self.getGlobalTimeStepIndex(tstart,tstop,0)
-      self.soln_store[ts_index] = (t_y,t_x)
+      ts_index_x = self.getGlobalTimeStepIndex(tstart,None,0)
+      ts_index_y = self.getGlobalTimeStepIndex(tstop,None,0)
+      self.soln_store[ts_index_x] = t_x.detach()
+      self.soln_store[ts_index_y] = t_y.detach()
 
       # change the pointer under the hood of the braid vector
-      old_y = y.replaceTensor(t_y.detach().clone())
-      del old_y
+      y.replaceTensor(t_y.detach().clone())
     elif isinstance(y,BraidVector):
+      # sanity check
       assert(level!=0)
 
-      # FIXME: this is a source of memory growth, I'd like to remove it
+      # copy x, and then overwrite the old y
       t_x = y.tensor().detach().clone()
-      t_x.requires_grad = False
-
-      t_y = y.tensor().detach()
+      t_y = y.tensor() 
 
       # no gradients are necessary here, so don't compute them
       with torch.no_grad():
         in_place_eval(t_y,t_x,tstart,tstop,level)
-
-      old_y = y.replaceTensor(t_y)
-      del old_y
     else: 
       x.requires_grad = True 
       y.zero_()
@@ -217,20 +214,19 @@ class ForwardODENetApp(BraidApp):
     # because you are at a processor boundary, or decided not
     # to start the value 
     if ts_index in self.soln_store:
-      t_y = self.soln_store[ts_index][0]
-      t_x = self.soln_store[ts_index][1]
+      t_x = self.soln_store[ts_index]
+    else:
+      # this is called only when the forward solve 
+      # has missed a time step
+      assert(False)
 
-      return [t_y,t_x],layer
+    x = t_x.detach()
+    y = t_x.detach().clone()
 
-    # value wasn't found, recompute it and return.
-    t_x = self.soln_store[ts_index-1][0]
-    x_o = t_x.detach()
-    x_o.requires_grad = t_x.requires_grad
+    x.requires_grad = t_x.requires_grad
 
-    y = x_o.detach().clone()
-    self.eval(y,tstart,tstop,0,force_deriv=True,x=x_o)
-    return (y, x_o), layer
-
+    self.eval(y,tstart,tstop,0,x=x)
+    return (y, x), layer
   # end getPrimalWithGrad
 
 # end ForwardODENetApp
@@ -343,7 +339,7 @@ class BackwardODENetApp(BraidApp):
         # perform adjoint computation
         t_w = w.tensor()
         t_w.requires_grad = False
-        t_x_new.backward(t_w,retain_graph=True)
+        t_x_new.backward(t_w,retain_graph=False)
 
         # this little bit of pytorch magic ensures the gradient isn't
         # stored too long in this calculation (in particulcar setting
