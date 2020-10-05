@@ -172,7 +172,11 @@ class ForwardODENetApp(BraidApp):
       # store off the solution for later adjoints
       ts_index_x = self.getGlobalTimeStepIndex(tstart,None,0)
       ts_index_y = self.getGlobalTimeStepIndex(tstop,None,0)
-      self.soln_store[ts_index_x] = t_x.detach()
+
+      # if there has been no x, store teh current one
+      if ts_index_x not in self.soln_store:
+        self.soln_store[ts_index_x] = t_x.detach()
+
       self.soln_store[ts_index_y] = t_y.detach()
 
       # change the pointer under the hood of the braid vector
