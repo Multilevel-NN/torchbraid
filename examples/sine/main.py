@@ -160,10 +160,10 @@ def gradnorm(parameters):
 # Parse command line
 parser = argparse.ArgumentParser(description='TORCHBRAID Sine Example')
 parser.add_argument('--force-lp', action='store_true', default=False, help='Use layer parallel even if there is only 1 MPI rank')
-parser.add_argument('--epochs', type=int, default=2, metavar='N', help='number of epochs to train (default: 2)')
+parser.add_argument('--epochs', type=int, default=500, metavar='N', help='number of epochs to train (default: 2)')
 parser.add_argument('--batch-size', type=int, default=20, metavar='N', help='batch size for training (default: 50)')
+parser.add_argument('--plot', default=True, help='Plot the results (default: true)')
 args = parser.parse_args()
-
 
 # MPI Stuff
 rank  = MPI.COMM_WORLD.Get_rank()
@@ -187,7 +187,7 @@ width = 4
 nlayers = 10
 Tstop = 10.0
 
-# Specify and training params
+# Specify training params
 batch_size = args.batch_size
 max_epochs = args.epochs
 learning_rate = 1e-3
@@ -207,7 +207,7 @@ torch.manual_seed(0)
 if not force_lp:
     root_print(rank, "Building serial net")
     model = SerialNet(width, nlayers, Tstop)
-    compose = lambda op,*p: op(*p)    # NO IDEA QHT THAT IS
+    compose = lambda op,*p: op(*p)    # NO IDEA WHAT THAT IS
 else:
     root_print(rank, "Building parallel net")
     # Layer-parallel parameters
@@ -289,20 +289,21 @@ for epoch in range(max_epochs):
 
 
 # plot validation and training
-xtrain = torch.tensor(training_set[0:len(training_set)])[0].reshape(len(training_set),1)
-ytrain = model(xtrain).detach().numpy()
-xval = torch.tensor(validation_set[0:len(validation_set)])[0].reshape(len(validation_set),1)
-yval = model(xval).detach().numpy()
-# ytrain = MPI.COMM_WORLD.bcast(ytrain,root=0)
-# yval = MPI.COMM_WORLD.bcast(yval,root=0)
+if args.plot is True:
+    xtrain = torch.tensor(training_set[0:len(training_set)])[0].reshape(len(training_set),1)
+    ytrain = model(xtrain).detach().numpy()
+    xval = torch.tensor(validation_set[0:len(validation_set)])[0].reshape(len(validation_set),1)
+    yval = model(xval).detach().numpy()
+    # ytrain = MPI.COMM_WORLD.bcast(ytrain,root=0)
+    # yval = MPI.COMM_WORLD.bcast(yval,root=0)
 
-if rank == 0:
-    plt.plot(xtrain, ytrain, 'ro')
-    plt.plot(xval, yval, 'bo')
-    # Groundtruth
-    xtruth = np.arange(-pi, pi, 0.1)
-    plt.plot(xtruth, np.sin(xtruth))
+    if rank == 0:
+        plt.plot(xtrain, ytrain, 'ro')
+        plt.plot(xval, yval, 'bo')
+        # Groundtruth
+        xtruth = np.arange(-pi, pi, 0.1)
+        plt.plot(xtruth, np.sin(xtruth))
 
-    # Shot the plot
-    plt.legend(['training', 'validation', 'groundtruth'])
-    plt.show()
+        # Shot the plot
+        plt.legend(['training', 'validation', 'groundtruth'])
+        plt.show()
