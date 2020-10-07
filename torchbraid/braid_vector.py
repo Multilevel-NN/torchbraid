@@ -32,8 +32,16 @@
 import torch
 from collections.abc import Iterable
 
+from mpi4py import MPI
+
 class BraidVector:
+  instance = -1 
+
   def __init__(self,tensor,level):
+    BraidVector.instance += 1
+
+    self.instance = BraidVector.instance
+
     s = ''
     if isinstance(tensor,Iterable):
       s += 'iterable'
@@ -53,6 +61,9 @@ class BraidVector:
       assert(False)
         
     self.level_  = level
+
+  def __del__(self):
+    self.tensor_data_ = None
 
   def replaceTensor(self,t,i=0):
     """
