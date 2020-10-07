@@ -1,15 +1,17 @@
 #!/usr/bin/env python
 import matplotlib.pyplot as plt
-import numpy as np
+from numpy import *
 
 
+# Evaluate the splines at time t:
+# outvec holds values of d+1 splines, i.e. should be a vector of size d+1
 def evalBsplines(degree, deltaKnots, time, outvec):
 
     # Get interval index l s.t. t \in [t_l, t_l+1]
     l = int(time / deltaKnots)   # this will round down to next smaller integer
 
     # Set outvec to unit vector 1, 0, 0, 0...
-    outvec[:] = [0.0] * len(outvec)
+    outvec[:] = 0.0
     outvec[0] = 1.0
 
     # Recursive loop to update splines
@@ -21,15 +23,17 @@ def evalBsplines(degree, deltaKnots, time, outvec):
         outvec[0] = outvec[0] * ((l+1)*deltaKnots - time) / ((l+1)*deltaKnots - (l-i+1)*deltaKnots)
 
 
-def spline_test(degree, nKnots, Tfinal, deltax):
-    print("Testing Bsplines(degree=", degree, "), nKnots=", nKnots)
+def spline_test(degree, nSplines, Tfinal, deltax):
+    print("Testing ", nSplines, " Bsplines of degree ", degree)
 
     # Init grid and splines
     n = int(Tfinal / deltax)
-    xgrid = np.linspace(0.0, Tfinal, n+1)
-    nsplines = nKnots + degree
-    spline = np.zeros((nsplines)*(n+1)).reshape(nsplines, n+1)
+    xgrid = linspace(0.0, Tfinal, n+1)
+
+    # Initialize splines
+    nKnots = nSplines - degree + 1
     deltaKnots = Tfinal / (nKnots-1)
+    spline = zeros((nSplines+1)*(n+1)).reshape(nSplines+1, n+1)
 
     # Loop over time domain and compute spline coefficients
     for i in range(len(xgrid)):
@@ -40,16 +44,16 @@ def spline_test(degree, nKnots, Tfinal, deltax):
         evalBsplines(degree, deltaKnots, time, spline[l:l+degree+1, i])
 
     # Plot
-    for i in range(nsplines-1):
+    for i in range(nSplines):
         plt.plot(xgrid, spline[i,:], label="B_"+str(i))
         # print(i, " ", spline[i,:])
     plt.legend()
     plt.show()
 
 
-# Test now:
+# # Test now:
 # degree = 2
-# nKnots = 5
+# nSplines = 10
 # Tfinal = 1.0
 # deltax = 0.01
-# spline_test(degree, nKnots, Tfinal, deltax)
+# spline_test(degree, nSplines, Tfinal, deltax)
