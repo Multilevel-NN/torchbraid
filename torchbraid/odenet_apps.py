@@ -39,8 +39,25 @@ from torchbraid_app import BraidApp
 
 import sys
 import traceback
+import resource
 
 from mpi4py import MPI
+
+def getMaxMemory(comm,message):
+  usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+
+  total_usage = comm.reduce(usage,op=MPI.SUM)
+  min_usage = comm.reduce(usage,op=MPI.MIN)
+  max_usage = comm.reduce(usage,op=MPI.MAX)
+  if comm.Get_rank()==0:
+    result = '%.2f MiB, (min,avg,max)=(%.2f,%.2f,%.2f)' % (total_usage/2**20, min_usage/2**20,total_usage/comm.Get_size()/2**20,max_usage/2**20)
+    print(message.format(result))
+
+def getLocalMemory(comm,message):
+  usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+
+  result = '%.2f MiB' % (usage/2**20)
+  print(('{}) ' + message).format(comm.Get_rank(),result))
 
 class ForwardODENetApp(BraidApp):
 
@@ -343,13 +360,12 @@ class BackwardODENetApp(BraidApp):
         # perform adjoint computation
         t_w = w.tensor()
         t_w.requires_grad = False
-        t_x_new.backward(t_w,retain_graph=False)
+        t_x_new.backward(t_w)
 
         # this little bit of pytorch magic ensures the gradient isn't
         # stored too long in this calculation (in particulcar setting
         # the grad to None after saving it and returning it to braid)
         t_grad = t_x_old.grad.detach() 
-        del t_x_old.grad
 
         for p,s in zip(layer.parameters(),required_grad_state):
           p.requires_grad = s
@@ -359,6 +375,7 @@ class BackwardODENetApp(BraidApp):
 
     old_w = w.replaceTensor(t_grad)
     del old_w
+
   # end eval
 
 # end BackwardODENetApp

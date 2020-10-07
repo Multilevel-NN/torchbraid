@@ -111,6 +111,7 @@ class BraidApp:
     self.enable_diagnostics = False
 
     self.first = True
+    self.reverted = False
   # end __init__
 
   def initCore(self):
@@ -213,7 +214,12 @@ class BraidApp:
 
     self.printBraidStats()
 
-    return self.getFinal()
+
+    fin = self.getFinal()
+    self.x0 = None
+    self.x_final = None
+
+    return fin
 
   def printBraidStats(self):
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
@@ -290,6 +296,7 @@ class BraidApp:
     braid_SetSkip(core,self.skip_downcycle)
 
   def setRevertedRanks(self,reverted):
+    self.reverted = reverted 
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetRevertedRanks(core,reverted)
 
@@ -313,6 +320,15 @@ class BraidApp:
     cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
     cdef braid_BaseVector bv 
 
+    if not self.reverted and self.mpi_comm.Get_rank()!=0:
+      return
+
+    if self.reverted and self.mpi_comm.Get_rank()!=self.mpi_comm.Get_size()-1:
+      return
+
+    #if self.reverted and self.mpi_comm.Get_rank()!=self.mpi_comm.Get_size()-1:
+    #  return
+
     self.x0 = BraidVector(x0,0)
 
     # set the appropriate initial condition
@@ -328,7 +344,7 @@ class BraidApp:
       zeros = [torch.zeros(s) for s in self.shape0]
       x = BraidVector(tuple(zeros),0)
     else:
-      x = self.x0
+      x = BraidVector(self.x0.tensors(),0)
     return x
 
   def access(self,t,u):
@@ -337,17 +353,16 @@ class BraidApp:
       # if this needs only one processor
       # it could be a problem in the future
       if self.getMPIComm().Get_size()>1:
-        self.x_final = u
+        self.x_final = u.tensor()
       else:
-        self.x_final = u.clone()
+        self.x_final = u.clone().tensor()
 
   def getFinal(self):
     if self.x_final==None:
       return None
 
     # assert the level
-    assert(self.x_final.level()==0)
-    return self.x_final.tensor()
+    return self.x_final
 
   def evalNetwork(self):
     self.training = False
