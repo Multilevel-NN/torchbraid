@@ -9,6 +9,8 @@ import torchbraid
 from mpi4py import MPI
 # import torchbraid.utils
 
+from bspline import evalBsplines
+
 
 def root_print(rank,s):
   if rank==0:
@@ -72,11 +74,54 @@ class StepLayer(torch.nn.Module):
         x = torch.tanh(self.linearlayer(x))
         return x
 
-class SerialNet(torch.nn.Module):
+
+class SerialSpliNet(torch.nn.Module):
+    """ Network definition """
+    def __init__(self, width, nlayers, nSplines, splinedegree, Tstop):
+        #Constructor
+        super(SerialSpliNet, self).__init__()
+
+        self.stepsize = Tstop / float(nlayers)
+
+        self.nSplines = nSplines
+        self.splinedegree = splinedegree
+        self.nKnots = nSplines - splinedegree + 1
+        self.deltaKnots = self.stepsize
+        self.splinecoeffs = torch.zeros(splinedegree + 1)
+
+        # Layers
+        self.openlayer = OpenLayer(width)
+        self.closinglayer = ClosingLayer()
+        self.layers= torch.nn.ModuleList([torch.nn.Linear(width, width) for i in range(nSplines)])
+
+    def forward(self, x):
+        # Opening Layer
+        x = self.openlayer(x)
+
+        # Hidden layers aka Timestepping
+        for i in range(nlayers):
+            time = i * self.stepsize
+            k = int(time / self.deltaKnots)
+
+            # Eval splines
+            evalBsplines(self.splinedegree, self.deltaKnots, time, self.splinecoeffs)
+
+            # sum up splines
+            for d in range(self.splinedegree + 1):
+                layer = self.layers[k+d]
+                x = x + self.stepsize * self.splinecoeffs[d] * layer(x)
+
+        # Closing layer
+        # print("Serial NN(x) = ", x)
+        x = self.closinglayer(x)
+        return x
+
+
+class SerialResnet(torch.nn.Module):
     """ Network definition """
     def __init__(self, width, nlayers, Tstop):
         #Constructor
-        super(SerialNet, self).__init__()
+        super(SerialResnet, self).__init__()
 
         self.stepsize = Tstop / float(nlayers)
         # Layers
@@ -163,7 +208,9 @@ parser.add_argument('--force-lp', action='store_true', default=False, help='Use 
 parser.add_argument('--epochs', type=int, default=500, metavar='N', help='number of epochs to train (default: 2)')
 parser.add_argument('--batch-size', type=int, default=20, metavar='N', help='batch size for training (default: 50)')
 parser.add_argument('--plot', default=True, help='Plot the results (default: true)')
+parser.add_argument('--splinet', default=False, help='Use SpliNet instead of Resnet)')
 args = parser.parse_args()
+
 
 # MPI Stuff
 rank  = MPI.COMM_WORLD.Get_rank()
@@ -201,13 +248,24 @@ training_generator = torch.utils.data.DataLoader(training_set, batch_size=batch_
 validation_set = SineDataset("./xy_val.dat", nvaldata)
 validation_generator = torch.utils.data.DataLoader(validation_set, batch_size=batch_size, shuffle=False)
 
-
 # Serial network model
 torch.manual_seed(0)
 if not force_lp:
-    root_print(rank, "Building serial net")
-    model = SerialNet(width, nlayers, Tstop)
-    compose = lambda op,*p: op(*p)    # NO IDEA WHAT THAT IS
+    print(args.splinet)
+    if args.splinet:
+        # Create SpliNet
+
+        splinedegree = 1
+        nSplines = nlayers + splinedegree
+
+        root_print(rank, "Building serial SpliNet")
+        model = SerialSpliNet(width, nlayers, nSplines, splinedegree, Tstop)
+        compose = lambda op,*p: op(*p)    # NO IDEA WHAT THAT IS
+    else:
+        # Create ResNet
+        root_print(rank, "Building serial Resnet")
+        model = SerialResnet(width, nlayers, Tstop)
+        compose = lambda op,*p: op(*p)    # NO IDEA WHAT THAT IS
 else:
     root_print(rank, "Building parallel net")
     # Layer-parallel parameters
@@ -242,6 +300,9 @@ myloss = torch.nn.MSELoss(reduction='sum')
 
 # Set up optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+#Prepare output
+print("rank, epoch, loss, loss_val, gnorm")
 
 # Training loop
 for epoch in range(max_epochs):
@@ -280,7 +341,7 @@ for epoch in range(max_epochs):
     with torch.no_grad():
         gnorm = gradnorm(model.parameters())
         if rank == 0:
-            print(rank,epoch, loss.item(), loss_val, gnorm)
+            print(rank, epoch, loss.item(), loss_val, gnorm)
 
     # Stopping criterion
     if gnorm < 1e-4:
