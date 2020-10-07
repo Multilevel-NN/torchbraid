@@ -161,7 +161,7 @@ class TestGradUpdate(unittest.TestCase):
     wm.backward(w0)
 
     m_param_grad = self.copyParameterGradToRoot(m)
-    wm = m.getFinalOnRoot()
+    wm = m.getFinalOnRoot(wm)
 
     # print time results
     timer_str = m.getTimersString() 

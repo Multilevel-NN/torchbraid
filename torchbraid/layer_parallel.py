@@ -283,7 +283,7 @@ class LayerParallel(nn.Module):
   def getFinal(self):
     return  self.fwd_app.getFinal()
 
-  def getFinalOnRoot(self):
+  def getFinalOnRoot(self,vec):
     build_seq_tag = 99        # this 
     comm          = self.getMPIComm()
     my_rank       = self.getMPIComm().Get_rank()
@@ -291,14 +291,15 @@ class LayerParallel(nn.Module):
 
     # short circuit for serial case
     if num_ranks==1:
-      return self.getFinal()
+      #return self.getFinal()
+      return vec
 
     # send the output of the last layer to the root
     if my_rank==0:
       remote_final = comm.recv(source=num_ranks-1,tag=build_seq_tag)
       return remote_final
     elif my_rank==num_ranks-1:
-      final = self.getFinal()
+      final = vec
       comm.send(final,dest=0,tag=build_seq_tag)
 
     return None
