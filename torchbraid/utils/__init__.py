@@ -36,10 +36,48 @@ from .context_timer_manager import ContextTimerManager
 from .functional import l2_reg
 from .gittools import git_rev 
 
-def seed_from_rank(seed,rank):
- """Helper function to compute a new seed from the parallel rank using an LCG
+import gc
+import torch
 
-    Note that this is not a good parallel number generator, just a starting point.
- """
- # set the seed (using a LCG: from Wikipedia article, apparently Numerical recipes)
- return (1664525*(seed+rank) + 1013904113)% 2**32
+def seed_from_rank(seed,rank):
+  """
+  Helper function to compute a new seed from the parallel rank using an LCG
+
+  Note that this is not a good parallel number generator, just a starting point.
+  """
+  # set the seed (using a LCG: from Wikipedia article, apparently Numerical recipes)
+  return (1664525*(seed+rank) + 1013904113)% 2**32
+# end seed_from_rank
+
+def tensor_memory(prefix,min_size=0,total_only=False):
+  """
+  Helper function to print the memory footprint of all the torch tensors.
+
+  This will print the memory usage of all tensors above a particular size.
+  Setting the total_only=True will only print a summary
+  """
+
+  objects = gc.get_objects()
+  tqueue = [o for o in objects if isinstance(o,torch.Tensor)]
+  s = ''
+  total_size_printed = 0 
+  total_size = 0 
+  total_count = 0
+  for t in tqueue:
+    numel = t.numel()
+    esz = t.element_size()
+    total_size += numel*esz
+    if numel*esz>min_size:
+      total_size_printed += numel*esz
+      total_count += 1
+      if not total_only:
+        if hasattr(t,'label'):
+          s += '  {}) TENSOR {:.2f} MiB: {} label: {}\n'.format(prefix,esz*numel/1024/1024,t.shape,t.label)
+        else:
+          s += '  {}) TENSOR {:.2f} MiB: {} none\n'.format(prefix,esz*numel/1024/1024,t.shape)
+
+  s += '  {}) TENSOR Total/Above Bound ({}) = {:.2f} MiB/{:.2f} MiB'.format(prefix,total_count,total_size/2**20,total_size_printed/2**20)
+  if not total_only:
+    s += '\n'
+  print(s)
+# end print_tensors
