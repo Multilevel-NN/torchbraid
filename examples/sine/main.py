@@ -87,7 +87,7 @@ class SerialSpliNet(torch.nn.Module):
         self.splinedegree = splinedegree
         self.nKnots = nSplines - splinedegree + 1
         self.deltaKnots = self.stepsize
-        self.splinecoeffs = torch.zeros(splinedegree + 1)
+        self.splinecoeffs = np.zeros(splinedegree + 1)   # no gradients needed. Not sure if a numpy array is fine here...
 
         # Layers
         self.openlayer = OpenLayer(width)
@@ -95,6 +95,7 @@ class SerialSpliNet(torch.nn.Module):
         self.layers= torch.nn.ModuleList([torch.nn.Linear(width, width) for i in range(nSplines)])
 
     def forward(self, x):
+        # print("---- FWD SpliNet ---- ")
         # Opening Layer
         x = self.openlayer(x)
 
@@ -106,14 +107,11 @@ class SerialSpliNet(torch.nn.Module):
             # Eval splines
             evalBsplines(self.splinedegree, self.deltaKnots, time, self.splinecoeffs)
 
-            # sum up splines
+            # sum over splines and update x
             for d in range(self.splinedegree + 1):
-                layer = self.layers[k+d]
-                x = x + self.stepsize * torch.tanh(self.splinecoeffs[d] * layer(x))
-
+                x = x + self.stepsize * torch.tanh(self.splinecoeffs[d] * self.layers[k+d](x))
 
         # Closing layer
-        # print("Serial NN(x) = ", x)
         x = self.closinglayer(x)
         return x
 
@@ -131,13 +129,15 @@ class SerialResnet(torch.nn.Module):
         self.closinglayer = ClosingLayer()
 
     def forward(self, x):
+        # print("---- FWD ResNet ---- ")
         # Opening Layer
         x = self.openlayer(x)
+
         # Hidden layers
         for i, layer in enumerate(self.layers):
             x = x + self.stepsize * layer(x)
+
         # Closing layer
-        # print("Serial NN(x) = ", x)
         x = self.closinglayer(x)
         return x
 
@@ -179,8 +179,6 @@ class ParallelNet(torch.nn.Module):
 
 
     def forward(self, x):
-        # by passing this through 'o' (mean composition: e.g. self.open_nn o x)
-        # this makes sure this is run on only processor 0
         x = self.compose(self.openlayer,x)
         x = self.parallel_nn(x)
         # print("Parallel NN(x) = ", x)
@@ -209,8 +207,13 @@ parser.add_argument('--force-lp', action='store_true', default=False, help='Use 
 parser.add_argument('--epochs', type=int, default=500, metavar='N', help='number of epochs to train (default: 2)')
 parser.add_argument('--batch-size', type=int, default=20, metavar='N', help='batch size for training (default: 50)')
 parser.add_argument('--plot', default=True, help='Plot the results (default: true)')
-parser.add_argument('--splinet', default=False, help='Use SpliNet instead of Resnet)')
+parser.add_argument('--splinet', action='store_true', default=False, help='Use SpliNet instead of Resnet')
 args = parser.parse_args()
+
+if args.splinet:
+    splinet = True
+else:
+    splinet = False
 
 
 # MPI Stuff
@@ -252,10 +255,8 @@ validation_generator = torch.utils.data.DataLoader(validation_set, batch_size=ba
 # Serial network model
 torch.manual_seed(0)
 if not force_lp:
-    print(args.splinet)
-    if args.splinet:
+    if splinet:
         # Create SpliNet
-
         splinedegree = 1
         nSplines = nlayers + splinedegree
 
@@ -305,8 +306,12 @@ optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 #Prepare output
 print("rank, epoch, loss, loss_val, gnorm")
 
+
+torch.autograd.set_detect_anomaly(True)
+
 # Training loop
 for epoch in range(max_epochs):
+    # print("## Epoch ", epoch)
 
     # TRAINING SET: Train one epoch
     for local_batch, local_labels in training_generator:
