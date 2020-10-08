@@ -31,6 +31,8 @@
 
 import torch.autograd
 
+import torchbraid.utils as utils
+
 class BraidFunction(torch.autograd.Function):
   @staticmethod
   def forward(ctx, fwd_app, bwd_app, x, *params):
@@ -55,8 +57,11 @@ class BraidFunction(torch.autograd.Function):
       else:
         result = fwd_app.run(None)
 
+      if my_rank!=num_ranks-1:
+        result = torch.zeros(shape)
+
     # broadcast the output of the last layer 
-    result = comm.bcast(result,root=num_ranks-1)
+    comm.Bcast(result.numpy(),root=num_ranks-1)
 
     return result
 
@@ -69,9 +74,9 @@ class BraidFunction(torch.autograd.Function):
     # copy the input to the final processor (where iter time integration begins)
     if num_ranks>1:
       if my_rank==0:
-        comm.send(grad_output,dest=num_ranks-1)
+        comm.Send(grad_output.numpy(),dest=num_ranks-1)
       elif my_rank==num_ranks-1: 
-        grad_output = comm.recv(source=0)
+        comm.Recv(grad_output.numpy(),source=0)
 
     if my_rank==num_ranks-1:
       result = ctx.bwd_app.run(grad_output)
