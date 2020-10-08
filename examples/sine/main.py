@@ -109,7 +109,8 @@ class SerialSpliNet(torch.nn.Module):
             # sum up splines
             for d in range(self.splinedegree + 1):
                 layer = self.layers[k+d]
-                x = x + self.stepsize * self.splinecoeffs[d] * layer(x)
+                x = x + self.stepsize * torch.tanh(self.splinecoeffs[d] * layer(x))
+
 
         # Closing layer
         # print("Serial NN(x) = ", x)
