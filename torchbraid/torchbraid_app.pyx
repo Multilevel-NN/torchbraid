@@ -59,7 +59,7 @@ include "./torchbraid_callbacks.pyx"
 class BraidApp:
 
   def __init__(self,prefix_str,comm,local_num_steps,Tf,max_levels,max_iters,
-               spatial_ref_pair=None):
+               spatial_ref_pair=None,require_storage=False):
 
     self.prefix_str = prefix_str # prefix string for helping to debug hopefully
     self.tb_print_level = 0      # set print level internally to zero
@@ -71,6 +71,7 @@ class BraidApp:
     self.nrelax      = 0
     self.cfactor     = 2
     self.skip_downcycle = 0
+    self.require_storage = require_storage
 
     self.mpi_comm        = comm
     self.Tf              = Tf
@@ -156,6 +157,8 @@ class BraidApp:
     # end if refinement_on
 
     # Set Braid options
+    if self.require_storage:
+      braid_SetStorage(core,0)
     braid_SetMaxLevels(core, self.max_levels)
     braid_SetMaxIter(core, self.max_iters)
     braid_SetPrintLevel(core,self.print_level)
@@ -300,10 +303,12 @@ class BraidApp:
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetRevertedRanks(core,reverted)
 
-  def getUVector(self,level,index):
+  def getUVector(self,level,t):
     cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
     cdef braid_BaseVector bv
-    _braid_UGetVectorRef(core, level, index,&bv)
+
+    index = self.getGlobalTimeStepIndex(t,None,level)
+    _braid_UGetVectorRef(core, level,index,&bv)
 
     return <object> bv.userVector
 
