@@ -58,8 +58,12 @@ def getLocalMemory(comm,message):
 
 class ForwardODENetApp(BraidApp):
 
-  def __init__(self,comm,layer_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None):
-    BraidApp.__init__(self,'FWDApp',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=True)
+  def __init__(self,comm,layer_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,internal_storage=True,spatial_ref_pair=None):
+    """
+    internal_storage - use torchbraid internal storage :more memory required, possible run time boost - True, or use
+                       xbraid storage which has a smaller memory footprint (False), default: False
+    """
+    BraidApp.__init__(self,'FWDApp',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=not internal_storage)
 
     # note that a simple equals would result in a shallow copy...bad!
     self.layer_models = [l for l in layer_models]
@@ -80,6 +84,7 @@ class ForwardODENetApp(BraidApp):
 
     self.timer_manager = timer_manager
     self.use_deriv = False
+    self.internal_storage = True
   # end __init__
 
   def __del__(self):
@@ -98,7 +103,8 @@ class ForwardODENetApp(BraidApp):
       self.layer_models[-1] = neighbor_model
 
   def run(self,x):
-    #self.soln_store = dict()
+    if self.internal_storage:
+      self.soln_store = dict()
 
     # turn on derivative path (as requried)
     self.use_deriv = self.training
@@ -181,21 +187,24 @@ class ForwardODENetApp(BraidApp):
 
     if isinstance(y,BraidVector) and level==0:
       # store off the solution for later adjoints
-      #ts_index_x = self.getGlobalTimeStepIndex(tstart,None,0)
-      #ts_index_y = self.getGlobalTimeStepIndex(tstop,None,0)
+      if self.internal_storage:
+        ts_index_x = self.getGlobalTimeStepIndex(tstart,None,0)
+        ts_index_y = self.getGlobalTimeStepIndex(tstop,None,0)
 
-      #if ts_index_x not in self.soln_store:
-      #  self.soln_store[ts_index_x] = y.tensor().detach().clone()
+        if ts_index_x not in self.soln_store:
+          self.soln_store[ts_index_x] = y.tensor().detach().clone()
+      # internal_storage
 
       t_y = y.tensor().detach()
 
       with torch.no_grad():
         in_place_eval(t_y,tstart,tstop,level)
 
-      #if ts_index_y in self.soln_store:
-      #  self.soln_store[ts_index_y].copy_(t_y.detach())
-      #else:
-      #  self.soln_store[ts_index_y] = t_y.detach().clone()
+      if self.internal_storage:
+        if ts_index_y in self.soln_store:
+          self.soln_store[ts_index_y].copy_(t_y.detach())
+        else:
+          self.soln_store[ts_index_y] = t_y.detach().clone()
     elif isinstance(y,BraidVector):
       # sanity check
       assert(level!=0)
@@ -220,21 +229,18 @@ class ForwardODENetApp(BraidApp):
     being recomputed.
     """
     
-    ts_index = self.getGlobalTimeStepIndex(tstart,tstop,level)
     layer = self.getLayer(tstart,tstop,level)
 
     # the idea here is store it internally, failing
     # that the values need to be recomputed locally. This may be
     # because you are at a processor boundary, or decided not
     # to start the value 
-    #if ts_index in self.soln_store:
-    #  t_x = self.soln_store[ts_index]
-    #else:
-    #  # this is called only when the forward solve 
-    #  # has missed a time step
-    #  assert(False)
-
-    t_x = self.getUVector(0,tstart).tensor()
+    if self.internal_storage:
+      ts_index = self.getGlobalTimeStepIndex(tstart,tstop,level)
+      assert(ts_index in self.soln_store)
+      t_x = self.soln_store[ts_index]
+    else:
+      t_x = self.getUVector(0,tstart).tensor()
 
     x = t_x.detach()
     y = t_x.detach().clone()
@@ -282,15 +288,17 @@ class BackwardODENetApp(BraidApp):
 
     try:
       # this is required to run the derivative calculation
-      #assert(self.fwd_app.soln_store is not None)
+      if self.fwd_app.internal_storage:
+        assert(self.fwd_app.soln_store is not None)
 
       f = self.runBraid(x)
 
       # this is for an agressive memory cleanup, if you need 
       # multiple gradients (the assertion failed above) you
       # should make this in option
-      #del self.fwd_app.soln_store
-      #self.fwd_app.soln_store = None
+      if self.fwd_app.internal_storage:
+        del self.fwd_app.soln_store
+        self.fwd_app.soln_store = None
 
       # this code is due to how braid decomposes the backwards problem
       # The ownership of the time steps is shifted to the left (and no longer balanced)
