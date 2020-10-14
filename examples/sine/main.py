@@ -74,6 +74,32 @@ class StepLayer(torch.nn.Module):
         x = torch.tanh(self.linearlayer(x))
         return x
 
+class StepWithSpline(torch.nn.Module):
+    def __init__(self, linlayers, nSplines, splinedegree, deltaKnots):
+        super(StepWithSpline, self).__init__()
+
+        self.linlayers = linlayers
+        self.splinedegree = splinedegree
+        self.deltaKnots = deltaKnots
+        self.splinecoeffs = np.zeros(splinedegree + 1)
+        self.time = 0.0
+        self.k = 0
+
+    def setTime(self, time):
+        self.time = time
+        self.k = int(time / self.deltaKnots)
+
+
+    def forward(self, x):
+            print("Eval spline at t=", self.time, ", k=", self.k)
+            evalBsplines(self.splinedegree, self.deltaKnots, self.time, self.splinecoeffs)
+
+            y = torch.zeros(x.size())
+            for l in range(self.splinedegree + 1):
+                y = y + self.splinecoeffs[l] * self.linlayers[self.k+l](x)
+
+            y = torch.tanh(y)
+            return y
 
 class SerialSpliNet(torch.nn.Module):
     """ Network definition """
@@ -143,11 +169,20 @@ class SerialResnet(torch.nn.Module):
 
 
 class ParallelNet(torch.nn.Module):
-    def __init__(self, Tstop=10.0, width=4, local_steps=10, max_levels=1, max_iters=1, fwd_max_iters=0, print_level=0, braid_print_level=0, cfactor=4, fine_fcf=False, skip_downcycle=True, fmg=False):
+    def __init__(self, Tstop=10.0, width=4, local_steps=10, max_levels=1, max_iters=1, fwd_max_iters=0, print_level=0, braid_print_level=0, cfactor=4, fine_fcf=False, skip_downcycle=True, fmg=False, nSplines=10, splinedegree=0):
         super(ParallelNet, self).__init__()
 
         # Create lambda function for normal step layer
-        step_layer = lambda: StepLayer(width)
+        if splinedegree >= 1:
+            # Create d+1 linear layers
+            linlayers = torch.nn.ModuleList([torch.nn.Linear(width, width) for i in range(nSplines)])
+
+            # Set up step_layer
+            nKnots = nSplines - splinedegree + 1
+            deltaKnots = Tstop / (nKnots - 1)
+            step_layer = lambda: StepWithSpline(linlayers, nSplines, splinedegree, deltaKnots)
+        else:
+            step_layer = lambda: StepLayer(width)
 
         # Create and store parallel net
         self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD, step_layer, local_steps, Tstop, max_levels=max_levels, max_iters=max_iters)
@@ -235,8 +270,8 @@ torch.manual_seed(0)
 
 # Specify network
 width = 4
-nlayers = 10
-Tstop = 10.0
+nlayers = 5
+Tstop = 5.0
 
 # Specify training params
 batch_size = args.batch_size
@@ -245,7 +280,7 @@ learning_rate = 1e-3
 
 
 # Get sine data
-ntraindata = 20
+ntraindata = 5
 nvaldata = 20
 training_set = SineDataset("./xy_train.dat", ntraindata)
 training_generator = torch.utils.data.DataLoader(training_set, batch_size=batch_size, shuffle=False)
@@ -256,11 +291,11 @@ validation_generator = torch.utils.data.DataLoader(validation_set, batch_size=ba
 torch.manual_seed(0)
 if not force_lp:
     if splinet:
-        # Create SpliNet
+        # Create SpliNet. These setting ensure that SpliNet gives same results as ResNet.
         splinedegree = 1
         nSplines = nlayers + splinedegree
 
-        root_print(rank, "Building serial SpliNet")
+        print("Building serial SpliNet, nsplines=", nSplines)
         model = SerialSpliNet(width, nlayers, nSplines, splinedegree, Tstop)
         compose = lambda op,*p: op(*p)    # NO IDEA WHAT THAT IS
     else:
@@ -282,6 +317,14 @@ else:
         print(rank,'NLayers must be an even multiple of the number of processors: %d %d' % (nlayers, procs) )
         stop
 
+    if splinet:
+        # Create SpliNet. These setting ensure that SpliNet gives same results as ResNet.
+        splinedegree = 1
+        nSplines = nlayers + splinedegree
+    else:
+        splinedegree = 0
+        nSplines = 0
+
     # Create layer parallel network
     model = ParallelNet(Tstop=Tstop,
                         width=width,
@@ -294,7 +337,9 @@ else:
                         cfactor=lp_cfactor,
                         fine_fcf=False,
                         skip_downcycle=False,
-                        fmg=False)
+                        fmg=False,
+                        nSplines=nSplines,
+                        splinedegree=splinedegree)
     compose = model.compose   # NOT SO SURE WHAT THAT DOES
 
 # Construct loss function
@@ -306,7 +351,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 #Prepare output
 print("rank, epoch, loss, loss_val, gnorm")
 
-
+# # Debug gradient
 torch.autograd.set_detect_anomaly(True)
 
 # Training loop
@@ -333,14 +378,15 @@ for epoch in range(max_epochs):
         # Update network parameters
         optimizer.step()
 
-    # VALIDATION
-    for local_batch, local_labels in validation_generator:
-        with torch.no_grad():
-
-            local_batch = local_batch.reshape(len(local_batch),1)
-            local_labels= local_labels.reshape(len(local_labels),1)
-            ypred = model(local_batch)
-            loss_val = compose(myloss, ypred, local_labels).item()
+    # # VALIDATION
+    # for local_batch, local_labels in validation_generator:
+    #     with torch.no_grad():
+    #
+    #         local_batch = local_batch.reshape(len(local_batch),1)
+    #         local_labels= local_labels.reshape(len(local_labels),1)
+    #         ypred = model(local_batch)
+    #         loss_val = compose(myloss, ypred, local_labels).item()
+    loss_val = 0.0
 
 
     # Output and stopping
