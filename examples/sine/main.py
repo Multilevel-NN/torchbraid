@@ -134,8 +134,12 @@ class SerialSpliNet(torch.nn.Module):
             evalBsplines(self.splinedegree, self.deltaKnots, time, self.splinecoeffs)
 
             # sum over splines and update x
+            y = torch.zeros(x.size())
             for d in range(self.splinedegree + 1):
-                x = x + self.stepsize * torch.tanh(self.splinecoeffs[d] * self.layers[k+d](x))
+                y += self.splinecoeffs[d] * self.layers[k+d](x)
+
+            # Take the step
+            x = x + self.stepsize * torch.tanh(y)
 
         # Closing layer
         x = self.closinglayer(x)
