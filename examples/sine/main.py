@@ -16,7 +16,6 @@ def root_print(rank,s):
   if rank==0:
     print(s)
 
-
 class SineDataset(torch.utils.data.Dataset):
     """ Dataset for sine approximation
         x in [-pi,pi], y = sin(x) """
@@ -64,7 +63,7 @@ class ClosingLayer(torch.nn.Module):
         x = torch.mean(x, dim=1, keepdim=True) # take the mean of each example
         return x
 
-# ResNet layer
+# Normal steplayer
 class StepLayer(torch.nn.Module):
     def __init__(self, width):
         super(StepLayer, self).__init__()
@@ -74,6 +73,7 @@ class StepLayer(torch.nn.Module):
         x = torch.tanh(self.linearlayer(x))
         return x
 
+# Steplayer that uses splines
 class StepWithSpline(torch.nn.Module):
     def __init__(self, linlayers, nSplines, splinedegree, deltaKnots):
         super(StepWithSpline, self).__init__()
@@ -87,19 +87,22 @@ class StepWithSpline(torch.nn.Module):
 
     def setTime(self, time):
         self.time = time
-        self.k = int(time / self.deltaKnots)
+        self.k = int(time / self.deltaKnots) # Floor to integer
 
 
     def forward(self, x):
-            print("Eval spline at t=", self.time, ", k=", self.k)
+            # print("Eval spline at t=", self.time, ", k=", self.k)
             evalBsplines(self.splinedegree, self.deltaKnots, self.time, self.splinecoeffs)
 
+            # Sum up splines*linlayer
             y = torch.zeros(x.size())
             for l in range(self.splinedegree + 1):
-                y = y + self.splinecoeffs[l] * self.linlayers[self.k+l](x)
+                print("Using linlayer[", self.k+l, "], spline coeff=", self.splinecoeffs[l])
+                y += self.splinecoeffs[l] * self.linlayers[self.k+l](x)
 
-            y = torch.tanh(y)
-            return y
+            # Activation
+            x = torch.tanh(self.linlayers[self.k](x))
+            return x
 
 class SerialSpliNet(torch.nn.Module):
     """ Network definition """
@@ -108,43 +111,40 @@ class SerialSpliNet(torch.nn.Module):
         super(SerialSpliNet, self).__init__()
 
         self.stepsize = Tstop / float(nlayers)
+        nKnots = nSplines - splinedegree + 1
+        deltaKnots = Tstop / (nKnots - 1)
 
-        self.nSplines = nSplines
-        self.splinedegree = splinedegree
-        self.nKnots = nSplines - splinedegree + 1
-        self.deltaKnots = self.stepsize
-        self.splinecoeffs = np.zeros(splinedegree + 1)   # no gradients needed. Not sure if a numpy array is fine here...
-
-        # Layers
+        # Create layers
         self.openlayer = OpenLayer(width)
         self.closinglayer = ClosingLayer()
-        self.layers= torch.nn.ModuleList([torch.nn.Linear(width, width) for i in range(nSplines)])
+        layer_models = [torch.nn.Linear(width, width) for i in range(nSplines)]   # creates the linear layers
+        linlayers = torch.nn.Sequential(*layer_models)
+
+        # Create stepping function
+        step_layer = lambda : StepWithSpline(linlayers, nSplines, splinedegree, deltaKnots)
+        layer_models = [step_layer() for i in range(nlayers)]   # This is what __init__ in layer_parallel does
+        self.step_layers = torch.nn.Sequential(*layer_models)
+        # for param in self.step_layers.parameters():
+            # print(" another parameter in serial spline net: ", param)
+
 
     def forward(self, x):
         # print("---- FWD SpliNet ---- ")
-        # Opening Layer
         x = self.openlayer(x)
 
-        # Hidden layers aka Timestepping
+        # Timestepping
         for i in range(nlayers):
-            time = i * self.stepsize
-            k = int(time / self.deltaKnots)
+            self.step_layers[i].setTime(i*self.stepsize)
+            x = x + self.stepsize * self.step_layers[i](x)
+            
+            for param in self.step_layers[i].parameters():
+                print(" Serial SpliNet layer ", i, " param ", param )
 
-            # Eval splines
-            evalBsplines(self.splinedegree, self.deltaKnots, time, self.splinecoeffs)
-
-            # sum over splines and update x
-            y = torch.zeros(x.size())
-            for d in range(self.splinedegree + 1):
-                y += self.splinecoeffs[d] * self.layers[k+d](x)
-
-            # Take the step
-            x = x + self.stepsize * torch.tanh(y)
-
-        # Closing layer
         x = self.closinglayer(x)
         return x
 
+    def backward(self, x):
+        return x
 
 class SerialResnet(torch.nn.Module):
     """ Network definition """
@@ -160,28 +160,25 @@ class SerialResnet(torch.nn.Module):
 
     def forward(self, x):
         # print("---- FWD ResNet ---- ")
-        # Opening Layer
         x = self.openlayer(x)
-
         # Hidden layers
         for i, layer in enumerate(self.layers):
             x = x + self.stepsize * layer(x)
-
         # Closing layer
         x = self.closinglayer(x)
         return x
-
 
 class ParallelNet(torch.nn.Module):
     def __init__(self, Tstop=10.0, width=4, local_steps=10, max_levels=1, max_iters=1, fwd_max_iters=0, print_level=0, braid_print_level=0, cfactor=4, fine_fcf=False, skip_downcycle=True, fmg=False, nSplines=10, splinedegree=0):
         super(ParallelNet, self).__init__()
 
-        # Create lambda function for normal step layer
+        # Create lambda function for step layer, either normal, or with splines
         if splinedegree >= 1:
             # Create d+1 linear layers
-            linlayers = torch.nn.ModuleList([torch.nn.Linear(width, width) for i in range(nSplines)])
+            layer_models = [torch.nn.Linear(width, width) for i in range(nSplines)]
+            linlayers = torch.nn.Sequential(*layer_models)
 
-            # Set up step_layer
+            # Set up spline step_layer lambda funcition
             nKnots = nSplines - splinedegree + 1
             deltaKnots = Tstop / (nKnots - 1)
             step_layer = lambda: StepWithSpline(linlayers, nSplines, splinedegree, deltaKnots)
@@ -209,19 +206,21 @@ class ParallelNet(torch.nn.Module):
             self.parallel_nn.setNumRelax(1,level=0) # F-Relaxation on the fine grid
 
         # this object ensures that only the LayerParallel code runs on ranks!=0
-        compose = self.compose = self.parallel_nn.comp_op()
+        # compose = self.compose = self.parallel_nn.comp_op()
 
         # by passing this through 'compose' (mean composition: e.g. OpenFlatLayer o channels)
         # on processors not equal to 0, these will be None (there are no parameters to train there)
-        self.openlayer = compose(OpenLayer,width)
-        self.closinglayer = compose(ClosingLayer)
+        # self.openlayer = compose(OpenLayer,width)
+        # self.closinglayer = compose(ClosingLayer)
+        self.openlayer = OpenLayer(width)
+        self.closinglayer = ClosingLayer()
 
 
     def forward(self, x):
-        x = self.compose(self.openlayer,x)
+        x = self.openlayer(x)
         x = self.parallel_nn(x)
         # print("Parallel NN(x) = ", x)
-        x = self.compose(self.closinglayer,x)
+        x = self.closinglayer(x)
 
         return x
 # end ParallelNet
@@ -273,9 +272,9 @@ else:
 torch.manual_seed(0)
 
 # Specify network
-width = 4
-nlayers = 5
-Tstop = 5.0
+width = 2
+nlayers = 3
+Tstop = 3.0
 
 # Specify training params
 batch_size = args.batch_size
@@ -301,19 +300,19 @@ if not force_lp:
 
         print("Building serial SpliNet, nsplines=", nSplines)
         model = SerialSpliNet(width, nlayers, nSplines, splinedegree, Tstop)
-        compose = lambda op,*p: op(*p)    # NO IDEA WHAT THAT IS
+        # compose = lambda op,*p: op(*p)    # NO IDEA WHAT THAT IS
     else:
         # Create ResNet
         root_print(rank, "Building serial Resnet")
         model = SerialResnet(width, nlayers, Tstop)
-        compose = lambda op,*p: op(*p)    # NO IDEA WHAT THAT IS
+        # compose = lambda op,*p: op(*p)    # NO IDEA WHAT THAT IS
 else:
     root_print(rank, "Building parallel net")
     # Layer-parallel parameters
     lp_max_levels = 1
     lp_max_iter = 10
-    lp_printlevel = 0
-    lp_braid_printlevel = 0
+    lp_printlevel = 1
+    lp_braid_printlevel = 1
     lp_cfactor = 2
     # Number of local steps
     local_steps  = int(nlayers / procs)
@@ -344,7 +343,7 @@ else:
                         fmg=False,
                         nSplines=nSplines,
                         splinedegree=splinedegree)
-    compose = model.compose   # NOT SO SURE WHAT THAT DOES
+    # compose = model.compose   # NOT SO SURE WHAT THAT DOES
 
 # Construct loss function
 myloss = torch.nn.MSELoss(reduction='sum')
@@ -369,18 +368,33 @@ for epoch in range(max_epochs):
 
         # Forward pass
         ypred = model(local_batch)
-        loss = compose(myloss, ypred, local_labels)
+        # loss = compose(myloss, ypred, local_labels)
+        loss = myloss(ypred, local_labels)
 
         # Comput gradient through backpropagation
         optimizer.zero_grad()
         loss.backward()
+
+
+        # for param in model.parameters():
+            # print(param)
+
+        grads = []
+        params = []
+        for param in model.parameters():
+            print(param.grad)
+            # print(param)
+            # grads.append(param.grad.view(-1))
+            # params.append(param.view(-1))
+        # print("grad", grads)
+        # print("params", params)
 
         # Print gradients
         # for p in model.parameters():
             # print("Serial grad: ", p.grad.data)
 
         # Update network parameters
-        optimizer.step()
+        # optimizer.step()
 
     # # VALIDATION
     # for local_batch, local_labels in validation_generator:
@@ -395,7 +409,8 @@ for epoch in range(max_epochs):
 
     # Output and stopping
     with torch.no_grad():
-        gnorm = gradnorm(model.parameters())
+        # gnorm = gradnorm(model.parameters())
+        gnorm = 0.0
         if rank == 0:
             print(rank, epoch, loss.item(), loss_val, gnorm)
 

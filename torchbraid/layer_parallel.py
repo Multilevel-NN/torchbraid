@@ -63,7 +63,7 @@ class ODEBlock(nn.Module):
 # end ODEBlock
 
 class LayerParallel(nn.Module):
-  
+
   class ExecLP:
     """Helper class for btorchuilding composite neural network modules
 
@@ -122,6 +122,9 @@ class LayerParallel(nn.Module):
         if callable(setTime_op):
             self.layer_models[i].setTime(i*self.dt)
     self.local_layers = nn.Sequential(*self.layer_models)
+    for param in self.local_layers.parameters():
+        print("LP: These are the parameters:", param)
+    print("LP: done.")
 
     self.timer_manager = ContextTimerManager()
 
@@ -192,6 +195,10 @@ class LayerParallel(nn.Module):
     # pytorch's autograd which functions "naturally"
     # with the torch.autograd.function
     params = list(self.parameters())
+    print("LP: Printing parameters")
+    for param in params:
+      print(param)
+    print("LP: done.")
 
     if self.training:
       self.fwd_app.trainNetwork()
