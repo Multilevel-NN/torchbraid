@@ -319,7 +319,8 @@ class BackwardODENetApp(BraidApp):
           required_grad_state += [p.requires_grad]
           if level==0:
             if not p.grad is None:
-              p.grad.data.zero_()
+              # p.grad.data.zero_()   # If SpliNet: This would set ALL model parameters to zero. Not just the ones connected with this layer... Unclear what to do here... Do we need to reset for Braid? Yes!?
+              pass
           else:
             # if you are not on the fine level, compute no gradients
             p.requires_grad = False
