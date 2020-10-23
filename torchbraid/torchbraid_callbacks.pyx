@@ -63,6 +63,8 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
   cdef double tstart
   cdef double tstop
   cdef int level
+  cdef int caller
+  cdef int iter
 
   with pyApp.timer("my_step"):
 
@@ -72,8 +74,24 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
     braid_StepStatusGetTstartTstop(status, &tstart, &tstop)
     braid_StepStatusGetLevel(status, &level)
 
+
+    # Compute gradient only on the very LAST call to my_step on finest grid, i.e. only if
+    #  * last iteration (iter == max_iter - 1)
+    #  * level == 0
+    #  * Braid calling function is FRestrict
+    # OR: Braid is running on one level only
+    compute_grads = False
+    caller = -10
+    iter   = -10
+    braid_StepStatusGetCallingFunction(status, &caller)
+    braid_StepStatusGetIter(status, &iter)
+    if level == 0 and caller == 1 and iter == pyApp.max_iters - 1: # caller=1 is FRestrict!
+      compute_grads = True
+    if pyApp.max_levels == 1:
+      compute_grads = True
+
     u =  <object> vec_u
-    temp = pyApp.eval(u,tstart,tstop,level)
+    temp = pyApp.eval(u,tstart,tstop,level, compute_grads)
 
     u.tensor().copy_(temp.tensor())
 

@@ -84,6 +84,7 @@ cdef extern from "braid_status.h":
     int braid_StepStatusSetTightFineTolx (braid_StepStatus status, double tight_fine_tolx)
     int braid_StepStatusSetRFactor (braid_StepStatus status, double rfactor)
     int braid_StepStatusSetRSpace (braid_StepStatus status, double r_space)
+    int braid_StepStatusGetCallingFunction (braid_StepStatus status, int *cfunction_ptr)
 
     ##
     # Wrap AccessStatus Routines
