@@ -97,7 +97,7 @@ class StepWithSpline(torch.nn.Module):
             # Sum up splines*linlayer
             y = torch.zeros(x.size())
             for l in range(self.splinedegree + 1):
-                print("Using linlayer[", self.k+l, "], spline coeff=", self.splinecoeffs[l])
+                # print("Using linlayer[", self.k+l, "], spline coeff=", self.splinecoeffs[l])
                 y += self.splinecoeffs[l] * self.linlayers[self.k+l](x)
 
             # Activation
@@ -273,8 +273,8 @@ torch.manual_seed(0)
 
 # Specify network
 width = 2
-nlayers = 3
-Tstop = 3.0
+nlayers = 10
+Tstop = 10.0
 
 # Specify training params
 batch_size = args.batch_size
@@ -309,7 +309,7 @@ if not force_lp:
 else:
     root_print(rank, "Building parallel net")
     # Layer-parallel parameters
-    lp_max_levels = 1
+    lp_max_levels = 10
     lp_max_iter = 10
     lp_printlevel = 1
     lp_braid_printlevel = 1
@@ -334,7 +334,7 @@ else:
                         local_steps=local_steps,
                         max_levels=lp_max_levels,
                         max_iters=lp_max_iter,
-                        fwd_max_iters=10,
+                        fwd_max_iters=lp_max_iter,
                         print_level=lp_printlevel,
                         braid_print_level=lp_braid_printlevel,
                         cfactor=lp_cfactor,
@@ -343,7 +343,20 @@ else:
                         fmg=False,
                         nSplines=nSplines,
                         splinedegree=splinedegree)
+
+
     # compose = model.compose   # NOT SO SURE WHAT THAT DOES
+
+    # Enable diagnostics (?)
+    model.parallel_nn.diagnostics(True)
+
+
+# params = []
+# for param in model.parameters():
+    # print("Model parameter: ", param)
+    # params.append(param.view(-1))
+# print("Theses are all the params:", params)
+
 
 # Construct loss function
 myloss = torch.nn.MSELoss(reduction='sum')
@@ -382,12 +395,12 @@ for epoch in range(max_epochs):
         grads = []
         params = []
         for param in model.parameters():
-            print(param.grad)
-            # print(param)
-            # grads.append(param.grad.view(-1))
+            # print("Main: model gradients: ", param.grad)
+            # print("Model parameter: ", param)
+            grads.append(param.grad.view(-1))
             # params.append(param.view(-1))
-        # print("grad", grads)
-        # print("params", params)
+        print("These are the model gradients: ", grads)
+        # print("Theses are all the params:", params)
 
         # Print gradients
         # for p in model.parameters():
@@ -395,6 +408,9 @@ for epoch in range(max_epochs):
 
         # Update network parameters
         # optimizer.step()
+
+        # diagnose = model.parallel_nn.getDiagnostics()
+        # print(diagnose)
 
     # # VALIDATION
     # for local_batch, local_labels in validation_generator:
@@ -409,8 +425,7 @@ for epoch in range(max_epochs):
 
     # Output and stopping
     with torch.no_grad():
-        # gnorm = gradnorm(model.parameters())
-        gnorm = 0.0
+        gnorm = gradnorm(model.parameters())
         if rank == 0:
             print(rank, epoch, loss.item(), loss_val, gnorm)
 
