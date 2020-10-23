@@ -28,6 +28,9 @@ from deephyperx_master.models import get_model
 import argparse
 from timeit import default_timer as timer
 # from torch.nn import init
+import torch.optim as optim
+import json
+import os
 
 
 def convert_to_color(x, palette):
@@ -38,6 +41,24 @@ def convert_from_color(x, invert_palette):
 def root_print(rank,s):
   if rank==0:
     print(s)
+
+def root_log(rank, test_losses, test_accs, epoch_times, test_times):
+    if rank == 0:
+        savepath = os.getcwd()
+        savefile = os.path.join(savepath, "performance_metrics.json")
+        d = {"test_loss": ','.join(str(e) for e in test_losses),
+             "test_acc": ','.join(str(e) for e in test_accs),
+             "epoch_times": ','.join(str(e) for e in epoch_times),
+             "epoch_times_mean": stats.mean(epoch_times),
+             "epoch_times_stdev": stats.stdev(epoch_times),
+             "test_times": ','.join(str(e) for e in test_times),
+             "test_times_mean": stats.mean(test_times),
+             "test_times_stdev": stats.stdev(test_times),
+             "epochs": ','.join(str(e) for e in range(1, len(test_accs) + 1))
+              }
+
+        with open(savefile, 'w') as outfile:
+            json.dump(d, outfile)
 
 
 def compute_levels(num_steps, min_coarse_size, cfactor):
@@ -53,18 +74,23 @@ def compute_levels(num_steps, min_coarse_size, cfactor):
 
 def train(rank, args, model, train_loader, optimizer, epoch, compose, criterion):
     model.train()
-    # criterion = nn.CrossEntropyLoss() #FIXME remove
     total_time = 0.0
+    # avg_loss = 0
+    # losses = np.zeros(1000000)
+    # mean_losses = np.zeros(100000000)
+    # iter_ = 1
+
     for batch_idx, (data, target) in enumerate(train_loader):
         start_time = timer()
         optimizer.zero_grad()
         output = model(data)
         loss = compose(criterion, output, target)
+        # avg_loss += loss.item()
+        # losses[iter_] = loss.item()
+        # mean_losses[iter_] = np.mean(losses[max(0, iter_ - 100):iter_ + 1])
         loss.backward()
         stop_time = timer()
         optimizer.step()
-        # MPI.COMM_WORLD.Barrier()
-        # print("Rank in train, batch idx ", MPI.COMM_WORLD.Get_rank(), batch_idx, data.shape, target.shape)
 
         total_time += stop_time - start_time
         if batch_idx % args.log_interval == 0:
@@ -76,12 +102,15 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, criterion)
             epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
                    100. * (batch_idx + 1) / len(train_loader), loss.item(), total_time / (batch_idx + 1.0)))
 
+        # root_print(rank, "mean loss " + str(mean_losses[iter_]))
+
+        # iter_ += 1
+
 
 def test(rank, model, test_loader, compose, criterion, hyperparams, img):
   model.eval()
   test_loss = 0
   correct = 0
-  # criterion = nn.CrossEntropyLoss()
   with torch.no_grad():
     for data, target in test_loader:
       data, target = data, target
@@ -98,67 +127,33 @@ def test(rank, model, test_loader, compose, criterion, hyperparams, img):
       test_loss, correct, len(test_loader.dataset),
       100. * correct / len(test_loader.dataset)))
 
-# def test(rank, model, test_loader, compose, criterion, hyperparams, img):
-#     model.eval()
-#     ignored_labels = test_loader.dataset.ignored_labels
-#     patch_size = hyperparams['patch_size']
-#     center_pixel = hyperparams['center_pixel']
-#     batch_size, device = hyperparams['batch_size'], hyperparams['device']
-#     n_classes = hyperparams['n_classes']
-#     probs = np.zeros(img.shape[:2] + (n_classes,))
-#     test_loss = 0
-#     correct = 0
-#     total = 0
-#     # criterion = nn.CrossEntropyLoss()
-#     with torch.no_grad():
-#         for data, target in test_loader:
-#             data, target = data, target
-#             output = model(data)
-#             test_loss += compose(criterion, output, target).item()
-#
-#             print("rank ", rank, " before output ", output.shape)
-#             output = MPI.COMM_WORLD.bcast(output, root=0)
-#             print("rank ", rank, " after output ", output.shape)
-#             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-#
-#             #commenting out this line causes the program to hang.
-#             #so maybe the hanging is caused by something after this.
-#             # correct += pred.eq(target.view_as(pred)).sum().item()
-#             # print("rank ", rank, " correct ", correct)
-#             # if rank == 0:
-#             # _, pred = torch.max(output, dim=1) #This line causes mpi to hang
-#             print("rank ", rank, " pred ,", pred.shape)
-#             print("rank ", rank, " target ", target.shape)
-#             break #with this the program no longer hangs. so the loop is what is making it take so long
-#             # for out, tg in zip(pred.view(-1), target.view(-1)):
-#             #     if out.item() in ignored_labels:
-#             #         continue
-#             #     else:
-#             #         print("correct")
-#             #         correct += out.item() == tg.item()
-#             #         total += 1
-#             #         print("num correct ", correct, total)
-#
-#                 # indices = [b[1:] for b in batch]
-#                 # if patch_size == 1 or center_pixel:
-#                 #     output = output.numpy()
-#                 # else:
-#                 #     output = np.transpose(output.numpy(), (0, 2, 3, 1))
-#                 # for (x, y, w, h), out in zip(indices, output):
-#                 #     if center_pixel:
-#                 #         probs[x + w // 2, y + h // 2] += out
-#                 #     else:
-#                 #         probs[x:x + w, y:y + h] += out
-#
-#     # print("done with loop")
-#     # test_loss /= len(test_loader.dataset)
-#
-#     # root_print(rank, '\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-#     #     test_loss, correct, total,
-#     #     100. * correct / total))
-#
-#     root_print(rank, 'done')
+  acc = correct / len(test_loader.dataset)
 
+  return test_loss, acc
+
+
+class SerialNet(nn.Module):
+  def __init__(self, out_channels=12, local_steps=8, Tf=1.0):
+    super(SerialNet, self).__init__()
+
+    step_layer = lambda: StepLayer(out_channels)
+
+    self.open_nn = OpenLayer(out_channels)
+    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD, step_layer, local_steps, Tf, max_levels=1, max_iters=1)
+    self.parallel_nn.setPrintLevel(0)
+
+    self.serial_nn = self.parallel_nn.buildSequentialOnRoot()
+
+    self.close_nn = CloseLayer(out_channels)
+
+    # self.all_nn = AllLayers(out_channels)
+
+  def forward(self, x):
+    x = self.open_nn(x)
+    x = self.serial_nn(x)
+    x = self.close_nn(x)
+    # x = self.all_nn(x)
+    return x
 
 class ParallelNet(nn.Module):
     def __init__(self, out_channels=12, local_steps=8, Tf=1.0, max_levels=1, max_iters=1, print_level=0):
@@ -185,13 +180,37 @@ class ParallelNet(nn.Module):
     def forward(self, x):
         # by passing this through 'o' (mean composition: e.g. self.open_nn o x)
         # this makes sure this is run on only processor 0
-
         x = self.compose(self.open_nn, x)
         x = self.parallel_nn(x)
         x = self.compose(self.close_nn, x)
-
         return x
 # end ParallelNet
+
+
+class AllLayers(nn.Module):
+    def __init__(self, channels):
+        super(AllLayers, self).__init__()
+        kernel_size = 3
+        self.conv = nn.Conv2d(200, channels, kernel_size=kernel_size, padding=1)
+
+        kernel_size = 3
+        self.conv1 = nn.Conv2d(channels, channels, kernel_size=kernel_size, padding=1)
+        self.conv2 = nn.Conv2d(channels, channels, kernel_size=kernel_size, padding=1)
+
+        n_classes = 17
+        self.features_size = 15680  # FIXME make this dynamic
+        self.fc1 = nn.Linear(self.features_size, 128)
+        self.fc2 = nn.Linear(128, n_classes)
+
+    def forward(self, x):
+        x = F.relu(self.conv(x))
+        x = F.relu(self.conv2(F.relu(self.conv1(x))))
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = F.relu(x)
+        # output = F.log_softmax(self.fc2(x), dim=1)
+        output = self.fc2(x)
+        return output
 
 
 class OpenLayer(nn.Module):
@@ -219,7 +238,7 @@ class CloseLayer(nn.Module):
     # x = x.view(-1, self.features_size)
     x = self.fc1(x)
     x = F.relu(x)
-    # output = self.fc2(x) #FIXME this is different that serial example
+    # output = self.fc2(x) #this is output for serial example in other package
     output = F.log_softmax(self.fc2(x), dim=1)
     return output
 # end layer
@@ -322,6 +341,8 @@ def main():
     parser.add_argument('--steps', type=int, default=4, metavar='N',
                         help='Number of times steps in the resnet layer (default: 4)')
 
+    parser.add_argument('--debug',  action='store_true', default=False)
+
     rank = MPI.COMM_WORLD.Get_rank()
     procs = MPI.COMM_WORLD.Get_size()
     args = parser.parse_args()
@@ -404,9 +425,17 @@ def main():
                                            ignored_labels=IGNORED_LABELS)
         plot_spectrums(mean_spectrums, viz, title='Mean spectrum/class')
 
+    n_classes = hyperparams['n_classes']
+    n_bands = hyperparams['n_bands']
+    weights = torch.ones(n_classes)
+    weights[torch.LongTensor(hyperparams['ignored_labels'])] = 0.
+    weights = hyperparams.setdefault('weights', weights)
+
+    hyperparams.setdefault('patch_size', 28)
+    center_pixel = True
+
     if force_lp:
         root_print(rank, 'Using ParallelNet')
-        _, optimizer, loss, hyperparams = get_model(MODEL, **hyperparams) #FIXME get opt and hyperparams normally
         model = ParallelNet(out_channels=20, local_steps=local_steps,
                             max_levels=args.lp_levels,
                             max_iters=args.lp_iters,
@@ -414,20 +443,38 @@ def main():
         compose = model.compose
     else:
         root_print(rank, 'Using SerialNet')
-        # model = SerialNet(channels=args.channels, local_steps=local_steps)
-        model, optimizer, loss, hyperparams = get_model(MODEL, **hyperparams)
+
+        model = SerialNet(out_channels=20, local_steps=local_steps) #FIXMe pass in n_bands
         compose = lambda op, *p: op(*p)
 
-    # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+    lr = hyperparams.setdefault('learning_rate', 0.01)
+    optimizer = optim.SGD(model.parameters(), lr=lr)
+    loss = nn.CrossEntropyLoss(weight=hyperparams['weights'])
+    hyperparams.setdefault('batch_size', 100)
+    epochs = hyperparams.setdefault('epoch', args.epoch)
+    # hyperparams.setdefault('scheduler', optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=epoch // 4,verbose=True))
+    # kwargs.setdefault('scheduler', None)
+    hyperparams.setdefault('batch_size', 100)
+    hyperparams.setdefault('supervision', 'full')
+    hyperparams.setdefault('flip_augmentation', False)
+    hyperparams.setdefault('radiation_augmentation', False)
+    hyperparams.setdefault('mixture_augmentation', False)
+    hyperparams['center_pixel'] = center_pixel
 
     results = []
     np.random.seed(args.seed)
     train_gt, test_gt = sample_gt(gt, SAMPLE_PERCENTAGE, mode=SAMPLING_MODE)
-    # print("rank gt ", rank, train_gt)
+    train_gt, val_gt = sample_gt(train_gt, 0.95, mode='random')
+
+    if args.debug:
+        # n = 100 #test acc will change with this
+        n = 45 #test acc won't change with this
+        train_gt = train_gt[:n, :n]
+        test_gt = test_gt[:n, :n]
+        img = img[:n, :n, :]
+
     train_dataset = HyperX(img, train_gt, "gary", **hyperparams)
-    # myidx = 15
-    # print("Rank ", rank, train_dataset.__getitem__(myidx)[0][5, :3, :3], train_dataset.__getitem__(myidx)[1])
-    # sys.exit()
+
     train_loader = torch.utils.data.DataLoader(train_dataset,
                                    batch_size=hyperparams['batch_size'],
                                    # pin_memory=hyperparams['device'],
@@ -440,16 +487,20 @@ def main():
 
     epoch_times = []
     test_times = []
-    for epoch in range(1, args.epoch + 1):
+    test_losses = []
+    test_accs = []
+    for epoch in range(1, epochs + 1):
         start_time = timer()
         train(rank, args, model, train_loader, optimizer, epoch, compose, loss)
         end_time = timer()
         epoch_times += [end_time - start_time]
 
         start_time = timer()
-        test(rank, model, test_loader, compose, loss, hyperparams, img)
+        test_loss, test_acc = test(rank, model, test_loader, compose, loss, hyperparams, img)
         end_time = timer()
         test_times += [end_time - start_time]
+        test_losses += [test_loss]
+        test_accs += [test_acc]
 
     if force_lp:
         timer_str = model.parallel_nn.getTimersString()
@@ -458,6 +509,7 @@ def main():
     root_print(rank, 'TIME PER EPOCH: %.2e (1 std dev %.2e)' % (stats.mean(epoch_times), stats.stdev(epoch_times)))
     root_print(rank, 'TIME PER TEST:  %.2e (1 std dev %.2e)' % (stats.mean(test_times), stats.stdev(test_times)))
 
+    root_log(rank, test_losses, test_accs, epoch_times, test_times)
     # if rank == 0:
     #     probabilities = test_prob(model, img, hyperparams, "gary")
     #     prediction = np.argmax(probabilities, axis=-1)
