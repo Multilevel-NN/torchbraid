@@ -71,6 +71,7 @@ class ForwardODENetApp(BraidApp):
     comm          = self.getMPIComm()
     my_rank       = self.getMPIComm().Get_rank()
     num_ranks     = self.getMPIComm().Get_size()
+    self.my_rank = my_rank
 
     # send everything to the left (this helps with the adjoint method)
     if my_rank>0:
@@ -153,6 +154,8 @@ class ForwardODENetApp(BraidApp):
 
   def getLayer(self,t,tf,level):
     index = self.getLocalTimeStepIndex(t,tf,level)
+    if index < 0:
+      print(self.my_rank, ": WARNING: getLayer index negative: ", index)
     return self.layer_models[index]
 
   def parameters(self):
@@ -170,6 +173,8 @@ class ForwardODENetApp(BraidApp):
       # get some information about what to do
       dt = tstop-tstart
       layer = self.getLayer(tstart,tstop,level) # resnet "basic block"
+
+      print(self.my_rank, ": FWDeval level ", level, " ", tstart, "->", tstop, " using layer ", layer.getID(), ": ", layer.linearlayer.weight[0].data)
 
       if t_x==None:
         t_x = t_y
@@ -211,9 +216,9 @@ class ForwardODENetApp(BraidApp):
 
       # no gradients are necessary here, so don't compute them
       with torch.no_grad():
-        in_place_eval(t_y,tstart,tstop,level)
-    else: 
-      x.requires_grad = True 
+        in_place_eval(y.tensor().detach(),tstart,tstop,level)
+    else:
+      x.requires_grad = True
       with torch.enable_grad():
         in_place_eval(y,tstart,tstop,level,t_x=x)
   # end eval
