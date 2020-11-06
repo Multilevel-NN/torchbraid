@@ -1,31 +1,31 @@
 #@HEADER
 # ************************************************************************
-# 
+#
 #                        Torchbraid v. 0.1
-# 
-# Copyright 2020 National Technology & Engineering Solutions of Sandia, LLC 
-# (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. 
+#
+# Copyright 2020 National Technology & Engineering Solutions of Sandia, LLC
+# (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 # Government retains certain rights in this software.
-# 
+#
 # Torchbraid is licensed under 3-clause BSD terms of use:
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
 # met:
-# 
+#
 # 1. Redistributions of source code must retain the above copyright
 # notice, this list of conditions and the following disclaimer.
-# 
+#
 # 2. Redistributions in binary form must reproduce the above copyright
 # notice, this list of conditions and the following disclaimer in the
 # documentation and/or other materials provided with the distribution.
-# 
-# 3. Neither the name National Technology & Engineering Solutions of Sandia, 
-# LLC nor the names of the contributors may be used to endorse or promote 
+#
+# 3. Neither the name National Technology & Engineering Solutions of Sandia,
+# LLC nor the names of the contributors may be used to endorse or promote
 # products derived from this software without specific prior written permission.
-# 
+#
 # Questions? Contact Eric C. Cyr (eccyr@sandia.gov)
-# 
+#
 # ************************************************************************
 #@HEADER
 
@@ -131,23 +131,23 @@ class ForwardODENetApp(BraidApp):
 #     This does no parallel computation. The result is a dictionary
 #     with hopefully self explanatory names.
 #     """
-# 
+#
 #     # make sure you could store this
 #     assert(self.enable_diagnostics)
 #     #assert(self.soln_store is not None)
-# 
+#
 #     result = dict()
 #     result['timestep_index'] = []
 #     result['step_in'] = []
 #     result['step_out'] = []
 #     for ts in sorted(self.soln_store):
 #       x,y = self.soln_store[ts]
-# 
+#
 #       result['timestep_index'] += [ts]
 #       result['step_in']        += [torch.norm(x).item()]
 #       result['step_out']       += [torch.norm(y).item()]
-# 
-#     return result 
+#
+#     return result
 
   def timer(self,name):
     return self.timer_manager.timer("ForWD::"+name)
@@ -188,43 +188,50 @@ class ForwardODENetApp(BraidApp):
 
     # there are two paths by which eval is called:
     #  1. x is a BraidVector: my step has called this method
-    #  2. x is a torch tensor: called internally (probably for the adjoint) 
+    #  2. x is a torch tensor: called internally (probably for the adjoint)
 
-    if isinstance(y,BraidVector) and level==0:
-      # store off the solution for later adjoints
-      if self.internal_storage:
-        ts_index_x = self.getGlobalTimeStepIndex(tstart,None,0)
-        ts_index_y = self.getGlobalTimeStepIndex(tstop,None,0)
+    try:
+      if isinstance(y,BraidVector) and level==0:
+        # store off the solution for later adjoints
+        if self.internal_storage:
+          ts_index_x = self.getGlobalTimeStepIndex(tstart,None,0)
+          ts_index_y = self.getGlobalTimeStepIndex(tstop,None,0)
 
-        if ts_index_x not in self.soln_store:
-          self.soln_store[ts_index_x] = y.tensor().detach().clone()
-      # internal_storage
+          if ts_index_x not in self.soln_store:
+            self.soln_store[ts_index_x] = y.tensor().detach().clone()
+        # internal_storage
 
-      t_y = y.tensor().detach()
+        t_y = y.tensor().detach()
 
-      with torch.no_grad():
-        in_place_eval(t_y,tstart,tstop,level)
+        with torch.no_grad():
+          in_place_eval(t_y,tstart,tstop,level)
 
-      if self.internal_storage:
-        if ts_index_y in self.soln_store:
-          self.soln_store[ts_index_y].copy_(t_y.detach())
-        else:
-          self.soln_store[ts_index_y] = t_y.detach().clone()
-    elif isinstance(y,BraidVector):
-      # sanity check
-      assert(level!=0)
+        if self.internal_storage:
+          if ts_index_y in self.soln_store:
+            self.soln_store[ts_index_y].copy_(t_y.detach())
+          else:
+            self.soln_store[ts_index_y] = t_y.detach().clone()
+      elif isinstance(y,BraidVector):
+        # sanity check
+        assert(level!=0)
 
-      # no gradients are necessary here, so don't compute them
-      with torch.no_grad():
-        in_place_eval(y.tensor().detach(),tstart,tstop,level)
-    else:
-      x.requires_grad = True
-      with torch.enable_grad():
-        in_place_eval(y,tstart,tstop,level,t_x=x)
+        t_y = y.tensor().detach()
+
+        # no gradients are necessary here, so don't compute them
+        with torch.no_grad():
+          in_place_eval(t_y,tstart,tstop,level)
+      else:
+        x.requires_grad = True
+        with torch.enable_grad():
+          in_place_eval(y,tstart,tstop,level,t_x=x)
+
+    except:
+      print('\n**** Torchbraid ODENet::eval Exception ****\n')
+      traceback.print_exc()
   # end eval
 
   def getPrimalWithGrad(self,tstart,tstop,level):
-    """ 
+    """
     Get the forward solution associated with this
     time step and also get its derivative. This is
     used by the BackwardApp in computation of the
@@ -233,13 +240,13 @@ class ForwardODENetApp(BraidApp):
     so it can be stored internally instead of
     being recomputed.
     """
-    
+
     layer = self.getLayer(tstart,tstop,level)
 
     # the idea here is store it internally, failing
     # that the values need to be recomputed locally. This may be
     # because you are at a processor boundary, or decided not
-    # to start the value 
+    # to start the value
     if self.internal_storage:
       ts_index = self.getGlobalTimeStepIndex(tstart,tstop,level)
       assert(ts_index in self.soln_store)
@@ -298,7 +305,7 @@ class BackwardODENetApp(BraidApp):
 
       f = self.runBraid(x)
 
-      # this is for an agressive memory cleanup, if you need 
+      # this is for an agressive memory cleanup, if you need
       # multiple gradients (the assertion failed above) you
       # should make this in option
       if self.fwd_app.internal_storage:
@@ -318,10 +325,10 @@ class BackwardODENetApp(BraidApp):
       # - can have gradient's turned off
       my_params = self.fwd_app.parameters()
       for sublist in my_params[first:]:
-        sub_gradlist = [] 
+        sub_gradlist = []
         for item in sublist:
           if item.grad is not None:
-            sub_gradlist += [ item.grad.clone() ] 
+            sub_gradlist += [ item.grad.clone() ]
           else:
             sub_gradlist += [ None ]
 
@@ -356,7 +363,7 @@ class BackwardODENetApp(BraidApp):
         required_grad_state = []
 
         # play with the layers gradient to make sure they are on apprpriately
-        for p in layer.parameters(): 
+        for p in layer.parameters():
           required_grad_state += [p.requires_grad]
           if level==0:
             if not p.grad is None:
@@ -373,7 +380,7 @@ class BackwardODENetApp(BraidApp):
         # this little bit of pytorch magic ensures the gradient isn't
         # stored too long in this calculation (in particulcar setting
         # the grad to None after saving it and returning it to braid)
-        t_w.copy_(t_x.grad.detach()) 
+        t_w.copy_(t_x.grad.detach())
 
         for p,s in zip(layer.parameters(),required_grad_state):
           p.requires_grad = s
