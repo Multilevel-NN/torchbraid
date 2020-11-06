@@ -258,6 +258,13 @@ cdef extern from "_braid.h":
                              int         index,
                              braid_BaseVector *u_ptr);
 
+    ##
+    # helper functions for accessing information on Braid's parallel grid distribution
+    int _braid_GetDistribution(braid_Core   core,
+                               int *ilower_ptr,
+                               int *iupper_ptr);
+
+
 # cdef object convert_carray_to_numpy(double * v, dim1, dim2=1, dim3=1):
 #     '''
 #     Helper function to cast C array v to an (dim1 x dim2 x dim3) 

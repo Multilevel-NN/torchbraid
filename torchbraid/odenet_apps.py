@@ -152,8 +152,12 @@ class ForwardODENetApp(BraidApp):
   def timer(self,name):
     return self.timer_manager.timer("ForWD::"+name)
 
-  def getLayer(self,t,tf,level):
-    index = self.getLocalTimeStepIndex(t,tf,level)
+  def getLayer(self,t):
+    index = self.getLocalTimeStepIndex(t)
+    # on the first processor, shift index by one because there is not layer at t=0.0, so P0 will have one layer less than time-steps.
+    if self.my_rank == 0:
+      index = index - 1
+
     if index < 0:
       print(self.my_rank, ": WARNING: getLayer index negative: ", index)
     return self.layer_models[index]
@@ -172,7 +176,7 @@ class ForwardODENetApp(BraidApp):
     def in_place_eval(t_y,tstart,tstop,level,t_x=None):
       # get some information about what to do
       dt = tstop-tstart
-      layer = self.getLayer(tstart,tstop,level) # resnet "basic block"
+      layer = self.getLayer(tstop) # resnet "basic block"
 
       print(self.my_rank, ": FWDeval level ", level, " ", tstart, "->", tstop, " using layer ", layer.getID(), ": ", layer.linearlayer.weight[0].data)
 
@@ -194,8 +198,8 @@ class ForwardODENetApp(BraidApp):
       if isinstance(y,BraidVector) and level==0:
         # store off the solution for later adjoints
         if self.internal_storage:
-          ts_index_x = self.getGlobalTimeStepIndex(tstart,None,0)
-          ts_index_y = self.getGlobalTimeStepIndex(tstop,None,0)
+          ts_index_x = self.getGlobalTimeStepIndex(tstart)
+          ts_index_y = self.getGlobalTimeStepIndex(tstop)
 
           if ts_index_x not in self.soln_store:
             self.soln_store[ts_index_x] = y.tensor().detach().clone()
@@ -241,14 +245,14 @@ class ForwardODENetApp(BraidApp):
     being recomputed.
     """
 
-    layer = self.getLayer(tstart,tstop,level)
+    layer = self.getLayer(tstop)
 
     # the idea here is store it internally, failing
     # that the values need to be recomputed locally. This may be
     # because you are at a processor boundary, or decided not
     # to start the value
     if self.internal_storage:
-      ts_index = self.getGlobalTimeStepIndex(tstart,tstop,level)
+      ts_index = self.getGlobalTimeStepIndex(tstart)
       assert(ts_index in self.soln_store)
       t_x = self.soln_store[ts_index]
     else:
