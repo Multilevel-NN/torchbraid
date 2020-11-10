@@ -190,37 +190,44 @@ class ForwardODENetApp(BraidApp):
     #  1. x is a BraidVector: my step has called this method
     #  2. x is a torch tensor: called internally (probably for the adjoint) 
 
-    if isinstance(y,BraidVector) and level==0:
-      # store off the solution for later adjoints
-      if self.internal_storage:
-        ts_index_x = self.getGlobalTimeStepIndex(tstart,None,0)
-        ts_index_y = self.getGlobalTimeStepIndex(tstop,None,0)
+    try:
+      if isinstance(y,BraidVector) and level==0:
+        # store off the solution for later adjoints
+        if self.internal_storage:
+          ts_index_x = self.getGlobalTimeStepIndex(tstart,None,0)
+          ts_index_y = self.getGlobalTimeStepIndex(tstop,None,0)
 
-        if ts_index_x not in self.soln_store:
-          self.soln_store[ts_index_x] = y.tensor().detach().clone()
-      # internal_storage
+          if ts_index_x not in self.soln_store:
+            self.soln_store[ts_index_x] = y.tensor().detach().clone()
+        # internal_storage
 
-      t_y = y.tensor().detach()
+        t_y = y.tensor().detach()
 
-      with torch.no_grad():
-        in_place_eval(t_y,tstart,tstop,level)
+        with torch.no_grad():
+          in_place_eval(t_y,tstart,tstop,level)
 
-      if self.internal_storage:
-        if ts_index_y in self.soln_store:
-          self.soln_store[ts_index_y].copy_(t_y.detach())
-        else:
-          self.soln_store[ts_index_y] = t_y.detach().clone()
-    elif isinstance(y,BraidVector):
-      # sanity check
-      assert(level!=0)
+        if self.internal_storage:
+          if ts_index_y in self.soln_store:
+            self.soln_store[ts_index_y].copy_(t_y.detach())
+          else:
+            self.soln_store[ts_index_y] = t_y.detach().clone()
+      elif isinstance(y,BraidVector):
+        # sanity check
+        assert(level!=0)
 
-      # no gradients are necessary here, so don't compute them
-      with torch.no_grad():
-        in_place_eval(y.tensor().detach(),tstart,tstop,level)
-    else:
-      x.requires_grad = True
-      with torch.enable_grad():
-        in_place_eval(y,tstart,tstop,level,t_x=x)
+        t_y = y.tensor().detach()
+
+        # no gradients are necessary here, so don't compute them
+        with torch.no_grad():
+          in_place_eval(t_y,tstart,tstop,level)
+      else: 
+        x.requires_grad = True 
+        with torch.enable_grad():
+          in_place_eval(y,tstart,tstop,level,t_x=x)
+
+    except:
+      print('\n**** Torchbraid ODENet::eval Exception ****\n')
+      traceback.print_exc()
   # end eval
 
   def getPrimalWithGrad(self,tstart,tstop,level):
