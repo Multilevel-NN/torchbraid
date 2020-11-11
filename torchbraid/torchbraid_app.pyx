@@ -196,6 +196,9 @@ class BraidApp:
 
     self.enable_diagnostics = enable
 
+  def getTensorShapes(self):
+    return self.fwd_app.getTensorShapes()
+
   def setShape(self,shape):
     # the shape to use if non-exists for taking advantage of allocations in braid
     if isinstance(shape,torch.Size):

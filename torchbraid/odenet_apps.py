@@ -86,10 +86,18 @@ class ForwardODENetApp(BraidApp):
     self.timer_manager = timer_manager
     self.use_deriv = False
     self.internal_storage = True
+
+    self.parameter_shapes = []
+    for l in self.layer_models:
+      for p in l.parameters(): 
+        self.parameter_shapes += [p.data.size()]
   # end __init__
 
   def __del__(self):
     pass
+
+  def getTensorShapes(self):
+    return list(self.shape0)+self.parameter_shapes
 
   def updateParallelWeights(self):
     # send everything to the left (this helps with the adjoint method)
@@ -174,7 +182,7 @@ class ForwardODENetApp(BraidApp):
       dt = tstop-tstart
       layer = self.getLayer(tstart,tstop,level) # resnet "basic block"
 
-      print(self.my_rank, ": FWDeval level ", level, " ", tstart, "->", tstop, " using layer ", layer.getID(), ": ", layer.linearlayer.weight[0].data)
+      #print(self.my_rank, ": FWDeval level ", level, " ", tstart, "->", tstop, " using layer ", layer.getID(), ": ", layer.linearlayer.weight[0].data)
 
       if t_x==None:
         t_x = t_y
@@ -292,6 +300,9 @@ class BackwardODENetApp(BraidApp):
 
   def __del__(self):
     self.fwd_app = None
+
+  def getTensorShapes(self):
+    return self.shape0
 
   def timer(self,name):
     return self.timer_manager.timer("BckWD::"+name)

@@ -138,12 +138,13 @@ cdef int my_norm(braid_App app, braid_Vector u, double *norm_ptr):
 cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   pyApp = <object> app
 
-  num_tensors = len(pyApp.shape0) # all tensors 
+  shapes = pyApp.getTensorShapes()
+  num_tensors = len(shapes) # all tensors
   cnt = 0
   total_shape = 0
-  for s in pyApp.shape0:
-    cnt += pyApp.shape0[0].numel()
-    rank = len(pyApp.shape0[0])
+  for s in shapes:
+    cnt += s.numel() # pyApp.shape0[0].numel()
+    rank = len(s) #len(pyApp.shape0[0])
     total_shape += rank*sizeof(int)
 
   # because the braid vectors are sometimes moved with weight components, the app
@@ -156,7 +157,6 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
 
   size_ptr[0] = sizeof(int) + sizeof(int) + sizeof(int) + num_tensors*sizeof(int) + total_shape + sizeof(float)*cnt
                  #  level     num_tensors   num_weight_tensors          rank             total_shape         vector_data
-
 
   return 0
 
