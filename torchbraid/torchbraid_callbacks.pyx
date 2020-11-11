@@ -138,22 +138,25 @@ cdef int my_norm(braid_App app, braid_Vector u, double *norm_ptr):
 cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   pyApp = <object> app
 
-  num_tensors = len(pyApp.shape0)
+  num_tensors = len(pyApp.shape0) # all tensors 
   cnt = 0
   total_shape = 0
   for s in pyApp.shape0:
     cnt += pyApp.shape0[0].numel()
     rank = len(pyApp.shape0[0])
     total_shape += rank*sizeof(int)
-    
+
+  # because the braid vectors are sometimes moved with weight components, the app
+  # object is responsible for making sure those are sized appropriately. 
 
   # Note size_ptr is an integer array of size 1, and we index in at location [0]
 
   # there are mulitple fields in a packed buffer, in orderr
-  #     level (1 int), num_tensors (1 int), [rank (1 int), sizes (rank int)] * (num_tensors), tensor data
+  #     level (1 int), num_tensors (1 int), num_weight_tensors (1 int), [rank (1 int), sizes (rank int)] * (num_tensors), tensor data
 
-  size_ptr[0] = sizeof(int) + sizeof(int) + num_tensors*sizeof(int) + total_shape + sizeof(float)*cnt 
-                 #  level     num_tensors             rank             total_shape          vector_data
+  size_ptr[0] = sizeof(int) + sizeof(int) + sizeof(int) + num_tensors*sizeof(int) + total_shape + sizeof(float)*cnt
+                 #  level     num_tensors   num_weight_tensors          rank             total_shape         vector_data
+
 
   return 0
 
@@ -172,25 +175,27 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   ibuffer = <int *> buffer
 
   # write out the buffer meta data
-  level       = bv_u.level()
-  num_tensors = len(bv_u.tensors())
+  level              = bv_u.level()
+  num_tensors        = len(bv_u.allTensors())
+  num_weight_tensors = len(bv_u.weightTensors())
 
   ibuffer[0] = level
   ibuffer[1] = num_tensors
+  ibuffer[2] = num_weight_tensors
 
-  offset = 0
-  for t in bv_u.tensors():
+  offset = 3 # this is accomdating space for the three integers
+  for t in bv_u.allTensors():
     size = t.size() 
-    ibuffer[2+offset] = len(size)
+    ibuffer[offset] = len(size)
     for i,s in enumerate(size):
-      ibuffer[2+i+offset+1] = s
+      ibuffer[i+offset+1] = s
         
     offset += len(size)+1
-  # end for t
+  # end for a: creating space for the number tensors
 
   # copy the data
-  fbuffer = <float *>(buffer+(2+offset)*sizeof(int)) 
-  for ten_U in bv_u.tensors():
+  fbuffer = <float *>(buffer+offset*sizeof(int)) 
+  for ten_U in bv_u.allTensors():
     np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
 
     # copy the tensor into the buffer
@@ -216,28 +221,34 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   # read in the buffer metda data
   ibuffer = <int *> buffer
 
-  level       = ibuffer[0]
-  num_tensors = ibuffer[1]
+  level              = ibuffer[0]
+  num_tensors        = ibuffer[1]
+  num_weight_tensors = ibuffer[2]
 
-  offset = 0
+  offset = 3
   sizes = []
   for t in range(num_tensors):
-    rank = ibuffer[2+offset]
+    rank = ibuffer[offset]
     size = rank*[0]
     for i in range(rank):
-      size[i] = ibuffer[2+i+offset+1]
+      size[i] = ibuffer[i+offset+1]
         
     sizes += [size]
     offset += len(size)+1
 
   # build up the braid vector
   tens = [torch.zeros(s) for s in sizes]
-  u_obj = BraidVector(tuple(tens),level)
-  Py_INCREF(u_obj) # why do we need this?
+  vector_tensors = tens[0:num_tensors-num_weight_tensors]
+  weight_tensors = tens[num_tensors-num_weight_tensors:-1]
+
+  # build an vector object and set the tensors to land in the correct places
+  u_obj = BraidVector(tuple(vector_tensors),level)
+  Py_INCREF(u_obj) 
+  u_obj.addWeightTensors(weight_tensors)
 
   # copy from the buffer into the braid vector
-  fbuffer = <float *>(buffer+(2+offset)*sizeof(int)) # level, rank, sizes
-  for ten_U in u_obj.tensors():
+  fbuffer = <float *>(buffer+(offset)*sizeof(int)) # level, rank, sizes
+  for ten_U in u_obj.allTensors():
     np_U = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
   
     # copy the buffer into the tensor

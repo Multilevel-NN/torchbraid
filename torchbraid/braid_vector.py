@@ -41,6 +41,7 @@ class BraidVector:
     BraidVector.instance += 1
 
     self.instance = BraidVector.instance
+    self.weight_tensor_data_ = []
 
     s = ''
     if isinstance(tensor,Iterable):
@@ -64,10 +65,20 @@ class BraidVector:
 
   def __del__(self):
     self.tensor_data_ = None
+    self.weight_tensor_data_ = None
+
+  def addWeightTensors(self,weights):
+    """
+     
+    """
+    self.weight_tensor_data_ = list(weights)
+
+  def releaseWeightTensors(self):
+    self.weight_tensor_data_ = []
 
   def replaceTensor(self,t,i=0):
     """
-    Replace the teensor. This is a shallow
+    Replace the tensor. This is a shallow
     copy of the tensor. This method returns the old
     tensor object.
     """
@@ -88,6 +99,12 @@ class BraidVector:
 
   def tensors(self):
     return self.tensor_data_
+
+  def weightTensors(self):
+    return self.weight_tensor_data_
+
+  def allTensors(self):
+    return list(self.tensor_data_) + self.weight_tensor_data_
 
   def level(self):
     return self.level_
