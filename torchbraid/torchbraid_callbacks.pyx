@@ -35,37 +35,46 @@
 import math
 import torch
 import numpy as np
+import traceback
+import sys
 cimport numpy as np
 
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
 from cython cimport view
 
+def output_exception(label):
+  s = traceback.format_exc()
+  print('\n**** Torchbraid Callbacks::{} Exception ****\n{}'.format(label,s))
+
 ##
 # Define your Python Braid Vector as a C-struct
 
 cdef int my_access(braid_App app,braid_Vector u,braid_AccessStatus status):
-  pyApp = <object> app
 
   cdef double t
 
-  with pyApp.timer("my_access"):
+  try:
+    pyApp = <object> app
+
     # Create Numpy wrapper around u.v
     ten_u = <object> u
 
     braid_AccessStatusGetT(status, &t)
 
     pyApp.access(t,ten_u)
+  except:
+    output_exception("my_access")
+
   return 0
 
 cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Vector vec_u, braid_StepStatus status):
-  pyApp = <object> app
-
   cdef double tstart
   cdef double tstop
   cdef int level
 
-  with pyApp.timer("my_step"):
+  try:
+    pyApp = <object> app
 
     tstart = 0.0
     tstop = 5.0
@@ -76,39 +85,47 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
     # modify the state vector in place
     u =  <object> vec_u
     pyApp.eval(u,tstart,tstop,level)
+  except:
+    output_exception("my_step")
 
   return 0
 # end my_access
 
 cdef int my_init(braid_App app, double t, braid_Vector *u_ptr):
-  pyApp = <object> app
-  with pyApp.timer("my_init"):
+  try:
+    pyApp = <object> app
     u_mem = pyApp.buildInit(t)
     Py_INCREF(u_mem) # why do we need this?
     u_ptr[0] = <braid_Vector> u_mem
+  except:
+    output_exception("my_init")
 
   return 0
 
 cdef int my_free(braid_App app, braid_Vector u):
   pyApp = <object> app
-  with pyApp.timer("my_free"):
+  try:
     # Cast u as a PyBraid_Vector
     pyU = <object> u
     # Decrement the smart pointer
     Py_DECREF(pyU) 
     del pyU
+  except:
+    output_exception("my_free")
   return 0
 
 cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_Vector y):
   # This routine cna be made faster by using the pyTorch tensor operations
   # My initial attempt at this failed however
 
-  with torch.no_grad():
+  try:
     bv_X = <object> x
     bv_Y = <object> y
     for ten_X,ten_Y in zip(bv_X.tensors(),bv_Y.tensors()):
       ten_Y.mul_(float(beta))
       ten_Y.add_(ten_X,alpha=float(alpha))
+  except:
+    output_exception("my_sum")
 
   return 0
 
@@ -209,6 +226,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   return 0
 
 cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_BufferStatus status):
+
   pyApp = <object>app
 
   cdef int * ibuffer 
