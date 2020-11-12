@@ -138,6 +138,7 @@ class LayerParallel(nn.Module):
 
   def zero_grad(self):
     for l in self.fwd_app.layer_models:
+      if l==None: continue
       l.zero_grad()
     self.local_layers.zero_grad()
 

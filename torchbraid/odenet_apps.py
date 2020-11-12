@@ -79,6 +79,9 @@ class ForwardODENetApp(BraidApp):
     if my_rank<num_ranks-1:
       neighbor_model = comm.recv(source=my_rank+1,tag=22)
       self.layer_models.append(neighbor_model)
+    else:
+      # this is a sentinel at the end of the processors and layers
+      self.layer_models.append(None)
 
     # build up the core
     self.py_core = self.initCore()
@@ -89,6 +92,7 @@ class ForwardODENetApp(BraidApp):
 
     self.parameter_shapes = []
     for l in self.layer_models:
+      if l==None: continue
       for p in l.parameters(): 
         self.parameter_shapes += [p.data.size()]
   # end __init__
@@ -98,6 +102,21 @@ class ForwardODENetApp(BraidApp):
 
   def getTensorShapes(self):
     return list(self.shape0)+self.parameter_shapes
+
+  def buildInit(self,t):
+    if t>0:
+      zeros = [torch.zeros(s) for s in self.shape0]
+      x = BraidVector(tuple(zeros),0)
+    else:
+      x = BraidVector(self.x0.tensors(),0)
+
+    layer = self.getLayer(t,0.0,0)
+    if layer!=None:
+      weights = [p.data for p in layer.parameters()]
+    else:
+      weights = []
+    x.addWeightTensors(weights)
+    return x
 
   def updateParallelWeights(self):
     # send everything to the left (this helps with the adjoint method)
@@ -164,10 +183,16 @@ class ForwardODENetApp(BraidApp):
     index = self.getLocalTimeStepIndex(t,tf,level)
     if index < 0:
       print(self.my_rank, ": WARNING: getLayer index negative: ", index)
+
     return self.layer_models[index]
 
   def parameters(self):
-    return [list(l.parameters()) for l in self.layer_models]
+    params = []
+    for l in self.layer_models:
+      if l!=None:
+        params += [list(l.parameters())]
+
+    return params
 
   def eval(self,y,tstart,tstop,level,x=None):
     """
@@ -346,8 +371,9 @@ class BackwardODENetApp(BraidApp):
         self.grads += [ sub_gradlist ]
       # end for sublist
 
-      for m in self.fwd_app.layer_models:
-         m.zero_grad()
+      for l in self.fwd_app.layer_models:
+         if l==None: continue
+         l.zero_grad()
     except:
       print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
