@@ -257,7 +257,10 @@ class ForwardODENetApp(BraidApp):
     
     layer = self.getLayer(tstart,tstop,level)
 
-    t_x = self.getUVector(0,tstart).tensor()
+    b_x = self.getUVector(0,tstart)
+    t_x = b_x.tensor()
+
+    self.setLayerWeights(tstart,b_x.weightTensors())
 
     x = t_x.detach()
     y = t_x.detach().clone()
