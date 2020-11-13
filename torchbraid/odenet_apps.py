@@ -103,6 +103,22 @@ class ForwardODENetApp(BraidApp):
   def getTensorShapes(self):
     return list(self.shape0)+self.parameter_shapes
 
+  def setVectorWeights(self,t,x):
+    layer = self.getLayer(t,0.0,0)
+    if layer!=None:
+      weights = [p.data for p in layer.parameters()]
+    else:
+      weights = []
+    x.addWeightTensors(weights)
+
+  def setLayerWeights(self,t,weights):
+    layer = self.getLayer(t,0.0,0)
+
+    with torch.no_grad():
+      for dest_p,src_w in zip(list(layer.parameters()),weights):
+        dest_p.data = src_w
+  # end setLayerWeights
+
   def buildInit(self,t):
     if t>0:
       zeros = [torch.zeros(s) for s in self.shape0]
@@ -110,12 +126,7 @@ class ForwardODENetApp(BraidApp):
     else:
       x = BraidVector(self.x0.tensors(),0)
 
-    layer = self.getLayer(t,0.0,0)
-    if layer!=None:
-      weights = [p.data for p in layer.parameters()]
-    else:
-      weights = []
-    x.addWeightTensors(weights)
+    self.setVectorWeights(t,x)
     return x
 
   def updateParallelWeights(self):
@@ -223,44 +234,47 @@ class ForwardODENetApp(BraidApp):
     #  1. x is a BraidVector: my step has called this method
     #  2. x is a torch tensor: called internally (probably for the adjoint) 
 
-    try:
-      if isinstance(y,BraidVector) and level==0:
-        # store off the solution for later adjoints
-        if self.internal_storage:
-          ts_index_x = self.getGlobalTimeStepIndex(tstart,None,0)
-          ts_index_y = self.getGlobalTimeStepIndex(tstop,None,0)
+    if isinstance(y,BraidVector) and level==0:
+      # store off the solution for later adjoints
+      if self.internal_storage:
+        ts_index_x = self.getGlobalTimeStepIndex(tstart,None,0)
+        ts_index_y = self.getGlobalTimeStepIndex(tstop,None,0)
 
-          if ts_index_x not in self.soln_store:
-            self.soln_store[ts_index_x] = y.tensor().detach().clone()
-        # internal_storage
+        if ts_index_x not in self.soln_store:
+          self.soln_store[ts_index_x] = y.tensor().detach().clone()
+      # internal_storage
 
-        t_y = y.tensor().detach()
+      self.setLayerWeights(tstart,y.weightTensors())
 
-        with torch.no_grad():
-          in_place_eval(t_y,tstart,tstop,level)
+      t_y = y.tensor().detach()
 
-        if self.internal_storage:
-          if ts_index_y in self.soln_store:
-            self.soln_store[ts_index_y].copy_(t_y.detach())
-          else:
-            self.soln_store[ts_index_y] = t_y.detach().clone()
-      elif isinstance(y,BraidVector):
-        # sanity check
-        assert(level!=0)
+      with torch.no_grad():
+        in_place_eval(t_y,tstart,tstop,level)
 
-        t_y = y.tensor().detach()
+      if self.internal_storage:
+        if ts_index_y in self.soln_store:
+          self.soln_store[ts_index_y].copy_(t_y.detach())
+        else:
+          self.soln_store[ts_index_y] = t_y.detach().clone()
 
-        # no gradients are necessary here, so don't compute them
-        with torch.no_grad():
-          in_place_eval(t_y,tstart,tstop,level)
-      else: 
-        x.requires_grad = True 
-        with torch.enable_grad():
-          in_place_eval(y,tstart,tstop,level,t_x=x)
+      self.setVectorWeights(tstop,y)
+    elif isinstance(y,BraidVector):
+      # sanity check
+      assert(level!=0)
 
-    except:
-      print('\n**** Torchbraid ODENet::eval Exception ****\n')
-      traceback.print_exc()
+      self.setLayerWeights(tstart,y.weightTensors())
+
+      t_y = y.tensor().detach()
+
+      # no gradients are necessary here, so don't compute them
+      with torch.no_grad():
+        in_place_eval(t_y,tstart,tstop,level)
+
+      self.setVectorWeights(tstop,y)
+    else: 
+      x.requires_grad = True 
+      with torch.enable_grad():
+        in_place_eval(y,tstart,tstop,level,t_x=x)
   # end eval
 
   def getPrimalWithGrad(self,tstart,tstop,level):
