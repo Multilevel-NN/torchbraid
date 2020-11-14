@@ -38,6 +38,7 @@ from .gittools import git_rev
 
 import gc
 import torch
+import traceback
 
 def seed_from_rank(seed,rank):
   """
@@ -81,3 +82,17 @@ def tensor_memory(prefix,min_size=0,total_only=False):
     s += '\n'
   print(s)
 # end print_tensors
+
+def stack_string(prefix=None):
+  stack = traceback.format_stack()
+  lines = []
+  for l in stack:
+    lines += l.splitlines()
+
+  if prefix==None:
+    prefix = ''
+
+  stack_str = ('\n{}').format(prefix).join(lines)
+  stack_str = prefix+stack_str
+
+  return stack_str
