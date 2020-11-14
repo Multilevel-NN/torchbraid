@@ -33,6 +33,7 @@ import torch
 
 from braid_vector import BraidVector
 from torchbraid_app import BraidApp
+import utils 
 
 import sys
 import traceback
@@ -187,7 +188,9 @@ class ForwardODENetApp(BraidApp):
   def getLayer(self,t,tf,level):
     index = self.getLocalTimeStepIndex(t,tf,level)
     if index < 0:
-      print(self.my_rank, ": WARNING: getLayer index negative: ", index)
+      pre_str = "\n{}: WARNING: getLayer index negative at {}: {}\n".format(self.my_rank,t,index)
+      stack_str = utils.stack_string('{}: |- '.format(self.my_rank))
+      print(pre_str+stack_str)
 
     return self.layer_models[index]
 
