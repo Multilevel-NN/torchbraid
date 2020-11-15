@@ -112,4 +112,8 @@ class BraidVector:
   def clone(self):
     tensors = [t.detach().clone() for t in self.tensors()]
     cl = BraidVector(tuple(tensors),self.level())
+
+    tensors = [t.detach().clone() for t in self.weightTensors()]
+    cl.addWeightTensors(tensors)
+
     return cl
