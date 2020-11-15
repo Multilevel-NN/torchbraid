@@ -38,6 +38,7 @@ import utils
 import sys
 import traceback
 import resource
+import copy
 
 from mpi4py import MPI
 
@@ -93,6 +94,8 @@ class ForwardODENetApp(BraidApp):
       if l==None: continue
       for p in l.parameters(): 
         self.parameter_shapes += [p.data.size()]
+
+    self.temp_layer = copy.deepcopy(self.layer_models[0])
   # end __init__
 
   def __del__(self):
@@ -101,16 +104,16 @@ class ForwardODENetApp(BraidApp):
   def getTensorShapes(self):
     return list(self.shape0)+self.parameter_shapes
 
-  def setVectorWeights(self,t,x):
-    layer = self.getLayer(t,0.0,0)
+  def setVectorWeights(self,t,tf,level,x):
+    layer = self.getLayer(t,tf,level)
     if layer!=None:
       weights = [p.data for p in layer.parameters()]
     else:
       weights = []
     x.addWeightTensors(weights)
 
-  def setLayerWeights(self,t,weights):
-    layer = self.getLayer(t,0.0,0)
+  def setLayerWeights(self,t,tf,level,weights):
+    layer = self.getLayer(t,tf,level)
 
     with torch.no_grad():
       for dest_p,src_w in zip(list(layer.parameters()),weights):
@@ -124,7 +127,7 @@ class ForwardODENetApp(BraidApp):
     else:
       x = BraidVector(self.x0.tensors(),0)
 
-    self.setVectorWeights(t,x)
+    self.setVectorWeights(t,0.0,0,x)
     return x
 
   def updateParallelWeights(self):
@@ -158,39 +161,16 @@ class ForwardODENetApp(BraidApp):
     return y
   # end forward
 
-#   def getSolnDiagnostics(self):
-#     """
-#     Compute and return a vector of all the local solutions.
-#     This does no parallel computation. The result is a dictionary
-#     with hopefully self explanatory names.
-#     """
-# 
-#     # make sure you could store this
-#     assert(self.enable_diagnostics)
-#     #assert(self.soln_store is not None)
-# 
-#     result = dict()
-#     result['timestep_index'] = []
-#     result['step_in'] = []
-#     result['step_out'] = []
-#     for ts in sorted(self.soln_store):
-#       x,y = self.soln_store[ts]
-# 
-#       result['timestep_index'] += [ts]
-#       result['step_in']        += [torch.norm(x).item()]
-#       result['step_out']       += [torch.norm(y).item()]
-# 
-#     return result 
-
   def timer(self,name):
     return self.timer_manager.timer("ForWD::"+name)
 
   def getLayer(self,t,tf,level):
     index = self.getLocalTimeStepIndex(t,tf,level)
     if index < 0:
-      pre_str = "\n{}: WARNING: getLayer index negative at {}: {}\n".format(self.my_rank,t,index)
-      stack_str = utils.stack_string('{}: |- '.format(self.my_rank))
-      print(pre_str+stack_str)
+      #pre_str = "\n{}: WARNING: getLayer index negative at {}: {}\n".format(self.my_rank,t,index)
+      #stack_str = utils.stack_string('{}: |- '.format(self.my_rank))
+      #print(pre_str+stack_str)
+      return self.temp_layer
 
     return self.layer_models[index]
 
@@ -232,7 +212,7 @@ class ForwardODENetApp(BraidApp):
     #  2. x is a torch tensor: called internally (probably for the adjoint) 
 
     if isinstance(y,BraidVector):
-      self.setLayerWeights(tstart,y.weightTensors())
+      self.setLayerWeights(tstart,tstop,level,y.weightTensors())
 
       t_y = y.tensor().detach()
 
@@ -240,7 +220,7 @@ class ForwardODENetApp(BraidApp):
       with torch.no_grad():
         in_place_eval(t_y,tstart,tstop,level)
 
-      self.setVectorWeights(tstop,y)
+      self.setVectorWeights(tstop,0.0,level,y)
     else: 
       x.requires_grad = True 
       with torch.enable_grad():
@@ -263,7 +243,7 @@ class ForwardODENetApp(BraidApp):
     b_x = self.getUVector(0,tstart)
     t_x = b_x.tensor()
 
-    self.setLayerWeights(tstart,b_x.weightTensors())
+    self.setLayerWeights(tstart,tstop,level,b_x.weightTensors())
 
     x = t_x.detach()
     y = t_x.detach().clone()
