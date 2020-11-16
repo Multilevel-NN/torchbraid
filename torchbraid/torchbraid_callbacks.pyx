@@ -279,6 +279,8 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
     # update the float buffer pointer
     fbuffer = <float*> (fbuffer+sz)
 
+  u_obj.setSendFlag(True)
+
   # set the pointer for output
   u_ptr[0] = <braid_Vector> u_obj 
 

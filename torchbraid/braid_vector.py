@@ -62,6 +62,7 @@ class BraidVector:
       assert(False)
         
     self.level_  = level
+    self.send_flag_ = False;
 
   def __del__(self):
     self.tensor_data_ = None
@@ -108,6 +109,12 @@ class BraidVector:
 
   def level(self):
     return self.level_
+
+  def getSendFlag(self):
+    return self.send_flag_
+
+  def setSendFlag(self,send_flag):
+    self.send_flag_ = send_flag
   
   def clone(self):
     tensors = [t.detach().clone() for t in self.tensors()]
@@ -115,5 +122,7 @@ class BraidVector:
 
     tensors = [t.detach().clone() for t in self.weightTensors()]
     cl.addWeightTensors(tensors)
+
+    cl.setSendFlag(self.getSendFlag())
 
     return cl

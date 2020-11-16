@@ -94,6 +94,7 @@ class ForwardODENetApp(BraidApp):
       self.parameter_shapes += [p.data.size()]
 
     self.temp_layer = copy.deepcopy(self.layer_models[0])
+    self.clearTempLayerWeights()
   # end __init__
 
   def __del__(self):
@@ -109,6 +110,13 @@ class ForwardODENetApp(BraidApp):
     else:
       weights = []
     x.addWeightTensors(weights)
+
+  def clearTempLayerWeights(self):
+    layer = self.temp_layer
+
+    for dest_p in list(layer.parameters()):
+      dest_p.data = torch.empty(())
+  # end setLayerWeights
 
   def setLayerWeights(self,t,tf,level,weights):
     layer = self.getLayer(t,tf,level)
@@ -218,7 +226,15 @@ class ForwardODENetApp(BraidApp):
       with torch.no_grad():
         in_place_eval(t_y,tstart,tstop,level)
 
+      if y.getSendFlag():
+        self.clearTempLayerWeights()
+
+        y.releaseWeightTensors()
+        y.setSendFlag(False)
+      # wipe out any sent information
+
       self.setVectorWeights(tstop,0.0,level,y)
+
     else: 
       x.requires_grad = True 
       with torch.enable_grad():

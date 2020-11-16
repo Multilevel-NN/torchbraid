@@ -212,12 +212,12 @@ class BraidApp:
 
     self.setInitial(x)
 
-    core.warm_restart = 0
  
-#    # Run Braid
-#    if not self.first:
-#      _braid_InitGuess(core,0)
-#      self.first = False
+    # Run Braid
+    if not self.first:
+      _braid_InitGuess(core,0)
+    self.first = False
+
     braid_Drive(core) # my_step -> App:eval -> resnet "basic block"
 
     self.printBraidStats()
