@@ -90,10 +90,8 @@ class ForwardODENetApp(BraidApp):
     self.use_deriv = False
 
     self.parameter_shapes = []
-    for l in self.layer_models:
-      if l==None: continue
-      for p in l.parameters(): 
-        self.parameter_shapes += [p.data.size()]
+    for p in layer_models[0].parameters(): 
+      self.parameter_shapes += [p.data.size()]
 
     self.temp_layer = copy.deepcopy(self.layer_models[0])
   # end __init__
