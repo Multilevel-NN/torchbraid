@@ -33,10 +33,12 @@ import torch
 
 from braid_vector import BraidVector
 from torchbraid_app import BraidApp
+import utils 
 
 import sys
 import traceback
 import resource
+import copy
 
 from mpi4py import MPI
 
@@ -58,12 +60,10 @@ def getLocalMemory(comm,message):
 
 class ForwardODENetApp(BraidApp):
 
-  def __init__(self,comm,layer_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,internal_storage=True,spatial_ref_pair=None):
+  def __init__(self,comm,layer_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None):
     """
-    internal_storage - use torchbraid internal storage :more memory required, possible run time boost - True, or use
-                       xbraid storage which has a smaller memory footprint (False), default: False
     """
-    BraidApp.__init__(self,'FWDApp',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=not internal_storage)
+    BraidApp.__init__(self,'FWDApp',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=True)
 
     # note that a simple equals would result in a shallow copy...bad!
     self.layer_models = [l for l in layer_models]
@@ -71,6 +71,7 @@ class ForwardODENetApp(BraidApp):
     comm          = self.getMPIComm()
     my_rank       = self.getMPIComm().Get_rank()
     num_ranks     = self.getMPIComm().Get_size()
+    self.my_rank = my_rank
 
     # send everything to the left (this helps with the adjoint method)
     if my_rank>0:
@@ -78,17 +79,56 @@ class ForwardODENetApp(BraidApp):
     if my_rank<num_ranks-1:
       neighbor_model = comm.recv(source=my_rank+1,tag=22)
       self.layer_models.append(neighbor_model)
+    else:
+      # this is a sentinel at the end of the processors and layers
+      self.layer_models.append(None)
 
     # build up the core
     self.py_core = self.initCore()
 
     self.timer_manager = timer_manager
     self.use_deriv = False
-    self.internal_storage = True
+
+    self.parameter_shapes = []
+    for l in self.layer_models:
+      if l==None: continue
+      for p in l.parameters(): 
+        self.parameter_shapes += [p.data.size()]
+
+    self.temp_layer = copy.deepcopy(self.layer_models[0])
   # end __init__
 
   def __del__(self):
     pass
+
+  def getTensorShapes(self):
+    return list(self.shape0)+self.parameter_shapes
+
+  def setVectorWeights(self,t,tf,level,x):
+    layer = self.getLayer(t,tf,level)
+    if layer!=None:
+      weights = [p.data for p in layer.parameters()]
+    else:
+      weights = []
+    x.addWeightTensors(weights)
+
+  def setLayerWeights(self,t,tf,level,weights):
+    layer = self.getLayer(t,tf,level)
+
+    with torch.no_grad():
+      for dest_p,src_w in zip(list(layer.parameters()),weights):
+        dest_p.data = src_w
+  # end setLayerWeights
+
+  def buildInit(self,t):
+    if t>0:
+      zeros = [torch.zeros(s) for s in self.shape0]
+      x = BraidVector(tuple(zeros),0)
+    else:
+      x = BraidVector(self.x0.tensors(),0)
+
+    self.setVectorWeights(t,0.0,0,x)
+    return x
 
   def updateParallelWeights(self):
     # send everything to the left (this helps with the adjoint method)
@@ -103,9 +143,6 @@ class ForwardODENetApp(BraidApp):
       self.layer_models[-1] = neighbor_model
 
   def run(self,x):
-    if self.internal_storage:
-      self.soln_store = dict()
-
     # turn on derivative path (as requried)
     self.use_deriv = self.training
 
@@ -124,39 +161,26 @@ class ForwardODENetApp(BraidApp):
     return y
   # end forward
 
-#   def getSolnDiagnostics(self):
-#     """
-#     Compute and return a vector of all the local solutions.
-#     This does no parallel computation. The result is a dictionary
-#     with hopefully self explanatory names.
-#     """
-# 
-#     # make sure you could store this
-#     assert(self.enable_diagnostics)
-#     #assert(self.soln_store is not None)
-# 
-#     result = dict()
-#     result['timestep_index'] = []
-#     result['step_in'] = []
-#     result['step_out'] = []
-#     for ts in sorted(self.soln_store):
-#       x,y = self.soln_store[ts]
-# 
-#       result['timestep_index'] += [ts]
-#       result['step_in']        += [torch.norm(x).item()]
-#       result['step_out']       += [torch.norm(y).item()]
-# 
-#     return result 
-
   def timer(self,name):
     return self.timer_manager.timer("ForWD::"+name)
 
   def getLayer(self,t,tf,level):
     index = self.getLocalTimeStepIndex(t,tf,level)
+    if index < 0:
+      #pre_str = "\n{}: WARNING: getLayer index negative at {}: {}\n".format(self.my_rank,t,index)
+      #stack_str = utils.stack_string('{}: |- '.format(self.my_rank))
+      #print(pre_str+stack_str)
+      return self.temp_layer
+
     return self.layer_models[index]
 
   def parameters(self):
-    return [list(l.parameters()) for l in self.layer_models]
+    params = []
+    for l in self.layer_models:
+      if l!=None:
+        params += [list(l.parameters())]
+
+    return params
 
   def eval(self,y,tstart,tstop,level,x=None):
     """
@@ -170,6 +194,8 @@ class ForwardODENetApp(BraidApp):
       # get some information about what to do
       dt = tstop-tstart
       layer = self.getLayer(tstart,tstop,level) # resnet "basic block"
+
+      #print(self.my_rank, ": FWDeval level ", level, " ", tstart, "->", tstop, " using layer ", layer.getID(), ": ", layer.linearlayer.weight[0].data)
 
       if t_x==None:
         t_x = t_y
@@ -185,44 +211,20 @@ class ForwardODENetApp(BraidApp):
     #  1. x is a BraidVector: my step has called this method
     #  2. x is a torch tensor: called internally (probably for the adjoint) 
 
-    try:
-      if isinstance(y,BraidVector) and level==0:
-        # store off the solution for later adjoints
-        if self.internal_storage:
-          ts_index_x = self.getGlobalTimeStepIndex(tstart,None,0)
-          ts_index_y = self.getGlobalTimeStepIndex(tstop,None,0)
+    if isinstance(y,BraidVector):
+      self.setLayerWeights(tstart,tstop,level,y.weightTensors())
 
-          if ts_index_x not in self.soln_store:
-            self.soln_store[ts_index_x] = y.tensor().detach().clone()
-        # internal_storage
+      t_y = y.tensor().detach()
 
-        t_y = y.tensor().detach()
+      # no gradients are necessary here, so don't compute them
+      with torch.no_grad():
+        in_place_eval(t_y,tstart,tstop,level)
 
-        with torch.no_grad():
-          in_place_eval(t_y,tstart,tstop,level)
-
-        if self.internal_storage:
-          if ts_index_y in self.soln_store:
-            self.soln_store[ts_index_y].copy_(t_y.detach())
-          else:
-            self.soln_store[ts_index_y] = t_y.detach().clone()
-      elif isinstance(y,BraidVector):
-        # sanity check
-        assert(level!=0)
-
-        t_y = y.tensor().detach()
-
-        # no gradients are necessary here, so don't compute them
-        with torch.no_grad():
-          in_place_eval(t_y,tstart,tstop,level)
-      else: 
-        x.requires_grad = True 
-        with torch.enable_grad():
-          in_place_eval(y,tstart,tstop,level,t_x=x)
-
-    except:
-      print('\n**** Torchbraid ODENet::eval Exception ****\n')
-      traceback.print_exc()
+      self.setVectorWeights(tstop,0.0,level,y)
+    else: 
+      x.requires_grad = True 
+      with torch.enable_grad():
+        in_place_eval(y,tstart,tstop,level,t_x=x)
   # end eval
 
   def getPrimalWithGrad(self,tstart,tstop,level):
@@ -238,16 +240,10 @@ class ForwardODENetApp(BraidApp):
     
     layer = self.getLayer(tstart,tstop,level)
 
-    # the idea here is store it internally, failing
-    # that the values need to be recomputed locally. This may be
-    # because you are at a processor boundary, or decided not
-    # to start the value 
-    if self.internal_storage:
-      ts_index = self.getGlobalTimeStepIndex(tstart,tstop,level)
-      assert(ts_index in self.soln_store)
-      t_x = self.soln_store[ts_index]
-    else:
-      t_x = self.getUVector(0,tstart).tensor()
+    b_x = self.getUVector(0,tstart)
+    t_x = b_x.tensor()
+
+    self.setLayerWeights(tstart,tstop,level,b_x.weightTensors())
 
     x = t_x.detach()
     y = t_x.detach().clone()
@@ -288,24 +284,16 @@ class BackwardODENetApp(BraidApp):
   def __del__(self):
     self.fwd_app = None
 
+  def getTensorShapes(self):
+    return self.shape0
+
   def timer(self,name):
     return self.timer_manager.timer("BckWD::"+name)
 
   def run(self,x):
 
     try:
-      # this is required to run the derivative calculation
-      if self.fwd_app.internal_storage:
-        assert(self.fwd_app.soln_store is not None)
-
       f = self.runBraid(x)
-
-      # this is for an agressive memory cleanup, if you need 
-      # multiple gradients (the assertion failed above) you
-      # should make this in option
-      if self.fwd_app.internal_storage:
-        del self.fwd_app.soln_store
-        self.fwd_app.soln_store = None
 
       # this code is due to how braid decomposes the backwards problem
       # The ownership of the time steps is shifted to the left (and no longer balanced)
@@ -330,8 +318,9 @@ class BackwardODENetApp(BraidApp):
         self.grads += [ sub_gradlist ]
       # end for sublist
 
-      for m in self.fwd_app.layer_models:
-         m.zero_grad()
+      for l in self.fwd_app.layer_models:
+         if l==None: continue
+         l.zero_grad()
     except:
       print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()

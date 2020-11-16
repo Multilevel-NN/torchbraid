@@ -34,6 +34,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import unittest
 import sys
+import traceback
 import numpy as np
 import statistics as stats
 
@@ -44,16 +45,18 @@ faulthandler.enable()
 
 from mpi4py import MPI
 
+def output_exception():
+  s = traceback.format_exc()
+  print('\n**** TEST GENERIC Exception ****\n{}'.format(s))
+
 class ReLUBlock(nn.Module):
   def __init__(self,dim=10):
     super(ReLUBlock, self).__init__()
     self.lin = nn.Linear(dim, dim,bias=True)
 
-    w = torch.randn(dim,dim)
     w = 2.3*torch.ones(dim,dim)
     self.lin.weight = torch.nn.Parameter(w)
 
-    b = torch.randn(dim)
     b = -1.22*torch.ones(dim)
     self.lin.bias = torch.nn.Parameter(b)
 
@@ -94,14 +97,8 @@ class TestGradUpdate(unittest.TestCase):
     w0 = 8.0*torch.ones(5,dim) # adjoint initial cond
     max_levels = 3
     max_iters = 8
-    # this catch block, augments the 
-    rank = MPI.COMM_WORLD.Get_rank()
-    try:
-      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx')
-    except RuntimeError as err:
-      raise RuntimeError("proc=%d) reLUNet_Approx..failure" % rank) from err
 
-    MPI.COMM_WORLD.barrier()
+    self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx')
   # end test_reLUNet_Approx
 
   def copyParameterGradToRoot(self,m):
@@ -151,6 +148,7 @@ class TestGradUpdate(unittest.TestCase):
 
     wm = m(xm)
     wm.backward(w0)
+    wm0 = m.getFinalOnRoot(wm)
 
     with torch.no_grad():
       for p in m.parameters(): p -= p.grad * lr

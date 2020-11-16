@@ -196,6 +196,9 @@ class BraidApp:
 
     self.enable_diagnostics = enable
 
+  def getTensorShapes(self):
+    return self.fwd_app.getTensorShapes()
+
   def setShape(self,shape):
     # the shape to use if non-exists for taking advantage of allocations in braid
     if isinstance(shape,torch.Size):
@@ -208,11 +211,13 @@ class BraidApp:
     cdef braid_Core core = py_core.getCore()
 
     self.setInitial(x)
+
+    core.warm_restart = 0
  
-    # Run Braid
-    if not self.first:
-      _braid_InitGuess(core,0)
-      self.first = False
+#    # Run Braid
+#    if not self.first:
+#      _braid_InitGuess(core,0)
+#      self.first = False
     braid_Drive(core) # my_step -> App:eval -> resnet "basic block"
 
     self.printBraidStats()

@@ -123,8 +123,7 @@ class TestTorchBraid(unittest.TestCase):
     # this catch block, augments the 
     rank = MPI.COMM_WORLD.Get_rank()
     try:
-      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-16,prefix='reLUNet_Exact-internal_storage=False',internal_storage=False)
-      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-16,prefix='reLUNet_Exact-internal_storage=True',internal_storage=True)
+      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-16,prefix='reLUNet_Exact')
     except RuntimeError as err:
       raise RuntimeError("proc=%d) reLUNet_Exact..failure" % rank) from err
 
@@ -188,8 +187,7 @@ class TestTorchBraid(unittest.TestCase):
     # this catch block, augments the 
     rank = MPI.COMM_WORLD.Get_rank()
     try:
-      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx-internal_storage=False',internal_storage=False)
-      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx-internal_storage=True',internal_storage=True)
+      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx')
     except RuntimeError as err:
       raise RuntimeError("proc=%d) reLUNet_Approx..failure" % rank) from err
 
@@ -217,12 +215,12 @@ class TestTorchBraid(unittest.TestCase):
       return None
   # end copyParametersToRoot
 
-  def backForwardProp(self,dim, basic_block,x0,w0,max_levels,max_iters,test_tol,prefix,ref_pair=None,check_grad=True,num_steps=4,print_level=0,internal_storage=False):
+  def backForwardProp(self,dim, basic_block,x0,w0,max_levels,max_iters,test_tol,prefix,ref_pair=None,check_grad=True,num_steps=4,print_level=0):
     Tf = 2.0
 
     # this is the torchbraid class being tested 
     #######################################
-    m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_levels=max_levels,max_iters=max_iters,spatial_ref_pair=ref_pair,internal_storage=internal_storage)
+    m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_levels=max_levels,max_iters=max_iters,spatial_ref_pair=ref_pair)
     m.setPrintLevel(print_level)
     m.setSkipDowncycle(False)
 
@@ -297,6 +295,14 @@ class TestTorchBraid(unittest.TestCase):
       print('\n')
         
   # forwardPropSerial
+
+  import sys
+
+def trace(frame, event, arg):
+    print("%s, %s:%d" % (event, frame.f_code.co_filename, frame.f_lineno))
+    return trace
+
+#sys.settrace(trace)
 
 if __name__ == '__main__':
   unittest.main()

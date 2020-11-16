@@ -35,37 +35,46 @@
 import math
 import torch
 import numpy as np
+import traceback
+import sys
 cimport numpy as np
 
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
 from cython cimport view
 
+def output_exception(label):
+  s = traceback.format_exc()
+  print('\n**** Torchbraid Callbacks::{} Exception ****\n{}'.format(label,s))
+
 ##
 # Define your Python Braid Vector as a C-struct
 
 cdef int my_access(braid_App app,braid_Vector u,braid_AccessStatus status):
-  pyApp = <object> app
 
   cdef double t
 
-  with pyApp.timer("my_access"):
+  try:
+    pyApp = <object> app
+
     # Create Numpy wrapper around u.v
     ten_u = <object> u
 
     braid_AccessStatusGetT(status, &t)
 
     pyApp.access(t,ten_u)
+  except:
+    output_exception("my_access")
+
   return 0
 
 cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Vector vec_u, braid_StepStatus status):
-  pyApp = <object> app
-
   cdef double tstart
   cdef double tstop
   cdef int level
 
-  with pyApp.timer("my_step"):
+  try:
+    pyApp = <object> app
 
     tstart = 0.0
     tstop = 5.0
@@ -76,39 +85,47 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
     # modify the state vector in place
     u =  <object> vec_u
     pyApp.eval(u,tstart,tstop,level)
+  except:
+    output_exception("my_step")
 
   return 0
 # end my_access
 
 cdef int my_init(braid_App app, double t, braid_Vector *u_ptr):
-  pyApp = <object> app
-  with pyApp.timer("my_init"):
+  try:
+    pyApp = <object> app
     u_mem = pyApp.buildInit(t)
     Py_INCREF(u_mem) # why do we need this?
     u_ptr[0] = <braid_Vector> u_mem
+  except:
+    output_exception("my_init")
 
   return 0
 
 cdef int my_free(braid_App app, braid_Vector u):
   pyApp = <object> app
-  with pyApp.timer("my_free"):
+  try:
     # Cast u as a PyBraid_Vector
     pyU = <object> u
     # Decrement the smart pointer
     Py_DECREF(pyU) 
     del pyU
+  except:
+    output_exception("my_free")
   return 0
 
 cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_Vector y):
   # This routine cna be made faster by using the pyTorch tensor operations
   # My initial attempt at this failed however
 
-  with torch.no_grad():
+  try:
     bv_X = <object> x
     bv_Y = <object> y
     for ten_X,ten_Y in zip(bv_X.tensors(),bv_Y.tensors()):
       ten_Y.mul_(float(beta))
       ten_Y.add_(ten_X,alpha=float(alpha))
+  except:
+    output_exception("my_sum")
 
   return 0
 
@@ -138,22 +155,25 @@ cdef int my_norm(braid_App app, braid_Vector u, double *norm_ptr):
 cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   pyApp = <object> app
 
-  num_tensors = len(pyApp.shape0)
+  shapes = pyApp.getTensorShapes()
+  num_tensors = len(shapes) # all tensors
   cnt = 0
   total_shape = 0
-  for s in pyApp.shape0:
-    cnt += pyApp.shape0[0].numel()
-    rank = len(pyApp.shape0[0])
+  for s in shapes:
+    cnt += s.numel() # pyApp.shape0[0].numel()
+    rank = len(s) #len(pyApp.shape0[0])
     total_shape += rank*sizeof(int)
-    
+
+  # because the braid vectors are sometimes moved with weight components, the app
+  # object is responsible for making sure those are sized appropriately. 
 
   # Note size_ptr is an integer array of size 1, and we index in at location [0]
 
   # there are mulitple fields in a packed buffer, in orderr
-  #     level (1 int), num_tensors (1 int), [rank (1 int), sizes (rank int)] * (num_tensors), tensor data
+  #     level (1 int), num_tensors (1 int), num_weight_tensors (1 int), [rank (1 int), sizes (rank int)] * (num_tensors), tensor data
 
-  size_ptr[0] = sizeof(int) + sizeof(int) + num_tensors*sizeof(int) + total_shape + sizeof(float)*cnt 
-                 #  level     num_tensors             rank             total_shape          vector_data
+  size_ptr[0] = sizeof(int) + sizeof(int) + sizeof(int) + num_tensors*sizeof(int) + total_shape + sizeof(float)*cnt
+                 #  level     num_tensors   num_weight_tensors          rank             total_shape         vector_data
 
   return 0
 
@@ -172,25 +192,27 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   ibuffer = <int *> buffer
 
   # write out the buffer meta data
-  level       = bv_u.level()
-  num_tensors = len(bv_u.tensors())
+  level              = bv_u.level()
+  num_tensors        = len(bv_u.allTensors())
+  num_weight_tensors = len(bv_u.weightTensors())
 
   ibuffer[0] = level
   ibuffer[1] = num_tensors
+  ibuffer[2] = num_weight_tensors
 
-  offset = 0
-  for t in bv_u.tensors():
+  offset = 3 # this is accomdating space for the three integers
+  for t in bv_u.allTensors():
     size = t.size() 
-    ibuffer[2+offset] = len(size)
+    ibuffer[offset] = len(size)
     for i,s in enumerate(size):
-      ibuffer[2+i+offset+1] = s
+      ibuffer[i+offset+1] = s
         
     offset += len(size)+1
-  # end for t
+  # end for a: creating space for the number tensors
 
   # copy the data
-  fbuffer = <float *>(buffer+(2+offset)*sizeof(int)) 
-  for ten_U in bv_u.tensors():
+  fbuffer = <float *>(buffer+offset*sizeof(int)) 
+  for ten_U in bv_u.allTensors():
     np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
 
     # copy the tensor into the buffer
@@ -204,6 +226,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   return 0
 
 cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_BufferStatus status):
+
   pyApp = <object>app
 
   cdef int * ibuffer 
@@ -216,28 +239,34 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   # read in the buffer metda data
   ibuffer = <int *> buffer
 
-  level       = ibuffer[0]
-  num_tensors = ibuffer[1]
+  level              = ibuffer[0]
+  num_tensors        = ibuffer[1]
+  num_weight_tensors = ibuffer[2]
 
-  offset = 0
+  offset = 3
   sizes = []
   for t in range(num_tensors):
-    rank = ibuffer[2+offset]
+    rank = ibuffer[offset]
     size = rank*[0]
     for i in range(rank):
-      size[i] = ibuffer[2+i+offset+1]
+      size[i] = ibuffer[i+offset+1]
         
     sizes += [size]
     offset += len(size)+1
 
   # build up the braid vector
   tens = [torch.zeros(s) for s in sizes]
-  u_obj = BraidVector(tuple(tens),level)
-  Py_INCREF(u_obj) # why do we need this?
+  vector_tensors = tens[0:num_tensors-num_weight_tensors]
+  weight_tensors = tens[num_tensors-num_weight_tensors:-1]
+
+  # build an vector object and set the tensors to land in the correct places
+  u_obj = BraidVector(tuple(vector_tensors),level)
+  Py_INCREF(u_obj) 
+  u_obj.addWeightTensors(weight_tensors)
 
   # copy from the buffer into the braid vector
-  fbuffer = <float *>(buffer+(2+offset)*sizeof(int)) # level, rank, sizes
-  for ten_U in u_obj.tensors():
+  fbuffer = <float *>(buffer+(offset)*sizeof(int)) # level, rank, sizes
+  for ten_U in u_obj.allTensors():
     np_U = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
   
     # copy the buffer into the tensor
