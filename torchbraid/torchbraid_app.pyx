@@ -217,7 +217,7 @@ class BraidApp:
         t = self.t0_local + i*self.dt
         u_vec = self.getUVector(0,t)
         if u_vec!=None:
-          self.buildInit_update(t,u_vec)
+          self.initializeVector(t,u_vec)
     except:
       output_exception("{}:initializeStates: rank {}, t={}".format(self.prefix_str,self.getMPIComm().Get_rank(),t))
    
@@ -364,7 +364,7 @@ class BraidApp:
         py_bv = <object> bv.userVector
         py_bv.replaceTensor(x0)
 
-  def buildInit_update(self,t,x):
+  def initializeVector(self,t,x):
     pass
 
   def buildInit(self,t):
@@ -373,6 +373,10 @@ class BraidApp:
       x = BraidVector(tuple(zeros),0)
     else:
       x = BraidVector(self.x0.tensors(),0)
+
+    # an inherited function to initialize the vector
+    # here you would assign weights
+    self.initializeVector(t,x)
     return x
 
   def access(self,t,u):

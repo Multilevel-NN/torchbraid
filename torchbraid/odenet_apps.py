@@ -126,18 +126,8 @@ class ForwardODENetApp(BraidApp):
         dest_p.data = src_w
   # end setLayerWeights
 
-  def buildInit_update(self,t,x):
+  def initializeVector(self,t,x):
     self.setVectorWeights(t,0.0,0,x)
-
-  def buildInit(self,t):
-    if t>0:
-      zeros = [torch.zeros(s) for s in self.shape0]
-      x = BraidVector(tuple(zeros),0)
-    else:
-      x = BraidVector(self.x0.tensors(),0)
-
-    self.setVectorWeights(t,0.0,0,x)
-    return x
 
   def updateParallelWeights(self):
     # send everything to the left (this helps with the adjoint method)
