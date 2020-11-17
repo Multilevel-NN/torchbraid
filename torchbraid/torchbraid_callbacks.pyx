@@ -86,7 +86,7 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
     u =  <object> vec_u
     pyApp.eval(u,tstart,tstop,level)
   except:
-    output_exception("my_step")
+    output_exception("my_step: rank={}, step=({},{}), level={}, sf={}".format(pyApp.getMPIComm().Get_rank(),tstart,tstop,level,u.getSendFlag()))
 
   return 0
 # end my_access
@@ -96,6 +96,7 @@ cdef int my_init(braid_App app, double t, braid_Vector *u_ptr):
     pyApp = <object> app
     u_mem = pyApp.buildInit(t)
     Py_INCREF(u_mem) # why do we need this?
+
     u_ptr[0] = <braid_Vector> u_mem
   except:
     output_exception("my_init")
@@ -259,7 +260,7 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   # build up the braid vector
   tens = [torch.zeros(s) for s in sizes]
   vector_tensors = tens[0:num_tensors-num_weight_tensors]
-  weight_tensors = tens[num_tensors-num_weight_tensors:-1]
+  weight_tensors = tens[num_tensors-num_weight_tensors:]
 
   # build an vector object and set the tensors to land in the correct places
   u_obj = BraidVector(tuple(vector_tensors),level)

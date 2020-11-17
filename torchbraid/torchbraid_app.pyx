@@ -336,9 +336,6 @@ class BraidApp:
     if self.reverted and self.mpi_comm.Get_rank()!=self.mpi_comm.Get_size()-1:
       return
 
-    #if self.reverted and self.mpi_comm.Get_rank()!=self.mpi_comm.Get_size()-1:
-    #  return
-
     self.x0 = BraidVector(x0,0)
 
     # set the appropriate initial condition
