@@ -126,6 +126,9 @@ class ForwardODENetApp(BraidApp):
         dest_p.data = src_w
   # end setLayerWeights
 
+  def buildInit_update(self,t,x):
+    self.setVectorWeights(t,0.0,0,x)
+
   def buildInit(self,t):
     if t>0:
       zeros = [torch.zeros(s) for s in self.shape0]

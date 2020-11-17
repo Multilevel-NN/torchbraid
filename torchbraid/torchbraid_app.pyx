@@ -56,6 +56,10 @@ include "./torchbraid_callbacks.pyx"
 #  a python level module
 ##########################################################
 
+def output_exception(label):
+  s = traceback.format_exc()
+  print('\n**** Torchbraid Callbacks::{} Exception ****\n{}'.format(label,s))
+
 class BraidApp:
 
   def __init__(self,prefix_str,comm,local_num_steps,Tf,max_levels,max_iters,
@@ -206,22 +210,33 @@ class BraidApp:
     else:
       self.shape0 = shape
 
+  def initializeStates(self):
+    try:
+      t = 0.0
+      for i in range(self.local_num_steps+1):
+        t = self.t0_local + i*self.dt
+        u_vec = self.getUVector(0,t)
+        if u_vec!=None:
+          self.buildInit_update(t,u_vec)
+    except:
+      output_exception("{}:initializeStates: rank {}, t={}".format(self.prefix_str,self.getMPIComm().Get_rank(),t))
+   
+  # end initializeStates
+
   def runBraid(self,x):
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
     cdef braid_Core core = py_core.getCore()
 
     self.setInitial(x)
-
  
     # Run Braid
     if not self.first:
-      _braid_InitGuess(core,0)
+      self.initializeStates()
     self.first = False
 
     braid_Drive(core) # my_step -> App:eval -> resnet "basic block"
 
     self.printBraidStats()
-
 
     fin = self.getFinal()
     self.x0 = None
@@ -315,7 +330,11 @@ class BraidApp:
     index = self.getGlobalTimeStepIndex(t,None,level)
     _braid_UGetVectorRef(core, level,index,&bv)
 
-    return <object> bv.userVector
+    # this can be null, return that the vector was not found
+    if <unsigned int>(bv)!=0:
+      return <object> bv.userVector
+    else:
+      return None
 
   def getMPIComm(self):
     return self.mpi_comm
@@ -345,6 +364,8 @@ class BraidApp:
         py_bv = <object> bv.userVector
         py_bv.replaceTensor(x0)
 
+  def buildInit_update(self,t,x):
+    pass
 
   def buildInit(self,t):
     if t>0:
