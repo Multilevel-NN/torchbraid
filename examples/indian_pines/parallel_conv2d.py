@@ -19,10 +19,10 @@ import sys
 from mpi4py import MPI
 import os
 from deephyperx_master.utils import convert_to_color_, convert_from_color_,\
-    display_dataset, explore_spectrums, plot_spectrums,\
-    sample_gt, get_device
-from deephyperx_master.datasets import get_dataset, HyperX, DATASETS_CONFIG
-from deephyperx_master.models import get_model
+    sample_gt
+from deephyperx_master.datasets import get_dataset, DATASETS_CONFIG
+from hyperx_utils import HyperXG
+# from deephyperx_master.models import get_model
 # from deephyperx_master.models import train as hypertrain
 # from deephyperx_master.models import test as test_prob
 import argparse
@@ -347,7 +347,7 @@ def main():
     procs = MPI.COMM_WORLD.Get_size()
     args = parser.parse_args()
 
-    CUDA_DEVICE = get_device(args.cuda)
+    CUDA_DEVICE = torch.device('cpu')
 
     SAMPLE_PERCENTAGE = args.training_sample
     FLIP_AUGMENTATION = args.flip_augmentation
@@ -414,16 +414,16 @@ def main():
     hyperparams.update({'n_classes': N_CLASSES, 'n_bands': N_BANDS, 'ignored_labels': IGNORED_LABELS, 'device': CUDA_DEVICE})
     hyperparams = dict((k, v) for k, v in hyperparams.items() if v is not None)
 
-    if DATAVIZ:
-        display_dataset(img, gt, RGB_BANDS, LABEL_VALUES, palette, viz)
+    # if DATAVIZ:
+    #     display_dataset(img, gt, RGB_BANDS, LABEL_VALUES, palette, viz)
 
     color_gt = convert_to_color(gt, palette)
 
-    if DATAVIZ:
-        # Data exploration : compute and show the mean spectrums
-        mean_spectrums = explore_spectrums(img, gt, LABEL_VALUES, viz,
-                                           ignored_labels=IGNORED_LABELS)
-        plot_spectrums(mean_spectrums, viz, title='Mean spectrum/class')
+    # if DATAVIZ:
+    #     # Data exploration : compute and show the mean spectrums
+    #     mean_spectrums = explore_spectrums(img, gt, LABEL_VALUES, viz,
+    #                                        ignored_labels=IGNORED_LABELS)
+    #     plot_spectrums(mean_spectrums, viz, title='Mean spectrum/class')
 
     n_classes = hyperparams['n_classes']
     n_bands = hyperparams['n_bands']
@@ -473,13 +473,13 @@ def main():
         test_gt = test_gt[:n, :n]
         img = img[:n, :n, :]
 
-    train_dataset = HyperX(img, train_gt, "gary", **hyperparams)
+    train_dataset = HyperXG(img, train_gt, **hyperparams)
 
     train_loader = torch.utils.data.DataLoader(train_dataset,
                                    batch_size=hyperparams['batch_size'],
                                    # pin_memory=hyperparams['device'],
                                    shuffle=True)
-    test_dataset = HyperX(img, test_gt, "gary", **hyperparams)
+    test_dataset = HyperXG(img, test_gt, **hyperparams)
     test_loader = torch.utils.data.DataLoader(test_dataset,
                                   batch_size=hyperparams['batch_size'],
                                   # pin_memory=hyperparams['device'],
