@@ -37,6 +37,7 @@ import torch
 import numpy as np
 import traceback
 import sys
+import pickle
 cimport numpy as np
 
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
@@ -177,10 +178,10 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   size_ptr[0] = ( sizeof(int)              # level
                 + sizeof(int)              # num tensors
                 + sizeof(int)              # num weight tensors
+                + sizeof(int)              # other layer information (size in bytes)
                 + num_tensors*sizeof(int)  # tensor rank
                 + total_shape              # tensor shapes
                 + sizeof(float)*cnt        # tensor data
-                + sizeof(int)              # other layer information (size in bytes)
                 + layer_data_size          # pickled layer size
                 )
 
@@ -191,11 +192,13 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   # Convert void * to a double array (note fbuffer is a C-array, so no bounds checking is done) 
   cdef int * ibuffer
   cdef float * fbuffer
+  cdef void * vbuffer 
   cdef np.ndarray[float,ndim=1] np_U
   cdef int offset
   cdef int sz
   cdef view.array my_buf 
 
+  pyApp = <object> app
   bv_u = <object> u
 
   ibuffer = <int *> buffer
@@ -204,12 +207,14 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   level              = bv_u.level()
   num_tensors        = len(bv_u.allTensors())
   num_weight_tensors = len(bv_u.weightTensors())
+  layer_data_size    = pyApp.getLayerDataSize()
 
   ibuffer[0] = level
   ibuffer[1] = num_tensors
   ibuffer[2] = num_weight_tensors
+  ibuffer[3] = layer_data_size
 
-  offset = 3 # this is accomdating space for the three integers
+  offset = 4 # this is accomdating space for the four integers
   for t in bv_u.allTensors():
     size = t.size() 
     ibuffer[offset] = len(size)
@@ -232,18 +237,30 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
     # update the float buffer pointer
     fbuffer = <float*> (fbuffer+sz)
 
+  if layer_data_size>0:
+    pbuf_src = pickle.dumps(bv_u.getLayerData()) 
+    if len(pbuf_src)>layer_data_size:
+      output_exception('bufpack: buffer sized not sufficient')
+
+    # this is to maek sure I can use the vbuffer
+    vbuffer = fbuffer
+
+    my_buf = <char[:len(pbuf_src)]> vbuffer
+    my_buf[:] = pbuf_src
+  # end if layer_data_size
+
   return 0
 
 cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_BufferStatus status):
-
-  pyApp = <object>app
-
   cdef int * ibuffer 
   cdef float * fbuffer 
+  cdef void * vbuffer 
   cdef np.ndarray[float,ndim=1] np_U
   cdef int offset
   cdef int sz
   cdef view.array my_buf 
+
+  pyApp = <object>app
 
   # read in the buffer metda data
   ibuffer = <int *> buffer
@@ -251,8 +268,9 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   level              = ibuffer[0]
   num_tensors        = ibuffer[1]
   num_weight_tensors = ibuffer[2]
+  layer_data_size    = ibuffer[3]
 
-  offset = 3
+  offset = 4
   sizes = []
   for t in range(num_tensors):
     rank = ibuffer[offset]
@@ -285,6 +303,15 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
     
     # update the float buffer pointer
     fbuffer = <float*> (fbuffer+sz)
+
+  if layer_data_size>0:
+    # this is to maek sure I can use the vbuffer
+    vbuffer = fbuffer
+
+    my_buf = <char[:layer_data_size]> vbuffer
+    layer_data = pickle.loads(my_buf)
+    u_obj.addLayerData(layer_data)
+  # end if layer_data_size
 
   u_obj.setSendFlag(True)
 

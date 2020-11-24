@@ -130,6 +130,7 @@ class TestTorchBraid(unittest.TestCase):
                  + sizeof_int                # how much layer data (bytes)
                  + layer_data_size           # checkout of layer data
                  )
+
     self.assertEqual(sz,total_size)
   # end test_buff_size
 
@@ -147,7 +148,6 @@ class TestTorchBraid(unittest.TestCase):
     b = torch.ones(shapes[1])
     c = torch.ones(shapes[2])
     d = torch.ones(shapes[3])
-
 
     bv_in = torchbraid.BraidVector((a,b),0)
     bv_in.addWeightTensors((c,d))
@@ -173,6 +173,12 @@ class TestTorchBraid(unittest.TestCase):
     self.assertEqual(len(bv_in.allTensors()),len(bv_out.allTensors()))
     for i,o in zip(bv_in.allTensors(),bv_out.allTensors()):
       self.assertTrue(torch.norm(i-2.0*o).item()<5.0e-16)
+
+    out_layer_data = bv_out.getLayerData()
+    in_layer_data = bv_out.getLayerData()
+
+    self.assertEqual(out_layer_data.s,in_layer_data.s)
+    self.assertEqual(out_layer_data.linear,in_layer_data.linear)
     
 if __name__ == '__main__':
   unittest.main()
