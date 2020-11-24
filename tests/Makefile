@@ -1,12 +1,12 @@
 include ../makefile.inc
 
-MODULE_NAME=torchbraid_test
+MODULE_NAME=test_cbs
 
 LIB_NAME=$(MODULE_NAME).$(POSTFIX)
 
 all: $(LIB_NAME)
 
-$(LIB_NAME): ${MODULE_NAME}.pyx
+$(LIB_NAME): ${MODULE_NAME}.pyx ../torchbraid/torchbraid_callbacks.pyx
 	#XBRAID_ROOT=$(XBRAID_ROOT) CC=mpicc $(PYTHON) setup.py install --record installed_files.txt
 	XBRAID_ROOT=$(XBRAID_ROOT) CC=$(CC) $(PYTHON) setup.py build_ext --inplace
 
@@ -18,6 +18,7 @@ uninstall:
 	rm -fr installed_files.txt
 
 tests test:
+	$(MPIRUN) -n 1 $(PYTHON) test_callbacks.py
 	$(MPIRUN) -n 3 $(PYTHON) test_layer_parallel.py
 	$(MPIRUN) -n 3 $(PYTHON) test_composite.py
 	$(MPIRUN) -n 3 $(PYTHON) test_grad_update.py
@@ -25,6 +26,7 @@ tests test:
 	$(PYTHON) test_ContextTimer.py
 
 tests-serial test-serial:
+	$(MPIRUN) -n 1 $(PYTHON) test_callbacks.py
 	$(MPIRUN) -n 1 $(PYTHON) test_layer_parallel.py
 	$(MPIRUN) -n 1 $(PYTHON) test_composite.py
 	$(MPIRUN) -n 1 $(PYTHON) test_grad_update.py

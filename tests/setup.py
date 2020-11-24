@@ -35,7 +35,7 @@ from Cython.Build import cythonize
 import numpy
 import os
 
-module_name = 'torchbraid_test'
+module_name = 'test_cbs'
 
 braid_dir = os.environ["XBRAID_ROOT"]
 if "EXTRA_FLAGS" in os.environ.keys():

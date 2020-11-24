@@ -37,15 +37,6 @@ from cpython.ref cimport PyObject
 
 include "../torchbraid/torchbraid_app.pyx"
 
-##
-# Define your Python Braid Vector
-
-# to supress a warning from numpy
-cdef extern from *:
-  """
-  #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-  """
-
 # Other helper functions (mostly for testing)
 #################################
 
@@ -63,19 +54,18 @@ def cloneInitVector(app):
   cdef braid_App c_app = <PyObject*>app
   cdef braid_Vector v_vec
   my_init(c_app,0.0,&v_vec)
-  return (<object> v_vec).tensor()
+  return <object> v_vec
 
 # This builds a close of the initial vector
 # using the `my_clone` 
 def cloneVector(app,x):
-  b_vec = BraidVector(x,0)
 
   cdef braid_App c_app = <PyObject*>app
-  cdef braid_Vector c_x = <braid_Vector> b_vec
+  cdef braid_Vector c_x = <braid_Vector> x
   cdef braid_Vector v 
   my_clone(c_app,c_x,&v)
 
-  return (<object> v).tensor()
+  return <object> v
 
 def addVector(app,alpha,ten_x,beta,ten_y):
   x = BraidVector(ten_x,0)
@@ -107,34 +97,42 @@ def bufSize(app):
   
   my_bufsize(c_app,sz,status)
 
-  # subtract the int size (for testing purposes)
   return sz[0] 
 
-def allocBuffer(app):
-  cdef void * buffer = PyMem_Malloc(bufSize(app))
-  return <object> buffer
+def sizeof_int():
+  return sizeof(float)
 
-def freeBuffer(app,obuffer):
-  cdef void * buffer = <void*> obuffer
-  PyMem_Free(buffer)
+def sizeof_float():
+  return sizeof(int)
 
-def pack(app,ten_vec,obuffer,level):
-  vec = BraidVector(ten_vec,level)
 
+cdef class MemoryBlock:
+  cdef void* data
+
+  def __cinit__(self, size_t number):
+    # allocate some memory (uninitialised, may contain arbitrary data)
+    self.data = <double*> PyMem_Malloc(number * sizeof(double))
+    if not self.data:
+      raise MemoryError()
+
+  def __dealloc__(self):
+    PyMem_Free(self.data)  # no-op if self.data is NULL
+
+def pack(app,vec,block,level):
   cdef braid_App c_app    = <PyObject*>app
   cdef braid_Vector c_vec = <braid_Vector> vec
   cdef braid_BufferStatus status = NULL
-  cdef void * buffer = <void*> obuffer
+  cdef MemoryBlock blk = <MemoryBlock> block
 
-  my_bufpack(c_app, c_vec, buffer,status)
+  my_bufpack(c_app, c_vec, blk.data,status)
 
-def unpack(app,obuffer):
+def unpack(app,block):
   cdef braid_App c_app    = <PyObject*>app
   cdef braid_Vector c_vec    
-  cdef void * buffer = <void*> obuffer
+  cdef MemoryBlock blk = <MemoryBlock> block
   cdef braid_BufferStatus status = NULL
   
-  my_bufunpack(c_app,buffer,&c_vec,status)
+  my_bufunpack(c_app,blk.data,&c_vec,status)
 
   vec = <object> c_vec
-  return (vec.tensor(),vec.level())
+  return vec
