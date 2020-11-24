@@ -42,6 +42,7 @@ class BraidVector:
 
     self.instance = BraidVector.instance
     self.weight_tensor_data_ = []
+    self.layer_data_ = None
 
     s = ''
     if isinstance(tensor,Iterable):
@@ -67,6 +68,15 @@ class BraidVector:
   def __del__(self):
     self.tensor_data_ = None
     self.weight_tensor_data_ = None
+
+  def addLayerData(self,layer_data):
+    self.layer_data_ = layer_data
+
+  def releaseLayerData(self):
+    self.layer_data_ = None
+
+  def getLayerData(self):
+    return self.layer_data_
 
   def addWeightTensors(self,weights):
     """

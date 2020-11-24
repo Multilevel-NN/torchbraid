@@ -162,6 +162,7 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   num_tensors = len(shapes) # all tensors
   cnt = 0
   total_shape = 0
+  layer_data_size = pyApp.getLayerDataSize()
   for s in shapes:
     cnt += s.numel() # pyApp.shape0[0].numel()
     rank = len(s) #len(pyApp.shape0[0])
@@ -173,10 +174,15 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   # Note size_ptr is an integer array of size 1, and we index in at location [0]
 
   # there are mulitple fields in a packed buffer, in orderr
-  #     level (1 int), num_tensors (1 int), num_weight_tensors (1 int), [rank (1 int), sizes (rank int)] * (num_tensors), tensor data
-
-  size_ptr[0] = sizeof(int) + sizeof(int) + sizeof(int) + num_tensors*sizeof(int) + total_shape + sizeof(float)*cnt
-                 #  level     num_tensors   num_weight_tensors          rank             total_shape         vector_data
+  size_ptr[0] = ( sizeof(int)              # level
+                + sizeof(int)              # num tensors
+                + sizeof(int)              # num weight tensors
+                + num_tensors*sizeof(int)  # tensor rank
+                + total_shape              # tensor shapes
+                + sizeof(float)*cnt        # tensor data
+                + sizeof(int)              # other layer information (size in bytes)
+                + layer_data_size          # pickled layer size
+                )
 
   return 0
 

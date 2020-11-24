@@ -152,6 +152,9 @@ class BraidApp:
       # FIXME: braid_Destroy(core) # this should be on
     # end core
 
+  def getLayerDataSize(self):
+    return 0
+
   def getTensorShapes(self):
     return self.shape0
 

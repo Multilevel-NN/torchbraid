@@ -200,6 +200,9 @@ class BraidApp:
 
     self.enable_diagnostics = enable
 
+  def getLayerDataSize(self):
+    return 0
+
   def getTensorShapes(self):
     return self.fwd_app.getTensorShapes()
 

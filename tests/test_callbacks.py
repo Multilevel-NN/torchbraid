@@ -51,6 +51,9 @@ class DummyApp:
 
   def getBufSize(self):
      return sizeof(int)+ (2+4+2+3)*sizeof(int)
+
+  def getLayerDataSize(self):
+     return 0
 # end DummyApp
 
 class TestTorchBraid(unittest.TestCase):
@@ -89,6 +92,7 @@ class TestTorchBraid(unittest.TestCase):
 
     app = DummyApp(dtype=torch.float)
     shapes = app.getTensorShapes()
+    layer_data_size = app.getLayerDataSize()
 
     a = torch.ones(shapes[0])
     b = torch.ones(shapes[1])
@@ -113,8 +117,10 @@ class TestTorchBraid(unittest.TestCase):
                  + sizeof_int                # num_weighttensors
                  + num_tensors*sizeof_int    # number of tensors dimensions and shapes
                  + data_shapes               # the shapes of each tensor
-                 + data_size )               # the shapes of each tensor
-
+                 + data_size                 # the shapes of each tensor
+                 + sizeof_int                # how much layer data (bytes)
+                 + layer_data_size           # checkout of layer data
+                 )
     self.assertEqual(sz,total_size)
   # end test_buff_size
 
