@@ -35,12 +35,14 @@ import unittest
 import numpy as np
 
 import torchbraid
+import torchbraid.utils as tbutils
 
 import test_cbs as cbs
 
 class DummyApp:
-  def __init__(self,dtype):
+  def __init__(self,dtype,layer_data_size):
     self.dtype = dtype
+    self.layer_data_size = layer_data_size
 
   def buildInit(self,t):
     # recoggnize that the default for pytorch is a 32 bit float...
@@ -53,12 +55,17 @@ class DummyApp:
      return sizeof(int)+ (2+4+2+3)*sizeof(int)
 
   def getLayerDataSize(self):
-     return 0
+     return self.layer_data_size
 # end DummyApp
+
+class TestLayerData:
+  def __init__(self):
+    self.s = { 'a':'some sort of data' + 'a'*10, 4: 2343}
+    self.linear = torch.nn.Linear(10,10)
 
 class TestTorchBraid(unittest.TestCase):
   def test_clone_init(self):
-    app = DummyApp(dtype=float)
+    app = DummyApp(float,0)
 
     clone_vec = cbs.cloneInitVector(app)
     clone = clone_vec.tensor()
@@ -70,7 +77,7 @@ class TestTorchBraid(unittest.TestCase):
     self.assertEqual(torch.norm(clone).item(),np.sqrt(4.0*5.0))
 
   def test_clone_vector(self):
-    app = DummyApp(dtype=float)
+    app = DummyApp(float,0)
 
     vec = app.buildInit(0.0)
     ten = vec.tensor() 
@@ -89,10 +96,12 @@ class TestTorchBraid(unittest.TestCase):
   def test_buff_size(self):
     sizeof_float = cbs.sizeof_float()
     sizeof_int   = cbs.sizeof_int()
+    layer_data_size = 27
 
-    app = DummyApp(dtype=torch.float)
+    app = DummyApp(float,layer_data_size)
     shapes = app.getTensorShapes()
-    layer_data_size = app.getLayerDataSize()
+
+    self.assertEqual(layer_data_size,app.getLayerDataSize())
 
     a = torch.ones(shapes[0])
     b = torch.ones(shapes[1])
@@ -128,7 +137,10 @@ class TestTorchBraid(unittest.TestCase):
     sizeof_float = cbs.sizeof_float()
     sizeof_int   = cbs.sizeof_int()
 
-    app = DummyApp(dtype=torch.float)
+    layer_data = TestLayerData()
+    pickle_sz = tbutils.pickle_size(layer_data)
+
+    app = DummyApp(torch.float,pickle_sz)
     shapes = app.getTensorShapes()
 
     a = torch.ones(shapes[0])
@@ -136,8 +148,10 @@ class TestTorchBraid(unittest.TestCase):
     c = torch.ones(shapes[2])
     d = torch.ones(shapes[3])
 
+
     bv_in = torchbraid.BraidVector((a,b),0)
     bv_in.addWeightTensors((c,d))
+    bv_in.addLayerData(layer_data)
 
     # allocate space
     block = cbs.MemoryBlock(cbs.bufSize(app))

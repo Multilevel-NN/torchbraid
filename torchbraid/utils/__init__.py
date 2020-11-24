@@ -39,6 +39,7 @@ from .gittools import git_rev
 import gc
 import torch
 import traceback
+import pickle
 
 def seed_from_rank(seed,rank):
   """
@@ -96,3 +97,10 @@ def stack_string(prefix=None):
   stack_str = prefix+stack_str
 
   return stack_str
+
+def pickle_size(obj):
+  """
+  What is the size in bytes of the pickled stream from
+  this object.
+  """
+  return len(pickle.dumps(obj))
