@@ -130,8 +130,12 @@ class BraidVector:
     tensors = [t.detach().clone() for t in self.tensors()]
     cl = BraidVector(tuple(tensors),self.level())
 
+    # copy any weight tensors
     tensors = [t.detach().clone() for t in self.weightTensors()]
     cl.addWeightTensors(tensors)
+
+    # copy layer information
+    cl.addLayerData(self.getLayerData())
 
     cl.setSendFlag(self.getSendFlag())
 
