@@ -31,7 +31,7 @@
 
 from .layer_parallel import LayerParallel
 from .rnn_layer_parallel import RNN_Parallel
-from .network_parallel import NetworkParallel
+from .network_parallel import NetworkParallel, distributeNetworkFromRoot
 
 #from . import torchbraid_app
 from .braid_vector import BraidVector

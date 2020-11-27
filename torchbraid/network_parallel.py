@@ -45,18 +45,59 @@ import torchbraid.resnet_apps as apps
 
 import numpy as np
 
-##
-# Define your Python Braid Vector
+def distributeNetworkFromRoot(comm,network):
+  """
+  Function takes the network on the root and distributes children across multiple processors
 
-#  a python level module
-##########################################################
+  comm: Communicator to use for distribution
+  network: defined on the root (ignored elsewhere), children will be distributed
+
+  returns: Network's on each processor, on the root it will contain references to the
+           layers selected for this processors. The children will be distributed
+           accordinng to processor rank in a linear way. The work will not be load balanced.
+  """
+
+  num_ranks = comm.Get_size()
+  my_rank = comm.Get_rank()
+
+  if my_rank==0:
+    children = [c for c in network.children()]
+
+    assert(len(children)>=num_ranks)
+
+    even = len(children) // num_ranks
+    remain = len(children) % num_ranks
+
+    # figure out how many layers to distribute to each processor
+    # (adds an additional for each remaining processors)
+    count = (num_ranks+1)*[0]
+    offset = 0
+    for i in range(num_ranks):
+      count[i+1] = offset+even 
+      offset += even
+      if remain>0:
+        count[i+1] += 1
+        remain -= 1
+        offset += 1
+    assert(offset==len(children))
+
+    # now that the counts are setup properly, it should be trivial
+    all_children = num_ranks*[None]
+    for i in range(num_ranks):
+      all_children[i] = children[count[i]:count[i+1]]
+  else:
+    all_children = None
+
+  return comm.scatter(all_children,root=0)
+
+# end distributedNetworkFromRoot
 
 class NetworkParallel(nn.Module):
   
   class ExecLP:
-    """Helper class for btorchuilding composite neural network modules
+    """Helper class for building composite neural network modules
 
-    This class is used by customers of the LayerParallel module to
+    This class is used by customers of the NetworkParallel module to
     allow construction of composite neural networks with the proper
     parallel execution and gradients.
 

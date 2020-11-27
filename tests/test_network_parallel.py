@@ -85,7 +85,41 @@ class ConvBlock(nn.Module):
 # end layer
 
 class TestTorchBraid(unittest.TestCase):
-  def test_linearNet_Exact(self):
+  def test_distributeFromRoot(self):
+    # dummy class to test distribution
+    class Network:
+      def children(self):
+        return [i for i in range(13)]
+   
+    comm = MPI.COMM_WORLD
+    network = Network()
+
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+
+    result = torchbraid.distributeNetworkFromRoot(comm,network)
+
+    # print('  %d) ' % comm.Get_rank(),result)
+
+    if size==1:
+      self.assertEqual(result,list(range(0,13)))
+    elif size==2:
+      if rank==0: self.assertEqual(result,list(range(0,7)))
+      if rank==1: self.assertEqual(result,list(range(7,13)))
+    elif size==3:
+      if rank==0: self.assertEqual(result,list(range(0,5)))
+      if rank==1: self.assertEqual(result,list(range(5,9)))
+      if rank==2: self.assertEqual(result,list(range(9,13)))
+    elif size==4:
+      if rank==0: self.assertEqual(result,list(range(0,4)))
+      if rank==1: self.assertEqual(result,list(range(4,7)))
+      if rank==2: self.assertEqual(result,list(range(7,10)))
+      if rank==3: self.assertEqual(result,list(range(10,13)))
+    else:
+      assert(False) # can't run on more than four ranks
+  # end test_distributeFromRoot
+
+  def qtest_linearNet_Exact(self):
     dim = 2
     basic_block = lambda: LinearBlock(dim)
 
