@@ -207,7 +207,13 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   level              = bv_u.level()
   num_tensors        = len(bv_u.allTensors())
   num_weight_tensors = len(bv_u.weightTensors())
-  layer_data_size    = pyApp.getLayerDataSize()
+
+  # pack up an layers
+  pbuf_src = None
+  layer_data_size = 0
+  if bv_u.getLayerData() is not None: 
+    pbuf_src = pickle.dumps(bv_u.getLayerData()) 
+    layer_data_size = len(pbuf_src) 
 
   ibuffer[0] = level
   ibuffer[1] = num_tensors
@@ -237,11 +243,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
     # update the float buffer pointer
     fbuffer = <float*> (fbuffer+sz)
 
-  if layer_data_size>0:
-    pbuf_src = pickle.dumps(bv_u.getLayerData()) 
-    if len(pbuf_src)>layer_data_size:
-      output_exception('bufpack: buffer sized not sufficient')
-
+  if pbuf_src is not None:
     # this is to maek sure I can use the vbuffer
     vbuffer = fbuffer
 
@@ -310,7 +312,7 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
 
     my_buf = <char[:layer_data_size]> vbuffer
     layer_data = pickle.loads(my_buf)
-    u_obj.addLayerData(layer_data)
+    u_obj.setLayerData(layer_data)
   # end if layer_data_size
 
   u_obj.setSendFlag(True)

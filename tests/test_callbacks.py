@@ -151,7 +151,7 @@ class TestTorchBraid(unittest.TestCase):
 
     bv_in = torchbraid.BraidVector((a,b),0)
     bv_in.addWeightTensors((c,d))
-    bv_in.addLayerData(layer_data)
+    bv_in.setLayerData(layer_data)
 
     # allocate space
     block = cbs.MemoryBlock(cbs.bufSize(app))

@@ -73,6 +73,8 @@ class ForwardResNetApp(BraidApp):
     num_ranks     = self.getMPIComm().Get_size()
     self.my_rank = my_rank
 
+    print(my_rank,'length = ', len(layers))
+
     # send everything to the left (this helps with the adjoint method)
     if my_rank>0:
       comm.send(self.layer_models[0],dest=my_rank-1,tag=22)
@@ -98,10 +100,13 @@ class ForwardResNetApp(BraidApp):
 
   def setVectorLayer(self,t,tf,level,x):
     layer = self.getLayer(t,tf,level)
-    x.addLayerData(layer)
+    x.setLayerData(layer)
+    print(self.getMPIComm().Get_rank(),'setVL',t,layer)
 
   def initializeVector(self,t,x):
-    self.setVectorLayer(t,0.0,0,x)
+    layer = self.getLayer(t,0,0)
+    x.setLayerData(layer)
+    print(self.getMPIComm().Get_rank(),'init',t,layer)
 
   def updateParallelWeights(self):
     # send everything to the left (this helps with the adjoint method)
@@ -155,6 +160,7 @@ class ForwardResNetApp(BraidApp):
       print(pre_str+stack_str)
       return
 
+    print(self.getMPIComm().Get_rank(),'set layer', t,level,layer)
     self.layer_models[index] = layer
 
   def parameters(self):
@@ -195,7 +201,6 @@ class ForwardResNetApp(BraidApp):
     if isinstance(y,BraidVector):
       self.setLayer(tstart,tstop,level,y.getLayerData())
 
-      layer = y.getLayerData()
       t_y = y.tensor().detach()
 
       # no gradients are necessary here, so don't compute them
@@ -203,7 +208,7 @@ class ForwardResNetApp(BraidApp):
         in_place_eval(t_y,tstart,tstop,level)
 
       if y.getSendFlag():
-        y.addLayerData(None)
+        y.setLayerData(None)
         y.setSendFlag(False)
       # wipe out any sent information
 

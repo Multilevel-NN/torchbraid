@@ -69,7 +69,7 @@ class BraidVector:
     self.tensor_data_ = None
     self.weight_tensor_data_ = None
 
-  def addLayerData(self,layer_data):
+  def setLayerData(self,layer_data):
     self.layer_data_ = layer_data
 
   def releaseLayerData(self):
@@ -135,7 +135,7 @@ class BraidVector:
     cl.addWeightTensors(tensors)
 
     # copy layer information
-    cl.addLayerData(self.getLayerData())
+    cl.setLayerData(self.getLayerData())
 
     cl.setSendFlag(self.getSendFlag())
 
