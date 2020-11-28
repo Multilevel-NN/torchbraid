@@ -39,6 +39,7 @@ import sys
 import traceback
 import resource
 import copy
+import pickle
 
 from mpi4py import MPI
 
@@ -73,8 +74,6 @@ class ForwardResNetApp(BraidApp):
     num_ranks     = self.getMPIComm().Get_size()
     self.my_rank = my_rank
 
-    print(my_rank,'length = ', len(layers))
-
     # send everything to the left (this helps with the adjoint method)
     if my_rank>0:
       comm.send(self.layer_models[0],dest=my_rank-1,tag=22)
@@ -90,6 +89,10 @@ class ForwardResNetApp(BraidApp):
 
     self.timer_manager = timer_manager
     self.use_deriv = False
+    self.layer_data_size = 0
+
+    for l in self.layer_models:
+      self.layer_data_size = max(self.layer_data_size,len(pickle.dumps(l)))
   # end __init__
 
   def __del__(self):
@@ -98,15 +101,15 @@ class ForwardResNetApp(BraidApp):
   def getTensorShapes(self):
     return list(self.shape0)
 
+  def getLayerDataSize(self):
+    return self.layer_data_size
+
   def setVectorLayer(self,t,tf,level,x):
     layer = self.getLayer(t,tf,level)
     x.setLayerData(layer)
-    print(self.getMPIComm().Get_rank(),'setVL',t,layer)
 
   def initializeVector(self,t,x):
-    layer = self.getLayer(t,0,0)
-    x.setLayerData(layer)
-    print(self.getMPIComm().Get_rank(),'init',t,layer)
+    self.setVectorLayer(t,0.0,0,x)
 
   def updateParallelWeights(self):
     # send everything to the left (this helps with the adjoint method)
@@ -160,7 +163,6 @@ class ForwardResNetApp(BraidApp):
       print(pre_str+stack_str)
       return
 
-    print(self.getMPIComm().Get_rank(),'set layer', t,level,layer)
     self.layer_models[index] = layer
 
   def parameters(self):

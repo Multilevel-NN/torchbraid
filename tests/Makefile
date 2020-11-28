@@ -20,6 +20,7 @@ uninstall:
 tests test:
 	$(MPIRUN) -n 1 $(PYTHON) test_callbacks.py
 	$(MPIRUN) -n 3 $(PYTHON) test_layer_parallel.py
+	$(MPIRUN) -n 3 $(PYTHON) test_network_parallel.py
 	$(MPIRUN) -n 3 $(PYTHON) test_composite.py
 	$(MPIRUN) -n 3 $(PYTHON) test_grad_update.py
 	$(MPIRUN) -n 2 $(PYTHON) test_rnn_layer_parallel.py

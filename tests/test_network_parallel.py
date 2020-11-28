@@ -119,7 +119,7 @@ class TestTorchBraid(unittest.TestCase):
       assert(False) # can't run on more than four ranks
   # end test_distributeFromRoot
 
-  def qtest_linearNet_Exact(self):
+  def test_linearNet_Exact(self):
     dim = 2
     basic_block = lambda: LinearBlock(dim)
 
@@ -250,7 +250,14 @@ class TestTorchBraid(unittest.TestCase):
   # end copyParametersToRoot
 
   def backForwardProp(self,dim, basic_block,x0,w0,max_levels,max_iters,test_tol,prefix,ref_pair=None,check_grad=True,num_steps=4,print_level=0):
+
     layers = [basic_block() for _ in range(num_steps)]
+
+    # this is the reference torch "solution"
+    #######################################
+    f = torch.nn.Sequential(*layers)
+
+    layers = torchbraid.distributeNetworkFromRoot(MPI.COMM_WORLD,f)
       
     # this is the torchbraid class being tested 
     #######################################
@@ -260,10 +267,6 @@ class TestTorchBraid(unittest.TestCase):
     m.setSkipDowncycle(False)
 
     w0 = m.copyVectorFromRoot(w0)
-
-    # this is the reference torch "solution"
-    #######################################
-    f = torch.nn.Sequential(*layers)
 
     # run forward/backward propgation
 

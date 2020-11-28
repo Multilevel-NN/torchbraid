@@ -198,58 +198,65 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   cdef int sz
   cdef view.array my_buf 
 
-  pyApp = <object> app
-  bv_u = <object> u
+  try:
+    pyApp = <object> app
+    bv_u = <object> u
+  
+    ibuffer = <int *> buffer
+  
+    # write out the buffer meta data
+    level              = bv_u.level()
+    num_tensors        = len(bv_u.allTensors())
+    num_weight_tensors = len(bv_u.weightTensors())
+    layer_data_size    = pyApp.getLayerDataSize()
+  
+    # pack up layers
+    pbuf_src = None
+    if bv_u.getLayerData() is not None: 
+      pbuf_src = pickle.dumps(bv_u.getLayerData()) 
+  
+      assert(layer_data_size>=len(pbuf_src))
+    # end if bv_u.getLayerData
+  
+  
+    ibuffer[0] = level
+    ibuffer[1] = num_tensors
+    ibuffer[2] = num_weight_tensors
+    ibuffer[3] = layer_data_size
+  
+    offset = 4 # this is accomdating space for the four integers
+    for t in bv_u.allTensors():
+      size = t.size() 
+      ibuffer[offset] = len(size)
+      for i,s in enumerate(size):
+        ibuffer[i+offset+1] = s
+          
+      offset += len(size)+1
+    # end for a: creating space for the number tensors
+  
+    # copy the data
+    fbuffer = <float *>(buffer+offset*sizeof(int)) 
+    for ten_U in bv_u.allTensors():
+      np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
+  
+      # copy the tensor into the buffer
+      sz = len(np_U)
+      my_buf = <float[:sz]> (fbuffer)
+      my_buf[:] = np_U
+  
+      # update the float buffer pointer
+      fbuffer = <float*> (fbuffer+sz)
+  
+    if pbuf_src is not None:
+      # this is to maek sure I can use the vbuffer
+      vbuffer = fbuffer
+  
+      my_buf = <char[:len(pbuf_src)]> vbuffer
+      my_buf[:] = pbuf_src
+    # end if layer_data_size
 
-  ibuffer = <int *> buffer
-
-  # write out the buffer meta data
-  level              = bv_u.level()
-  num_tensors        = len(bv_u.allTensors())
-  num_weight_tensors = len(bv_u.weightTensors())
-
-  # pack up an layers
-  pbuf_src = None
-  layer_data_size = 0
-  if bv_u.getLayerData() is not None: 
-    pbuf_src = pickle.dumps(bv_u.getLayerData()) 
-    layer_data_size = len(pbuf_src) 
-
-  ibuffer[0] = level
-  ibuffer[1] = num_tensors
-  ibuffer[2] = num_weight_tensors
-  ibuffer[3] = layer_data_size
-
-  offset = 4 # this is accomdating space for the four integers
-  for t in bv_u.allTensors():
-    size = t.size() 
-    ibuffer[offset] = len(size)
-    for i,s in enumerate(size):
-      ibuffer[i+offset+1] = s
-        
-    offset += len(size)+1
-  # end for a: creating space for the number tensors
-
-  # copy the data
-  fbuffer = <float *>(buffer+offset*sizeof(int)) 
-  for ten_U in bv_u.allTensors():
-    np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
-
-    # copy the tensor into the buffer
-    sz = len(np_U)
-    my_buf = <float[:sz]> (fbuffer)
-    my_buf[:] = np_U
-
-    # update the float buffer pointer
-    fbuffer = <float*> (fbuffer+sz)
-
-  if pbuf_src is not None:
-    # this is to maek sure I can use the vbuffer
-    vbuffer = fbuffer
-
-    my_buf = <char[:len(pbuf_src)]> vbuffer
-    my_buf[:] = pbuf_src
-  # end if layer_data_size
+  except:
+    output_exception("my_bufpack")
 
   return 0
 
@@ -307,7 +314,8 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
     fbuffer = <float*> (fbuffer+sz)
 
   if layer_data_size>0:
-    # this is to maek sure I can use the vbuffer
+
+    # this is to make sure I can use the vbuffer
     vbuffer = fbuffer
 
     my_buf = <char[:layer_data_size]> vbuffer
