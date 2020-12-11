@@ -192,7 +192,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   # Convert void * to a double array (note fbuffer is a C-array, so no bounds checking is done) 
   cdef int * ibuffer
   cdef float * fbuffer
-  cdef void * vbuffer 
+  cdef char * vbuffer 
   cdef np.ndarray[float,ndim=1] np_U
   cdef int offset
   cdef int sz
@@ -249,7 +249,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   
     if pbuf_src is not None:
       # this is to maek sure I can use the vbuffer
-      vbuffer = fbuffer
+      vbuffer = <char *> fbuffer
   
       my_buf = <char[:len(pbuf_src)]> vbuffer
       my_buf[:] = pbuf_src
