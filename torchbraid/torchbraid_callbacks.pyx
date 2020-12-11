@@ -192,9 +192,10 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   # Convert void * to a double array (note fbuffer is a C-array, so no bounds checking is done) 
   cdef int * ibuffer
   cdef float * fbuffer
-  cdef char * vbuffer 
+  cdef char * cbuffer 
   cdef np.ndarray[float,ndim=1] np_U
   cdef int offset
+  cdef int foffset
   cdef int sz
   cdef view.array my_buf 
 
@@ -235,6 +236,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
     # end for a: creating space for the number tensors
   
     # copy the data
+    foffset = 0
     fbuffer = <float *>(buffer+offset*sizeof(int)) 
     for ten_U in bv_u.allTensors():
       np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
@@ -246,12 +248,12 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   
       # update the float buffer pointer
       fbuffer = <float*> (fbuffer+sz)
+      foffset += sz
   
     if pbuf_src is not None:
-      # this is to maek sure I can use the vbuffer
-      vbuffer = <char *> fbuffer
+      cbuffer = <char *>(buffer+offset*sizeof(int)+foffset*sizeof(float)) 
   
-      my_buf = <char[:len(pbuf_src)]> vbuffer
+      my_buf = <char[:len(pbuf_src)]> cbuffer
       my_buf[:] = pbuf_src
     # end if layer_data_size
 
