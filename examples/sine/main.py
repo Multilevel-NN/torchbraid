@@ -129,6 +129,16 @@ class ParallelNet(torch.nn.Module):
         return x
 # end ParallelNet
 
+# Compute L-2 norm gradient of model parameters
+def gradnorm(parameters):
+    norm = 0.0
+    for p in parameters:
+            param_norm = p.grad.data.norm(2)
+            norm += param_norm.item() ** 2
+    # norm = norm ** (1. / 2)
+    return norm
+
+
 # Parse command line
 parser = argparse.ArgumentParser(description='TORCHBRAID Sine Example')
 parser.add_argument('--batch-size', type=int, default=20, metavar='N', help='batch size for training (default: 50)')
@@ -162,8 +172,8 @@ torch.manual_seed(0)
 # Layer-parallel parameters
 lp_max_levels = max_levels
 lp_max_iter = 1
-lp_printlevel = 2
-lp_braid_printlevel = 2
+lp_printlevel = 1
+lp_braid_printlevel = 1
 lp_cfactor = 2
 # Number of local steps
 local_steps  = int(nlayers / procs)
@@ -208,8 +218,34 @@ for local_batch, local_labels in training_generator:
     # loss = myloss(ypred, local_labels)
 
     # Comput gradient through backpropagation
-    # optimizer.zero_grad()
-    # loss.backward()
+    optimizer.zero_grad()
+    loss.backward()
+
+
+    # Compute gradient norm
+    with torch.no_grad():
+        gnorm = gradnorm(model.parameters())
+
+
+        grads = []
+        # params = []
+        for param in model.parameters():
+              # print("Main: model gradients: ", param.grad)
+        #     # print("Model parameter: ", param)
+            grads.append(param.grad.view(-1))
+        #     # params.append(param.view(-1))
+        print(rank, ": These are the model gradients: ", grads)
+        # print("Theses are all the params:", params)
+
+        # Print gradients
+        # for p in model.parameters():
+            # print("Serial grad: ", p.grad.data)
+
 
 # Output
-print(rank, ": Loss=", loss.item())
+print(rank, ": Loss=", loss.item(), ", GradNorm^2=", gnorm)
+# For gradient norm: Need to MPIreduce sum from all processors first, then take sqrt:
+# MPIAllreduce(gnorm)
+# gnorm = gnorm**(1./2.)
+
+print("WE ARE DONE. NOTHING SHOULD HAPPEN ANYMORE.")
