@@ -154,7 +154,8 @@ class TestGradUpdate(unittest.TestCase):
       for p in m.parameters(): p -= p.grad * lr
     m.zero_grad()
 
-    xm.grad.zero_()
+    if xm.grad is not None:
+      xm.grad.zero_()
     wm = m(xm)
     wm.backward(w0)
 
