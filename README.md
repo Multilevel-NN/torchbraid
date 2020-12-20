@@ -10,6 +10,13 @@ A braid interface to pytorch
   + build of xbraid
   + MPI compiler
 
+Conda environments can be found in 'torchbraid/env' directories. These can be used too get a consistent conda enviroonement
+for using torchbraid. The one caveat, is that mpi4py should be installed consistenclty with the MPI compiler. In some cases
+doing a 'pip install mpi4py' is to be preferred to installing it through conda (conda installs an alternate MPI compiler and
+library. You might want mpi4py to use the native one on your platform).
+
+Note, the cython version is pretty important, particularly if torch layers are shipped directly by braid.
+
 ## Build xbraid:
   1. Download from git@github.com:eric-c-cyr/xbraid.git
   1. Checkout cython-adjoint branch: git checkout cython-adjoint
