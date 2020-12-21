@@ -84,6 +84,7 @@ cdef extern from "braid_status.h":
     int braid_StepStatusSetTightFineTolx (braid_StepStatus status, double tight_fine_tolx)
     int braid_StepStatusSetRFactor (braid_StepStatus status, double rfactor)
     int braid_StepStatusSetRSpace (braid_StepStatus status, double r_space)
+    int braid_StepStatusGetDone (braid_StepStatus status, int *done)
 
     ##
     # Wrap AccessStatus Routines
@@ -219,6 +220,8 @@ cdef extern from "braid.h":
     int braid_GetMyID (braid_Core core, int *myid_ptr)
 
     int braid_SetRevertedRanks(braid_Core core,int boolean)
+
+    int braid_SetFinalFCRelax(braid_Core core)
 
     ##
     # Wrap Braid Init, Drive, and Destroy

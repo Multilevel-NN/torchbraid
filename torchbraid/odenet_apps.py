@@ -181,7 +181,7 @@ class ForwardODENetApp(BraidApp):
 
     return params
 
-  def eval(self,y,tstart,tstop,level,x=None):
+  def eval(self,y,tstart,tstop,level,done,x=None):
     """
     Method called by "my_step" in braid. This is
     required to propagate from tstart to tstop, with the initial
@@ -257,7 +257,7 @@ class ForwardODENetApp(BraidApp):
 
     x.requires_grad = t_x.requires_grad
 
-    self.eval(y,tstart,tstop,0,x=x)
+    self.eval(y,tstart,tstop,0,done=0,x=x)
     return (y, x), layer
   # end getPrimalWithGrad
 
@@ -282,8 +282,12 @@ class BackwardODENetApp(BraidApp):
     # build up the core
     self.py_core = self.initCore()
 
+
     # reverse ordering for adjoint/backprop
     self.setRevertedRanks(1)
+
+    # force evaluation of gradients at end of up-cycle
+    self.finalRelax()
 
     self.timer_manager = timer_manager
   # end __init__
@@ -335,7 +339,7 @@ class BackwardODENetApp(BraidApp):
     return f
   # end forward
 
-  def eval(self,w,tstart,tstop,level):
+  def eval(self,w,tstart,tstop,level,done):
     """
     Evaluate the adjoint problem for a single time step. Here 'w' is the
     adjoint solution. The variables 'x' and 'y' refer to the forward

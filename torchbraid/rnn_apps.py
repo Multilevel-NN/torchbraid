@@ -97,7 +97,7 @@ class ForwardBraidApp(BraidApp):
   # def parameters(self):
   #   return [list(l.parameters()) for l in self.layer_models]
 
-  def eval(self,g0,tstart,tstop,level,force_deriv=False):
+  def eval(self,g0,tstart,tstop,level,done,force_deriv=False):
     """
     Method called by "my_step" in braid. This is
     required to propagate from tstart to tstop, with the initial
@@ -206,7 +206,7 @@ class BackwardBraidApp(BraidApp):
     return f
   # end forward
 
-  def eval(self,x,tstart,tstop,level):
+  def eval(self,x,tstart,tstop,level,done):
     with self.timer("eval(level=%d)" % level):
       # we need to adjust the time step values to reverse with the adjoint
       # this is so that the renumbering used by the backward problem is properly adjusted

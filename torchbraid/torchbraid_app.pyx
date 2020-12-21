@@ -226,6 +226,15 @@ class BraidApp:
    
   # end initializeStates
 
+  def finalRelax(self):
+    """
+    Force the application to do a final FC relaxtion sweep. This is useful for
+    computing the gradient in the backpropagation or adjoint method.
+    """
+    cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
+    cdef braid_Core core = py_core.getCore()
+    braid_SetFinalFCRelax(core)
+
   def runBraid(self,x):
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
     cdef braid_Core core = py_core.getCore()
