@@ -275,9 +275,7 @@ class TestTorchBraid(unittest.TestCase):
     xm = x0.clone()
     xm.requires_grad = check_grad
 
-    print('beg running parallel')
     wm = m(xm)
-    print('end running parallel')
 
     if check_grad:
       wm.backward(w0)

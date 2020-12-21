@@ -360,7 +360,8 @@ class BackwardODENetApp(BraidApp):
         # play with the layers gradient to make sure they are on apprpriately
         for p in layer.parameters(): 
           required_grad_state += [p.requires_grad]
-          if level==0:
+          #if level==0:
+          if done==1:
             if not p.grad is None:
               p.grad.data.zero_()
           else:
