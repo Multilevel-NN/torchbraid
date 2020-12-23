@@ -14,8 +14,7 @@ utils:
 	make -C ./utils
 
 clean:
-	rm -fr $(MODULE_NAME)_app.c $(MODULE_NAME)_app.h ${MODULE_NAME}_callbacks.c build braid.out.cycle *.html __pycache__/ $(LIB_NAME)
-	rm -fr rnn_braid_app.c rnn_braid_app.h build braid.out.cycle *.html __pycache__/ rnn_braid_app.$(POSTFIX)
+	rm -fr *.c *.h build braid.out.cycle *.html __pycache__/ *.so
 	make -C ./utils clean
 
 uninstall:

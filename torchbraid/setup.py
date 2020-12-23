@@ -57,18 +57,4 @@ for module_name in modules:
           ext_modules=cythonize([torchbraid_ext],
                                 annotate=True,
                                 compiler_directives={'boundscheck': False}))
-
-module_name = 'rnn_braid_app'
-torchbraid_ext = Extension(
-		name=module_name,
-		sources=["%s.pyx" % module_name],
-		libraries=["braid"],
-		library_dirs=[braid_dir],
-		include_dirs=[braid_dir,numpy.get_include()],
-		extra_compile_args=extra_compile_args
-)
-
-setup(name=module_name,
-      ext_modules=cythonize([torchbraid_ext],
-                            annotate=True,
-                            compiler_directives={'boundscheck': False}))
+# end for module_name

@@ -36,6 +36,15 @@
 Cython header file defining the Braid-Python interface
 '''
 
+cimport mpi4py.libmpi as libmpi
+from cpython.ref cimport PyObject
+
+ctypedef PyObject _braid_App_struct 
+ctypedef _braid_App_struct* braid_App
+
+ctypedef PyObject _braid_Vector_struct
+ctypedef _braid_Vector_struct *braid_Vector
+
 cdef extern from "status.h":
 
     ##

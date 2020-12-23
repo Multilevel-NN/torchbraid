@@ -37,17 +37,9 @@ import numpy as np
 
 from braid_vector import BraidVector
 
-from cpython.ref cimport PyObject
-
-from mpi4py import MPI
 cimport mpi4py.MPI as MPI
-cimport mpi4py.libmpi as libmpi
 
-ctypedef PyObject _braid_App_struct 
-ctypedef _braid_App_struct* braid_App
-
-ctypedef PyObject _braid_Vector_struct
-ctypedef _braid_Vector_struct *braid_Vector
+#from braid import *
 
 include "./braid.pyx"
 include "./torchbraid_callbacks.pyx"
