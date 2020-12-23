@@ -50,25 +50,12 @@ import torchbraid.rnn_apps as apps
 #  a python level module
 ##########################################################
 
-class ODEBlock(nn.Module):
-  def __init__(self,layer,dt):
-    super(ODEBlock, self).__init__()
-
-    self.dt = dt
-    self.layer = layer
-
-  def forward(self, x):
-    return x + self.dt*self.layer(x)
-# end ODEBlock
-
 class RNN_Parallel(nn.Module):
 
   def __init__(self,comm,basic_block,num_steps,hidden_size,num_layers,Tf,max_levels=1,max_iters=10):
     super(RNN_Parallel,self).__init__()
 
     self.comm = comm
-
-    self.dt = Tf/num_steps
 
     self.basic_block = basic_block
     self.RNN_models = basic_block()
@@ -140,32 +127,6 @@ class RNN_Parallel(nn.Module):
       
     # print("Rank %d RNN_Parallel -> buildInit() - end" % prefix_rank)
     return g
-
-  # This method copies the layerr parameters and can be used for verification
-  def buildSequentialOnRoot(self):
-
-    # prefix_rank  = self.comm.Get_rank()
-    # print("Rank %d RNN_Parallel -> buildSequentialOnRoot() - called" % prefix_rank)
-    
-    ode_layers    = [ODEBlock(copy.deepcopy(l),self.dt) for l in self.layer_models]
-    remote_layers = ode_layers
-    build_seq_tag = 12         # this 
-    comm          = self.getMPIComm()
-    my_rank       = self.getMPIComm().Get_rank()
-    num_ranks     = self.getMPIComm().Get_size()
-    
-    # short circuit for serial case
-    if num_ranks==1:
-      return nn.Sequential(*remote_layers)
-
-    if my_rank==0:
-      for i in range(1,self.getMPIComm().Get_size()):
-        remote_layers += comm.recv(source=i,tag=build_seq_tag)
-      return nn.Sequential(*remote_layers)
-    else:
-      comm.send(ode_layers,dest=0,tag=build_seq_tag)
-      return None
-  # end buildSequentialOnRoot
 
   def getFinal(self):           # TODO: Need to modify 07/14
 
