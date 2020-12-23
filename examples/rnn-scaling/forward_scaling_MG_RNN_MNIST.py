@@ -330,7 +330,7 @@ sequence_length = 28 	# total number of time steps for each sequence
 input_size = 28 		# input size for each time step in a sequence
 hidden_size = 20
 num_layers = 2
-batch_size = 1
+batch_size = 100
 num_epochs = 8
 
 # MNIST dataset
