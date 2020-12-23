@@ -172,7 +172,6 @@ class BraidApp:
   # end initCore
 
   def __del__(self):
-    print('destroy')
     if self.py_core!=None:
       py_core = <PyBraid_Core> self.py_core
       core = py_core.getCore()
