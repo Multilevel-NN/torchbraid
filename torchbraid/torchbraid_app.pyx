@@ -403,4 +403,8 @@ class BraidApp:
   def trainNetwork(self):
     self.training = True
 
+  def getStepBounds(self):
+    cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
+    return (core.grids[0].ilower, core.grids[0].iupper)
+
 # end BraidApp

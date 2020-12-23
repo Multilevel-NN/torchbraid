@@ -148,6 +148,7 @@ cdef extern from "braid.h":
     # Wrap Braid Core
     cdef struct _braid_Core_struct:
       int warm_restart
+      _braid_Grid          **grids
 
     ctypedef _braid_Core_struct *braid_Core
 
@@ -255,6 +256,10 @@ cdef extern from "_braid.h":
     # Wrap Braid Core
     cdef struct _braid_BaseVector_struct:
       braid_Vector    userVector
+
+    cdef struct _braid_Grid:
+      int          ilower
+      int          iupper
 
     ctypedef _braid_BaseVector_struct *braid_BaseVector
 
