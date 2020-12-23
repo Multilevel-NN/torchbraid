@@ -42,22 +42,6 @@ import copy
 
 from mpi4py import MPI
 
-def getMaxMemory(comm,message):
-  usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-
-  total_usage = comm.reduce(usage,op=MPI.SUM)
-  min_usage = comm.reduce(usage,op=MPI.MIN)
-  max_usage = comm.reduce(usage,op=MPI.MAX)
-  if comm.Get_rank()==0:
-    result = '%.2f MiB, (min,avg,max)=(%.2f,%.2f,%.2f)' % (total_usage/2**20, min_usage/2**20,total_usage/comm.Get_size()/2**20,max_usage/2**20)
-    print(message.format(result))
-
-def getLocalMemory(comm,message):
-  usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-
-  result = '%.2f MiB' % (usage/2**20)
-  print(('{}) ' + message).format(comm.Get_rank(),result))
-
 class ForwardODENetApp(BraidApp):
 
   def __init__(self,comm,layer_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None):
