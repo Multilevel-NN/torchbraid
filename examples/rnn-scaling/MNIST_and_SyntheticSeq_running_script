@@ -1,0 +1,20 @@
+# Serial Implementation
+mpirun -n 1 python forward_scaling_RNN_MNIST.py --serial 2
+
+
+The number of nodes n needs to be one of the factors of sequence length (e.g., when sequence length = 28 (MNIST), the feasib
+le number of nodes are 1, 2, 4, 7, 14 and 28)
+# Parallel Implementation
+mpirun -n 1 python forward_scaling_RNN_MNIST.py          2
+mpirun -n 2 python forward_scaling_RNN_MNIST.py          2
+mpirun -n 4 python forward_scaling_RNN_MNIST.py          4
+mpirun -n 7 python forward_scaling_RNN_MNIST.py          7
+
+
+mpirun -n 1 python forward_scaling_RNN_synthetic_sequence.py --serial 2
+
+mpirun -n 1 python forward_scaling_RNN_synthetic_sequence.py          2
+mpirun -n 2 python forward_scaling_RNN_synthetic_sequence.py          2
+mpirun -n 4 python forward_scaling_RNN_synthetic_sequence.py          4
+mpirun -n 8 python forward_scaling_RNN_synthetic_sequence.py          8
+mpirun -n 16 python forward_scaling_RNN_synthetic_sequence.py          16
