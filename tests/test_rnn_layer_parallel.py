@@ -217,7 +217,8 @@ class TestRNNLayerParallel(unittest.TestCase):
   
     max_levels = 1 # for testing parallel rnn
     max_iters = 1 # for testing parallel rnn
-    num_steps = 1
+    num_steps = x_block[0].shape[1]
+    print('parallel sequence',x_block[0].shape)
     # RNN_parallel.py -> RNN_Parallel() class
     parallel_nn = torchbraid.RNN_Parallel(comm,basic_block_parallel,num_steps,hidden_size,num_layers,Tf,max_levels=max_levels,max_iters=max_iters)
   
@@ -231,13 +232,6 @@ class TestRNNLayerParallel(unittest.TestCase):
   
     # for i in range(len(x_block)):
     for i in range(1):
-  
-      #print("Input image %d - parallel version" % i)
-      #print("Rank", my_rank, "- x_block size:", x_block[i].size())
-      #print("Rank", my_rank, "- x_block:", x_block[i])
-      # print(x_block[i])
-  
-      #print("Rank %d START forward pass" % my_rank)
   
       y_parallel = parallel_nn(x_block[i])
   
@@ -256,16 +250,6 @@ class TestRNNLayerParallel(unittest.TestCase):
         # recieve the final inference step
         parallel_hn = comm.recv(source=comm.Get_size()-1)
         parallel_cn = comm.recv(source=comm.Get_size()-1)
-#         print(" ")
-#         print(" ")
-#         print("Parallel version - y_parallel_hn size: ", y_parallel_hn.shape)
-#         print(parallel_hn.data[0])
-#         print(parallel_hn.data[1])
-#         print(" ")
-#         print(" ")
-#         print("Parallel version - y_parallel_cn size: ", y_parallel_cn.shape)
-#         print(parallel_cn.data[0])
-#         print(parallel_cn.data[1])
         self.assertTrue(torch.norm(y_serial_cn.data[0]-parallel_cn.data[0])/torch.norm(y_serial_cn.data[0])<1e-6)
         self.assertTrue(torch.norm(y_serial_cn.data[1]-parallel_cn.data[1])/torch.norm(y_serial_cn.data[1])<1e-6)
         self.assertTrue(torch.norm(y_serial_hn.data[0]-parallel_hn.data[0])/torch.norm(y_serial_hn.data[0])<1e-6)

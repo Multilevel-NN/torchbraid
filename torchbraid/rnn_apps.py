@@ -52,13 +52,6 @@ class ForwardBraidApp(BraidApp):
     my_rank       = self.getMPIComm().Get_rank()
     num_ranks     = self.getMPIComm().Get_size()
 
-    ## send everything to the left (this helps with the adjoint method)
-    # if my_rank>0:
-    #   comm.send(self.layer_models[0],dest=my_rank-1,tag=22)
-    # if my_rank<num_ranks-1:
-    #   neighbor_model = comm.recv(source=my_rank+1,tag=22)
-    #   self.layer_models.append(neighbor_model)
-
     # build up the core
     self.py_core = self.initCore()
 
@@ -68,34 +61,20 @@ class ForwardBraidApp(BraidApp):
 
   def run(self,x):
 
-
-    self.soln_store = dict()
-
     # run the braid solver
     with self.timer("runBraid"):
-      # turn on derivative path (as requried)
-      # self.use_deriv = x.requires_grad
-
       # RNN_torchbraid_app.pyx -> runBraid()
       y = self.runBraid(x)
 
-      # reset derivative papth
-      # self.use_deriv = False
-
     # print("Rank %d ForwardBraidApp -> run() - end" % prefix_rank)
+
+    #print('step bounds = ',self.getStepBounds())
 
     return y
   # end forward
 
   def timer(self,name):
     return self.timer_manager.timer("ForWD::"+name)
-
-  # def getLayer(self,t,tf,level):
-  #   index = self.getLocalTimeStepIndex(t,tf,level)
-  #   return self.layer_models[index]
-
-  # def parameters(self):
-  #   return [list(l.parameters()) for l in self.layer_models]
 
   def eval(self,g0,tstart,tstop,level,done,force_deriv=False):
     """
@@ -109,48 +88,22 @@ class ForwardBraidApp(BraidApp):
     #  2. x is a torch tensor: called internally (probably at the behest
     #                          of the adjoint)
 
-    # require_derivatives = force_deriv or self.use_deriv
-    t_g = g0.tensors() # can we call tensors() in this ForwardBraidApp class?
-    t_h,t_c = t_g
-    t_x = self.x # defined in RNN_torchbraid_app.pyx line 228 in runBraid()
+    t_h,t_c = g0.tensors()
+    t_x = self.x # defined in rnn_braid_app.pyx line 69 in runBraid()
+        # (1,14,28)
 
     # print("t_x: ",t_x, " Rank: %d" % prefix_rank)
     # print("t_h: ",t_h, " Rank: %d" % prefix_rank)
     # print("t_c: ",t_c, " Rank: %d" % prefix_rank)
 
-    _, (t_yh,t_yc) = self.RNN_models(t_x,t_h,t_c)
+    index = self.getLocalTimeStepIndex(tstart,tstop,level)
+    _, (t_yh,t_yc) = self.RNN_models(t_x[:,index,:].unsqueeze(1),t_h,t_c)
+
+       
 
     g0.replaceTensor(t_yh,0)
     g0.replaceTensor(t_yc,1)
-    #return BraidVector((t_yh,t_yc),0)
   # end eval
-
-  # def getPrimalWithGrad(self,tstart,tstop,level):
-  #   """ 
-  #   Get the forward solution associated with this
-  #   time step and also get its derivative. This is
-  #   used by the BackkwardApp in computation of the
-  #   adjoint (backprop) state and parameter derivatives.
-  #   Its intent is to abstract the forward solution
-  #   so it can be stored internally instead of
-  #   being recomputed.
-  #   """
-    
-  #   ts_index = self.getGlobalTimeStepIndex(tstart,tstop,level)
-  #   layer = self.getLayer(tstart,tstop,level)
-
-  #   # the idea here is store it internally, failing
-  #   # that the values need to be recomputed locally. This may be
-  #   # because you are at a processor boundary, or decided not
-  #   # to start the value 
-  #   if ts_index in self.soln_store:
-  #     return self.soln_store[ts_index],layer
-
-  #   # value wasn't found, recompute it and return.
-  #   x_old = self.soln_store[ts_index-1][0].clone()
-  #   return (self.eval(x_old,tstart,tstop,0,force_deriv=True),x_old), layer
-
-  # end getPrimalWithGrad
 
 # end ForwardBraidApp
 

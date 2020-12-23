@@ -49,7 +49,7 @@ include "./braid.pyx"
 class BraidApp(parent.BraidApp):
 
   def __init__(self,comm,local_num_steps,hidden_size,num_layers,Tf,max_levels,max_iters):
-    parent.BraidApp.__init__(self,'RNN',comm,1,Tf,max_levels,max_iters,spatial_ref_pair=None,require_storage=False)
+    parent.BraidApp.__init__(self,'RNN',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=None,require_storage=True)
 
     self.hidden_size = hidden_size
     self.num_layers = num_layers
@@ -65,6 +65,8 @@ class BraidApp(parent.BraidApp):
 
     total_ranks   = self.mpi_comm.Get_size()
     comm_ = self.mpi_comm
+
+    assert(x.shape[1]==self.local_num_steps)
 
     self.x = x
     
