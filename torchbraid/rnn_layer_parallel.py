@@ -64,8 +64,7 @@ class RNN_Parallel(nn.Module):
 
     # RNN_torchbraid_apps.py -> ForwardBraidApp
     self.fwd_app = apps.ForwardBraidApp(comm,self.RNN_models,num_steps,hidden_size,num_layers,Tf,max_levels,max_iters,self.timer_manager)
-    # self.fwd_app = apps.ForwardBraidApp(comm,self.RNN_models,num_steps,Tf,max_levels,max_iters,self.timer_manager)
-    # self.bwd_app = apps.BackwardBraidApp(self.fwd_app,self.timer_manager)
+    self.bwd_app = apps.BackwardBraidApp(self.fwd_app,self.timer_manager)
 
     self.param_size = 0
   # end __init__
@@ -101,18 +100,11 @@ class RNN_Parallel(nn.Module):
     return self.fwd_app.getMPIComm()
 
   def forward(self,x):
-    # prefix_rank  = self.comm.Get_rank()
-    # print("Rank %d RNN_Parallel -> forward() - called" % prefix_rank)
-
     # we are doing this to take adavtage of
     # pytorch's autograd which functions "naturally"
     # with the torch.autograd.function
     params = list(self.parameters())  # TODO: Need to modify 07/14
-    # return BraidFunction.apply(self.fwd_app,self.bwd_app,x,*params)
-    #############################
-    ##### CRITICAL CHANGE!! #####
-    #############################
-    return BraidFunction.apply(self.fwd_app,x,*params)
+    return BraidFunction.apply(self.fwd_app,self.bwd_app,x,*params)
   # end forward
 
   def buildInit(self,t):

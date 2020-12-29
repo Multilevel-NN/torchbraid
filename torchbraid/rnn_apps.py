@@ -115,13 +115,14 @@ class ForwardBraidApp(BraidApp):
 
 ##############################################################
 
-"""
 class BackwardBraidApp(BraidApp):
 
   def __init__(self,fwd_app,timer_manager):
     # call parent constructor
-    BraidApp.__init__(self,fwd_app.getMPIData().getComm(),
+    BraidApp.__init__(self,fwd_app.getMPIComm(),
                            fwd_app.local_num_steps,
+                           fwd_app.hidden_size,
+                           fwd_app.num_layers,
                            fwd_app.Tf,
                            fwd_app.max_levels,
                            fwd_app.max_iters)
@@ -131,70 +132,107 @@ class BackwardBraidApp(BraidApp):
     # build up the core
     self.py_core = self.initCore()
 
-    # setup adjoint specific stuff
-    self.fwd_app.setStorage(0)
-
     # reverse ordering for adjoint/backprop
     self.setRevertedRanks(1)
 
+    # force evaluation of gradients at end of up-cycle
+    self.finalRelax()
+
     self.timer_manager = timer_manager
   # end __init__
+
+  def __del__(self):
+    self.fwd_app = None
+
+  def getTensorShapes(self):
+    return self.shape0
 
   def timer(self,name):
     return self.timer_manager.timer("BckWD::"+name)
 
   def run(self,x):
 
-    with self.timer("runBraid"):
+    try:
       f = self.runBraid(x)
-
-    with self.timer("run::extra"):
-      my_params = self.fwd_app.parameters()
 
       # this code is due to how braid decomposes the backwards problem
       # The ownership of the time steps is shifted to the left (and no longer balanced)
       first = 1
-      if self.getMPIData().getRank()==0:
+      if self.getMPIComm().Get_rank()==0:
         first = 0
 
+      self.grads = []
+
       # preserve the layerwise structure, to ease communication
-      self.grads = [ [item.grad.clone() for item in sublist] for sublist in my_params[first:]]
-      for m in self.fwd_app.layer_models:
-         m.zero_grad()
+      # - note the prection of the 'None' case, this is so that individual layers
+      # - can have gradient's turned off
+      my_params = self.fwd_app.parameters()
+      for sublist in my_params[first:]:
+        sub_gradlist = [] 
+        for item in sublist:
+          if item.grad is not None:
+            sub_gradlist += [ item.grad.clone() ] 
+          else:
+            sub_gradlist += [ None ]
+
+        self.grads += [ sub_gradlist ]
+      # end for sublist
+
+      for l in self.fwd_app.layer_models:
+         if l==None: continue
+         l.zero_grad()
+    except:
+      print('\n**** Torchbraid Internal Exception ****\n')
+      traceback.print_exc()
 
     return f
   # end forward
 
-  def eval(self,x,tstart,tstop,level,done):
-    with self.timer("eval(level=%d)" % level):
-      # we need to adjust the time step values to reverse with the adjoint
-      # this is so that the renumbering used by the backward problem is properly adjusted
-      (t_py,t_px),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
-  
-      # t_px should have no gradient
-      if not t_px.grad is None:
-        t_px.grad.data.zero_()
-  
-      with self.timer("eval(level=%d):set_grads" % level):
+  def eval(self,w,tstart,tstop,level,done):
+    """
+    Evaluate the adjoint problem for a single time step. Here 'w' is the
+    adjoint solution. The variables 'x' and 'y' refer to the forward
+    problem solutions at the beginning (x) and end (y) of the type step.
+    """
+    try:
+        # we need to adjust the time step values to reverse with the adjoint
+        # this is so that the renumbering used by the backward problem is properly adjusted
+        (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+
+        # t_x should have no gradient (for memory reasons)
+        assert(t_x.grad is None)
+
+        # we are going to change the required gradient, make sure they return
+        # to where they started!
+        required_grad_state = []
+
         # play with the layers gradient to make sure they are on apprpriately
         for p in layer.parameters(): 
-          if level==0:
+          required_grad_state += [p.requires_grad]
+          #if level==0:
+          if done==1:
             if not p.grad is None:
               p.grad.data.zero_()
           else:
-            # if you are not on the fine level, compute n gradients
+            # if you are not on the fine level, compute no parameter gradients
             p.requires_grad = False
-  
-      # perform adjoint computation
-      t_x = x.tensor()
-      t_py.backward(t_x,retain_graph=True)
-  
-      with self.timer("eval(level=%d):reset_grads" % level):
-        for p in layer.parameters():
-          p.requires_grad = True
 
-    return BraidVector(t_px.grad,level) 
+        # perform adjoint computation
+        t_w = w.tensor()
+        t_w.requires_grad = False
+        t_y.backward(t_w)
+
+        # this little bit of pytorch magic ensures the gradient isn't
+        # stored too long in this calculation (in particulcar setting
+        # the grad to None after saving it and returning it to braid)
+        t_w.copy_(t_x.grad.detach()) 
+
+        for p,s in zip(layer.parameters(),required_grad_state):
+          p.requires_grad = s
+    except:
+      print('\n**** Torchbraid Internal Exception ****\n')
+      traceback.print_exc()
   # end eval
 
-# end BackwardBraidApp
-"""
+# end BackwardODENetApp
+
