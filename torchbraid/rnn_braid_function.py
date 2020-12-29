@@ -55,39 +55,51 @@ class BraidFunction(torch.autograd.Function):
 
   @staticmethod
   def backward(ctx, grad_hn, grad_cn):
-    print('start')  
+    comm          = ctx.bwd_app.getMPIComm()
+    my_rank       = ctx.bwd_app.getMPIComm().Get_rank()
+    num_ranks     = ctx.bwd_app.getMPIComm().Get_size()
+
+    # copy the input to the final processor (where iter time integration begins)
+    if num_ranks>1:
+      if my_rank==0:
+        comm.Send(grad_hn.numpy(),dest=num_ranks-1)
+        comm.Send(grad_cn.numpy(),dest=num_ranks-1)
+      elif my_rank==num_ranks-1: 
+        comm.Recv(grad_hn.numpy(),source=0)
+        comm.Recv(grad_cn.numpy(),source=0)
+    # end if num_ranks
    
-#     # print("BraidFunction -> backward() - start")
-#     result = ctx.bwd_app.run()
-# 
-#     print('end')  
-# 
-#     # grad_input follows the input to forward: fwd_app, bwd_app, x, params
-#     grad_input = (None,None) 
-#     grad_input += (result,)
-# 
-#     comm          = ctx.bwd_app.getMPIComm()
-#     my_rank       = ctx.bwd_app.getMPIComm().Get_rank()
-#     num_ranks     = ctx.bwd_app.getMPIComm().Get_size()
-# 
-#     # send gradients to the right (braid doesn't maintain symmetry with the forward and
-#     # adjoint problems)
-#     with ctx.bwd_app.fwd_app.timer_manager.timer("BraidFunction::backward::propParameterDerivs"):
-#       grads = ctx.bwd_app.grads
-#       if my_rank<num_ranks-1:
-#         comm.send(grads[-1],dest=my_rank+1,tag=22)
-#       if my_rank>0:
-#         neighbor_model = comm.recv(source=my_rank-1,tag=22)
-#         grads.insert(0,neighbor_model)
-#   
-#       # flatten the grads array
-#       grads = [g for sublist in grads for g in sublist]
-#   
-#       for grad_needed,param in zip(ctx.needs_input_grad[3:],grads):
-#         if grad_needed:
-#           grad_input += (param,)
-#         else:
-#           grad_input += (None,)
-#     # print("BraidFunction -> backward() - end")
-#    return grad_input
-    return None
+    # print("BraidFunction -> backward() - start")
+    if my_rank==num_ranks-1:
+      result = ctx.bwd_app.run((grad_hn,grad_cn))
+    else:
+      result = ctx.bwd_app.run(None)
+
+    # grad_input follows the input to forward: fwd_app, bwd_app, x, params
+    grad_input = (None,None) 
+    grad_input += (result,)
+
+    comm          = ctx.bwd_app.getMPIComm()
+    my_rank       = ctx.bwd_app.getMPIComm().Get_rank()
+    num_ranks     = ctx.bwd_app.getMPIComm().Get_size()
+
+    # send gradients to the right (braid doesn't maintain symmetry with the forward and
+    # adjoint problems)
+    with ctx.bwd_app.fwd_app.timer_manager.timer("BraidFunction::backward::propParameterDerivs"):
+      grads = ctx.bwd_app.grads
+      if my_rank<num_ranks-1:
+        comm.send(grads[-1],dest=my_rank+1,tag=22)
+      if my_rank>0:
+        neighbor_model = comm.recv(source=my_rank-1,tag=22)
+        grads.insert(0,neighbor_model)
+  
+      # flatten the grads array
+      grads = [g for sublist in grads for g in sublist]
+  
+      for grad_needed,param in zip(ctx.needs_input_grad[3:],grads):
+        if grad_needed:
+          grad_input += (param,)
+        else:
+          grad_input += (None,)
+
+    return grad_input

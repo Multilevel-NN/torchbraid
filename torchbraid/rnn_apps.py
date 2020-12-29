@@ -33,9 +33,12 @@
 # cython: linetrace=True
 
 import torch
+import traceback
 
 from braid_vector import BraidVector
 from rnn_braid_app import BraidApp
+
+import torchbraid_app as parent
 
 import sys
 
@@ -79,7 +82,7 @@ class ForwardBraidApp(BraidApp):
   def timer(self,name):
     return self.timer_manager.timer("ForWD::"+name)
 
-  def eval(self,g0,tstart,tstop,level,done,force_deriv=False):
+  def eval(self,g0,tstart,tstop,level,done,t_x=None):
     """
     Method called by "my_step" in braid. This is
     required to propagate from tstart to tstop, with the initial
@@ -94,28 +97,46 @@ class ForwardBraidApp(BraidApp):
     #  2. x is a torch tensor: called internally (probably at the behest
     #                          of the adjoint)
 
-    t_h,t_c = g0.tensors()
-    t_x = self.x # defined in rnn_braid_app.pyx line 69 in runBraid()
-        # (1,14,28)
-
-    # print("t_x: ",t_x, " Rank: %d" % prefix_rank)
-    # print("t_h: ",t_h, " Rank: %d" % prefix_rank)
-    # print("t_c: ",t_c, " Rank: %d" % prefix_rank)
-
     index = self.getLocalTimeStepIndex(tstart,tstop,level)
-    _, (t_yh,t_yc) = self.RNN_models(t_x[:,index,:].unsqueeze(1),t_h,t_c)
-
-       
+    t_h,t_c = g0.tensors()
+    _, (t_yh,t_yc) = self.RNN_models(self.x[:,index,:].unsqueeze(1),t_h,t_c)
 
     g0.replaceTensor(t_yh,0)
     g0.replaceTensor(t_yc,1)
   # end eval
 
+  def getPrimalWithGrad(self,tstart,tstop,level):
+    """ 
+    Get the forward solution associated with this
+    time step and also get its derivative. This is
+    used by the BackwardApp in computation of the
+    adjoint (backprop) state and parameter derivatives.
+    Its intent is to abstract the forward solution
+    so it can be stored internally instead of
+    being recomputed.
+    """
+    
+    b_x = self.getUVector(0,tstart)
+    t_x = b_x.tensors()
+
+    x = tuple([v.detach() for v in t_x])
+
+    xh,xc = x 
+    xh.requires_grad = True
+    xc.requires_grad = True
+
+    index = self.getLocalTimeStepIndex(tstart,tstop,level)
+    with torch.enable_grad():
+      _, (yh,yc) = self.RNN_models(self.x[:,index,:].unsqueeze(1),xh,xc)
+   
+    return ((yh,yc), x), self.RNN_models
+  # end getPrimalWithGrad
+
 # end ForwardBraidApp
 
 ##############################################################
 
-class BackwardBraidApp(BraidApp):
+class BackwardBraidApp(parent.BraidApp):
 
   def __init__(self,fwd_app,timer_manager):
     # call parent constructor
@@ -166,7 +187,7 @@ class BackwardBraidApp(BraidApp):
       # preserve the layerwise structure, to ease communication
       # - note the prection of the 'None' case, this is so that individual layers
       # - can have gradient's turned off
-      my_params = self.fwd_app.parameters()
+      my_params = list(self.fwd_app.RNN_models.parameters())
       for sublist in my_params[first:]:
         sub_gradlist = [] 
         for item in sublist:
@@ -178,9 +199,7 @@ class BackwardBraidApp(BraidApp):
         self.grads += [ sub_gradlist ]
       # end for sublist
 
-      for l in self.fwd_app.layer_models:
-         if l==None: continue
-         l.zero_grad()
+      self.fwd_app.RNN_models.zero_grad()
     except:
       print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
@@ -200,7 +219,8 @@ class BackwardBraidApp(BraidApp):
         (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
 
         # t_x should have no gradient (for memory reasons)
-        assert(t_x.grad is None)
+        for v in t_x:
+          assert(v.grad is None)
 
         # we are going to change the required gradient, make sure they return
         # to where they started!
@@ -218,14 +238,17 @@ class BackwardBraidApp(BraidApp):
             p.requires_grad = False
 
         # perform adjoint computation
-        t_w = w.tensor()
-        t_w.requires_grad = False
-        t_y.backward(t_w)
+        t_w = w.tensors()
+        for v in t_w:
+          v.requires_grad = False
+        for v in t_y:
+          v.backward(t_w,retain_graph=True)
 
         # this little bit of pytorch magic ensures the gradient isn't
         # stored too long in this calculation (in particulcar setting
         # the grad to None after saving it and returning it to braid)
-        t_w.copy_(t_x.grad.detach()) 
+        for wv,xv in zip(t_w,t_x):
+          wv.copy_(xv.grad.detach()) 
 
         for p,s in zip(layer.parameters(),required_grad_state):
           p.requires_grad = s
@@ -235,4 +258,3 @@ class BackwardBraidApp(BraidApp):
   # end eval
 
 # end BackwardODENetApp
-

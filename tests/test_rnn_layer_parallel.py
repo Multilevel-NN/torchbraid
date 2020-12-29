@@ -140,8 +140,9 @@ class TestRNNLayerParallel(unittest.TestCase):
   def test_forward(self):
     self.forwardProp()
 
-  def xtest_backward(self):
-    self.backwardProp()
+  def test_backward(self):
+    if MPI.COMM_WORLD.Get_size()==1: 
+      self.backwardProp()
 
   def copyParameterGradToRoot(self,m):
     comm     = m.getMPIComm()
