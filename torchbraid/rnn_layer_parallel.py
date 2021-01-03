@@ -70,9 +70,7 @@ class RNN_Parallel(nn.Module):
   # end __init__
 
   def zero_grad(self):
-    for l in self.fwd_app.layer_models:
-      l.zero_grad()
-    self.local_layers.zero_grad()
+    self.RNN_models.zero_grad()
 
   def getTimerManager(self):
     """
@@ -82,19 +80,19 @@ class RNN_Parallel(nn.Module):
 
   def setPrintLevel(self,print_level):
     self.fwd_app.setPrintLevel(print_level)
-    # self.bwd_app.setPrintLevel(print_level)
+    self.bwd_app.setPrintLevel(print_level)
 
   def setNumRelax(self,relax,level=-1):
     self.fwd_app.setNumRelax(relax,level=level)
-    # self.bwd_app.setNumRelax(relax,level=level)
+    self.bwd_app.setNumRelax(relax,level=level)
 
   def setCFactor(self,cfactor):
     self.fwd_app.setCFactor(cfactor)
-    # self.bwd_app.setCFactor(cfactor)
+    self.bwd_app.setCFactor(cfactor)
 
   def setSkipDowncycle(self,skip):
     self.fwd_app.setSkipDowncycle(skip)
-    # self.bwd_app.setSkipDowncycle(skip)
+    self.bwd_app.setSkipDowncycle(skip)
 
   def getMPIComm(self):
     return self.fwd_app.getMPIComm()
@@ -103,6 +101,7 @@ class RNN_Parallel(nn.Module):
     # we are doing this to take adavtage of
     # pytorch's autograd which functions "naturally"
     # with the torch.autograd.function
+
     params = list(self.parameters())  # TODO: Need to modify 07/14
     return BraidFunction.apply(self.fwd_app,self.bwd_app,x,*params)
   # end forward
