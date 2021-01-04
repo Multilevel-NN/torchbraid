@@ -68,6 +68,9 @@ class BraidFunction(torch.autograd.Function):
         comm.Recv(grad_hn.numpy(),source=0)
         comm.Recv(grad_cn.numpy(),source=0)
     # end if num_ranks
+
+    #print('grad_hn',grad_hn.shape,grad_hn)
+    #print('grad_cn',grad_cn.shape,grad_cn)
    
     # print("BraidFunction -> backward() - start")
     if my_rank==num_ranks-1:
@@ -77,7 +80,10 @@ class BraidFunction(torch.autograd.Function):
 
     # grad_input follows the input to forward: fwd_app, bwd_app, x, params
     grad_input = (None,None) 
-    grad_input += (result,)
+    if ctx.needs_input_grad[2]:
+      grad_input += (ctx.fwd_app.x.grad,)
+    else:
+      grad_input += (None,)
 
     comm          = ctx.bwd_app.getMPIComm()
     my_rank       = ctx.bwd_app.getMPIComm().Get_rank()
