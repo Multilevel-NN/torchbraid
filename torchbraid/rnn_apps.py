@@ -99,7 +99,7 @@ class ForwardBraidApp(BraidApp):
 
     index = self.getLocalTimeStepIndex(tstart,tstop,level)
     t_h,t_c = g0.tensors()
-    _, (t_yh,t_yc) = self.RNN_models(self.x[:,index,:].unsqueeze(1),t_h,t_c)
+    t_yh,t_yc = self.RNN_models(self.x[:,index,:],t_h,t_c)
 
     g0.replaceTensor(t_yh,0)
     g0.replaceTensor(t_yc,1)

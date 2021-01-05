@@ -87,8 +87,7 @@ class RNN_BasicBlock(nn.Module):
     return _, (hn, cn)
 
 def RNN_build_block_with_dim(input_size, hidden_size, num_layers):
-  b = RNN_BasicBlock(input_size, hidden_size, num_layers) # channels = hidden_size
-  #b = LSTMBlock(input_size, hidden_size, num_layers) # channels = hidden_size
+  b = LSTMBlock(input_size, hidden_size, num_layers) # channels = hidden_size
   return b
 
 def print_backward(self,grad_input,grad_output):
