@@ -88,6 +88,7 @@ class RNN_BasicBlock(nn.Module):
 
 def RNN_build_block_with_dim(input_size, hidden_size, num_layers):
   b = RNN_BasicBlock(input_size, hidden_size, num_layers) # channels = hidden_size
+  #b = LSTMBlock(input_size, hidden_size, num_layers) # channels = hidden_size
   return b
 
 def print_backward(self,grad_input,grad_output):
@@ -184,9 +185,9 @@ class TestRNNLayerParallel(unittest.TestCase):
   def test_forward(self):
     self.forwardProp()
 
-  def test_backward(self):
-    if MPI.COMM_WORLD.Get_size()==1: 
-      self.backwardProp()
+  #def test_backward(self):
+  #  if MPI.COMM_WORLD.Get_size()==1: 
+  #    self.backwardProp()
 
   def test_backward_lstm(self):
     if MPI.COMM_WORLD.Get_size()==1: 
@@ -235,29 +236,18 @@ class TestRNNLayerParallel(unittest.TestCase):
     if my_rank==0:
       with torch.no_grad(): 
 
-        basic_block = lambda: RNN_build_block_with_dim(input_size, hidden_size, num_layers)
-        serial_rnn = basic_block()
+        torch.manual_seed(20)
+        serial_rnn = nn.LSTM(input_size, hidden_size, num_layers,batch_first=True)
         num_blocks = 2 # equivalent to the num_procs variable used for parallel implementation
         image_all, x_block_all = preprocess_input_data_serial_test(num_blocks,num_batch,batch_size,channels,sequence_length,input_size)
     
         # for i in range(len(image_all)):
         for i in range(1):
     
-          # Serial ver. 1
-          ###########################################
           y_serial_hn = torch.zeros(num_layers, image_all[i].size(0), hidden_size)
           y_serial_cn = torch.zeros(num_layers, image_all[i].size(0), hidden_size)
     
-          _, (y_serial_hn, y_serial_cn) = serial_rnn(image_all[i],y_serial_hn,y_serial_cn)
-    
-          # Serial ver.2
-          ###########################################
-          for j in range(num_blocks):
-            if j == 0:
-              y_serial_prev_hn = torch.zeros(num_layers, x_block_all[i][j].size(0), hidden_size)
-              y_serial_prev_cn = torch.zeros(num_layers, x_block_all[i][j].size(0), hidden_size)
-    
-            _, (y_serial_prev_hn, y_serial_prev_cn) = serial_rnn(x_block_all[i][j],y_serial_prev_hn,y_serial_prev_cn)
+          _, (y_serial_hn, y_serial_cn) = serial_rnn(image_all[i],(y_serial_hn,y_serial_cn))
     
     # compute serial solution 
 
