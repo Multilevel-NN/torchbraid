@@ -44,6 +44,33 @@ faulthandler.enable()
 
 from mpi4py import MPI
 
+class LSTMBlock(nn.Module):
+  def __init__(self, input_size, hidden_size, num_layers):
+    super(LSTMBlock, self).__init__()
+    self.hidden_size = hidden_size
+    self.num_layers = num_layers
+
+    torch.manual_seed(20)
+    lstm_cells = num_layers*[None]
+    lstm_cells[0] = nn.LSTMCell(input_size, hidden_size)
+    for i in range(num_layers-1):
+      lstm_cells[i+1] = nn.LSTMCell(hidden_size, hidden_size)
+
+    self.lstm_cells = nn.ModuleList(lstm_cells)
+
+  def forward(self, x, h_prev, c_prev):
+    h_cur = h_prev[0] 
+    c_cur = c_prev[0]
+    x_cur = x
+
+    hn = self.num_layers*[None]
+    cn = self.num_layers*[None]
+    for i in range(self.num_layers):
+      hn[i], cn[i] = self.lstm_cells[i](x_cur, (h_prev[i], c_prev[i]))
+      x_cur = hn[i]
+
+    return (torch.stack(hn), torch.stack(cn))
+
 class RNN_BasicBlock(nn.Module):
   def __init__(self, input_size, hidden_size, num_layers):
     super(RNN_BasicBlock, self).__init__()
@@ -279,11 +306,15 @@ class TestRNNLayerParallel(unittest.TestCase):
         self.assertTrue(torch.norm(y_serial_hn.data[1]-parallel_hn.data[1])/torch.norm(y_serial_hn.data[1])<1e-6)
   # forwardProp
 
-  def backwardProp_lstm(self, sequence_length = 28, # total number of time steps for each sequence
-                         input_size = 28, # input size for each time step in a sequence
-                         hidden_size = 20,
-                         num_layers = 2,
-                         batch_size = 1):
+  def backwardProp_lstm(self,sequence_length = 28, # total number of time steps for each sequence
+                        input_size = 28, # input size for each time step in a sequence
+                        hidden_size = 20,
+                        num_layers = 4,
+                        batch_size = 1):
+    """
+    The goal of this test is simply to ensure that the behavior of pytorch is the same with
+    regard to LSTM models.
+    """
     comm      = MPI.COMM_WORLD
     num_procs = comm.Get_size()
     my_rank   = comm.Get_rank()
@@ -296,41 +327,91 @@ class TestRNNLayerParallel(unittest.TestCase):
     nrelax          = 1
     cfactor         = 2
     num_batch = int(images / batch_size)
-
+  
     image_all, x_block_all = preprocess_input_data_serial_test(2,num_batch,batch_size,channels,sequence_length,input_size)
     i = 0
-    x = image_all[i]
-
+    x_a = image_all[i].detach().clone()
+    x_b = image_all[i].detach().clone()
+  
     # forward
     ###########################################
-    x.requires_grad = True
+    x_a.requires_grad = False 
+    x_b.requires_grad = False
+  
+    h0_a = torch.zeros(num_layers, x_a.size(0), hidden_size,requires_grad=False)
+    c0_a = torch.zeros(num_layers, x_a.size(0), hidden_size,requires_grad=False)
+  
+    # a simulation
+    ######################################3
+    serial_rnn_a = LSTMBlock(input_size, hidden_size, num_layers)
+  
+    h_a = h0_a
+    c_a = c0_a
+    hs = (sequence_length+1)*[None]
+    cs = (sequence_length+1)*[None]
+    hs[0] = h_a
+    cs[0] = c_a
+    for i in range(sequence_length):
+      with torch.no_grad():
+        h_a,c_a = serial_rnn_a(x_a[:,i,:],h_a,c_a)
+  
+      hs[i+1] = h_a
+      cs[i+1] = c_a
+  
+    wh_a = torch.zeros(h_a.shape)
+    wc_a = torch.zeros(c_a.shape)
+    wh_a[-1,:,:] = torch.randn(h_a[-1,:,:].shape)
+  
+    wh_a_perm = wh_a
+  
+    for i in range(sequence_length):
+      j = sequence_length-i-1
+      hi = hs[j]
+      ci = cs[j]
+  
+      hi.requires_grad = True
+      ci.requires_grad = True
+  
+      with torch.enable_grad():
+        ho,co = serial_rnn_a(x_a[:,j,:],hi,ci)
+  
+      ho.backward(wh_a,retain_graph=True)
+      co.backward(wc_a)
+  
+      wh_a = hi.grad.detach().clone()
+      wc_a = ci.grad.detach().clone()
+    # end for i
+  
+    # b simulation
+    ######################################3
+    torch.manual_seed(20)
+    serial_rnn_b = torch.nn.LSTM(input_size, hidden_size, num_layers,batch_first=True)
+  
+    h0_b = torch.zeros(num_layers, x_b.size(0), hidden_size,requires_grad=True)
+    c0_b = torch.zeros(num_layers, x_b.size(0), hidden_size,requires_grad=True)
+  
+    y_b, (h_b,c_b) = serial_rnn_b(x_b,(h0_b,c0_b))
+  
+    #print('h error = ',torch.norm(h_b-h_a).item(),torch.norm(h_b).item(),h_b.shape)
+    #print('c error = ',torch.norm(c_b-c_a).item(),torch.norm(c_b).item(),c_b.shape)
 
-    h0 = torch.zeros(num_layers, x.size(0), hidden_size,requires_grad=True)
-    c0 = torch.zeros(num_layers, x.size(0), hidden_size,requires_grad=True)
-
-    print('')
-    print('x  size = ',x.size())
-    print('h0 size = ',h0.size())
-    print('c0 size = ',c0.size())
-
-    serial_rnn = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
-    y,(hf,cf) = serial_rnn(x,(h0,c0))
-
-    print('')
-    print('y  size = ',y.size())
-    print('hf size = ',hf.size())
-    print('cf size = ',cf.size())
-
-    # forward
-    ###########################################
-    wy = torch.randn(y.shape)
-
-    y.backward(wy)
-
-    print('')
-    print('dydx size = ',x.grad.size())
-    print('dydh size = ',h0.grad.size())
-    print('dydc size = ',c0.grad.size())
+    self.assertTrue(torch.norm(h_b-h_a).item()<1e-6)
+    self.assertTrue(torch.norm(c_b-c_a).item()<1e-6)
+  
+    w_b = torch.zeros(y_b.shape)
+    w_b[:,-1,:] = wh_a_perm[-1,:,:]
+  
+    y_b.backward(w_b)
+  
+    #print('h grad error = ',torch.norm(h0_b.grad-wh_a).item(),torch.norm(h0_b.grad).item())
+    #print('c grad error = ',torch.norm(c0_b.grad-wc_a).item(),torch.norm(c0_b.grad).item())
+    self.assertTrue(torch.norm(h0_b.grad-wh_a).item()<1e-6)
+    self.assertTrue(torch.norm(c0_b.grad-wc_a).item()<1e-6)
+  
+    #print('lengths = ',len(list(serial_rnn_b.parameters())),len(list(serial_rnn_a.parameters())))
+    for pa,pb in zip(serial_rnn_a.parameters(),serial_rnn_b.parameters()):
+    #  print('grad error = ',torch.norm(pa.grad-pb.grad).item(),torch.norm(pb.grad).item())
+      self.assertTrue(torch.norm(pa.grad-pb.grad).item()<1e-6)
   # end lstm
 
   def backwardProp(self, sequence_length = 1, # total number of time steps for each sequence
