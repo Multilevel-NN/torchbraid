@@ -34,7 +34,7 @@ import torch.autograd
 class BraidFunction(torch.autograd.Function):
 
   @staticmethod
-  def forward(ctx, fwd_app, bwd_app, x, *params):
+  def forward(ctx, fwd_app, bwd_app, x, h,c, *params):
 
     # copy the input to all processors (ensure consistency)
     comm = fwd_app.getMPIComm()
@@ -46,11 +46,16 @@ class BraidFunction(torch.autograd.Function):
       # setup context
       ctx.fwd_app = fwd_app
       ctx.bwd_app = bwd_app
-      ctx.save_for_backward(x, *params)
+      ctx.save_for_backward(x, h,c, *params)
 
       fwd_app.setShape(shape)
 
-      result = fwd_app.run(x)
+      if h is None:
+        h_c = None
+      else:
+        h_c = (h,c)
+
+      result = fwd_app.run(x,h_c)
     return result
 
   @staticmethod
@@ -69,9 +74,6 @@ class BraidFunction(torch.autograd.Function):
         comm.Recv(grad_cn.numpy(),source=0)
     # end if num_ranks
 
-    #print('grad_hn',grad_hn.shape,grad_hn)
-    #print('grad_cn',grad_cn.shape,grad_cn)
-   
     # print("BraidFunction -> backward() - start")
     if my_rank==num_ranks-1:
       result = ctx.bwd_app.run((grad_hn,grad_cn))
@@ -80,10 +82,15 @@ class BraidFunction(torch.autograd.Function):
 
     # grad_input follows the input to forward: fwd_app, bwd_app, x, params
     grad_input = (None,None) 
-    if ctx.needs_input_grad[2]:
-      grad_input += (ctx.fwd_app.x.grad,)
-    else:
-      grad_input += (None,)
+
+    if ctx.needs_input_grad[2]: grad_input += (ctx.fwd_app.x.grad,)
+    else: grad_input += (None,) # x
+
+    if ctx.needs_input_grad[3]: grad_input += (result[0],) # h
+    else: grad_input += (None,) # h
+
+    if ctx.needs_input_grad[4]: grad_input += (result[1],) # h
+    else: grad_input += (None,) # h
 
     comm          = ctx.bwd_app.getMPIComm()
     my_rank       = ctx.bwd_app.getMPIComm().Get_rank()
@@ -102,7 +109,7 @@ class BraidFunction(torch.autograd.Function):
       # flatten the grads array
       grads = [g for sublist in grads for g in sublist]
   
-      for grad_needed,param in zip(ctx.needs_input_grad[3:],grads):
+      for grad_needed,param in zip(ctx.needs_input_grad[5:],grads):
         if grad_needed:
           grad_input += (param,)
         else:

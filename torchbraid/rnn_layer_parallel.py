@@ -97,13 +97,16 @@ class RNN_Parallel(nn.Module):
   def getMPIComm(self):
     return self.fwd_app.getMPIComm()
 
-  def forward(self,x):
+  def forward(self,x,h_c=None):
     # we are doing this to take adavtage of
     # pytorch's autograd which functions "naturally"
     # with the torch.autograd.function
 
     params = list(self.parameters())  # TODO: Need to modify 07/14
-    return BraidFunction.apply(self.fwd_app,self.bwd_app,x,*params)
+    if h_c is None:
+      return BraidFunction.apply(self.fwd_app,self.bwd_app,x,h_c,*params)
+    else:
+      return BraidFunction.apply(self.fwd_app,self.bwd_app,x,h_c[0],h_c[1],*params)
   # end forward
 
   def buildInit(self,t):

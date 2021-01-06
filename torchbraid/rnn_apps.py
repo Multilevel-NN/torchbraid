@@ -37,6 +37,7 @@ import traceback
 
 from braid_vector import BraidVector
 from rnn_braid_app import BraidApp
+from rnn_braid_app import BraidBackApp
 
 import torchbraid_app as parent
 
@@ -65,12 +66,12 @@ class ForwardBraidApp(BraidApp):
     self.use_deriv = False
   # end __init__
 
-  def run(self,x):
+  def run(self,x,h_c):
 
     # run the braid solver
     with self.timer("runBraid"):
       # RNN_torchbraid_app.pyx -> runBraid()
-      y = self.runBraid(x)
+      y = self.runBraid(x,h_c)
 
     # print("Rank %d ForwardBraidApp -> run() - end" % prefix_rank)
 
@@ -127,7 +128,7 @@ class ForwardBraidApp(BraidApp):
 
     index = self.getLocalTimeStepIndex(tstart,tstop,level)
     with torch.enable_grad():
-      _, (yh,yc) = self.RNN_models(self.x[:,index,:].unsqueeze(1),xh,xc)
+      yh,yc = self.RNN_models(self.x[:,index,:],xh,xc)
    
     return ((yh,yc), x), self.RNN_models
   # end getPrimalWithGrad
@@ -136,17 +137,15 @@ class ForwardBraidApp(BraidApp):
 
 ##############################################################
 
-class BackwardBraidApp(parent.BraidApp):
+class BackwardBraidApp(BraidBackApp):
 
   def __init__(self,fwd_app,timer_manager):
     # call parent constructor
-    BraidApp.__init__(self,fwd_app.getMPIComm(),
-                           fwd_app.local_num_steps,
-                           fwd_app.hidden_size,
-                           fwd_app.num_layers,
-                           fwd_app.Tf,
-                           fwd_app.max_levels,
-                           fwd_app.max_iters)
+    BraidBackApp.__init__(self,'RNN',fwd_app.getMPIComm(),
+                          fwd_app.local_num_steps,
+                          fwd_app.Tf,
+                          fwd_app.max_levels,
+                          fwd_app.max_iters,spatial_ref_pair=None,require_storage=True)
 
     self.fwd_app = fwd_app
 
@@ -198,8 +197,6 @@ class BackwardBraidApp(parent.BraidApp):
 
         self.grads += [ sub_gradlist ]
       # end for sublist
-
-      self.fwd_app.RNN_models.zero_grad()
     except:
       print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
@@ -230,10 +227,10 @@ class BackwardBraidApp(parent.BraidApp):
         for p in layer.parameters(): 
           required_grad_state += [p.requires_grad]
           #if level==0:
-          if done==1:
-            if not p.grad is None:
-              p.grad.data.zero_()
-          else:
+          #if done==1:
+          #  if not p.grad is None:
+          #    p.grad.data.zero_()
+          if done!=1:
             # if you are not on the fine level, compute no parameter gradients
             p.requires_grad = False
 
@@ -241,8 +238,8 @@ class BackwardBraidApp(parent.BraidApp):
         t_w = w.tensors()
         for v in t_w:
           v.requires_grad = False
-        for v in t_y:
-          v.backward(t_w,retain_graph=True)
+        for v,w_d in zip(t_y,t_w):
+          v.backward(w_d,retain_graph=True)
 
         # this little bit of pytorch magic ensures the gradient isn't
         # stored too long in this calculation (in particulcar setting

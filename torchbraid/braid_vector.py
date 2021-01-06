@@ -44,10 +44,6 @@ class BraidVector:
     self.weight_tensor_data_ = []
     self.layer_data_ = None
 
-    s = ''
-    if isinstance(tensor,Iterable):
-      s += 'iterable'
-
     if isinstance(tensor,torch.Tensor):
       self.tensor_data_ = (tensor,)
     elif isinstance(tensor,Iterable):
@@ -87,17 +83,28 @@ class BraidVector:
   def releaseWeightTensors(self):
     self.weight_tensor_data_ = []
 
-  def replaceTensor(self,t,i=0):
+  def replaceTensor(self,tensor,i=0):
     """
     Replace the tensor. This is a shallow
     copy of the tensor. This method returns the old
     tensor object.
     """
-    assert(isinstance(t,torch.Tensor))
-    old_t = self.tensor_data_[i]
-    tensor_lst = list(self.tensor_data_)
-    tensor_lst[i] = t
-    self.tensor_data_= tuple(tensor_lst)
+    if isinstance(tensor,torch.Tensor):
+      old_t = self.tensor_data_[i]
+      tensor_lst = list(self.tensor_data_)
+      tensor_lst[i] = tensor
+      self.tensor_data_= tuple(tensor_lst)
+    elif isinstance(tensor,Iterable):
+      # pre-condition...Only tensors
+      for t in tensor:
+        assert(isinstance(t,torch.Tensor))
+
+      old_t = self.tensor_data_
+
+      # if the input is a tuple, that is the full data
+      self.tensor_data_ = tuple(tensor)
+    else:
+      assert(False)
 
     return old_t
 
