@@ -38,7 +38,7 @@ class BraidFunction(torch.autograd.Function):
 
     # copy the input to all processors (ensure consistency)
     comm = fwd_app.getMPIComm()
-    shape = comm.bcast(x.size(),root=0)
+    shape = comm.bcast((h.size(),c.size()),root=0)
 
     # prefix_rank = fwd_app.getMPIData().getRank()
     # print("Rank %d BraidFunction -> forward() - start" % prefix_rank)
@@ -49,11 +49,9 @@ class BraidFunction(torch.autograd.Function):
       ctx.save_for_backward(x, h,c, *params)
 
       fwd_app.setShape(shape)
+      bwd_app.setShape(shape)
 
-      if h is None:
-        h_c = None
-      else:
-        h_c = (h,c)
+      h_c = (h,c)
 
       result = fwd_app.run(x,h_c)
     return result
@@ -74,7 +72,6 @@ class BraidFunction(torch.autograd.Function):
         comm.Recv(grad_cn.numpy(),source=0)
     # end if num_ranks
 
-    # print("BraidFunction -> backward() - start")
     if my_rank==num_ranks-1:
       result = ctx.bwd_app.run((grad_hn,grad_cn))
     else:

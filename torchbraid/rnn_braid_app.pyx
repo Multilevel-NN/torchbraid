@@ -34,6 +34,7 @@
 
 import torch
 import numpy as np
+import traceback
 
 from braid_vector import BraidVector
 
@@ -45,6 +46,10 @@ include "./braid.pyx"
 
 #  a python level module
 ##########################################################
+
+def output_exception(label):
+  s = traceback.format_exc()
+  print('\n**** Torchbraid Callbacks::{} Exception ****\n{}'.format(label,s))
 
 class BraidApp(parent.BraidApp):
 
@@ -58,24 +63,32 @@ class BraidApp(parent.BraidApp):
   def getTensorShapes(self):
     return self.shape0
 
-  def runBraid(self,x,h_c=None):
+  def runBraid(self,x,h_c):
 
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
     cdef braid_Core core = py_core.getCore()
 
-    total_ranks   = self.mpi_comm.Get_size()
-    comm_ = self.mpi_comm
+    num_ranks     = self.mpi_comm.Get_size()
+    my_rank       = self.mpi_comm.Get_rank()
+    comm = self.mpi_comm
 
     assert(x.shape[1]==self.local_num_steps)
 
     self.x = x
+
+    print(my_rank,'shape before = ', self.x.shape)
+
+    # send deta vector to the left
+    if my_rank>0:
+      comm.send(self.x[:,0,:],dest=my_rank-1,tag=22)
+    if my_rank<num_ranks-1:
+      neighbor_x = comm.recv(source=my_rank+1,tag=22)
+      self.x = torch.cat((self.x,neighbor_x.unsqueeze(1)), 1)
+
+    print(my_rank,'shape after = ', self.x.shape)
     
-    if h_c is None:
-      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
-      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
-    else:
-      h = h_c[0]
-      c = h_c[1]
+    h = h_c[0]
+    c = h_c[1]
 
     self.setInitial_g((h,c))
 
@@ -83,7 +96,7 @@ class BraidApp(parent.BraidApp):
     braid_Drive(core)
 
     h_c  = self.getFinal()
-    h_c = comm_.bcast(h_c,root=total_ranks-1)
+    h_c = comm.bcast(h_c,root=num_ranks-1)
 
     # print("Rank %d BraidApp -> runBraid() - end" % prefix_rank)
 
@@ -145,13 +158,16 @@ class BraidBackApp(parent.BraidApp):
   # end __init__
 
   def access(self,t,u):
-    if t==self.Tf:
-      # not sure why this requires a clone
-      # if this needs only one processor
-      # it could be a problem in the future
-      if self.getMPIComm().Get_size()>1:
-        self.x_final = u.tensors()
-      else:
-        self.x_final = u.clone().tensors()
+    try:
+      if t==self.Tf:
+        # not sure why this requires a clone
+        # if this needs only one processor
+        # it could be a problem in the future
+        if self.getMPIComm().Get_size()>1:
+          self.x_final = u.tensors()
+        else:
+          self.x_final = u.clone().tensors()
+    except:
+      output_exception('BraidBackApp:access')
 
 # end BraidApp

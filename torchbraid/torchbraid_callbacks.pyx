@@ -147,45 +147,51 @@ cdef int my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
 
 cdef int my_norm(braid_App app, braid_Vector u, double *norm_ptr):
   pyApp = <object> app
-  with pyApp.timer("my_norm"):
+  try:
     # Compute norm 
     tensors_U = (<object> u).tensors()
     norm_ptr[0] = 0.0
     for ten_U in tensors_U:
-      norm_ptr[0] += torch.dot(ten_U,ten_U)
+      val = torch.norm(ten_U).item()
+      norm_ptr[0] += val*val
 
     math.sqrt(norm_ptr[0])
+  except:
+    output_exception("my_norm")
 
   return 0
 
 cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   pyApp = <object> app
 
-  shapes = pyApp.getTensorShapes()
-  num_tensors = len(shapes) # all tensors
-  cnt = 0
-  total_shape = 0
-  layer_data_size = pyApp.getLayerDataSize()
-  for s in shapes:
-    cnt += s.numel() # pyApp.shape0[0].numel()
-    rank = len(s) #len(pyApp.shape0[0])
-    total_shape += rank*sizeof(int)
-
-  # because the braid vectors are sometimes moved with weight components, the app
-  # object is responsible for making sure those are sized appropriately. 
-
-  # Note size_ptr is an integer array of size 1, and we index in at location [0]
-
-  # there are mulitple fields in a packed buffer, in orderr
-  size_ptr[0] = ( sizeof(int)              # level
-                + sizeof(int)              # num tensors
-                + sizeof(int)              # num weight tensors
-                + sizeof(int)              # other layer information (size in bytes)
-                + num_tensors*sizeof(int)  # tensor rank
-                + total_shape              # tensor shapes
-                + sizeof(float)*cnt        # tensor data
-                + layer_data_size          # pickled layer size
-                )
+  try:
+    shapes = pyApp.getTensorShapes()
+    num_tensors = len(shapes) # all tensors
+    cnt = 0
+    total_shape = 0
+    layer_data_size = pyApp.getLayerDataSize()
+    for s in shapes:
+      cnt += s.numel() # pyApp.shape0[0].numel()
+      rank = len(s) #len(pyApp.shape0[0])
+      total_shape += rank*sizeof(int)
+  
+    # because the braid vectors are sometimes moved with weight components, the app
+    # object is responsible for making sure those are sized appropriately. 
+  
+    # Note size_ptr is an integer array of size 1, and we index in at location [0]
+  
+    # there are mulitple fields in a packed buffer, in orderr
+    size_ptr[0] = ( sizeof(int)              # level
+                  + sizeof(int)              # num tensors
+                  + sizeof(int)              # num weight tensors
+                  + sizeof(int)              # other layer information (size in bytes)
+                  + num_tensors*sizeof(int)  # tensor rank
+                  + total_shape              # tensor shapes
+                  + sizeof(float)*cnt        # tensor data
+                  + layer_data_size          # pickled layer size
+                  )
+  except:
+    output_exception("my_bufsize")
 
   return 0
 
@@ -275,62 +281,66 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
 
   pyApp = <object>app
 
-  # read in the buffer metda data
-  ibuffer = <int *> buffer
+  try:
 
-  level              = ibuffer[0]
-  num_tensors        = ibuffer[1]
-  num_weight_tensors = ibuffer[2]
-  layer_data_size    = ibuffer[3]
-
-  offset = 4
-  sizes = []
-  for t in range(num_tensors):
-    rank = ibuffer[offset]
-    size = rank*[0]
-    for i in range(rank):
-      size[i] = ibuffer[i+offset+1]
-        
-    sizes += [size]
-    offset += len(size)+1
-
-  # build up the braid vector
-  tens = [torch.zeros(s) for s in sizes]
-  vector_tensors = tens[0:num_tensors-num_weight_tensors]
-  weight_tensors = tens[num_tensors-num_weight_tensors:]
-
-  # build an vector object and set the tensors to land in the correct places
-  u_obj = BraidVector(tuple(vector_tensors),level)
-  Py_INCREF(u_obj) 
-  u_obj.addWeightTensors(weight_tensors)
-
-  # copy from the buffer into the braid vector
-  fbuffer = <float *>(buffer+(offset)*sizeof(int)) # level, rank, sizes
-  for ten_U in u_obj.allTensors():
-    np_U = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
+    # read in the buffer metda data
+    ibuffer = <int *> buffer
   
-    # copy the buffer into the tensor
-    sz = len(np_U)
-    my_buf = <float[:sz]> (fbuffer)
-    np_U[:] = my_buf
+    level              = ibuffer[0]
+    num_tensors        = ibuffer[1]
+    num_weight_tensors = ibuffer[2]
+    layer_data_size    = ibuffer[3]
+  
+    offset = 4
+    sizes = []
+    for t in range(num_tensors):
+      rank = ibuffer[offset]
+      size = rank*[0]
+      for i in range(rank):
+        size[i] = ibuffer[i+offset+1]
+          
+      sizes += [size]
+      offset += len(size)+1
+  
+    # build up the braid vector
+    tens = [torch.zeros(s) for s in sizes]
+    vector_tensors = tens[0:num_tensors-num_weight_tensors]
+    weight_tensors = tens[num_tensors-num_weight_tensors:]
+  
+    # build an vector object and set the tensors to land in the correct places
+    u_obj = BraidVector(tuple(vector_tensors),level)
+    Py_INCREF(u_obj) 
+    u_obj.addWeightTensors(weight_tensors)
+  
+    # copy from the buffer into the braid vector
+    fbuffer = <float *>(buffer+(offset)*sizeof(int)) # level, rank, sizes
+    for ten_U in u_obj.allTensors():
+      np_U = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
     
-    # update the float buffer pointer
-    fbuffer = <float*> (fbuffer+sz)
-
-  if layer_data_size>0:
-
-    # this is to make sure I can use the vbuffer
-    vbuffer = fbuffer
-
-    my_buf = <char[:layer_data_size]> vbuffer
-    layer_data = pickle.loads(my_buf)
-    u_obj.setLayerData(layer_data)
-  # end if layer_data_size
-
-  u_obj.setSendFlag(True)
-
-  # set the pointer for output
-  u_ptr[0] = <braid_Vector> u_obj 
+      # copy the buffer into the tensor
+      sz = len(np_U)
+      my_buf = <float[:sz]> (fbuffer)
+      np_U[:] = my_buf
+      
+      # update the float buffer pointer
+      fbuffer = <float*> (fbuffer+sz)
+  
+    if layer_data_size>0:
+  
+      # this is to make sure I can use the vbuffer
+      vbuffer = fbuffer
+  
+      my_buf = <char[:layer_data_size]> vbuffer
+      layer_data = pickle.loads(my_buf)
+      u_obj.setLayerData(layer_data)
+    # end if layer_data_size
+  
+    u_obj.setSendFlag(True)
+  
+    # set the pointer for output
+    u_ptr[0] = <braid_Vector> u_obj 
+  except:
+    output_exception("my_bufunpack")
 
   return 0
 
