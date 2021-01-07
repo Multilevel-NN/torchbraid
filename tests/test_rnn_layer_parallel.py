@@ -346,10 +346,10 @@ class TestRNNLayerParallel(unittest.TestCase):
       self.assertTrue(torch.norm(pa.grad-pb.grad).item()<1e-6)
   # end lstm
 
-  def backwardProp(self, sequence_length = 2, # total number of time steps for each sequence
+  def backwardProp(self, sequence_length = 6, # total number of time steps for each sequence
                          input_size = 28, # input size for each time step in a sequence
                          hidden_size = 20,
-                         num_layers = 2,
+                         num_layers = 1,
                          batch_size = 1):
 
     comm      = MPI.COMM_WORLD
@@ -435,18 +435,16 @@ class TestRNNLayerParallel(unittest.TestCase):
       # recieve the final inference step
       parallel_hn = comm.recv(source=comm.Get_size()-1)
       parallel_cn = comm.recv(source=comm.Get_size()-1)
-      self.assertTrue(torch.norm(y_serial_cn.data[0]-parallel_cn.data[0])/torch.norm(y_serial_cn.data[0])<1e-6)
-      self.assertTrue(torch.norm(y_serial_cn.data[1]-parallel_cn.data[1])/torch.norm(y_serial_cn.data[1])<1e-6)
-      self.assertTrue(torch.norm(y_serial_hn.data[0]-parallel_hn.data[0])/torch.norm(y_serial_hn.data[0])<1e-6)
-      self.assertTrue(torch.norm(y_serial_hn.data[1]-parallel_hn.data[1])/torch.norm(y_serial_hn.data[1])<1e-6)
+      self.assertTrue(torch.norm(y_serial_cn-parallel_cn)/torch.norm(y_serial_cn)<1e-6)
+      self.assertTrue(torch.norm(y_serial_hn-parallel_hn)/torch.norm(y_serial_hn)<1e-6)
 
       self.assertTrue(torch.norm(h_0.grad-y_serial_hn_0.grad).item()<1e-6)
       self.assertTrue(torch.norm(c_0.grad-y_serial_cn_0.grad).item()<1e-6)
 
-      #for pa,pb in zip(serial_rnn.parameters(),parallel_nn.parameters()):
+      for pa,pb in zip(serial_rnn.parameters(),parallel_nn.parameters()):
         #self.assertTrue(torch.norm(pa.grad-pb.grad).item()<1e-6)
-        #print(pa.grad)
-        #print(pb.grad)
+        print('\n=======================')
+        print(torch.norm(pa.grad-pb.grad).item(),pa.grad.shape)
   # forwardProp
 
 if __name__ == '__main__':
