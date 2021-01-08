@@ -36,8 +36,7 @@ import torch
 import traceback
 
 from braid_vector import BraidVector
-from rnn_braid_app import BraidApp
-from rnn_braid_app import BraidBackApp
+from rnn_braid_app import FwdRNNBraidApp, BwdRNNBraidApp
 
 import torchbraid_app as parent
 
@@ -45,10 +44,10 @@ import sys
 
 from mpi4py import MPI
 
-class ForwardBraidApp(BraidApp):
+class ForwardBraidApp(FwdRNNBraidApp):
 
   def __init__(self,comm,RNN_models,local_num_steps,hidden_size,num_layers,Tf,max_levels,max_iters,timer_manager):
-    BraidApp.__init__(self,comm,local_num_steps,hidden_size,num_layers,Tf,max_levels,max_iters)
+    FwdRNNBraidApp.__init__(self,comm,local_num_steps,hidden_size,num_layers,Tf,max_levels,max_iters)
 
     self.RNN_models = RNN_models
 
@@ -70,13 +69,9 @@ class ForwardBraidApp(BraidApp):
 
     # run the braid solver
     with self.timer("runBraid"):
-      # RNN_torchbraid_app.pyx -> runBraid()
       y = self.runBraid(x,h_c)
 
-    # print("Rank %d ForwardBraidApp -> run() - end" % prefix_rank)
-
-    #print('step bounds = ',self.getStepBounds())
-
+    # y is a tuple with the final h,c components
     return y
   # end forward
 
@@ -90,9 +85,6 @@ class ForwardBraidApp(BraidApp):
     condition x. The level is defined by braid
     """
 
-    # prefix_rank  = self.comm.Get_rank()
-    # print("Rank",prefix_rank,"- ForwardBraidApp->eval() - tstart:",tstart,"tstop:",tstop,"level:",level)
-
     # there are two paths by which eval is called:
     #  1. x is a BraidVector: my step has called this method
     #  2. x is a torch tensor: called internally (probably at the behest
@@ -100,7 +92,8 @@ class ForwardBraidApp(BraidApp):
 
     index = self.getLocalTimeStepIndex(tstart,tstop,level)
     t_h,t_c = g0.tensors()
-    t_yh,t_yc = self.RNN_models(self.x[:,index,:],t_h,t_c)
+    with torch.no_grad():
+      t_yh,t_yc = self.RNN_models(self.x[:,index,:],t_h,t_c)
 
     g0.replaceTensor(t_yh,0)
     g0.replaceTensor(t_yc,1)
@@ -137,11 +130,11 @@ class ForwardBraidApp(BraidApp):
 
 ##############################################################
 
-class BackwardBraidApp(BraidBackApp):
+class BackwardBraidApp(BwdRNNBraidApp):
 
   def __init__(self,fwd_app,timer_manager):
     # call parent constructor
-    BraidBackApp.__init__(self,'RNN',fwd_app.getMPIComm(),
+    BwdRNNBraidApp.__init__(self,'RNN',fwd_app.getMPIComm(),
                           fwd_app.local_num_steps,
                           fwd_app.Tf,
                           fwd_app.max_levels,
@@ -207,17 +200,11 @@ class BackwardBraidApp(BraidBackApp):
         for v in t_x:
           assert(v.grad is None)
 
-        # we are going to change the required gradient, make sure they return
-        # to where they started!
+        # play with the parameter gradients to make sure they are on apprpriately,
+        # store the initial state so we can revert them later
         required_grad_state = []
-
-        # play with the layers gradient to make sure they are on apprpriately
         for p in layer.parameters(): 
           required_grad_state += [p.requires_grad]
-          #if level==0:
-          #if done==1:
-          #  if not p.grad is None:
-          #    p.grad.data.zero_()
           if done!=1:
             # if you are not on the fine level, compute no parameter gradients
             p.requires_grad = False
@@ -235,6 +222,7 @@ class BackwardBraidApp(BraidBackApp):
         for wv,xv in zip(t_w,t_x):
           wv.copy_(xv.grad.detach()) 
 
+        # revert the gradient state to where they started
         for p,s in zip(layer.parameters(),required_grad_state):
           p.requires_grad = s
     except:

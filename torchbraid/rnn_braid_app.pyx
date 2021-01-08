@@ -51,7 +51,7 @@ def output_exception(label):
   s = traceback.format_exc()
   print('\n**** Torchbraid Callbacks::{} Exception ****\n{}'.format(label,s))
 
-class BraidApp(parent.BraidApp):
+class FwdRNNBraidApp(parent.BraidApp):
 
   def __init__(self,comm,local_num_steps,hidden_size,num_layers,Tf,max_levels,max_iters):
     parent.BraidApp.__init__(self,'RNN',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=None,require_storage=True)
@@ -146,7 +146,7 @@ class BraidApp(parent.BraidApp):
 
 # end BraidApp
 
-class BraidBackApp(parent.BraidApp):
+class BwdRNNBraidApp(parent.BraidApp):
 
   def __init__(self,prefix_str,comm,local_num_steps,Tf,max_levels,max_iters,
                spatial_ref_pair=None,require_storage=False):
