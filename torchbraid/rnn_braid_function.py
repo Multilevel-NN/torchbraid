@@ -29,7 +29,11 @@
 # ************************************************************************
 #@HEADER
 
+import numpy as np
 import torch.autograd
+import traceback
+
+from mpi4py import MPI
 
 class BraidFunction(torch.autograd.Function):
 
@@ -83,11 +87,15 @@ class BraidFunction(torch.autograd.Function):
     if ctx.needs_input_grad[2]: grad_input += (ctx.fwd_app.x.grad,)
     else: grad_input += (None,) # x
 
-    if ctx.needs_input_grad[3]: grad_input += (result[0],) # h
-    else: grad_input += (None,) # h
+    if result is not None:
+      if ctx.needs_input_grad[3]: grad_input += (result[0],) # h
+      else: grad_input += (None,) # h
 
-    if ctx.needs_input_grad[4]: grad_input += (result[1],) # h
-    else: grad_input += (None,) # h
+      if ctx.needs_input_grad[4]: grad_input += (result[1],) # h
+      else: grad_input += (None,) # h
+    else: 
+      grad_input += (None,) # h
+      grad_input += (None,) # h
 
     comm          = ctx.bwd_app.getMPIComm()
     my_rank       = ctx.bwd_app.getMPIComm().Get_rank()
@@ -95,21 +103,19 @@ class BraidFunction(torch.autograd.Function):
 
     # send gradients to the right (braid doesn't maintain symmetry with the forward and
     # adjoint problems)
-    with ctx.bwd_app.fwd_app.timer_manager.timer("BraidFunction::backward::propParameterDerivs"):
+    try:
       grads = ctx.bwd_app.grads
-      if my_rank<num_ranks-1:
-        comm.send(grads[-1],dest=my_rank+1,tag=22)
-      if my_rank>0:
-        neighbor_model = comm.recv(source=my_rank-1,tag=22)
-        grads.insert(0,neighbor_model)
-  
-      # flatten the grads array
-      grads = [g for sublist in grads for g in sublist]
-  
+      for g in grads:
+        b = torch.zeros(g.shape)
+        comm.Reduce([g.numpy(),MPI.FLOAT],[b.numpy(),MPI.FLOAT],MPI.SUM,root=0)
+        g.copy_(b) 
+
       for grad_needed,param in zip(ctx.needs_input_grad[5:],grads):
         if grad_needed:
           grad_input += (param,)
         else:
           grad_input += (None,)
+    except:
+      traceback.print_exc()
 
     return grad_input

@@ -129,8 +129,7 @@ class TestRNNLayerParallel(unittest.TestCase):
     self.forwardProp()
 
   def test_backward(self):
-    if MPI.COMM_WORLD.Get_size()==1: 
-      self.backwardProp()
+    self.backwardProp()
 
   def test_backward_lstm(self):
     if MPI.COMM_WORLD.Get_size()==1: 
@@ -442,9 +441,8 @@ class TestRNNLayerParallel(unittest.TestCase):
       self.assertTrue(torch.norm(c_0.grad-y_serial_cn_0.grad).item()<1e-6)
 
       for pa,pb in zip(serial_rnn.parameters(),parallel_nn.parameters()):
-        #self.assertTrue(torch.norm(pa.grad-pb.grad).item()<1e-6)
-        print('\n=======================')
-        print(torch.norm(pa.grad-pb.grad).item(),pa.grad.shape)
+        # this is an incredibly loose tolerance, I'm not real happy with it
+        self.assertTrue(torch.norm(pa.grad-pb.grad).item()/torch.norm(pa.grad).item()<1e-6)
   # forwardProp
 
 if __name__ == '__main__':

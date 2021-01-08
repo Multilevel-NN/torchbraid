@@ -76,8 +76,6 @@ class BraidApp(parent.BraidApp):
 
     self.x = x
 
-    print(my_rank,'shape before = ', self.x.shape)
-
     # send deta vector to the left
     if my_rank>0:
       comm.send(self.x[:,0,:],dest=my_rank-1,tag=22)
@@ -85,8 +83,6 @@ class BraidApp(parent.BraidApp):
       neighbor_x = comm.recv(source=my_rank+1,tag=22)
       self.x = torch.cat((self.x,neighbor_x.unsqueeze(1)), 1)
 
-    print(my_rank,'shape after = ', self.x.shape)
-    
     h = h_c[0]
     c = h_c[1]
 

@@ -181,22 +181,10 @@ class BackwardBraidApp(BraidBackApp):
       if self.getMPIComm().Get_rank()==0:
         first = 0
 
-      self.grads = []
+      self.grads = [p.grad.detach().clone() for p in self.fwd_app.RNN_models.parameters()]
 
-      # preserve the layerwise structure, to ease communication
-      # - note the prection of the 'None' case, this is so that individual layers
-      # - can have gradient's turned off
-      my_params = list(self.fwd_app.RNN_models.parameters())
-      for sublist in my_params[first:]:
-        sub_gradlist = [] 
-        for item in sublist:
-          if item.grad is not None:
-            sub_gradlist += [ item.grad.clone() ] 
-          else:
-            sub_gradlist += [ None ]
-
-        self.grads += [ sub_gradlist ]
-      # end for sublist
+      # required otherwise we will re-add teh gradients
+      self.fwd_app.RNN_models.zero_grad() 
     except:
       print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
