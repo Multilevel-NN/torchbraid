@@ -101,15 +101,19 @@ class BraidFunction(torch.autograd.Function):
     my_rank       = ctx.bwd_app.getMPIComm().Get_rank()
     num_ranks     = ctx.bwd_app.getMPIComm().Get_size()
 
-    # send gradients to the right (braid doesn't maintain symmetry with the forward and
-    # adjoint problems)
     try:
       grads = ctx.bwd_app.grads
       for g in grads:
+        # sum all gradients into the root
         b = torch.zeros(g.shape)
         comm.Reduce([g.numpy(),MPI.FLOAT],[b.numpy(),MPI.FLOAT],MPI.SUM,root=0)
-        g.copy_(b) 
+        if my_rank==0: g.copy_(b) 
 
+        # redistribute the gradients to ensrue the gradients
+        # are eequivalent ono every processor
+        comm.Bcast(g.numpy(),root=0)
+
+      # setup the returvn value (perversly grad_input)
       for grad_needed,param in zip(ctx.needs_input_grad[5:],grads):
         if grad_needed:
           grad_input += (param,)
