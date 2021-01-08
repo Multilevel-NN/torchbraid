@@ -125,8 +125,11 @@ def preprocess_distribute_input_data_parallel(rank,num_procs,num_batch,batch_siz
     return x_block
 
 class TestRNNLayerParallel(unittest.TestCase):
-  def test_forward(self):
-    self.forwardProp()
+  def test_forward_exact(self):
+    self.forwardProp(max_levels=1,max_iters=1)
+
+  def test_forward_approx(self):
+    self.forwardProp(max_levels=3,max_iters=20)
 
   def test_backward(self):
     self.backwardProp()
@@ -156,11 +159,14 @@ class TestRNNLayerParallel(unittest.TestCase):
       return None
   # end copyParametersToRoot
 
-  def forwardProp(self, sequence_length = 28, # total number of time steps for each sequence
-                        input_size = 28, # input size for each time step in a sequence
-                        hidden_size = 20,
-                        num_layers = 2,
-                        batch_size = 1):
+  def forwardProp(self, 
+                  max_levels = 1, # for testing parallel rnn
+                  max_iters = 1, # for testing parallel rnn
+                  sequence_length = 28, # total number of time steps for each sequence
+                  input_size = 28, # input size for each time step in a sequence
+                  hidden_size = 20,
+                  num_layers = 2,
+                  batch_size = 1):
 
     comm      = MPI.COMM_WORLD
     num_procs = comm.Get_size()
@@ -203,21 +209,19 @@ class TestRNNLayerParallel(unittest.TestCase):
     ###########################################
     x_block = preprocess_distribute_input_data_parallel(my_rank,num_procs,num_batch,batch_size,channels,sequence_length,input_size,comm)
   
-    max_levels = 1 # for testing parallel rnn
-    max_iters = 1 # for testing parallel rnn
     num_steps = x_block[0].shape[1]
     # RNN_parallel.py -> RNN_Parallel() class
-    parallel_nn = torchbraid.RNN_Parallel(comm,basic_block_parallel,num_steps,hidden_size,num_layers,Tf,max_levels=max_levels,max_iters=max_iters)
+    parallel_rnn = torchbraid.RNN_Parallel(comm,basic_block_parallel,num_steps,hidden_size,num_layers,Tf,max_levels=max_levels,max_iters=max_iters)
   
-    parallel_nn.setPrintLevel(print_level)
-    parallel_nn.setSkipDowncycle(True)
-    parallel_nn.setCFactor(cfactor)
-    parallel_nn.setNumRelax(nrelax)
+    parallel_rnn.setPrintLevel(print_level)
+    parallel_rnn.setSkipDowncycle(True)
+    parallel_rnn.setCFactor(cfactor)
+    parallel_rnn.setNumRelax(nrelax)
   
     # for i in range(len(x_block)):
     for i in range(1):
   
-      y_parallel_hn,y_parallel_cn = parallel_nn(x_block[i])
+      y_parallel_hn,y_parallel_cn = parallel_rnn(x_block[i])
   
       comm.barrier()
   
@@ -230,10 +234,10 @@ class TestRNNLayerParallel(unittest.TestCase):
         # recieve the final inference step
         parallel_hn = comm.recv(source=comm.Get_size()-1)
         parallel_cn = comm.recv(source=comm.Get_size()-1)
-        self.assertTrue(torch.norm(y_serial_cn.data[0]-parallel_cn.data[0])/torch.norm(y_serial_cn.data[0])<1e-6)
-        self.assertTrue(torch.norm(y_serial_cn.data[1]-parallel_cn.data[1])/torch.norm(y_serial_cn.data[1])<1e-6)
-        self.assertTrue(torch.norm(y_serial_hn.data[0]-parallel_hn.data[0])/torch.norm(y_serial_hn.data[0])<1e-6)
-        self.assertTrue(torch.norm(y_serial_hn.data[1]-parallel_hn.data[1])/torch.norm(y_serial_hn.data[1])<1e-6)
+        print('cn values = ',torch.norm(y_serial_cn-parallel_cn).item()/torch.norm(y_serial_cn).item())
+        print('hn values = ',torch.norm(y_serial_hn-parallel_hn).item()/torch.norm(y_serial_hn).item())
+        self.assertTrue(torch.norm(y_serial_cn-parallel_cn).item()/torch.norm(y_serial_cn).item()<1e-6,'check cn')
+        self.assertTrue(torch.norm(y_serial_hn-parallel_hn).item()/torch.norm(y_serial_hn).item()<1e-6,'check hn')
   # forwardProp
 
   def backwardProp_lstm(self,sequence_length = 2, # total number of time steps for each sequence
@@ -377,18 +381,18 @@ class TestRNNLayerParallel(unittest.TestCase):
     num_steps = x_block[0].shape[1]
   
     basic_block_parallel = lambda: RNN_build_block_with_dim(input_size, hidden_size, num_layers)
-    parallel_nn = torchbraid.RNN_Parallel(comm,basic_block_parallel,num_steps,hidden_size,num_layers,Tf,max_levels=max_levels,max_iters=max_iters)
+    parallel_rnn = torchbraid.RNN_Parallel(comm,basic_block_parallel,num_steps,hidden_size,num_layers,Tf,max_levels=max_levels,max_iters=max_iters)
   
-    parallel_nn.setPrintLevel(print_level)
-    parallel_nn.setSkipDowncycle(True)
-    parallel_nn.setCFactor(cfactor)
-    parallel_nn.setNumRelax(nrelax)
+    parallel_rnn.setPrintLevel(print_level)
+    parallel_rnn.setSkipDowncycle(True)
+    parallel_rnn.setCFactor(cfactor)
+    parallel_rnn.setNumRelax(nrelax)
 
     h_0 = torch.zeros(num_layers, x_block[0].size(0), hidden_size,requires_grad=True)
     c_0 = torch.zeros(num_layers, x_block[0].size(0), hidden_size,requires_grad=True)
   
     with torch.enable_grad(): 
-      y_parallel_hn,y_parallel_cn = parallel_nn(x_block[0],(h_0,c_0))
+      y_parallel_hn,y_parallel_cn = parallel_rnn(x_block[0],(h_0,c_0))
 
   
     comm.barrier()
@@ -440,9 +444,13 @@ class TestRNNLayerParallel(unittest.TestCase):
       self.assertTrue(torch.norm(h_0.grad-y_serial_hn_0.grad).item()<1e-6)
       self.assertTrue(torch.norm(c_0.grad-y_serial_cn_0.grad).item()<1e-6)
 
-      for pa,pb in zip(serial_rnn.parameters(),parallel_nn.parameters()):
-        # this is an incredibly loose tolerance, I'm not real happy with it
-        self.assertTrue(torch.norm(pa.grad-pb.grad).item()/torch.norm(pa.grad).item()<1e-6)
+      root_grads = [p.grad for p in serial_rnn.parameters()]
+    else:
+      root_grads = None
+
+    ref_grads = comm.bcast(root_grads,root=0)
+    for pa_grad,pb in zip(ref_grads,parallel_rnn.parameters()):
+      self.assertTrue(torch.norm(pa_grad-pb.grad).item()/torch.norm(pa_grad).item()<1e-6)
   # forwardProp
 
 if __name__ == '__main__':
