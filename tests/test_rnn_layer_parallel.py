@@ -131,8 +131,11 @@ class TestRNNLayerParallel(unittest.TestCase):
   def test_forward_approx(self):
     self.forwardProp(max_levels=3,max_iters=20)
 
-  def test_backward(self):
+  def test_backward_exact(self):
     self.backwardProp()
+
+  def test_backward_approx(self):
+    self.backwardProp(max_levels=3,max_iters=12,sequence_length=27,tol=1e-5)
 
   def test_backward_lstm(self):
     if MPI.COMM_WORLD.Get_size()==1: 
@@ -349,11 +352,15 @@ class TestRNNLayerParallel(unittest.TestCase):
       self.assertTrue(torch.norm(pa.grad-pb.grad).item()<1e-6)
   # end lstm
 
-  def backwardProp(self, sequence_length = 6, # total number of time steps for each sequence
-                         input_size = 28, # input size for each time step in a sequence
-                         hidden_size = 20,
-                         num_layers = 1,
-                         batch_size = 1):
+  def backwardProp(self, 
+                   max_levels = 1, # for testing parallel rnn
+                   max_iters = 1, # for testing parallel rnn
+                   sequence_length = 6, # total number of time steps for each sequence
+                   input_size = 28, # input size for each time step in a sequence
+                   hidden_size = 20,
+                   num_layers = 1,
+                   batch_size = 1,
+                   tol=1e-6):
 
     comm      = MPI.COMM_WORLD
     num_procs = comm.Get_size()
@@ -376,8 +383,6 @@ class TestRNNLayerParallel(unittest.TestCase):
     # preprocess and distribute input data
     x_block = preprocess_distribute_input_data_parallel(my_rank,num_procs,num_batch,batch_size,channels,sequence_length,input_size,comm)
   
-    max_levels = 1 # for testing parallel rnn
-    max_iters = 1 # for testing parallel rnn
     num_steps = x_block[0].shape[1]
   
     basic_block_parallel = lambda: RNN_build_block_with_dim(input_size, hidden_size, num_layers)
@@ -438,11 +443,17 @@ class TestRNNLayerParallel(unittest.TestCase):
       # recieve the final inference step
       parallel_hn = comm.recv(source=comm.Get_size()-1)
       parallel_cn = comm.recv(source=comm.Get_size()-1)
-      self.assertTrue(torch.norm(y_serial_cn-parallel_cn)/torch.norm(y_serial_cn)<1e-6)
-      self.assertTrue(torch.norm(y_serial_hn-parallel_hn)/torch.norm(y_serial_hn)<1e-6)
 
-      self.assertTrue(torch.norm(h_0.grad-y_serial_hn_0.grad).item()<1e-6)
-      self.assertTrue(torch.norm(c_0.grad-y_serial_cn_0.grad).item()<1e-6)
+      print(torch.norm(y_serial_cn-parallel_cn).item()/torch.norm(y_serial_cn).item(),'forward cn')
+      print(torch.norm(y_serial_hn-parallel_hn).item()/torch.norm(y_serial_hn).item(),'forward hn')
+
+      self.assertTrue(torch.norm(y_serial_cn-parallel_cn)/torch.norm(y_serial_cn)<tol,'cn value')
+      self.assertTrue(torch.norm(y_serial_hn-parallel_hn)/torch.norm(y_serial_hn)<tol,'rn value')
+
+      print(torch.norm(h_0.grad-y_serial_hn_0.grad).item(),'back soln hn')
+      print(torch.norm(c_0.grad-y_serial_cn_0.grad).item(),'back soln cn')
+      self.assertTrue(torch.norm(h_0.grad-y_serial_hn_0.grad).item()<tol)
+      self.assertTrue(torch.norm(c_0.grad-y_serial_cn_0.grad).item()<tol)
 
       root_grads = [p.grad for p in serial_rnn.parameters()]
     else:
@@ -450,7 +461,8 @@ class TestRNNLayerParallel(unittest.TestCase):
 
     ref_grads = comm.bcast(root_grads,root=0)
     for pa_grad,pb in zip(ref_grads,parallel_rnn.parameters()):
-      self.assertTrue(torch.norm(pa_grad-pb.grad).item()/torch.norm(pa_grad).item()<1e-6)
+      print(my_rank,torch.norm(pa_grad-pb.grad).item()/torch.norm(pa_grad).item(),'param grad')
+      self.assertTrue(torch.norm(pa_grad-pb.grad).item()/torch.norm(pa_grad).item()<tol,'param grad')
   # forwardProp
 
 if __name__ == '__main__':
