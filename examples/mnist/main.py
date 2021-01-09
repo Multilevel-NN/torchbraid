@@ -105,12 +105,9 @@ class StepLayer(nn.Module):
     super(StepLayer, self).__init__()
     ker_width = 3
     self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1)
-    #self.bn1 = nn.BatchNorm2d(channels)
     self.conv2 = nn.Conv2d(channels,channels,ker_width,padding=1)
-    #self.bn2 = nn.BatchNorm2d(channels)
 
   def forward(self, x):
-    #return F.relu(self.bn2(self.conv2(F.relu(self.bn1(self.conv1(x))))))
     return F.relu(self.conv2(F.relu(self.conv1(x))))
 # end layer
 
@@ -443,8 +440,8 @@ def main():
   test_times = []
 
   # check out the initial conditions
-  if force_lp:
-    diagnose(rank, model, test_loader,0)
+  #if force_lp:
+    #diagnose(rank, model, test_loader,0)
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
@@ -458,8 +455,8 @@ def main():
     test_times += [end_time-start_time]
 
     # print out some diagnostics
-    if force_lp:
-      diagnose(rank, model, test_loader,epoch)
+    #if force_lp:
+    #  diagnose(rank, model, test_loader,epoch)
 
   #if force_lp:
   #  timer_str = model.parallel_nn.getTimersString()
