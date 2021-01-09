@@ -53,77 +53,13 @@ def output_exception(label):
 
 class FwdRNNBraidApp(parent.BraidApp):
 
-  def __init__(self,comm,local_num_steps,hidden_size,num_layers,Tf,max_levels,max_iters):
+  def __init__(self,comm,local_num_steps,Tf,max_levels,max_iters):
     parent.BraidApp.__init__(self,'RNN',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=None,require_storage=True)
 
-    self.hidden_size = hidden_size
-    self.num_layers = num_layers
   # end __init__
 
   def getTensorShapes(self):
     return self.shape0
-
-  def runBraid(self,x,h_c):
-
-    cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
-    cdef braid_Core core = py_core.getCore()
-
-    num_ranks     = self.mpi_comm.Get_size()
-    my_rank       = self.mpi_comm.Get_rank()
-    comm = self.mpi_comm
-
-    assert(x.shape[1]==self.local_num_steps)
-
-    self.x = x
-
-    # send deta vector to the left
-    if my_rank>0:
-      comm.send(self.x[:,0,:],dest=my_rank-1,tag=22)
-    if my_rank<num_ranks-1:
-      neighbor_x = comm.recv(source=my_rank+1,tag=22)
-      self.x = torch.cat((self.x,neighbor_x.unsqueeze(1)), 1)
-
-    h = h_c[0]
-    c = h_c[1]
-
-    self.setInitial_g((h,c))
-
-    # Run Braid (calls rnn_my_step -> eval(running basic_blocks) in RNN_torchbraid.py)
-    braid_Drive(core)
-
-    h_c  = self.getFinal()
-    h_c = comm.bcast(h_c,root=num_ranks-1)
-
-    # print("Rank %d BraidApp -> runBraid() - end" % prefix_rank)
-
-    return h_c
-
-  def setInitial_g(self,g0):
-
-    cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
-    cdef braid_BaseVector bv 
-
-    self.g0 = BraidVector(g0,0)
-
-    # set the appropriate initial condition
-    if core.warm_restart:
-      _braid_UGetVectorRef(core, 0, 0, &bv);
-      if not (bv is NULL):
-        py_bv = <object> bv.userVector
-        py_bv.tensor_ = g0
-
-    # print("Rank %d BraidApp -> setInitial_g() - end" % prefix_rank)
-
-  def buildInit(self,t):
-
-    g = self.g0.clone()
-    if t>0:
-      t_h,t_c = g.tensors()
-      t_h[:] = 0.0
-      t_c[:] = 0.0
-
-    # print("Rank %d BraidApp -> buildInit() - end" % prefix_rank)
-    return g
 
   def access(self,t,u):
 

@@ -172,7 +172,7 @@ class BraidApp:
   # end initCore
 
   def __del__(self):
-    if self.py_core!=None:
+    if self.py_core is not None:
       py_core = <PyBraid_Core> self.py_core
       core = py_core.getCore()
 
@@ -227,21 +227,26 @@ class BraidApp:
   def runBraid(self,x):
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
     cdef braid_Core core = py_core.getCore()
+    try:
+       py_core = <PyBraid_Core> self.py_core
+       core = py_core.getCore()
 
-    self.setInitial(x)
+       self.setInitial(x)
  
-    # Run Braid
-    if not self.first:
-      self.initializeStates()
-    self.first = False
+       # Run Braid
+       if not self.first:
+         self.initializeStates()
+       self.first = False
 
-    braid_Drive(core) # my_step -> App:eval -> resnet "basic block"
+       braid_Drive(core) # my_step -> App:eval -> resnet "basic block"
 
-    self.printBraidStats()
+       self.printBraidStats()
 
-    fin = self.getFinal()
-    self.x0 = None
-    self.x_final = None
+       fin = self.getFinal()
+       self.x0 = None
+       self.x_final = None
+    except:
+      output_exception('runBraid')
 
     return fin
 
@@ -369,15 +374,19 @@ class BraidApp:
     pass
 
   def buildInit(self,t):
-    if t>0:
-      zeros = [torch.zeros(s) for s in self.shape0]
-      x = BraidVector(tuple(zeros),0)
-    else:
-      x = BraidVector(self.x0.tensors(),0)
+    try:
+      if t>0:
+        zeros = [torch.zeros(s) for s in self.shape0]
+        x = BraidVector(tuple(zeros),0)
+      else:
+        x = BraidVector(self.x0.tensors(),0)
+  
+      # an inherited function to initialize the vector
+      # here you would assign weights
+      self.initializeVector(t,x)
+    except:
+      output_exception('runBraid')
 
-    # an inherited function to initialize the vector
-    # here you would assign weights
-    self.initializeVector(t,x)
     return x
 
   def access(self,t,u):

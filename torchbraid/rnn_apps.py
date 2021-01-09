@@ -47,7 +47,10 @@ from mpi4py import MPI
 class ForwardBraidApp(FwdRNNBraidApp):
 
   def __init__(self,comm,RNN_models,local_num_steps,hidden_size,num_layers,Tf,max_levels,max_iters,timer_manager):
-    FwdRNNBraidApp.__init__(self,comm,local_num_steps,hidden_size,num_layers,Tf,max_levels,max_iters)
+    FwdRNNBraidApp.__init__(self,comm,local_num_steps,Tf,max_levels,max_iters)
+
+    self.hidden_size = hidden_size
+    self.num_layers = num_layers
 
     self.RNN_models = RNN_models
 
@@ -66,10 +69,25 @@ class ForwardBraidApp(FwdRNNBraidApp):
   # end __init__
 
   def run(self,x,h_c):
+    num_ranks     = self.mpi_comm.Get_size()
+    my_rank       = self.mpi_comm.Get_rank()
+    comm = self.mpi_comm
+
+    assert(x.shape[1]==self.local_num_steps)
+
+    self.x = x
+
+    # send deta vector to the left
+    if my_rank>0:
+      comm.send(self.x[:,0,:],dest=my_rank-1,tag=22)
+    if my_rank<num_ranks-1:
+      neighbor_x = comm.recv(source=my_rank+1,tag=22)
+      self.x = torch.cat((self.x,neighbor_x.unsqueeze(1)), 1)
 
     # run the braid solver
-    with self.timer("runBraid"):
-      y = self.runBraid(x,h_c)
+    y = self.runBraid(h_c)
+
+    y = comm.bcast(y,root=num_ranks-1)
 
     # y is a tuple with the final h,c components
     return y
