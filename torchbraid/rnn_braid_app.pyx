@@ -58,15 +58,10 @@ class FwdRNNBraidApp(parent.BraidApp):
 
   # end __init__
 
-  def getTensorShapes(self):
-    return self.shape0
-
   def access(self,t,u):
 
     if t==self.Tf:
       self.x_final = u.clone()
-
-    # print("Rank %d BraidApp -> access() - end" % prefix_rank)
 
   def getFinal(self):
 
@@ -77,7 +72,6 @@ class FwdRNNBraidApp(parent.BraidApp):
     assert(self.x_final.level()==0)
     x_final_tensors = self.x_final.tensors()
 
-    # print("Rank %d BraidApp -> getFinal() - end" % prefix_rank)
     return x_final_tensors
 
 # end BraidApp

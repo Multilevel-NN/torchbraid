@@ -282,9 +282,6 @@ class LayerParallel(nn.Module):
       return None
   # end buildSequentialOnRoot
 
-  def getFinal(self):
-    return  self.fwd_app.getFinal()
-
   def getFinalOnRoot(self,vec):
     build_seq_tag = 99        # this 
     comm          = self.getMPIComm()
@@ -293,7 +290,6 @@ class LayerParallel(nn.Module):
 
     # short circuit for serial case
     if num_ranks==1:
-      #return self.getFinal()
       return vec
 
     # send the output of the last layer to the root

@@ -124,35 +124,22 @@ class RNN_Parallel(nn.Module):
     # print("Rank %d RNN_Parallel -> buildInit() - end" % prefix_rank)
     return g
 
-  def getFinal(self):           # TODO: Need to modify 07/14
-
-    # prefix_rank  = self.comm.Get_rank()
-    # print("Rank %d RNN_Parallel -> getFinal() - called" % prefix_rank)
-
-    # print("type of self.fwd_app.getFinal(): ",type(self.fwd_app.getFinal()))
-
-    return  self.fwd_app.getFinal()
-
-  def getFinalOnRoot(self):
-
-    # prefix_rank  = self.comm.Get_rank()
-    # print("Rank %d RNN_Parallel -> getFinalOnRoot() - called" % prefix_rank)
-    
+  def getFinalOnRoot(self,vec):
     build_seq_tag = 99        # this 
     comm          = self.getMPIComm()
     my_rank       = self.getMPIComm().Get_rank()
     num_ranks     = self.getMPIComm().Get_size()
-    
+
     # short circuit for serial case
     if num_ranks==1:
-      return self.getFinal()
+      return vec
 
     # send the output of the last layer to the root
     if my_rank==0:
       remote_final = comm.recv(source=num_ranks-1,tag=build_seq_tag)
       return remote_final
     elif my_rank==num_ranks-1:
-      final = self.getFinal()
+      final = vec
       comm.send(final,dest=0,tag=build_seq_tag)
 
     return None
