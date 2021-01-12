@@ -193,7 +193,7 @@ class BraidApp:
     return 0
 
   def getTensorShapes(self):
-    return self.fwd_app.getTensorShapes()
+    return self.shape0
 
   def setShape(self,shape):
     # the shape to use if non-exists for taking advantage of allocations in braid
