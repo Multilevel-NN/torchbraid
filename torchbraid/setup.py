@@ -41,7 +41,7 @@ if "EXTRA_FLAGS" in os.environ.keys():
 else:
   extra_compile_args = []
 
-modules = ['torchbraid_app','rnn_braid_app']
+modules = ['torchbraid_app']
 
 for module_name in modules:
     torchbraid_ext = Extension(
