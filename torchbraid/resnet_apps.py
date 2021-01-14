@@ -175,11 +175,11 @@ class ForwardResNetApp(BraidApp):
 
     return params
 
-  def eval(self,y,tstart,tstop,level,x=None):
+  def eval(self,y,tstart,tstop,level,done):
     """
     Method called by "my_step" in braid. This is
-    required to propagate from tstart to tstop, with the initial
-    condition x. The level is defined by braid
+    required to propagate from tstart to tstop.
+    The level is defined by braid
     """
 
     # this function is used twice below to define an in place evaluation
@@ -202,25 +202,23 @@ class ForwardResNetApp(BraidApp):
     #  1. x is a BraidVector: my step has called this method
     #  2. x is a torch tensor: called internally (probably for the adjoint) 
 
-    if isinstance(y,BraidVector):
-      self.setLayer(tstart,tstop,level,y.getLayerData())
+    self.setLayer(tstart,tstop,level,y.getLayerData())
+    layer = self.getLayer(tstart,tstop,level) # resnet "basic block"
 
-      t_y = y.tensor().detach()
+    t_y = y.tensor().detach()
 
-      # no gradients are necessary here, so don't compute them
-      with torch.no_grad():
-        in_place_eval(t_y,tstart,tstop,level)
+    # no gradients are necessary here, so don't compute them
+    with torch.no_grad():
+      q = layer(t_y)
+      t_y.copy_(q)
 
-      if y.getSendFlag():
-        y.setLayerData(None)
-        y.setSendFlag(False)
-      # wipe out any sent information
+    if y.getSendFlag():
+      y.setLayerData(None)
+      y.setSendFlag(False)
+    # wipe out any sent information
 
-      self.setVectorLayer(tstop,0.0,level,y)
-    else: 
-      x.requires_grad = True 
-      with torch.enable_grad():
-        in_place_eval(y,tstart,tstop,level,t_x=x)
+    # move the layer
+    self.setVectorLayer(tstop,0.0,level,y)
   # end eval
 
   def getPrimalWithGrad(self,tstart,tstop,level):
@@ -324,7 +322,7 @@ class BackwardResNetApp(BraidApp):
     return f
   # end forward
 
-  def eval(self,w,tstart,tstop,level):
+  def eval(self,w,tstart,tstop,level,done):
     """
     Evaluate the adjoint problem for a single time step. Here 'w' is the
     adjoint solution. The variables 'x' and 'y' refer to the forward

@@ -316,15 +316,15 @@ class TestTorchBraid(unittest.TestCase):
         print('%s: grad error = %.6e' % (prefix,torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad)))
         self.assertTrue((torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad))<=test_tol)
   
-        param_errors = []
-        for pf,pm_grad in zip(list(f.parameters()),m_param_grad):
-          self.assertTrue(not pm_grad is None)
-   
-          # accumulate parameter errors for testing purposes
-          param_errors += [(torch.norm(pf.grad-pm_grad)/torch.norm(pf.grad)).item()]
-   
-          # check the error conditions
-          self.assertTrue(torch.norm(pf.grad-pm_grad)<=test_tol)
+#         param_errors = []
+#         for pf,pm_grad in zip(list(f.parameters()),m_param_grad):
+#           self.assertTrue(not pm_grad is None)
+#    
+#           # accumulate parameter errors for testing purposes
+#           param_errors += [(torch.norm(pf.grad-pm_grad)/torch.norm(pf.grad)).item()]
+#    
+#           # check the error conditions
+#           self.assertTrue(torch.norm(pf.grad-pm_grad)<=test_tol)
    
         if len(param_errors)>0:
           print('%s: p grad error (mean,stddev) = %.6e, %.6e' % (prefix,stats.mean(param_errors),stats.stdev(param_errors)))
@@ -333,12 +333,12 @@ class TestTorchBraid(unittest.TestCase):
         
   # forwardPropSerial
 
-  import sys
-
-def trace(frame, event, arg):
-    print("%s, %s:%d" % (event, frame.f_code.co_filename, frame.f_lineno))
-    return trace
-
+#import sys
+#
+#def trace(frame, event, arg):
+#    print("%s, %s:%d" % (event, frame.f_code.co_filename, frame.f_lineno))
+#    return trace
+#
 #sys.settrace(trace)
 
 if __name__ == '__main__':
