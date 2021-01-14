@@ -391,20 +391,17 @@ class BraidApp:
 
   def access(self,t,u):
     if t==self.Tf:
-      # not sure why this requires a clone
-      # if this needs only one processor
-      # it could be a problem in the future
-      if self.getMPIComm().Get_size()>1:
-        self.x_final = u.tensor()
-      else:
-        self.x_final = u.clone().tensor()
+      self.x_final = u.clone()
 
   def getFinal(self):
     if self.x_final==None:
       return None
-
+      
     # assert the level
-    return self.x_final
+    assert(self.x_final.level()==0)
+    x_final_tensors = self.x_final.tensors()
+
+    return x_final_tensors
 
   def evalNetwork(self):
     self.training = False

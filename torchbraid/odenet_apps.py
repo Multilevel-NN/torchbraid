@@ -141,7 +141,10 @@ class ForwardODENetApp(BraidApp):
       # reset derivative papth
       self.use_deriv = False
 
-    return y
+    if y is not None:
+      return y[0]
+    else:
+      return None
   # end forward
 
   def timer(self,name):
@@ -289,6 +292,8 @@ class BackwardODENetApp(BraidApp):
 
     try:
       f = self.runBraid(x)
+      if f is not None:
+        f = f[0]
 
       # this code is due to how braid decomposes the backwards problem
       # The ownership of the time steps is shifted to the left (and no longer balanced)

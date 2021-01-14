@@ -139,6 +139,8 @@ class ForwardResNetApp(BraidApp):
       # reset derivative papth
       self.use_deriv = False
 
+    if y is not None:
+      return y[0]
     return y
   # end forward
 
