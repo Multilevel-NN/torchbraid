@@ -95,7 +95,7 @@ class ForwardBraidApp(parent.BraidApp):
   def timer(self,name):
     return self.timer_manager.timer("ForWD::"+name)
 
-  def eval(self,g0,tstart,tstop,level,done,t_x=None):
+  def eval(self,g0,tstart,tstop,level,done):
     """
     Method called by "my_step" in braid. This is
     required to propagate from tstart to tstop, with the initial
