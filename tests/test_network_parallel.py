@@ -127,7 +127,7 @@ class TestTorchBraid(unittest.TestCase):
     w0 = torch.randn(5,dim) # adjoint initial cond
     max_levels = 1
     max_iters = 1
-    self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-16,prefix='linearNet_Exact',check_grad=False)
+    self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-16,prefix='linearNet_Exact',check_grad=True)
 
     MPI.COMM_WORLD.barrier()
   # end test_linearNet_Exact
@@ -326,8 +326,8 @@ class TestTorchBraid(unittest.TestCase):
 #           # check the error conditions
 #           self.assertTrue(torch.norm(pf.grad-pm_grad)<=test_tol)
    
-        if len(param_errors)>0:
-          print('%s: p grad error (mean,stddev) = %.6e, %.6e' % (prefix,stats.mean(param_errors),stats.stdev(param_errors)))
+        #if len(param_errors)>0:
+        #  print('%s: p grad error (mean,stddev) = %.6e, %.6e' % (prefix,stats.mean(param_errors),stats.stdev(param_errors)))
 
       print('\n')
         

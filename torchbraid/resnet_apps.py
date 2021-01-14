@@ -198,10 +198,6 @@ class ForwardResNetApp(BraidApp):
       del q
     # end in_place_eval
 
-    # there are two paths by which eval is called:
-    #  1. x is a BraidVector: my step has called this method
-    #  2. x is a torch tensor: called internally (probably for the adjoint) 
-
     self.setLayer(tstart,tstop,level,y.getLayerData())
     layer = self.getLayer(tstart,tstop,level) # resnet "basic block"
 
@@ -237,14 +233,13 @@ class ForwardResNetApp(BraidApp):
     b_x = self.getUVector(0,tstart)
     t_x = b_x.tensor()
 
-    self.setLayerWeights(tstart,tstop,level,b_x.weightTensors())
-
     x = t_x.detach()
     y = t_x.detach().clone()
 
-    x.requires_grad = t_x.requires_grad
+    x.requires_grad = True
 
-    self.eval(y,tstart,tstop,0,x=x)
+    y = layer(x)
+
     return (y, x), layer
   # end getPrimalWithGrad
 
@@ -288,6 +283,8 @@ class BackwardResNetApp(BraidApp):
 
     try:
       f = self.runBraid(x)
+      if f is not None:
+        f = f[0]
 
       # this code is due to how braid decomposes the backwards problem
       # The ownership of the time steps is shifted to the left (and no longer balanced)
