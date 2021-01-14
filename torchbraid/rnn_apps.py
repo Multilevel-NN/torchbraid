@@ -36,7 +36,6 @@ import torch
 import traceback
 
 from braid_vector import BraidVector
-from rnn_braid_app import FwdRNNBraidApp, BwdRNNBraidApp
 
 import torchbraid_app as parent
 
@@ -44,10 +43,10 @@ import sys
 
 from mpi4py import MPI
 
-class ForwardBraidApp(FwdRNNBraidApp):
+class ForwardBraidApp(parent.BraidApp):
 
   def __init__(self,comm,RNN_models,local_num_steps,hidden_size,num_layers,Tf,max_levels,max_iters,timer_manager):
-    FwdRNNBraidApp.__init__(self,comm,local_num_steps,Tf,max_levels,max_iters)
+    parent.BraidApp.__init__(self,'RNN',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=None,require_storage=True)
 
     self.hidden_size = hidden_size
     self.num_layers = num_layers
@@ -148,11 +147,11 @@ class ForwardBraidApp(FwdRNNBraidApp):
 
 ##############################################################
 
-class BackwardBraidApp(BwdRNNBraidApp):
+class BackwardBraidApp(parent.BraidApp):
 
   def __init__(self,fwd_app,timer_manager):
     # call parent constructor
-    BwdRNNBraidApp.__init__(self,'RNN',fwd_app.getMPIComm(),
+    parent.BraidApp.__init__(self,'RNN',fwd_app.getMPIComm(),
                           fwd_app.local_num_steps,
                           fwd_app.Tf,
                           fwd_app.max_levels,
