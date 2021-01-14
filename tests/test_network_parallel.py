@@ -74,13 +74,7 @@ class ConvBlock(nn.Module):
     super(ConvBlock, self).__init__()
     self.lin = nn.Conv1d(num_ch,num_ch,kernel_size=3,padding=1,bias=False)
 
-    # this is basically setup to be a laplacian
-    self.lin.weight[...,0] = -1.0
-    self.lin.weight[...,1] =  2.0
-    self.lin.weight[...,2] = -1.0
-
   def forward(self, x):
-    #return F.relu(self.lin(x))
     return self.lin(x)
 # end layer
 
@@ -160,52 +154,31 @@ class TestTorchBraid(unittest.TestCase):
 
     MPI.COMM_WORLD.barrier()
   # end test_reLUNet_Exact
-# 
-#   def test_convNet_Approx_coarse_ref(self):
-#     dim = 128
-#     num_ch = 1
-#     num_samp = 1
-#     basic_block = lambda: ConvBlock(dim,num_ch)
-# 
-#     u = torch.linspace(0.0,1.0,dim)
-#     x0 = torch.zeros(num_samp,num_ch,dim) # forward initial cond
-#     w0 = torch.zeros(num_samp,num_ch,dim) # adjoint initial cond
-#     for ch in range(num_ch):
-#       for samp in range(num_samp):
-#         x0[samp,ch,:] = torch.sin(2.0*np.pi*0.5*(ch+1.0)*(u-1.0/(samp+1.0)))
-#         w0[samp,ch,:] = torch.cos(2.0*np.pi*0.5*(ch+1.0)*(u-1.0/(samp+1.0))) 
-#     # build a relatively smooth initial guess
-# 
-#     max_levels = 2
-#     max_iters = 12
-# 
-#     def coarsen(x,level):
-#       return 0.5*(x[...,0::2]+x[...,1::2]).clone()
-#       # return x.clone()
-# 
-#     def refine(x,level):
-#       # this little bit of torch magic simply does injection (I'm not sure I can explain it)
-#       # I looked up "interleave" and pytorch and eventually came to this
-#       shape = list(x.shape)
-#       shape[-1] *= 2
-#       return torch.stack((x,x),dim=-1).view(shape).contiguous()
-#       # return x.clone()
-# 
-#     c = coarsen(x0,0)
-#     xi = refine(c,0)
-#     xc = coarsen(xi,0)
-#     self.assertTrue(torch.norm(xc-c)<1.0e-15) # sanity check
-# 
-#     # this catch block, augments the 
-#     rank = MPI.COMM_WORLD.Get_rank()
-#     try:
-#       #self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx_coarse_ref',ref_pair=(coarsen,refine),check_grad=False,num_steps=12,print_level=3)
-#       pass
-#     except RuntimeError as err:
-#       raise RuntimeError("proc=%d) reLUNet_Exact..failure" % rank) from err
-# 
-#     MPI.COMM_WORLD.barrier()
-#   # end test_reLUNet_Exact
+ 
+  def test_convNet_Exact(self):
+    dim = 128
+    num_ch = 1
+    num_samp = 1
+    basic_block = lambda: ConvBlock(dim,num_ch)
+
+    u = torch.linspace(0.0,1.0,dim)
+    x0 = torch.zeros(num_samp,num_ch,dim) # forward initial cond
+    w0 = torch.zeros(num_samp,num_ch,dim) # adjoint initial cond
+    for ch in range(num_ch):
+      for samp in range(num_samp):
+        x0[samp,ch,:] = torch.sin(2.0*np.pi*0.5*(ch+1.0)*(u-1.0/(samp+1.0)))
+        w0[samp,ch,:] = torch.cos(2.0*np.pi*0.5*(ch+1.0)*(u-1.0/(samp+1.0))) 
+    # build a relatively smooth initial guess
+
+    max_levels = 1
+    max_iters = 1
+
+    # this catch block, augments the 
+    rank = MPI.COMM_WORLD.Get_rank()
+    self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-16,prefix='convNet_Exact',check_grad=True)
+
+    MPI.COMM_WORLD.barrier()
+  # end test_reLUNet_Exact
 # 
 #   def test_reLUNet_Approx(self):
 #     dim = 2
