@@ -145,24 +145,21 @@ class TestTorchBraid(unittest.TestCase):
 #     MPI.COMM_WORLD.barrier()
 #   # end test_linearNet_Approx
 # 
-#   def test_reLUNet_Exact(self):
-#     dim = 2
-#     basic_block = lambda: ReLUBlock(dim)
-# 
-#     x0 = 12.0*torch.ones(5,dim) # forward initial cond
-#     w0 = 3.0*torch.ones(5,dim) # adjoint initial cond
-#     max_levels = 1
-#     max_iters = 1
-# 
-#     # this catch block, augments the 
-#     rank = MPI.COMM_WORLD.Get_rank()
-#     try:
-#       self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-16,prefix='reLUNet_Exact')
-#     except RuntimeError as err:
-#       raise RuntimeError("proc=%d) reLUNet_Exact..failure" % rank) from err
-# 
-#     MPI.COMM_WORLD.barrier()
-#   # end test_reLUNet_Exact
+  def test_reLUNet_Exact(self):
+    dim = 2
+    basic_block = lambda: ReLUBlock(dim)
+
+    x0 = 12.0*torch.ones(5,dim) # forward initial cond
+    w0 = 3.0*torch.ones(5,dim) # adjoint initial cond
+    max_levels = 1
+    max_iters = 1
+
+    # this catch block, augments the 
+    rank = MPI.COMM_WORLD.Get_rank()
+    self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-16,prefix='reLUNet_Exact',check_grad=True)
+
+    MPI.COMM_WORLD.barrier()
+  # end test_reLUNet_Exact
 # 
 #   def test_convNet_Approx_coarse_ref(self):
 #     dim = 128
@@ -234,6 +231,8 @@ class TestTorchBraid(unittest.TestCase):
     num_proc = m.getMPIComm().Get_size()
  
     params = [p.grad for p in list(m.parameters())]
+
+    return params
 
     if len(params)==0:
       return params
@@ -316,18 +315,18 @@ class TestTorchBraid(unittest.TestCase):
         print('%s: grad error = %.6e' % (prefix,torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad)))
         self.assertTrue((torch.norm(xm.grad-xf.grad)/torch.norm(xf.grad))<=test_tol)
   
-#         param_errors = []
-#         for pf,pm_grad in zip(list(f.parameters()),m_param_grad):
-#           self.assertTrue(not pm_grad is None)
-#    
-#           # accumulate parameter errors for testing purposes
-#           param_errors += [(torch.norm(pf.grad-pm_grad)/torch.norm(pf.grad)).item()]
-#    
-#           # check the error conditions
-#           self.assertTrue(torch.norm(pf.grad-pm_grad)<=test_tol)
+        param_errors = []
+        for pf,pm_grad in zip(list(f.parameters()),m_param_grad):
+          self.assertTrue(not pm_grad is None)
    
-        #if len(param_errors)>0:
-        #  print('%s: p grad error (mean,stddev) = %.6e, %.6e' % (prefix,stats.mean(param_errors),stats.stdev(param_errors)))
+          # accumulate parameter errors for testing purposes
+          param_errors += [(torch.norm(pf.grad-pm_grad)/torch.norm(pf.grad)).item()]
+   
+          # check the error conditions
+          self.assertTrue(torch.norm(pf.grad-pm_grad)<=test_tol)
+   
+        if len(param_errors)>0:
+          print('%s: p grad error (mean,stddev) = %.6e, %.6e' % (prefix,stats.mean(param_errors),stats.stdev(param_errors)))
 
       print('\n')
         

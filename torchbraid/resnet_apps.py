@@ -238,7 +238,8 @@ class ForwardResNetApp(BraidApp):
 
     x.requires_grad = True
 
-    y = layer(x)
+    with torch.enable_grad():
+      y = layer(x)
 
     return (y, x), layer
   # end getPrimalWithGrad
@@ -330,22 +331,24 @@ class BackwardResNetApp(BraidApp):
         # this is so that the renumbering used by the backward problem is properly adjusted
         (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
 
-        # t_x should have no gradient (for memory reasons)
-        assert(t_x.grad is None)
-
         # we are going to change the required gradient, make sure they return
         # to where they started!
         required_grad_state = []
 
         # play with the layers gradient to make sure they are on apprpriately
-        for p in layer.parameters(): 
-          required_grad_state += [p.requires_grad]
-          if level==0:
-            if not p.grad is None:
-              p.grad.data.zero_()
-          else:
-            # if you are not on the fine level, compute no parameter gradients
-            p.requires_grad = False
+#         for p in layer.parameters(): 
+#           required_grad_state += [p.requires_grad]
+#           if done==1:
+#             if not p.grad is None:
+#               p.grad.data.zero_()
+#           else:
+#             # if you are not on the fine level, compute no parameter gradients
+#             p.requires_grad = False
+#        for p in layer.parameters(): 
+#          required_grad_state += [p.requires_grad]
+#          if done==0:
+#            # if you are not on the fine level, compute no parameter gradients
+#            p.requires_grad = False
 
         # perform adjoint computation
         t_w = w.tensor()
@@ -357,8 +360,8 @@ class BackwardResNetApp(BraidApp):
         # the grad to None after saving it and returning it to braid)
         t_w.copy_(t_x.grad.detach()) 
 
-        for p,s in zip(layer.parameters(),required_grad_state):
-          p.requires_grad = s
+#        for p,s in zip(layer.parameters(),required_grad_state):
+#          p.requires_grad = s
     except:
       print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
