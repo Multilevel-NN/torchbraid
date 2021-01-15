@@ -46,18 +46,19 @@ class BraidFunction(torch.autograd.Function):
 
     # prefix_rank = fwd_app.getMPIData().getRank()
     # print("Rank %d BraidFunction -> forward() - start" % prefix_rank)
-    with fwd_app.timer_manager.timer("BraidFunction::forward::run"):
-      # setup context
-      ctx.fwd_app = fwd_app
-      ctx.bwd_app = bwd_app
-      ctx.save_for_backward(x, h,c, *params)
 
-      fwd_app.setShape(shape)
-      bwd_app.setShape(shape)
+    # setup context
+    ctx.fwd_app = fwd_app
+    ctx.bwd_app = bwd_app
+    ctx.save_for_backward(x, h,c, *params)
 
-      h_c = (h,c)
+    fwd_app.setShape(shape)
+    bwd_app.setShape(shape)
 
-      result = fwd_app.run(x,h_c)
+    h_c = (h,c)
+
+    result = fwd_app.run(x,h_c)
+
     return result
 
   @staticmethod

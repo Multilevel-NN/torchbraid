@@ -47,39 +47,35 @@ def root_print(rank,s):
   if rank==0:
     print(s)
 
-class RNN_BasicBlock(nn.Module):
-  def __init__(self, input_size, hidden_size, num_layers, timer_manager):
-    super(RNN_BasicBlock, self).__init__()
+class LSTMBlock(nn.Module):
+  def __init__(self, input_size, hidden_size, num_layers):
+    super(LSTMBlock, self).__init__()
     self.hidden_size = hidden_size
     self.num_layers = num_layers
-    self.timer_manager = timer_manager
 
     torch.manual_seed(20)
-    self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+    lstm_cells = num_layers*[None]
+    lstm_cells[0] = nn.LSTMCell(input_size, hidden_size)
+    for i in range(num_layers-1):
+      lstm_cells[i+1] = nn.LSTMCell(hidden_size, hidden_size)
 
-  def __del__(self):
-    pass
+    self.lstm_cells = nn.ModuleList(lstm_cells)
 
   def forward(self, x, h_prev, c_prev):
-    with self.timer_manager.timer("forward"): 
-      h0 = h_prev
-      c0 = c_prev
-      _, (hn, cn) = self.lstm(x, (h0, c0))
-      return _, (hn, cn)
+    h_cur = h_prev[0]
+    c_cur = c_prev[0]
+    x_cur = x
 
-class ODEBlock(nn.Module):
-  def __init__(self,layer,dt):
-    super(ODEBlock, self).__init__()
+    hn = self.num_layers*[None]
+    cn = self.num_layers*[None]
+    for i in range(self.num_layers):
+      hn[i], cn[i] = self.lstm_cells[i](x_cur, (h_prev[i], c_prev[i]))
+      x_cur = hn[i]
 
-    self.dt = dt
-    self.layer = layer
-
-  def forward(self, x):
-    return x + self.dt*self.layer(x)
-
+    return (torch.stack(hn), torch.stack(cn))
 
 def RNN_build_block_with_dim(input_size, hidden_size, num_layers, timer_manager):
-  b = RNN_BasicBlock(input_size, hidden_size, num_layers, timer_manager) # channels = hidden_size
+  b = LSTMBlock(input_size, hidden_size, num_layers) # channels = hidden_size
   return b
 
 def preprocess_synthetic_image_sequences_serial(num_blocks, num_batch, batch_size, channels, sequence_length, input_size):
@@ -467,7 +463,7 @@ else:
   # max_levels = 3
   # max_iters = 3
 
-  num_steps = sequence_length
+  num_steps = x_block[0].shape[1]
 
   parallel_nn = torchbraid.RNN_Parallel(comm,basic_block_parallel,num_steps,hidden_size,num_layers,Tf,max_levels=max_levels,max_iters=max_iters)
 
