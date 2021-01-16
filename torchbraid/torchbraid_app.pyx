@@ -53,7 +53,7 @@ def output_exception(label):
 class BraidApp:
 
   def __init__(self,prefix_str,comm,local_num_steps,Tf,max_levels,max_iters,
-               spatial_ref_pair=None,require_storage=False):
+               spatial_ref_pair=None,require_storage=False,abs_tol=1e-12):
 
     self.prefix_str = prefix_str # prefix string for helping to debug hopefully
     self.tb_print_level = 0      # set print level internally to zero
@@ -66,6 +66,7 @@ class BraidApp:
     self.cfactor     = 2
     self.skip_downcycle = 0
     self.require_storage = require_storage
+    self.abs_tol = abs_tol
 
     self.mpi_comm        = comm
     self.Tf              = Tf
@@ -159,6 +160,7 @@ class BraidApp:
     braid_SetNRelax(core,-1,self.nrelax)
     braid_SetNRelax(core,0,0) # set F relax on fine grid
     braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
+    braid_SetAbsTol(core,self.abs_tol)
     if self.skip_downcycle==0:
       braid_SetSkip(core,0)
     else:

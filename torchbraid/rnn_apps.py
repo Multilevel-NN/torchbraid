@@ -45,8 +45,8 @@ from mpi4py import MPI
 
 class ForwardBraidApp(parent.BraidApp):
 
-  def __init__(self,comm,RNN_models,local_num_steps,hidden_size,num_layers,Tf,max_levels,max_iters,timer_manager):
-    parent.BraidApp.__init__(self,'RNN',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=None,require_storage=True)
+  def __init__(self,comm,RNN_models,local_num_steps,hidden_size,num_layers,Tf,max_levels,max_iters,timer_manager,abs_tol):
+    parent.BraidApp.__init__(self,'RNN',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=None,require_storage=True,abs_tol=abs_tol)
 
     self.hidden_size = hidden_size
     self.num_layers = num_layers
@@ -149,13 +149,13 @@ class ForwardBraidApp(parent.BraidApp):
 
 class BackwardBraidApp(parent.BraidApp):
 
-  def __init__(self,fwd_app,timer_manager):
+  def __init__(self,fwd_app,timer_manager,abs_tol):
     # call parent constructor
     parent.BraidApp.__init__(self,'RNN',fwd_app.getMPIComm(),
                           fwd_app.local_num_steps,
                           fwd_app.Tf,
                           fwd_app.max_levels,
-                          fwd_app.max_iters,spatial_ref_pair=None,require_storage=True)
+                          fwd_app.max_iters,spatial_ref_pair=None,require_storage=True,abs_tol=abs_tol)
 
     self.fwd_app = fwd_app
 
