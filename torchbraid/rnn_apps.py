@@ -34,6 +34,7 @@
 
 import torch
 import traceback
+import numpy as np
 
 from braid_vector import BraidVector
 
@@ -65,7 +66,19 @@ class ForwardBraidApp(parent.BraidApp):
 
     self.timer_manager = timer_manager
     self.use_deriv = False
+
+    self.user_dt_ratio = self._dt_ratio_
   # end __init__
+
+  def _dt_ratio_(self,level,tstart,tstop,fine_dt): 
+    return np.sqrt(np.sqrt((tstop-tstart)/fine_dt))
+
+  def setDtRatio(self,user_dt_ratio):
+    self.user_dt_ratio = user_dt_ratio
+
+  def dt_ratio(self,level,tstart,tstop):
+    return self.user_dt_ratio(level,tstart,tstop,self.dt)
+  # end dt_ratio
 
   def run(self,x,h_c):
     num_ranks     = self.mpi_comm.Get_size()
@@ -107,10 +120,15 @@ class ForwardBraidApp(parent.BraidApp):
     #  2. x is a torch tensor: called internally (probably at the behest
     #                          of the adjoint)
 
+    dt_ratio = self.dt_ratio(level,tstart,tstop)
+
     index = self.getLocalTimeStepIndex(tstart,tstop,level)
     t_h,t_c = g0.tensors()
     with torch.no_grad():
       t_yh,t_yc = self.RNN_models(self.x[:,index,:],t_h,t_c)
+
+      t_yh = (1.0-dt_ratio)*t_h + dt_ratio*t_yh
+      t_yc = (1.0-dt_ratio)*t_c + dt_ratio*t_yc
 
     g0.replaceTensor(t_yh,0)
     g0.replaceTensor(t_yc,1)
@@ -136,9 +154,14 @@ class ForwardBraidApp(parent.BraidApp):
     xh.requires_grad = True
     xc.requires_grad = True
 
+    dt_ratio = self.dt_ratio(level,tstart,tstop)
+
     index = self.getLocalTimeStepIndex(tstart,tstop,level)
     with torch.enable_grad():
       yh,yc = self.RNN_models(self.x[:,index,:],xh,xc)
+
+      yh = (1.0-dt_ratio)*xh + dt_ratio*yh
+      yc = (1.0-dt_ratio)*xc + dt_ratio*yc
    
     return ((yh,yc), x), self.RNN_models
   # end getPrimalWithGrad

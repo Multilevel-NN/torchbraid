@@ -97,6 +97,17 @@ class RNN_Parallel(nn.Module):
   def getMPIComm(self):
     return self.fwd_app.getMPIComm()
 
+  def setDtRatio(self,user_dt_ratio):
+    """
+    Set the Dt Ratio used to average between the
+    new time and the old time. If it is at level zero
+    it should return 1 (otherwise it will lead to wrong
+    errors).
+
+    Signature: dt_ratio = user_dt_ratio(level,tstart,tstop,fine_dt)
+    """
+    self.fwd_app.setDtRatio(user_dt_ratio)
+
   def forward(self,x,h_c=None):
     # we are doing this to take adavtage of
     # pytorch's autograd which functions "naturally"
