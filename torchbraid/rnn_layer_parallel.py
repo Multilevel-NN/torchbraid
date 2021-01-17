@@ -105,8 +105,12 @@ class RNN_Parallel(nn.Module):
     errors).
 
     Signature: dt_ratio = user_dt_ratio(level,tstart,tstop,fine_dt)
+
+    If the argument is None, then no change is made to the
+    current state (this method is a no-op)
     """
-    self.fwd_app.setDtRatio(user_dt_ratio)
+    if user_dt_ratio is not None:
+      self.fwd_app.setDtRatio(user_dt_ratio)
 
   def forward(self,x,h_c=None):
     # we are doing this to take adavtage of
