@@ -18,8 +18,8 @@ library. You might want mpi4py to use the native one on your platform).
 Note, the cython version is pretty important, particularly if torch layers are shipped directly by braid.
 
 ## Build xbraid:
-  1. Download from git@github.com:eric-c-cyr/xbraid.git
-  1. Checkout cython-adjoint branch: git checkout cython-adjoint
+  1. Download from git@github.com:XBraid/xbraid.git
+  1. The master branch should work fine
   1. From the xbraid directory run `make debug=no braid`
 
 ## Build torchbraid:
