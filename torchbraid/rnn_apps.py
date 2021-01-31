@@ -68,6 +68,8 @@ class ForwardBraidApp(parent.BraidApp):
     self.use_deriv = False
 
     self.user_dt_ratio = self._dt_ratio_
+
+    self.seq_shapes = None
   # end __init__
 
   def _dt_ratio_(self,level,tstart,tstop,fine_dt): 
@@ -80,6 +82,43 @@ class ForwardBraidApp(parent.BraidApp):
     return self.user_dt_ratio(level,tstart,tstop,self.dt)
   # end dt_ratio
 
+  def getTensorShapes(self):
+    return list(self.shape0)+self.seq_shapes
+
+  def getSequenceVector(self,t,tf,level):
+    index = self.getLocalTimeStepIndex(t,tf,level)
+    if index<0: 
+      pre_str = "\n{}: WARNING: getSequenceVector index negative at {}: {}\n".format(self.my_rank,t,index)
+      stack_str = utils.stack_string('{}: |- '.format(self.my_rank))
+      print(pre_str+stack_str)
+ 
+    if index<self.x.shape[1]:
+      value = self.x[:,index,:]
+    else:
+      # this is a sentinnel
+      value = self.x[:,0,:].detach().clone()
+      
+    return value
+
+  def clearTempLayerWeights(self):
+    layer = self.temp_layer
+
+    for dest_p in list(layer.parameters()):
+      dest_p.data = torch.empty(())
+  # end setLayerWeights
+
+  def setLayerWeights(self,t,tf,level,weights):
+    layer = self.getLayer(t,tf,level)
+
+    with torch.no_grad():
+      for dest_p,src_w in zip(list(layer.parameters()),weights):
+        dest_p.data = src_w
+  # end setLayerWeights
+
+  def initializeVector(self,t,x):
+    seq_x = self.getSequenceVector(t,None,level=0)
+    x.addWeightTensors((seq_x,))
+
   def run(self,x,h_c):
     num_ranks     = self.mpi_comm.Get_size()
     my_rank       = self.mpi_comm.Get_rank()
@@ -88,6 +127,7 @@ class ForwardBraidApp(parent.BraidApp):
     assert(x.shape[1]==self.local_num_steps)
 
     self.x = x
+    self.seq_shapes = [x[:,0,:].shape]
 
     # send deta vector to the left
     if my_rank>0:
@@ -123,13 +163,18 @@ class ForwardBraidApp(parent.BraidApp):
     dt_ratio = self.dt_ratio(level,tstart,tstop)
 
     index = self.getLocalTimeStepIndex(tstart,tstop,level)
+    seq_x = g0.weightTensors()[0]
+
     t_h,t_c = g0.tensors()
     with torch.no_grad():
-      t_yh,t_yc = self.RNN_models(self.x[:,index,:],t_h,t_c)
+      t_yh,t_yc = self.RNN_models(seq_x,t_h,t_c)
 
       t_yh = (1.0-dt_ratio)*t_h + dt_ratio*t_yh
       t_yc = (1.0-dt_ratio)*t_c + dt_ratio*t_yc
 
+    seq_x = self.getSequenceVector(tstop,None,level)
+
+    g0.addWeightTensors((seq_x,))
     g0.replaceTensor(t_yh,0)
     g0.replaceTensor(t_yc,1)
   # end eval
@@ -156,9 +201,10 @@ class ForwardBraidApp(parent.BraidApp):
 
     dt_ratio = self.dt_ratio(level,tstart,tstop)
 
-    index = self.getLocalTimeStepIndex(tstart,tstop,level)
+    seq_x = b_x.weightTensors()[0]
+
     with torch.enable_grad():
-      yh,yc = self.RNN_models(self.x[:,index,:],xh,xc)
+      yh,yc = self.RNN_models(seq_x,xh,xc)
 
       yh = (1.0-dt_ratio)*xh + dt_ratio*yh
       yc = (1.0-dt_ratio)*xc + dt_ratio*yc
@@ -268,6 +314,7 @@ class BackwardBraidApp(parent.BraidApp):
     except:
       print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
+
   # end eval
 
 # end BackwardODENetApp
