@@ -43,24 +43,24 @@ class BraidFunction(torch.autograd.Function):
     # copy the input to all processors (ensure consistency)
     shape = comm.bcast(x.size(),root=0)
 
-    with fwd_app.timer_manager.timer("BraidFunction::forward::run"):
+    # with fwd_app.timer_manager.timer("BraidFunction::forward::run"):
       # setup context
-      ctx.fwd_app = fwd_app
-      ctx.bwd_app = bwd_app
-      ctx.save_for_backward(None, *params)
+    ctx.fwd_app = fwd_app
+    ctx.bwd_app = bwd_app
+    ctx.save_for_backward(None, *params)
 
-      fwd_app.setShape(shape)
-      bwd_app.setShape(shape)
+    fwd_app.setShape(shape)
+    bwd_app.setShape(shape)
 
-      if my_rank==0:
+    if my_rank==0:
         result = fwd_app.run(x)
-      else:
+    else:
         result = fwd_app.run(None)
 
-      if my_rank!=num_ranks-1:
+    if my_rank!=num_ranks-1:
         result = torch.zeros(shape)
 
-    # broadcast the output of the last layer 
+    # broadcast the output of the last layer
     comm.Bcast(result.numpy(),root=num_ranks-1)
 
     return result

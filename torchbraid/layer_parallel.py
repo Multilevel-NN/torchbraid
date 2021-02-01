@@ -119,8 +119,6 @@ class LayerParallel(nn.Module):
   
     self.layer_block = layer_block
     self.layer_models = [layer_block() for i in range(num_steps)]
-    for s in self.layer_models:
-      print(comm.Get_rank(), "inside ", len(list(s.parameters())))
     self.local_layers = nn.Sequential(*self.layer_models)
 
     self.timer_manager = ContextTimerManager()

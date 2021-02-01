@@ -78,6 +78,7 @@ class ForwardODENetApp(BraidApp):
       # comm.send(self.layer_models[0],dest=my_rank-1,tag=22)
       comm.send(list(self.layer_models[0].parameters()), dest=my_rank-1,tag=22)
 
+    self.layer_block = layer_block
     if my_rank<num_ranks-1:
       neighbor_model = comm.recv(source=my_rank+1,tag=22)
       new_model = layer_block()
@@ -142,27 +143,42 @@ class ForwardODENetApp(BraidApp):
     my_rank       = self.getMPIComm().Get_rank()
     num_ranks     = self.getMPIComm().Get_size()
 
+    # if my_rank>0:
+    #   comm.send(self.layer_models[0],dest=my_rank-1,tag=22)
+    # if my_rank<num_ranks-1:
+    #   neighbor_model = comm.recv(source=my_rank+1,tag=22)
+    #   self.layer_models[-1] = neighbor_model
+
     if my_rank>0:
-      comm.send(self.layer_models[0],dest=my_rank-1,tag=22)
+      # comm.send(self.layer_models[0],dest=my_rank-1,tag=22)
+      comm.send(list(self.layer_models[0].parameters()), dest=my_rank-1,tag=22)
+
     if my_rank<num_ranks-1:
       neighbor_model = comm.recv(source=my_rank+1,tag=22)
-      self.layer_models[-1] = neighbor_model
+      new_model = self.layer_block()
+      with torch.no_grad():
+        for dest_p, src_w in zip(list(new_model.parameters()), neighbor_model):
+          dest_p.data = src_w
+      self.layer_models[-1] = new_model
+    else:
+      # this is a sentinel at the end of the processors and layers
+      self.layer_models.append(None)
 
   def run(self,x):
     # turn on derivative path (as requried)
     self.use_deriv = self.training
 
     # run the braid solver
-    with self.timer("runBraid"):
+    # with self.timer("runBraid"):
 
-      # do boundary exchange for parallel weights
-      if self.use_deriv:
-        self.updateParallelWeights()
+    # do boundary exchange for parallel weights
+    if self.use_deriv:
+      self.updateParallelWeights()
 
-      y = self.runBraid(x)
+    y = self.runBraid(x)
 
-      # reset derivative papth
-      self.use_deriv = False
+    # reset derivative papth
+    self.use_deriv = False
 
     return y
   # end forward
