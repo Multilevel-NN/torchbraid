@@ -43,6 +43,8 @@ class DummyApp:
   def __init__(self,dtype,layer_data_size):
     self.dtype = dtype
     self.layer_data_size = layer_data_size
+    self.timer_manager = tbutils.ContextTimerManager()
+
 
   def buildInit(self,t):
     # recoggnize that the default for pytorch is a 32 bit float...
@@ -56,6 +58,10 @@ class DummyApp:
 
   def getLayerDataSize(self):
      return self.layer_data_size
+
+  def timer(self,name):
+    return self.timer_manager.timer("Dummy::"+name)
+
 # end DummyApp
 
 class TestLayerData:
