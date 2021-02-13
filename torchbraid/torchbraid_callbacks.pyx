@@ -142,10 +142,11 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
 cdef int my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
   try:
     pyApp = <object> app
-    ten_U = <object> u 
-    v_mem = ten_U.clone()
-    Py_INCREF(v_mem) # why do we need this?
-    v_ptr[0] = <braid_Vector> v_mem
+    with pyApp.timer("sum"):
+      ten_U = <object> u 
+      v_mem = ten_U.clone()
+      Py_INCREF(v_mem) # why do we need this?
+      v_ptr[0] = <braid_Vector> v_mem
   except:
     output_exception("my_clone")
 
@@ -288,9 +289,8 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   cdef int sz
   cdef view.array my_buf 
 
-  pyApp = <object>app
-
   try:
+    pyApp = <object>app
     with pyApp.timer("bufunpack"):
 
       # read in the buffer metda data
@@ -355,31 +355,35 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   return 0
 
 cdef int my_coarsen(braid_App app, braid_Vector fu, braid_Vector *cu_ptr, braid_CoarsenRefStatus status):
-  pyApp  = <object> app
-  ten_fu =  (<object> fu).tensor()
-
   cdef int level = -1
-  braid_CoarsenRefStatusGetLevel(status,&level)
 
-  cu_mem = pyApp.spatial_coarse(ten_fu,level)
-  cu_vec = BraidVector(cu_mem,level)
-  Py_INCREF(cu_vec) # why do we need this?
+  pyApp  = <object> app
+  with pyApp.timer("coarsen"):
+    ten_fu =  (<object> fu).tensor()
 
-  cu_ptr[0] = <braid_Vector> cu_vec
+    braid_CoarsenRefStatusGetLevel(status,&level)
+
+    cu_mem = pyApp.spatial_coarse(ten_fu,level)
+    cu_vec = BraidVector(cu_mem,level)
+    Py_INCREF(cu_vec) # why do we need this?
+
+    cu_ptr[0] = <braid_Vector> cu_vec
 
   return 0
 
 cdef int my_refine(braid_App app, braid_Vector cu, braid_Vector *fu_ptr, braid_CoarsenRefStatus status):
-  pyApp  = <object> app
-  ten_cu =  (<object> cu).tensor()
-
   cdef int level = -1
-  braid_CoarsenRefStatusGetNRefine(status,&level)
 
-  fu_mem = pyApp.spatial_refine(ten_cu,level)
-  fu_vec = BraidVector(fu_mem,level)
-  Py_INCREF(fu_vec) # why do we need this?
+  pyApp  = <object> app
+  with pyApp.timer("refine"):
+    ten_cu =  (<object> cu).tensor()
 
-  fu_ptr[0] = <braid_Vector> fu_vec
+    braid_CoarsenRefStatusGetNRefine(status,&level)
+
+    fu_mem = pyApp.spatial_refine(ten_cu,level)
+    fu_vec = BraidVector(fu_mem,level)
+    Py_INCREF(fu_vec) # why do we need this?
+
+    fu_ptr[0] = <braid_Vector> fu_vec
 
   return 0

@@ -335,14 +335,16 @@ class BraidApp:
     cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
     cdef braid_BaseVector bv
 
-    index = self.getGlobalTimeStepIndex(t,None,level)
-    _braid_UGetVectorRef(core, level,index,&bv)
+    with self.timer("getUVector"): 
+      
+      index = self.getGlobalTimeStepIndex(t,None,level)
+      _braid_UGetVectorRef(core, level,index,&bv)
 
-    # this can be null, return that the vector was not found
-    if <unsigned int>(bv)!=0:
-      return <object> bv.userVector
-    else:
-      return None
+      # this can be null, return that the vector was not found
+      if <unsigned int>(bv)!=0:
+        return <object> bv.userVector
+      else:
+        return None
 
   def getMPIComm(self):
     return self.mpi_comm
