@@ -47,7 +47,7 @@ class ContextTimer:
     self.timing = False
 
     self.times += [ self.end_time-self.start_time ] 
-    return True
+    return except_type==None
 
   def getName(self):
     return self.name

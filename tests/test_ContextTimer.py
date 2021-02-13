@@ -38,6 +38,23 @@ import torchbraid.utils as utils
 
 class TestContextTimer(unittest.TestCase):
 
+  def test_ContextTiming_exception(self):
+     mgr = utils.ContextTimerManager()
+     clock = mgr.timer("hello")
+     clock_timing_in_context = None
+
+     caught = False
+     try:
+       with clock:
+         clock_timing_in_context = clock.isTiming() 
+         time.sleep(0.10) 
+         raise Exception('Test')
+       print('exception raised')
+     except:
+       caught = True
+
+     self.assertTrue(caught)
+
   def test_ContextTiming(self):
 
      comm = None
