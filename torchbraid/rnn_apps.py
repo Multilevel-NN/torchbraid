@@ -129,11 +129,17 @@ class ForwardBraidApp(parent.BraidApp):
     self.x = x
     self.seq_shapes = [x[:,0,:].shape]
 
+    recv_request = None
+    if my_rank<num_ranks-1:
+      neighbor_x = torch.zeros(x[:,0,:].shape)
+      recv_request = comm.Irecv(neighbor_x.numpy(),source=my_rank+1,tag=22)
+
     # send deta vector to the left
     if my_rank>0:
-      comm.send(self.x[:,0,:],dest=my_rank-1,tag=22)
-    if my_rank<num_ranks-1:
-      neighbor_x = comm.recv(source=my_rank+1,tag=22)
+      comm.Isend(self.x[:,0,:].numpy(),dest=my_rank-1,tag=22)
+
+    if recv_request:
+      recv_request.Wait()
       self.x = torch.cat((self.x,neighbor_x.unsqueeze(1)), 1)
 
     # run the braid solver
