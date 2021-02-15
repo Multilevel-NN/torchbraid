@@ -136,7 +136,7 @@ class ForwardBraidApp(parent.BraidApp):
 
     # send deta vector to the left
     if my_rank>0:
-      comm.Isend(self.x[:,0,:].numpy(),dest=my_rank-1,tag=22)
+      comm.Isend(np.ascontiguousarray(self.x[:,0,:].numpy()),dest=my_rank-1,tag=22)
 
     if recv_request:
       recv_request.Wait()
