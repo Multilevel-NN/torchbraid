@@ -42,10 +42,8 @@ class BraidFunction(torch.autograd.Function):
 
     # copy the input to all processors (ensure consistency)
     comm = fwd_app.getMPIComm()
-    shape = comm.bcast((h.size(),c.size()),root=0)
-
-    # prefix_rank = fwd_app.getMPIData().getRank()
-    # print("Rank %d BraidFunction -> forward() - start" % prefix_rank)
+    with fwd_app.timer("func:precomm"):
+      shape = comm.bcast((h.size(),c.size()),root=0)
 
     # setup context
     ctx.fwd_app = fwd_app
@@ -68,17 +66,19 @@ class BraidFunction(torch.autograd.Function):
     num_ranks     = ctx.bwd_app.getMPIComm().Get_size()
 
     # copy the input to the final processor (where iter time integration begins)
-    if num_ranks>1:
-      if my_rank==num_ranks-1: 
-        req_h = comm.Irecv(grad_hn.numpy(),source=0,tag=21)
-        req_c = comm.Irecv(grad_cn.numpy(),source=0,tag=22)
-        req_h.Wait()
-        req_c.Wait()
+    with ctx.bwd_app.timer("func:precomm"):
+      if num_ranks>1:
+        if my_rank==num_ranks-1: 
+          req_h = comm.Irecv(grad_hn.numpy(),source=0,tag=21)
+          req_c = comm.Irecv(grad_cn.numpy(),source=0,tag=22)
+          req_h.Wait()
+          req_c.Wait()
 
-      if my_rank==0:
-        comm.Isend(grad_hn.numpy(),dest=num_ranks-1,tag=21)
-        comm.Isend(grad_cn.numpy(),dest=num_ranks-1,tag=22)
-    # end if num_ranks
+        if my_rank==0:
+          comm.Isend(grad_hn.numpy(),dest=num_ranks-1,tag=21)
+          comm.Isend(grad_cn.numpy(),dest=num_ranks-1,tag=22)
+      # end if num_ranks
+    # end with
 
     if my_rank==num_ranks-1:
       result = ctx.bwd_app.run((grad_hn,grad_cn))
@@ -105,14 +105,17 @@ class BraidFunction(torch.autograd.Function):
       grads = ctx.bwd_app.grads
       req = []
       bgrads = []
-      for g in grads:
-        # sum all gradients into the root
-        b = torch.zeros(g.shape)
-        req += [comm.Iallreduce(g.numpy(),b.numpy(),MPI.SUM)]
-        bgrads += [b]
-      # end for g
+      with ctx.bwd_app.timer("func:postcomm"):
+        for g in grads:
+          # sum all gradients into the root
+          b = torch.zeros(g.shape)
+          req += [comm.Iallreduce(g.numpy(),b.numpy(),MPI.SUM)]
+          bgrads += [b]
+        # end for g
 
-      MPI.Request.Waitall(req) 
+        MPI.Request.Waitall(req) 
+      # end with timer
+
       for g,b in zip(grads,bgrads):
         g.copy_(b) 
       # end for g,b

@@ -129,27 +129,30 @@ class ForwardBraidApp(parent.BraidApp):
     self.x = x
     self.seq_shapes = [x[:,0,:].shape]
 
-    recv_request = None
-    if my_rank<num_ranks-1:
-      neighbor_x = torch.zeros(x[:,0,:].shape)
-      recv_request = comm.Irecv(neighbor_x.numpy(),source=my_rank+1,tag=22)
+    with self.timer("run:precomm"):
+      recv_request = None
+      if my_rank<num_ranks-1:
+        neighbor_x = torch.zeros(x[:,0,:].shape)
+        recv_request = comm.Irecv(neighbor_x.numpy(),source=my_rank+1,tag=22)
 
-    # send deta vector to the left
-    send_request = None
-    if my_rank>0:
-      send_request = comm.Isend(np.ascontiguousarray(self.x[:,0,:].numpy()),dest=my_rank-1,tag=22)
+      # send deta vector to the left
+      send_request = None
+      if my_rank>0:
+        send_request = comm.Isend(np.ascontiguousarray(self.x[:,0,:].numpy()),dest=my_rank-1,tag=22)
 
-    if recv_request:
-      recv_request.Wait()
-      self.x = torch.cat((self.x,neighbor_x.unsqueeze(1)), 1)
+      if recv_request:
+        recv_request.Wait()
+        self.x = torch.cat((self.x,neighbor_x.unsqueeze(1)), 1)
 
-    if send_request:
-      send_request.Wait()
+      if send_request:
+        send_request.Wait()
+    # end wit htimer
 
     # run the braid solver
     y = self.runBraid(h_c)
 
-    y = comm.bcast(y,root=num_ranks-1)
+    with self.timer("run:postcomm"):
+      y = comm.bcast(y,root=num_ranks-1)
 
     # y is a tuple with the final h,c components
     return y

@@ -142,7 +142,7 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
 cdef int my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
   try:
     pyApp = <object> app
-    with pyApp.timer("sum"):
+    with pyApp.timer("clone"):
       ten_U = <object> u 
       v_mem = ten_U.clone()
       Py_INCREF(v_mem) # why do we need this?
