@@ -69,12 +69,15 @@ class BraidFunction(torch.autograd.Function):
 
     # copy the input to the final processor (where iter time integration begins)
     if num_ranks>1:
+      if my_rank==num_ranks-1: 
+        req_h = comm.Irecv(grad_hn.numpy(),source=0)
+        req_c = comm.Irecv(grad_cn.numpy(),source=0)
+        req_h.Wait()
+        req_c.Wait()
+
       if my_rank==0:
-        comm.Send(grad_hn.numpy(),dest=num_ranks-1)
-        comm.Send(grad_cn.numpy(),dest=num_ranks-1)
-      elif my_rank==num_ranks-1: 
-        comm.Recv(grad_hn.numpy(),source=0)
-        comm.Recv(grad_cn.numpy(),source=0)
+        comm.Isend(grad_hn.numpy(),dest=num_ranks-1)
+        comm.Isend(grad_cn.numpy(),dest=num_ranks-1)
     # end if num_ranks
 
     if my_rank==num_ranks-1:
