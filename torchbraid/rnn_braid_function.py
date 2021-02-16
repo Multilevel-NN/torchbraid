@@ -101,21 +101,21 @@ class BraidFunction(torch.autograd.Function):
       grad_input += (None,) # h
       grad_input += (None,) # h
 
-    comm          = ctx.bwd_app.getMPIComm()
-    my_rank       = ctx.bwd_app.getMPIComm().Get_rank()
-    num_ranks     = ctx.bwd_app.getMPIComm().Get_size()
-
     try:
       grads = ctx.bwd_app.grads
+      req = []
+      bgrads = []
       for g in grads:
         # sum all gradients into the root
         b = torch.zeros(g.shape)
-        comm.Reduce([g.numpy(),MPI.FLOAT],[b.numpy(),MPI.FLOAT],MPI.SUM,root=0)
-        if my_rank==0: g.copy_(b) 
+        req += [comm.Iallreduce(g.numpy(),b.numpy(),MPI.SUM)]
+        bgrads += [b]
+      # end for g
 
-        # redistribute the gradients to ensrue the gradients
-        # are eequivalent ono every processor
-        comm.Bcast(g.numpy(),root=0)
+      MPI.Request.Waitall(req) 
+      for g,b in zip(grads,bgrads):
+        g.copy_(b) 
+      # end for g,b
 
       # setup the returvn value (perversly grad_input)
       for grad_needed,param in zip(ctx.needs_input_grad[5:],grads):
