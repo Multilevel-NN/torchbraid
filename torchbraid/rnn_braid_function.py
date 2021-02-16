@@ -85,48 +85,41 @@ class BraidFunction(torch.autograd.Function):
     else:
       result = ctx.bwd_app.run(None)
 
-    # grad_input follows the input to forward: fwd_app, bwd_app, x, params
-    grad_input = (None,None) 
-
-    if ctx.needs_input_grad[2]: grad_input += (ctx.fwd_app.x.grad,)
-    else: grad_input += (None,) # x
-
-    if result is not None:
-      if ctx.needs_input_grad[3]: grad_input += (result[0],) # h
-      else: grad_input += (None,) # h
-
-      if ctx.needs_input_grad[4]: grad_input += (result[1],) # h
-      else: grad_input += (None,) # h
-    else: 
-      grad_input += (None,) # h
-      grad_input += (None,) # h
-
-    try:
-      grads = ctx.bwd_app.grads
+    with ctx.bwd_app.timer("func:postrun"):
       req = []
-      bgrads = []
-      with ctx.bwd_app.timer("func:postcomm"):
-        for g in grads:
-          # sum all gradients into the root
-          b = torch.zeros(g.shape)
-          req += [comm.Iallreduce(g.numpy(),b.numpy(),MPI.SUM)]
-          bgrads += [b]
-        # end for g
+      grads = []
+      for g in ctx.bwd_app.grads:
+        # sum all gradients into the root
+        gbuf = torch.zeros(g.shape)
+        req += [comm.Iallreduce(g.numpy(),gbuf.numpy(),MPI.SUM)]
+        grads += [gbuf]
+      # end for g
 
-        MPI.Request.Waitall(req) 
-      # end with timer
+      # grad_input follows the input to forward: fwd_app, bwd_app, x, params
+      grad_input = (None,None) 
 
-      for g,b in zip(grads,bgrads):
-        g.copy_(b) 
-      # end for g,b
+      if ctx.needs_input_grad[2]: grad_input += (ctx.fwd_app.x.grad,)
+      else: grad_input += (None,) # x
 
-      # setup the returvn value (perversly grad_input)
-      for grad_needed,param in zip(ctx.needs_input_grad[5:],grads):
+      if result is not None:
+        if ctx.needs_input_grad[3]: grad_input += (result[0],) # h
+        else: grad_input += (None,) # h
+
+        if ctx.needs_input_grad[4]: grad_input += (result[1],) # c
+        else: grad_input += (None,) # c
+      else: 
+        grad_input += (None,) # h
+        grad_input += (None,) # c
+
+      # with for communication to complete
+      MPI.Request.Waitall(req) 
+
+      # setup the return value (perversely grad_input)
+      for grad_needed,g in zip(ctx.needs_input_grad[5:],grads):
         if grad_needed:
-          grad_input += (param,)
+          grad_input += (g,)
         else:
           grad_input += (None,)
-    except:
-      traceback.print_exc()
+    # end with timer
 
     return grad_input
