@@ -267,12 +267,6 @@ class BackwardBraidApp(parent.BraidApp):
     try:
       f = self.runBraid(x)
 
-      # this code is due to how braid decomposes the backwards problem
-      # The ownership of the time steps is shifted to the left (and no longer balanced)
-      first = 1
-      if self.getMPIComm().Get_rank()==0:
-        first = 0
-
       self.grads = [p.grad.detach().clone() for p in self.fwd_app.RNN_models.parameters()]
 
       # required otherwise we will re-add teh gradients
