@@ -36,6 +36,9 @@ from .context_timer_manager import ContextTimerManager
 from .functional import l2_reg
 from .gittools import git_rev 
 
+# import bufpackunpack tools
+from .bufpackunpack import buffer_size, pack_buffer, unpack_buffer
+
 import gc
 import torch
 import traceback
