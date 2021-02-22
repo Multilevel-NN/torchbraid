@@ -70,21 +70,24 @@ class BraidFunction(torch.autograd.Function):
     with ctx.bwd_app.timer("func:precomm"):
       if num_ranks>1:
         if my_rank==num_ranks-1: 
-          req_h = comm.Irecv(grad_hn.numpy(),source=0,tag=21)
-          req_c = comm.Irecv(grad_cn.numpy(),source=0,tag=22)
-          req_h.Wait()
-          req_c.Wait()
+          hn_cn = torch.stack([grad_hn,grad_cn])
+          req = comm.Irecv(hn_cn.numpy(),source=0,tag=22)
+          req.Wait()
+
+          grad_hn = hn_cn[0]
+          grad_cn = hn_cn[1]
 
         if my_rank==0:
-          comm.Isend(grad_hn.numpy(),dest=num_ranks-1,tag=21)
-          comm.Isend(grad_cn.numpy(),dest=num_ranks-1,tag=22)
+          hn_cn = torch.stack([grad_hn,grad_cn])
+          comm.Isend(hn_cn.numpy(),dest=num_ranks-1,tag=22)
       # end if num_ranks
     # end with
 
-    if my_rank==num_ranks-1:
-      result = ctx.bwd_app.run((grad_hn,grad_cn))
-    else:
-      result = ctx.bwd_app.run(None)
+    with ctx.bwd_app.timer("func:run"):
+      if my_rank==num_ranks-1:
+        result = ctx.bwd_app.run((grad_hn,grad_cn))
+      else:
+        result = ctx.bwd_app.run(None)
 
     with ctx.bwd_app.timer("func:postrun"):
       # pack up the buffer, and then send it out
