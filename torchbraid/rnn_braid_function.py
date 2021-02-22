@@ -31,6 +31,7 @@
 
 import numpy as np
 import torch.autograd
+import torchbraid.utils as utils
 import traceback
 
 from mpi4py import MPI
@@ -86,14 +87,12 @@ class BraidFunction(torch.autograd.Function):
       result = ctx.bwd_app.run(None)
 
     with ctx.bwd_app.timer("func:postrun"):
-      req = []
-      grads = []
-      for g in ctx.bwd_app.grads:
-        # sum all gradients into the root
-        gbuf = torch.zeros(g.shape)
-        req += [comm.Iallreduce(g.numpy(),gbuf.numpy(),MPI.SUM)]
-        grads += [gbuf]
-      # end for g
+      # pack up the buffer, and then send it out
+      buf_size = utils.buffer_size(ctx.bwd_app.grads)
+      src_buf = utils.pack_buffer(ctx.bwd_app.grads)
+      dst_buf = np.zeros(buf_size)
+
+      req = comm.Iallreduce(src_buf,dst_buf,MPI.SUM)
 
       # grad_input follows the input to forward: fwd_app, bwd_app, x, params
       grad_input = (None,None) 
@@ -112,10 +111,11 @@ class BraidFunction(torch.autograd.Function):
         grad_input += (None,) # c
 
       # with for communication to complete
-      MPI.Request.Waitall(req) 
+      MPI.Request.Wait(req) 
+      utils.unpack_buffer(ctx.bwd_app.grads,dst_buf)
 
       # setup the return value (perversely grad_input)
-      for grad_needed,g in zip(ctx.needs_input_grad[5:],grads):
+      for grad_needed,g in zip(ctx.needs_input_grad[5:],ctx.bwd_app.grads):
         if grad_needed:
           grad_input += (g,)
         else:
