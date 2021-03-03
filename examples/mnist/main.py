@@ -143,7 +143,7 @@ class SerialNet(nn.Module):
 # end SerialNet 
 
 class ParallelNet(nn.Module):
-  def __init__(self,channels=12,local_steps=8,Tf=1.0,max_levels=1,max_iters=1,fwd_max_iters=0,print_level=0,braid_print_level=0,cfactor=4,fine_fcf=False,skip_downcycle=True,fmg=False):
+  def __init__(self,channels=12,local_steps=8,Tf=1.0,max_levels=1,max_iters=1,fwd_max_iters=0,print_level=0,braid_print_level=0,cfactor=4,fine_fcf=False,skip_downcycle=True,fmg=False,relax_only_cg=0):
     super(ParallelNet, self).__init__()
 
     step_layer = lambda: StepLayer(channels)
@@ -156,6 +156,7 @@ class ParallelNet(nn.Module):
     self.parallel_nn.setPrintLevel(braid_print_level,False)
     self.parallel_nn.setCFactor(cfactor)
     self.parallel_nn.setSkipDowncycle(skip_downcycle)
+    self.parallel_nn.setRelaxOnlyCG(relax_only_cg)
 
     if fmg:
       self.parallel_nn.setFMG()
@@ -338,6 +339,8 @@ def main():
                       help='Layer parallel use downcycle on or off (default: False)')
   parser.add_argument('--lp-use-fmg',action='store_true', default=False, 
                       help='Layer parallel use FMG for one cycle (default: False)')
+  parser.add_argument('--lp-use-relaxonlycg',action='store_true', default=0, 
+                      help='Layer parallel use relaxation only on coarse grid (default: False)')
 
   rank  = MPI.COMM_WORLD.Get_rank()
   procs = MPI.COMM_WORLD.Get_size()
@@ -395,18 +398,20 @@ def main():
 
   if force_lp :
     root_print(rank,'Using ParallelNet:')
-    root_print(rank,'-- max_levels = {}\n'
-                    '-- max_iters  = {}\n'
-                    '-- fwd_iters  = {}\n'
-                    '-- cfactor    = {}\n'
-                    '-- fine fcf   = {}\n'
-                    '-- skip down  = {}\n'
-                    '-- fmg        = {}\n'.format(args.lp_levels,
+    root_print(rank,'-- max_levels     = {}\n'
+                    '-- max_iters      = {}\n'
+                    '-- fwd_iters      = {}\n'
+                    '-- cfactor        = {}\n'
+                    '-- fine fcf       = {}\n'
+                    '-- skip down      = {}\n'
+                    '-- relax only cg  = {}\n'
+                    '-- fmg            = {}\n'.format(args.lp_levels,
                                                   args.lp_iters,
                                                   args.lp_fwd_iters,
                                                   args.lp_cfactor,
                                                   args.lp_finefcf,
                                                   not args.lp_use_downcycle,
+                                                  args.lp_use_relaxonlycg,
                                                   args.lp_use_fmg))
     model = ParallelNet(channels=args.channels,
                         local_steps=local_steps,
@@ -418,7 +423,8 @@ def main():
                         cfactor=args.lp_cfactor,
                         fine_fcf=args.lp_finefcf,
                         skip_downcycle=not args.lp_use_downcycle,
-                        fmg=args.lp_use_fmg,Tf=args.tf)
+                        fmg=args.lp_use_fmg,Tf=args.tf,
+                        relax_only_cg=args.lp_use_relaxonlycg)
 
 
     if args.serial_file is not None:

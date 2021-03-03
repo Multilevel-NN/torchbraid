@@ -74,7 +74,7 @@ class LayerParallel(nn.Module):
     parallel execution and gradients.
 
     One naming convection is to use 'o' for a class of this type
-    signifying object compoistion.
+    signifying object composition.
     """
 
     def __init__(self,rank):
@@ -175,6 +175,15 @@ class LayerParallel(nn.Module):
   def setFMG(self):
     self.fwd_app.setFMG()
     self.bwd_app.setFMG()
+
+  def setRelaxOnlyCG(self, flag):
+    self.bwd_app.setRelaxOnlyCG(flag)
+    
+    # Probably leave commented out for forward solve, still need to accurately
+    # process incoming data.  It's the gradient solve that we believe can be
+    # made more inexact.
+    #self.fwd_app.setRelaxOnlyCG(flag)
+    
 
   def setCFactor(self,cfactor):
     self.fwd_app.setCFactor(cfactor)

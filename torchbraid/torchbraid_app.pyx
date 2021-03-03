@@ -161,6 +161,7 @@ class BraidApp:
     braid_SetNRelax(core,0,0) # set F relax on fine grid
     braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
     braid_SetAbsTol(core,self.abs_tol)
+    #braid_SetCRelaxWt(core, -1, 1.2)   # Turn on weighted relaxation, probably want to add command line argument
     if self.skip_downcycle==0:
       braid_SetSkip(core,0)
     else:
@@ -310,6 +311,10 @@ class BraidApp:
   def setFMG(self):
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetFMG(core)
+
+  def setRelaxOnlyCG(self, flag):
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetRelaxOnlyCG(core, flag)
 
   def setCFactor(self,cfactor):
     self.cfactor = cfactor 

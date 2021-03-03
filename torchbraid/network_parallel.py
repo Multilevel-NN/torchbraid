@@ -196,6 +196,14 @@ class NetworkParallel(nn.Module):
     self.fwd_app.setFMG()
     self.bwd_app.setFMG()
 
+  def setRelaxOnlyCG(self, flag):
+    self.bwd_app.setRelaxOnlyCG(flag)
+    
+    # Probably leave commented out for forward solve, still need to accurately
+    # process incoming data.  It's the gradient solve that we believe can be
+    # made more inexact.
+    #self.fwd_app.setRelaxOnlyCG(flag)
+
   def setCFactor(self,cfactor):
     self.fwd_app.setCFactor(cfactor)
     self.bwd_app.setCFactor(cfactor)
