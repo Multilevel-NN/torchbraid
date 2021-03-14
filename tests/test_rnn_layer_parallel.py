@@ -448,7 +448,7 @@ class TestRNNLayerParallel(unittest.TestCase):
       print(torch.norm(y_serial_hn-parallel_hn).item()/torch.norm(y_serial_hn).item(),'forward hn')
 
       self.assertTrue(torch.norm(y_serial_cn-parallel_cn)/torch.norm(y_serial_cn)<tol,'cn value')
-      self.assertTrue(torch.norm(y_serial_hn-parallel_hn)/torch.norm(y_serial_hn)<tol,'rn value')
+      self.assertTrue(torch.norm(y_serial_hn-parallel_hn)/torch.norm(y_serial_hn)<tol,'hn value')
 
       print(torch.norm(h_0.grad-y_serial_hn_0.grad).item(),'back soln hn')
       print(torch.norm(c_0.grad-y_serial_cn_0.grad).item(),'back soln cn')

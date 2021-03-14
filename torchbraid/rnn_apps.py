@@ -70,6 +70,7 @@ class ForwardBraidApp(parent.BraidApp):
     self.user_dt_ratio = self._dt_ratio_
 
     self.seq_shapes = None
+    self.backpropped = dict()
   # end __init__
 
   def _dt_ratio_(self,level,tstart,tstop,fine_dt): 
@@ -179,11 +180,23 @@ class ForwardBraidApp(parent.BraidApp):
     seq_x = g0.weightTensors()[0]
 
     t_h,t_c = g0.tensors()
-    with torch.no_grad():
-      t_yh,t_yc = self.RNN_models(seq_x,t_h,t_c)
+    if not done:
+      with torch.no_grad():
+        t_yh,t_yc = self.RNN_models(seq_x,t_h,t_c)
 
-      t_yh = (1.0-dt_ratio)*t_h + dt_ratio*t_yh
-      t_yc = (1.0-dt_ratio)*t_c + dt_ratio*t_yc
+        t_yh = (1.0-dt_ratio)*t_h + dt_ratio*t_yh
+        t_yc = (1.0-dt_ratio)*t_c + dt_ratio*t_yc
+    else:
+      with torch.enable_grad():
+        h = t_h.detach()
+        c = t_c.detach()
+        h.requires_grad = True
+        c.requires_grad = True
+        t_yh,t_yc = self.RNN_models(seq_x,h,c)
+
+        t_yh = (1.0-dt_ratio)*h + dt_ratio*t_yh
+        t_yc = (1.0-dt_ratio)*c + dt_ratio*t_yc
+      self.backpropped[tstart,tstop] = ((h,c),(t_yh,t_yc))
 
     seq_x = self.getSequenceVector(tstop,None,level)
 
@@ -203,6 +216,10 @@ class ForwardBraidApp(parent.BraidApp):
     being recomputed.
     """
     
+    if level==0 and (tstart,tstop) in self.backpropped:
+      x,y = self.backpropped[(tstart,tstop)]
+      return (y,x), self.RNN_models 
+
     b_x = self.getUVector(0,tstart)
     t_x = b_x.tensors()
 
@@ -314,6 +331,7 @@ class BackwardBraidApp(parent.BraidApp):
         # the grad to None after saving it and returning it to braid)
         for wv,xv in zip(t_w,t_x):
           wv.copy_(xv.grad.detach()) 
+          xv.grad = None
 
         # revert the gradient state to where they started
         for p,s in zip(layer.parameters(),required_grad_state):
