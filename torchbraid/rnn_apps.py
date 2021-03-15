@@ -169,44 +169,45 @@ class ForwardBraidApp(parent.BraidApp):
     condition x. The level is defined by braid
     """
 
-    # there are two paths by which eval is called:
-    #  1. x is a BraidVector: my step has called this method
-    #  2. x is a torch tensor: called internally (probably at the behest
-    #                          of the adjoint)
-
-    index = self.getLocalTimeStepIndex(tstart,tstop,level)
-    seq_x = g0.weightTensors()[0]
-
-    t_h,t_c = g0.tensors()
-    if not done:
-      with torch.no_grad():
-        t_yh,t_yc = self.RNN_models(seq_x,t_h,t_c)
-
-        if level!=0:
-          dt_ratio = self.dt_ratio(level,tstart,tstop)
-
-          t_yh = (1.0-dt_ratio)*t_h + dt_ratio*t_yh
-          t_yc = (1.0-dt_ratio)*t_c + dt_ratio*t_yc
-    else:
-      with torch.enable_grad():
-        h = t_h.detach()
-        c = t_c.detach()
-        h.requires_grad = True
-        c.requires_grad = True
-        t_yh,t_yc = self.RNN_models(seq_x,h,c)
-
-        if level!=0:
-          dt_ratio = self.dt_ratio(level,tstart,tstop)
-
-          t_yh = (1.0-dt_ratio)*h + dt_ratio*t_yh
-          t_yc = (1.0-dt_ratio)*c + dt_ratio*t_yc
-      self.backpropped[tstart,tstop] = ((h,c),(t_yh,t_yc))
-
-    seq_x = self.getSequenceVector(tstop,None,level)
-
-    g0.addWeightTensors((seq_x,))
-    g0.replaceTensor(t_yh,0)
-    g0.replaceTensor(t_yc,1)
+    with self.timer("eval"):
+      # there are two paths by which eval is called:
+      #  1. x is a BraidVector: my step has called this method
+      #  2. x is a torch tensor: called internally (probably at the behest
+      #                          of the adjoint)
+  
+      index = self.getLocalTimeStepIndex(tstart,tstop,level)
+      seq_x = g0.weightTensors()[0]
+  
+      t_h,t_c = g0.tensors()
+      if not done:
+        with torch.no_grad():
+          t_yh,t_yc = self.RNN_models(seq_x,t_h,t_c)
+  
+          if level!=0:
+            dt_ratio = self.dt_ratio(level,tstart,tstop)
+  
+            t_yh = (1.0-dt_ratio)*t_h + dt_ratio*t_yh
+            t_yc = (1.0-dt_ratio)*t_c + dt_ratio*t_yc
+      else:
+        with torch.enable_grad():
+          h = t_h.detach()
+          c = t_c.detach()
+          h.requires_grad = True
+          c.requires_grad = True
+          t_yh,t_yc = self.RNN_models(seq_x,h,c)
+  
+          if level!=0:
+            dt_ratio = self.dt_ratio(level,tstart,tstop)
+  
+            t_yh = (1.0-dt_ratio)*h + dt_ratio*t_yh
+            t_yc = (1.0-dt_ratio)*c + dt_ratio*t_yc
+        self.backpropped[tstart,tstop] = ((h,c),(t_yh,t_yc))
+  
+      seq_x = self.getSequenceVector(tstop,None,level)
+  
+      g0.addWeightTensors((seq_x,))
+      g0.replaceTensor(t_yh,0)
+      g0.replaceTensor(t_yc,1)
   # end eval
 
   def getPrimalWithGrad(self,tstart,tstop,level):
@@ -221,28 +222,30 @@ class ForwardBraidApp(parent.BraidApp):
     """
     
     if level==0 and (tstart,tstop) in self.backpropped:
-      x,y = self.backpropped[(tstart,tstop)]
+      with self.timer("getPrimalWithGrad-short"):
+        x,y = self.backpropped[(tstart,tstop)]
       return y,x
 
-    b_x = self.getUVector(0,tstart)
-    t_x = b_x.tensors()
-
-    x = tuple([v.detach() for v in t_x])
-
-    xh,xc = x 
-    xh.requires_grad = True
-    xc.requires_grad = True
-
-    seq_x = b_x.weightTensors()[0]
-
-    with torch.enable_grad():
-      yh,yc = self.RNN_models(seq_x,xh,xc)
-
-      if level!=0:
-        dt_ratio = self.dt_ratio(level,tstart,tstop)
-
-        yh = (1.0-dt_ratio)*xh + dt_ratio*yh
-        yc = (1.0-dt_ratio)*xc + dt_ratio*yc
+    with self.timer("getPrimalWithGrad-long"):
+      b_x = self.getUVector(0,tstart)
+      t_x = b_x.tensors()
+  
+      x = tuple([v.detach() for v in t_x])
+  
+      xh,xc = x 
+      xh.requires_grad = True
+      xc.requires_grad = True
+  
+      seq_x = b_x.weightTensors()[0]
+  
+      with torch.enable_grad():
+        yh,yc = self.RNN_models(seq_x,xh,xc)
+  
+        if level!=0:
+          dt_ratio = self.dt_ratio(level,tstart,tstop)
+  
+          yh = (1.0-dt_ratio)*xh + dt_ratio*yh
+          yc = (1.0-dt_ratio)*xc + dt_ratio*yc
    
     return (yh,yc), x
   # end getPrimalWithGrad
@@ -310,7 +313,8 @@ class BackwardBraidApp(parent.BraidApp):
     adjoint solution. The variables 'x' and 'y' refer to the forward
     problem solutions at the beginning (x) and end (y) of the type step.
     """
-    try:
+    with self.timer("eval"):
+      try:
         # we need to adjust the time step values to reverse with the adjoint
         # this is so that the renumbering used by the backward problem is properly adjusted
         t_y,t_x = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
@@ -339,10 +343,9 @@ class BackwardBraidApp(parent.BraidApp):
         if done!=1:
           for p,s in zip(self.RNN_models.parameters(),required_grad_state):
             p.requires_grad = s
-    except:
-      print('\n**** Torchbraid Internal Exception ****\n')
-      traceback.print_exc()
-
+      except:
+        print('\n**** Torchbraid Internal Exception ****\n')
+        traceback.print_exc()
   # end eval
 
 # end BackwardODENetApp
