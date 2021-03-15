@@ -222,7 +222,7 @@ class ForwardBraidApp(parent.BraidApp):
     
     if level==0 and (tstart,tstop) in self.backpropped:
       x,y = self.backpropped[(tstart,tstop)]
-      return (y,x), self.RNN_models 
+      return y,x
 
     b_x = self.getUVector(0,tstart)
     t_x = b_x.tensors()
@@ -244,7 +244,7 @@ class ForwardBraidApp(parent.BraidApp):
         yh = (1.0-dt_ratio)*xh + dt_ratio*yh
         yc = (1.0-dt_ratio)*xc + dt_ratio*yc
    
-    return ((yh,yc), x), self.RNN_models
+    return (yh,yc), x
   # end getPrimalWithGrad
 
 # end ForwardBraidApp
@@ -287,12 +287,16 @@ class BackwardBraidApp(parent.BraidApp):
   def run(self,x):
 
     try:
+      self.RNN_models = self.fwd_app.RNN_models
+
       f = self.runBraid(x)
 
-      self.grads = [p.grad.detach().clone() for p in self.fwd_app.RNN_models.parameters()]
+      self.grads = [p.grad.detach().clone() for p in self.RNN_models.parameters()]
 
       # required otherwise we will re-add teh gradients
-      self.fwd_app.RNN_models.zero_grad() 
+      self.RNN_models.zero_grad() 
+
+      self.RNN_models = None
     except:
       print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
@@ -309,25 +313,18 @@ class BackwardBraidApp(parent.BraidApp):
     try:
         # we need to adjust the time step values to reverse with the adjoint
         # this is so that the renumbering used by the backward problem is properly adjusted
-        (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
-
-        # t_x should have no gradient (for memory reasons)
-        for v in t_x:
-          assert(v.grad is None)
+        t_y,t_x = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
 
         # play with the parameter gradients to make sure they are on apprpriately,
         # store the initial state so we can revert them later
         required_grad_state = []
-        for p in layer.parameters(): 
-          required_grad_state += [p.requires_grad]
-          if done!=1:
-            # if you are not on the fine level, compute no parameter gradients
+        if done!=1:
+          for p in self.RNN_models.parameters(): 
+            required_grad_state += [p.requires_grad]
             p.requires_grad = False
 
         # perform adjoint computation
         t_w = w.tensors()
-        for v in t_w:
-          v.requires_grad = False
         for v,w_d in zip(t_y,t_w):
           v.backward(w_d,retain_graph=True)
 
@@ -339,8 +336,9 @@ class BackwardBraidApp(parent.BraidApp):
           xv.grad = None
 
         # revert the gradient state to where they started
-        for p,s in zip(layer.parameters(),required_grad_state):
-          p.requires_grad = s
+        if done!=1:
+          for p,s in zip(self.RNN_models.parameters(),required_grad_state):
+            p.requires_grad = s
     except:
       print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
