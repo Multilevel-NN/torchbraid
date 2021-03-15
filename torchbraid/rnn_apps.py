@@ -175,7 +175,6 @@ class ForwardBraidApp(parent.BraidApp):
       #  2. x is a torch tensor: called internally (probably at the behest
       #                          of the adjoint)
   
-      index = self.getLocalTimeStepIndex(tstart,tstop,level)
       seq_x = g0.weightTensors()[0]
   
       t_h,t_c = g0.tensors()
