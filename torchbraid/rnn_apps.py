@@ -174,8 +174,6 @@ class ForwardBraidApp(parent.BraidApp):
     #  2. x is a torch tensor: called internally (probably at the behest
     #                          of the adjoint)
 
-    dt_ratio = self.dt_ratio(level,tstart,tstop)
-
     index = self.getLocalTimeStepIndex(tstart,tstop,level)
     seq_x = g0.weightTensors()[0]
 
@@ -184,8 +182,11 @@ class ForwardBraidApp(parent.BraidApp):
       with torch.no_grad():
         t_yh,t_yc = self.RNN_models(seq_x,t_h,t_c)
 
-        t_yh = (1.0-dt_ratio)*t_h + dt_ratio*t_yh
-        t_yc = (1.0-dt_ratio)*t_c + dt_ratio*t_yc
+        if level!=0:
+          dt_ratio = self.dt_ratio(level,tstart,tstop)
+
+          t_yh = (1.0-dt_ratio)*t_h + dt_ratio*t_yh
+          t_yc = (1.0-dt_ratio)*t_c + dt_ratio*t_yc
     else:
       with torch.enable_grad():
         h = t_h.detach()
@@ -194,8 +195,11 @@ class ForwardBraidApp(parent.BraidApp):
         c.requires_grad = True
         t_yh,t_yc = self.RNN_models(seq_x,h,c)
 
-        t_yh = (1.0-dt_ratio)*h + dt_ratio*t_yh
-        t_yc = (1.0-dt_ratio)*c + dt_ratio*t_yc
+        if level!=0:
+          dt_ratio = self.dt_ratio(level,tstart,tstop)
+
+          t_yh = (1.0-dt_ratio)*h + dt_ratio*t_yh
+          t_yc = (1.0-dt_ratio)*c + dt_ratio*t_yc
       self.backpropped[tstart,tstop] = ((h,c),(t_yh,t_yc))
 
     seq_x = self.getSequenceVector(tstop,None,level)
@@ -229,15 +233,16 @@ class ForwardBraidApp(parent.BraidApp):
     xh.requires_grad = True
     xc.requires_grad = True
 
-    dt_ratio = self.dt_ratio(level,tstart,tstop)
-
     seq_x = b_x.weightTensors()[0]
 
     with torch.enable_grad():
       yh,yc = self.RNN_models(seq_x,xh,xc)
 
-      yh = (1.0-dt_ratio)*xh + dt_ratio*yh
-      yc = (1.0-dt_ratio)*xc + dt_ratio*yc
+      if level!=0:
+        dt_ratio = self.dt_ratio(level,tstart,tstop)
+
+        yh = (1.0-dt_ratio)*xh + dt_ratio*yh
+        yc = (1.0-dt_ratio)*xc + dt_ratio*yc
    
     return ((yh,yc), x), self.RNN_models
   # end getPrimalWithGrad
