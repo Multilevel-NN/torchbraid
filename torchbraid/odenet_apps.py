@@ -254,13 +254,15 @@ class ForwardODENetApp(BraidApp):
 
 class BackwardODENetApp(BraidApp):
 
-  def __init__(self,fwd_app,timer_manager):
+  def __init__(self,fwd_app,timer_manager,max_levels=-1):
     # call parent constructor
+    if max_levels == -1:
+        max_levels = fwd_app.max_levels
     BraidApp.__init__(self,'BWDApp',
                            fwd_app.getMPIComm(),
                            fwd_app.local_num_steps,
                            fwd_app.Tf,
-                           fwd_app.max_levels,
+                           max_levels,
                            fwd_app.max_iters,
                            spatial_ref_pair=fwd_app.spatial_ref_pair)
 

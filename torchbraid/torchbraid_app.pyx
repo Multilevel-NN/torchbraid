@@ -296,6 +296,10 @@ class BraidApp:
       core = (<PyBraid_Core> self.py_core).getCore()
       braid_SetPrintLevel(core,self.print_level)
 
+  def setMinCoarse(self, mc):
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetMinCoarse(core, mc)
+
   def setNumRelax(self,relax,level=-1):
     self.nrelax = relax 
 
@@ -311,6 +315,10 @@ class BraidApp:
   def setFMG(self):
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetFMG(core)
+
+  def setCRelaxWt(self, CWt):
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetCRelaxWt(core, -1, CWt)
 
   def setRelaxOnlyCG(self, flag):
     core = (<PyBraid_Core> self.py_core).getCore()

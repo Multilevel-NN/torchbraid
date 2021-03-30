@@ -105,11 +105,10 @@ class LayerParallel(nn.Module):
        # so this is all a hack to get this thing to work
       return torch.zeros(1)*value
 
-  def __init__(self,comm,layer_block,num_steps,Tf,max_levels=1,max_iters=10,spatial_ref_pair=None):
+  def __init__(self,comm,layer_block,num_steps,Tf,max_fwd_levels=1,max_bwd_levels=1,max_iters=10,spatial_ref_pair=None):
     super(LayerParallel,self).__init__()
 
     self.comm = comm
-
     self.exec_helper = self.ExecLP(comm.Get_rank())
 
     # optional parameters
@@ -123,9 +122,9 @@ class LayerParallel(nn.Module):
 
     self.timer_manager = ContextTimerManager()
 
-    self.fwd_app = apps.ForwardODENetApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.timer_manager,
+    self.fwd_app = apps.ForwardODENetApp(comm,self.layer_models,num_steps,Tf,max_fwd_levels,max_iters,self.timer_manager,
                                          spatial_ref_pair=spatial_ref_pair)
-    self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager)
+    self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager,max_levels=max_bwd_levels)
 
     self.enable_diagnostics = False
   # end __init__
@@ -158,8 +157,14 @@ class LayerParallel(nn.Module):
     self.fwd_app.setPrintLevel(print_level,tb_print)
     self.bwd_app.setPrintLevel(print_level,tb_print)
 
-  def setNumRelax(self,relax,level=-1):
+  def setMinCoarse(self, mc):
+    self.fwd_app.setMinCoarse(mc)
+    self.bwd_app.setMinCoarse(mc)
+
+  def setFwdNumRelax(self,relax,level=-1):
     self.fwd_app.setNumRelax(relax,level=level)
+  
+  def setBwdNumRelax(self,relax,level=-1):
     self.bwd_app.setNumRelax(relax,level=level)
 
   def setMaxIters(self,max_iters):
@@ -178,15 +183,27 @@ class LayerParallel(nn.Module):
 
   def setRelaxOnlyCG(self, flag):
     self.bwd_app.setRelaxOnlyCG(flag)
-    
+    #
     # Probably leave commented out for forward solve, still need to accurately
     # process incoming data.  It's the gradient solve that we believe can be
     # made more inexact.
     #self.fwd_app.setRelaxOnlyCG(flag)
-    
+
+  def setCRelaxWt(self, CWt):
+    self.bwd_app.setCRelaxWt(CWt)
+    #
+    # Probably leave commented out for forward solve, more interested
+    # in "mixing" adjoint data.
+    #self.fwd_app.setCFactor(CWt)
 
   def setCFactor(self,cfactor):
     self.fwd_app.setCFactor(cfactor)
+    self.bwd_app.setCFactor(cfactor)
+
+  def setFwdCFactor(self,cfactor):
+    self.fwd_app.setCFactor(cfactor)
+
+  def setBwdCFactor(self,cfactor):
     self.bwd_app.setCFactor(cfactor)
 
   def setSkipDowncycle(self,skip):
