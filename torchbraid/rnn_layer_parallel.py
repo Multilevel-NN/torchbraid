@@ -32,6 +32,7 @@
 # cython: profile=True
 # cython: linetrace=True
 
+import inspect
 import torch
 import torch.nn as nn
 
@@ -51,10 +52,49 @@ import torchbraid.rnn_apps as apps
 ##########################################################
 
 class RNN_Parallel(nn.Module):
+  class ExecLP:
+    """Helper class for btorchuilding composite neural network modules
+
+    This class is used by customers of the LayerParallel module to
+    allow construction of composite neural networks with the proper
+    parallel execution and gradients.
+
+    One naming convection is to use 'o' for a class of this type
+    signifying object compoistion.
+    """
+
+    def __init__(self,rank):
+      """Constructor setting the LP rank of this processor"""
+      self.my_rank = rank
+
+    def __call__(self,op,*args,**kwargs):
+      """Call an operator conditionally based on being on rank 0
+         
+         If op is a class, than this returns None on processors other
+         than rank 0.
+      """
+      
+      if self.my_rank==0:
+        return op(*args,**kwargs)
+
+      # this helps with makign constructos consistent
+      if inspect.isclass(op):
+        return None
+
+      # blindly assume that all the arguments are torch
+      # tensors, and propagate this through
+      value = torch.zeros(1)
+      for a in args:
+        if a.requires_grad:
+          value += torch.norm(a)
+
+       # so this is all a hack to get this thing to work
+      return torch.zeros(1)*value
 
   def __init__(self,comm,basic_block,num_steps,hidden_size,num_layers,Tf,max_levels=1,max_iters=10,abs_tol=1e-12):
     super(RNN_Parallel,self).__init__()
 
+    self.exec_helper = self.ExecLP(comm.Get_rank())
     self.comm = comm
 
     self.basic_block = basic_block
@@ -68,6 +108,12 @@ class RNN_Parallel(nn.Module):
 
     self.param_size = 0
   # end __init__
+
+  def comp_op(self):
+    """Short for compose operator, returns a functor that allows contstruction of composite neural 
+       networks using this LayerParallel module.
+    """
+    return self.exec_helper
 
   def zero_grad(self):
     self.RNN_models.zero_grad()
