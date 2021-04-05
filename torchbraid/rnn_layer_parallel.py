@@ -229,10 +229,6 @@ class RNN_Parallel(nn.Module):
       return result
 
   def getTimersString(self):
-    
-    # prefix_rank  = self.comm.Get_rank()
-    # print("Rank %d RNN_Parallel -> getTimersString() - called" % prefix_rank)
-
     """
     Print the timers recored by the model.
     """
