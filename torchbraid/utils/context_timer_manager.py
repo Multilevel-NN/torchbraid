@@ -37,6 +37,9 @@ class ContextTimerManager:
   def __init__(self):
     self.timers = dict()
 
+  def resetTimers(self):
+    self.timers = dict()
+
   def timer(self,name): 
     if name in self.timers:
       timer_obj = self.timers[name]
