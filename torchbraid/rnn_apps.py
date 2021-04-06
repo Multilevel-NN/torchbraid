@@ -39,6 +39,7 @@ import numpy as np
 from braid_vector import BraidVector
 
 import torchbraid_app as parent
+import utils
 
 import sys
 
@@ -295,7 +296,7 @@ class BackwardBraidApp(parent.BraidApp):
 
       self.grads = [p.grad.detach().clone() for p in self.RNN_models.parameters()]
 
-      # required otherwise we will re-add teh gradients
+      # required otherwise we will re-add the gradients
       self.RNN_models.zero_grad() 
 
       self.RNN_models = None
@@ -328,8 +329,10 @@ class BackwardBraidApp(parent.BraidApp):
 
         # perform adjoint computation
         t_w = w.tensors()
-        for v,w_d in zip(t_y,t_w):
-          v.backward(w_d,retain_graph=True)
+        with torch.enable_grad():
+          s_w = torch.stack(t_w)
+          s_y = torch.stack(t_y)
+        s_y.backward(s_w,retain_graph=True)
 
         # this little bit of pytorch magic ensures the gradient isn't
         # stored too long in this calculation (in particulcar setting
