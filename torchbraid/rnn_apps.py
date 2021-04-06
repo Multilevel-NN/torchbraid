@@ -329,9 +329,10 @@ class BackwardBraidApp(parent.BraidApp):
 
         # perform adjoint computation
         t_w = w.tensors()
+        s_w = torch.stack(t_w)
         with torch.enable_grad():
-          s_w = torch.stack(t_w)
           s_y = torch.stack(t_y)
+        s_w.requires_grad = False
         s_y.backward(s_w,retain_graph=True)
 
         # this little bit of pytorch magic ensures the gradient isn't
