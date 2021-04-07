@@ -134,6 +134,9 @@ class TestRNNLayerParallel(unittest.TestCase):
   def test_backward_exact(self):
     self.backwardProp()
 
+  def test_backward_exact_multiple(self):
+    self.backwardProp(applications=8)
+
   def test_backward_approx(self):
     self.backwardProp(max_levels=3,max_iters=12,sequence_length=27,tol=1e-5)
 
@@ -365,7 +368,8 @@ class TestRNNLayerParallel(unittest.TestCase):
                    hidden_size = 20,
                    num_layers = 1,
                    batch_size = 1,
-                   tol=1e-6):
+                   tol=1e-6,
+                   applications=1):
 
     comm      = MPI.COMM_WORLD
     num_procs = comm.Get_size()
@@ -398,20 +402,30 @@ class TestRNNLayerParallel(unittest.TestCase):
     parallel_rnn.setCFactor(cfactor)
     parallel_rnn.setNumRelax(nrelax)
 
-    h_0 = torch.zeros(num_layers, x_block[0].size(0), hidden_size,requires_grad=True)
-    c_0 = torch.zeros(num_layers, x_block[0].size(0), hidden_size,requires_grad=True)
-  
-    with torch.enable_grad(): 
-      y_parallel_hn,y_parallel_cn = parallel_rnn(x_block[0],(h_0,c_0))
-  
-    comm.barrier()
-
-    w_h = torch.zeros(y_parallel_hn.shape)
-    w_c = torch.zeros(y_parallel_hn.shape)
     torch.manual_seed(20)
-    w_h[-1,:,:] = torch.randn(y_parallel_hn[-1,:,:].shape)
+    rand_w = torch.randn([1,x_block[0].size(0),hidden_size])
+
+    for i in range(applications):
+      h_0 = torch.zeros(num_layers, x_block[i].size(0), hidden_size,requires_grad=True)
+      c_0 = torch.zeros(num_layers, x_block[i].size(0), hidden_size,requires_grad=True)
   
-    y_parallel_hn.backward(w_h)
+      with torch.enable_grad(): 
+        y_parallel_hn,y_parallel_cn = parallel_rnn(x_block[i],(h_0,c_0))
+  
+      comm.barrier()
+
+      w_h = torch.zeros(y_parallel_hn.shape)
+      w_c = torch.zeros(y_parallel_hn.shape)
+
+      w_h[-1,:,:] = rand_w
+  
+      y_parallel_hn.backward(w_h)
+
+      if i<applications-1:
+        with torch.no_grad():
+          for p in parallel_rnn.parameters():
+            p += p.grad
+        parallel_rnn.zero_grad()
 
     # compute serial solution 
     #############################################
@@ -422,17 +436,23 @@ class TestRNNLayerParallel(unittest.TestCase):
       serial_rnn = nn.LSTM(input_size, hidden_size, num_layers,batch_first=True)
       image_all, x_block_all = preprocess_input_data_serial_test(num_procs,num_batch,batch_size,channels,sequence_length,input_size)
 
-      i = 0
-      y_serial_hn_0 = torch.zeros(num_layers, image_all[i].size(0), hidden_size,requires_grad=True)
-      y_serial_cn_0 = torch.zeros(num_layers, image_all[i].size(0), hidden_size,requires_grad=True)
+      for i in range(applications):
+        y_serial_hn_0 = torch.zeros(num_layers, image_all[i].size(0), hidden_size,requires_grad=True)
+        y_serial_cn_0 = torch.zeros(num_layers, image_all[i].size(0), hidden_size,requires_grad=True)
 
-      with torch.enable_grad(): 
-        q, (y_serial_hn, y_serial_cn) = serial_rnn(image_all[i],(y_serial_hn_0,y_serial_cn_0))
+        with torch.enable_grad(): 
+          q, (y_serial_hn, y_serial_cn) = serial_rnn(image_all[i],(y_serial_hn_0,y_serial_cn_0))
 
-      w_q = torch.zeros(q.shape)
-      w_q[:,-1,:] = w_h[-1,:,:].detach().clone()
+        w_q = torch.zeros(q.shape)
+        w_q[:,-1,:] = rand_w.detach().clone()
 
-      q.backward(w_q)
+        q.backward(w_q)
+
+        if i<applications-1:
+          with torch.no_grad():
+            for p in serial_rnn.parameters():
+              p += p.grad
+          serial_rnn.zero_grad()
     # end if my_rank
 
     # now check the answers
