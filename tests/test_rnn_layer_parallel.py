@@ -229,14 +229,19 @@ class TestRNNLayerParallel(unittest.TestCase):
       comm.barrier()
   
       # send the final inference step to root
-      if my_rank == comm.Get_size()-1:
+      if comm.Get_size()>1 and my_rank == comm.Get_size()-1:
         comm.send(y_parallel_hn,0)
         comm.send(y_parallel_cn,0)
 
       if my_rank==0:
         # recieve the final inference step
-        parallel_hn = comm.recv(source=comm.Get_size()-1)
-        parallel_cn = comm.recv(source=comm.Get_size()-1)
+        if comm.Get_size()>1:
+          parallel_hn = comm.recv(source=comm.Get_size()-1)
+          parallel_cn = comm.recv(source=comm.Get_size()-1)
+        else:
+          parallel_hn = y_parallel_hn
+          parallel_cn = y_parallel_cn
+
         print('cn values = ',torch.norm(y_serial_cn-parallel_cn).item()/torch.norm(y_serial_cn).item())
         print('hn values = ',torch.norm(y_serial_hn-parallel_hn).item()/torch.norm(y_serial_hn).item())
         self.assertTrue(torch.norm(y_serial_cn-parallel_cn).item()/torch.norm(y_serial_cn).item()<1e-6,'check cn')
@@ -398,7 +403,6 @@ class TestRNNLayerParallel(unittest.TestCase):
   
     with torch.enable_grad(): 
       y_parallel_hn,y_parallel_cn = parallel_rnn(x_block[0],(h_0,c_0))
-
   
     comm.barrier()
 
@@ -433,16 +437,20 @@ class TestRNNLayerParallel(unittest.TestCase):
 
     # now check the answers
     #############################################
-  
+
     # send the final inference step to root
-    if my_rank == comm.Get_size()-1:
+    if comm.Get_size()>1 and my_rank == comm.Get_size()-1:
       comm.send(y_parallel_hn,0)
       comm.send(y_parallel_cn,0)
-
+  
     if my_rank==0:
-      # recieve the final inference step
-      parallel_hn = comm.recv(source=comm.Get_size()-1)
-      parallel_cn = comm.recv(source=comm.Get_size()-1)
+      if comm.Get_size()>1:
+        # recieve the final inference step
+        parallel_hn = comm.recv(source=comm.Get_size()-1)
+        parallel_cn = comm.recv(source=comm.Get_size()-1)
+      else:
+        parallel_hn = y_parallel_hn
+        parallel_cn = y_parallel_cn
 
       print(torch.norm(y_serial_cn-parallel_cn).item()/torch.norm(y_serial_cn).item(),'forward cn')
       print(torch.norm(y_serial_hn-parallel_hn).item()/torch.norm(y_serial_hn).item(),'forward hn')
