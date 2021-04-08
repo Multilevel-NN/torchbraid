@@ -489,8 +489,12 @@ class TestRNNLayerParallel(unittest.TestCase):
 
     ref_grads = comm.bcast(root_grads,root=0)
     for pa_grad,pb in zip(ref_grads,parallel_rnn.parameters()):
-      print(my_rank,torch.norm(pa_grad-pb.grad).item()/torch.norm(pa_grad).item(),'param grad')
-      self.assertTrue(torch.norm(pa_grad-pb.grad).item()/torch.norm(pa_grad).item()<tol,'param grad')
+      if torch.norm(pa_grad).item()==0.0:
+        print(my_rank,torch.norm(pa_grad-pb.grad).item().item(),'param grad')
+        self.assertTrue(torch.norm(pa_grad-pb.grad).item()<1e1*tol,'param grad')
+      else:
+        print(my_rank,torch.norm(pa_grad-pb.grad).item()/torch.norm(pa_grad).item(),'param grad')
+        self.assertTrue(torch.norm(pa_grad-pb.grad).item()/torch.norm(pa_grad).item()<1e1*tol,'param grad')
   # forwardProp
 
 if __name__ == '__main__':
