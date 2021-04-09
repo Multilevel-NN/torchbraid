@@ -134,6 +134,9 @@ class TestRNNLayerParallel(unittest.TestCase):
   def test_backward_exact(self):
     self.backwardProp()
 
+  def test_backward_exact_multiple(self):
+    self.backwardProp(applications=8)
+
   def test_backward_approx(self):
     self.backwardProp(max_levels=3,max_iters=12,sequence_length=27,tol=1e-5)
 
@@ -229,14 +232,19 @@ class TestRNNLayerParallel(unittest.TestCase):
       comm.barrier()
   
       # send the final inference step to root
-      if my_rank == comm.Get_size()-1:
+      if comm.Get_size()>1 and my_rank == comm.Get_size()-1:
         comm.send(y_parallel_hn,0)
         comm.send(y_parallel_cn,0)
 
       if my_rank==0:
         # recieve the final inference step
-        parallel_hn = comm.recv(source=comm.Get_size()-1)
-        parallel_cn = comm.recv(source=comm.Get_size()-1)
+        if comm.Get_size()>1:
+          parallel_hn = comm.recv(source=comm.Get_size()-1)
+          parallel_cn = comm.recv(source=comm.Get_size()-1)
+        else:
+          parallel_hn = y_parallel_hn
+          parallel_cn = y_parallel_cn
+
         print('cn values = ',torch.norm(y_serial_cn-parallel_cn).item()/torch.norm(y_serial_cn).item())
         print('hn values = ',torch.norm(y_serial_hn-parallel_hn).item()/torch.norm(y_serial_hn).item())
         self.assertTrue(torch.norm(y_serial_cn-parallel_cn).item()/torch.norm(y_serial_cn).item()<1e-6,'check cn')
@@ -360,7 +368,8 @@ class TestRNNLayerParallel(unittest.TestCase):
                    hidden_size = 20,
                    num_layers = 1,
                    batch_size = 1,
-                   tol=1e-6):
+                   tol=1e-6,
+                   applications=1):
 
     comm      = MPI.COMM_WORLD
     num_procs = comm.Get_size()
@@ -393,21 +402,30 @@ class TestRNNLayerParallel(unittest.TestCase):
     parallel_rnn.setCFactor(cfactor)
     parallel_rnn.setNumRelax(nrelax)
 
-    h_0 = torch.zeros(num_layers, x_block[0].size(0), hidden_size,requires_grad=True)
-    c_0 = torch.zeros(num_layers, x_block[0].size(0), hidden_size,requires_grad=True)
-  
-    with torch.enable_grad(): 
-      y_parallel_hn,y_parallel_cn = parallel_rnn(x_block[0],(h_0,c_0))
-
-  
-    comm.barrier()
-
-    w_h = torch.zeros(y_parallel_hn.shape)
-    w_c = torch.zeros(y_parallel_hn.shape)
     torch.manual_seed(20)
-    w_h[-1,:,:] = torch.randn(y_parallel_hn[-1,:,:].shape)
+    rand_w = torch.randn([1,x_block[0].size(0),hidden_size])
+
+    for i in range(applications):
+      h_0 = torch.zeros(num_layers, x_block[i].size(0), hidden_size,requires_grad=True)
+      c_0 = torch.zeros(num_layers, x_block[i].size(0), hidden_size,requires_grad=True)
   
-    y_parallel_hn.backward(w_h)
+      with torch.enable_grad(): 
+        y_parallel_hn,y_parallel_cn = parallel_rnn(x_block[i],(h_0,c_0))
+  
+      comm.barrier()
+
+      w_h = torch.zeros(y_parallel_hn.shape)
+      w_c = torch.zeros(y_parallel_hn.shape)
+
+      w_h[-1,:,:] = rand_w
+  
+      y_parallel_hn.backward(w_h)
+
+      if i<applications-1:
+        with torch.no_grad():
+          for p in parallel_rnn.parameters():
+            p += p.grad
+        parallel_rnn.zero_grad()
 
     # compute serial solution 
     #############################################
@@ -418,37 +436,47 @@ class TestRNNLayerParallel(unittest.TestCase):
       serial_rnn = nn.LSTM(input_size, hidden_size, num_layers,batch_first=True)
       image_all, x_block_all = preprocess_input_data_serial_test(num_procs,num_batch,batch_size,channels,sequence_length,input_size)
 
-      i = 0
-      y_serial_hn_0 = torch.zeros(num_layers, image_all[i].size(0), hidden_size,requires_grad=True)
-      y_serial_cn_0 = torch.zeros(num_layers, image_all[i].size(0), hidden_size,requires_grad=True)
+      for i in range(applications):
+        y_serial_hn_0 = torch.zeros(num_layers, image_all[i].size(0), hidden_size,requires_grad=True)
+        y_serial_cn_0 = torch.zeros(num_layers, image_all[i].size(0), hidden_size,requires_grad=True)
 
-      with torch.enable_grad(): 
-        q, (y_serial_hn, y_serial_cn) = serial_rnn(image_all[i],(y_serial_hn_0,y_serial_cn_0))
+        with torch.enable_grad(): 
+          q, (y_serial_hn, y_serial_cn) = serial_rnn(image_all[i],(y_serial_hn_0,y_serial_cn_0))
 
-      w_q = torch.zeros(q.shape)
-      w_q[:,-1,:] = w_h[-1,:,:].detach().clone()
+        w_q = torch.zeros(q.shape)
+        w_q[:,-1,:] = rand_w.detach().clone()
 
-      q.backward(w_q)
+        q.backward(w_q)
+
+        if i<applications-1:
+          with torch.no_grad():
+            for p in serial_rnn.parameters():
+              p += p.grad
+          serial_rnn.zero_grad()
     # end if my_rank
 
     # now check the answers
     #############################################
-  
+
     # send the final inference step to root
-    if my_rank == comm.Get_size()-1:
+    if comm.Get_size()>1 and my_rank == comm.Get_size()-1:
       comm.send(y_parallel_hn,0)
       comm.send(y_parallel_cn,0)
-
+  
     if my_rank==0:
-      # recieve the final inference step
-      parallel_hn = comm.recv(source=comm.Get_size()-1)
-      parallel_cn = comm.recv(source=comm.Get_size()-1)
+      if comm.Get_size()>1:
+        # recieve the final inference step
+        parallel_hn = comm.recv(source=comm.Get_size()-1)
+        parallel_cn = comm.recv(source=comm.Get_size()-1)
+      else:
+        parallel_hn = y_parallel_hn
+        parallel_cn = y_parallel_cn
 
       print(torch.norm(y_serial_cn-parallel_cn).item()/torch.norm(y_serial_cn).item(),'forward cn')
       print(torch.norm(y_serial_hn-parallel_hn).item()/torch.norm(y_serial_hn).item(),'forward hn')
 
       self.assertTrue(torch.norm(y_serial_cn-parallel_cn)/torch.norm(y_serial_cn)<tol,'cn value')
-      self.assertTrue(torch.norm(y_serial_hn-parallel_hn)/torch.norm(y_serial_hn)<tol,'rn value')
+      self.assertTrue(torch.norm(y_serial_hn-parallel_hn)/torch.norm(y_serial_hn)<tol,'hn value')
 
       print(torch.norm(h_0.grad-y_serial_hn_0.grad).item(),'back soln hn')
       print(torch.norm(c_0.grad-y_serial_cn_0.grad).item(),'back soln cn')
@@ -461,8 +489,12 @@ class TestRNNLayerParallel(unittest.TestCase):
 
     ref_grads = comm.bcast(root_grads,root=0)
     for pa_grad,pb in zip(ref_grads,parallel_rnn.parameters()):
-      print(my_rank,torch.norm(pa_grad-pb.grad).item()/torch.norm(pa_grad).item(),'param grad')
-      self.assertTrue(torch.norm(pa_grad-pb.grad).item()/torch.norm(pa_grad).item()<tol,'param grad')
+      if torch.norm(pa_grad).item()==0.0:
+        print(my_rank,torch.norm(pa_grad-pb.grad).item().item(),'param grad')
+        self.assertTrue(torch.norm(pa_grad-pb.grad).item()<1e1*tol,'param grad')
+      else:
+        print(my_rank,torch.norm(pa_grad-pb.grad).item()/torch.norm(pa_grad).item(),'param grad')
+        self.assertTrue(torch.norm(pa_grad-pb.grad).item()/torch.norm(pa_grad).item()<1e1*tol,'param grad')
   # forwardProp
 
 if __name__ == '__main__':

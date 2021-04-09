@@ -19,6 +19,7 @@ uninstall:
 
 tests test:
 	$(MPIRUN) -n 1 $(PYTHON) test_callbacks.py
+	$(MPIRUN) -n 1 $(PYTHON) test_FlatPackUnpack.py
 	$(MPIRUN) -n 3 $(PYTHON) test_layer_parallel.py
 	$(MPIRUN) -n 3 $(PYTHON) test_network_parallel.py -v
 	$(MPIRUN) -n 3 $(PYTHON) test_composite.py
@@ -28,6 +29,7 @@ tests test:
 
 tests-serial test-serial:
 	$(MPIRUN) -n 1 $(PYTHON) test_callbacks.py
+	$(MPIRUN) -n 1 $(PYTHON) test_FlatPackUnpack.py
 	$(MPIRUN) -n 1 $(PYTHON) test_layer_parallel.py
 	$(MPIRUN) -n 1 $(PYTHON) test_network_parallel.py
 	$(MPIRUN) -n 1 $(PYTHON) test_composite.py
