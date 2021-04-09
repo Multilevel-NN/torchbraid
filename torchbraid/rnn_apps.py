@@ -118,8 +118,9 @@ class ForwardBraidApp(parent.BraidApp):
   # end setLayerWeights
 
   def initializeVector(self,t,x):
-    #for ten in x.tensors():
-    #  ten[:] = 0.0
+    if t!=0.0: # don't change the initial condition
+      for ten in x.tensors():
+        ten[:] = 0.0
     seq_x = self.getSequenceVector(t,None,level=0)
     x.addWeightTensors((seq_x,))
 
@@ -281,9 +282,11 @@ class BackwardBraidApp(parent.BraidApp):
   # end __init__
 
   def initializeVector(self,t,x):
-    pass
-    #for ten in x.tensors():
-    #  ten[:] = 0.0
+    # this is being really careful, can't
+    # change the intial condition
+    if t!=0.0:
+      for ten in x.tensors():
+        ten[:] = 0.0
 
   def __del__(self):
     self.fwd_app = None
