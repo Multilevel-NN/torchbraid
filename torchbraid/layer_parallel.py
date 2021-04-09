@@ -181,6 +181,12 @@ class LayerParallel(nn.Module):
     self.fwd_app.setFMG()
     self.bwd_app.setFMG()
 
+  def setFwdFinalFCRelax(self):
+    self.fwd_app.finalRelax()
+
+  def setBwdFinalFCRelax(self):
+    self.bwd_app.finalRelax()
+
   def setRelaxOnlyCG(self, flag):
     self.bwd_app.setRelaxOnlyCG(flag)
     #

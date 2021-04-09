@@ -94,7 +94,7 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
       # Debug printing to verify that the Braid solution state is keep from one Braid solve to next
       #uu = <object> vec_u
       #tt = uu.tensor()
-      #print("BB", (tt[0,0,0])[2], (tt[0,0,1])[2], (tt[0,1,1])[2], (tt[1,1,1])[2])
+      #print("BB  %d "%sidx, (tt[0,0,0])[2], (tt[0,0,1])[2], (tt[0,1,1])[2], (tt[1,1,1])[2])
 
       # modify the state vector in place
       u =  <object> vec_u
@@ -102,7 +102,7 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
       
       #uu = <object> vec_u
       #tt = uu.tensor()
-      #print("AA", (tt[0,0,0])[2], (tt[0,0,1])[2], (tt[0,1,1])[2], (tt[1,1,1])[2])
+      #print("AA  %d "%sidx, (tt[0,0,0])[2], (tt[0,0,1])[2], (tt[0,1,1])[2], (tt[1,1,1])[2])
       #print("\n")
 
 
