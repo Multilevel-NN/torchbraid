@@ -118,9 +118,9 @@ class ForwardBraidApp(parent.BraidApp):
   # end setLayerWeights
 
   def initializeVector(self,t,x):
-    if t!=0.0: # don't change the initial condition
-      for ten in x.tensors():
-        ten[:] = 0.0
+    #if t!=0.0: # don't change the initial condition
+    #  for ten in x.tensors():
+    #    ten[:] = 0.0
     seq_x = self.getSequenceVector(t,None,level=0)
     x.addWeightTensors((seq_x,))
 
