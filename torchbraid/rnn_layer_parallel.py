@@ -244,6 +244,14 @@ class RNN_Parallel(nn.Module):
       result = comm.recv(source=0,tag=build_seq_tag)
       return result
 
+  def getFwdStats(self):
+    itr, res = self.fwd_app.getBraidStats()
+    return itr,res
+
+  def getBwdStats(self):
+    itr, res = self.bwd_app.getBraidStats()
+    return itr,res
+
   def getTimersString(self):
     """
     Print the timers recored by the model.
