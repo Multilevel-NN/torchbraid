@@ -165,6 +165,21 @@ class ForwardBraidApp(parent.BraidApp):
   def timer(self,name):
     return self.timer_manager.timer("ForWD::"+name)
 
+  def computeStep(self,level,tstart,tstop,x,u):
+    """
+    Propagate the RNN for a single time step, given
+    data input x, and hidden state u. Output hidden state
+    y.
+    """
+
+    dy = self.RNN_models(x,*u)
+
+    y = len(dy)*[None]
+    for i in range(len(dy)):
+      y[i] = u[i] + (tstop-tstart)*dy[i]
+
+    return y
+
   def eval(self,g0,tstart,tstop,level,done):
     """
     Method called by "my_step" in braid. This is
@@ -180,39 +195,29 @@ class ForwardBraidApp(parent.BraidApp):
   
       seq_x = g0.weightTensors()[0]
   
-      t_hc = g0.tensors()
-      if not done:
+      # don't need derivatives or anything, just compute
+      if not done or level>0:
+        u = g0.tensors()
         with torch.no_grad():
-          t_yhc = self.RNN_models(seq_x,*t_hc)
-  
-          if level!=0:
-            dt_ratio = self.dt_ratio(level,tstart,tstop)
-  
-            t_yhc = list(t_yhc)
-            for i in range(len(t_yhc)):
-              t_yhc[i] = (1.0-dt_ratio)*t_hc[i]+dt_ratio*t_yhc[i]
+          y = self.computeStep(level,tstart,tstop,seq_x,u)
+
       else:
+        # setup the solution vector for derivatives
+        u = tuple([t.detach() for t in g0.tensors()])
+        for t in u:
+          t.requires_grad = True
+
         with torch.enable_grad():
-          hc = tuple([t.detach() for t in t_hc])
-          for t in hc:
-            t.requires_grad = True
+          y = self.computeStep(level,tstart,tstop,seq_x,u)
 
-          t_yhc  =self.RNN_models(seq_x,*hc)
-
-          if level!=0:
-            dt_ratio = self.dt_ratio(level,tstart,tstop)
-  
-            t_yhc = list(t_yhc)
-            for i in range(len(t_yhc)):
-              t_yhc[i] = (1.0-dt_ratio)*hc[i]+dt_ratio*t_yhc[i]
-
+        # store the fine level solution for reuse later in backprop
         if level==0:
-          self.backpropped[tstart,tstop] = (hc,t_yhc)
+          self.backpropped[tstart,tstop] = (u,y)
   
       seq_x = self.getSequenceVector(tstop,None,level)
   
       g0.addWeightTensors((seq_x,))
-      for i,t in enumerate(t_yhc):
+      for i,t in enumerate(y):
         g0.replaceTensor(t,i)
   # end eval
 
@@ -227,33 +232,27 @@ class ForwardBraidApp(parent.BraidApp):
     being recomputed.
     """
     
+    # use the short cut precomputed (with derivatives)
     if level==0 and (tstart,tstop) in self.backpropped:
       with self.timer("getPrimalWithGrad-short"):
-        x,y = self.backpropped[(tstart,tstop)]
-      return y,x
+        u,y = self.backpropped[(tstart,tstop)]
+      return y,u
 
     with self.timer("getPrimalWithGrad-long"):
-      b_x = self.getUVector(0,tstart)
-      t_x = b_x.tensors()
-  
-      x = tuple([v.detach() for v in t_x])
-  
-      for t in x:
+      # extract teh various vectors for this value from the fine level to linearize around
+      b_u = self.getUVector(0,tstart)
+
+      seq_x = b_u.weightTensors()[0]
+      u = tuple([v.detach() for v in b_u.tensors()])
+
+      for t in u:
         t.requires_grad = True
   
-      seq_x = b_x.weightTensors()[0]
-  
+      # evaluate the step
       with torch.enable_grad():
-        y = self.RNN_models(seq_x,*x)
-  
-        if level!=0:
-          dt_ratio = self.dt_ratio(level,tstart,tstop)
-  
-          y = list(y)
-          for i in range(len(y)):
-            y[i] = (1.0-dt_ratio)*x[i]+dt_ratio*y[i]
+        y = self.computeStep(level,tstart,tstop,seq_x,u)
    
-    return y, x
+    return y, u
   # end getPrimalWithGrad
 
 # end ForwardBraidApp
