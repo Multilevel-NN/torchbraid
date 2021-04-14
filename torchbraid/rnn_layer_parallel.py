@@ -179,13 +179,16 @@ class RNN_Parallel(nn.Module):
     # pytorch's autograd which functions "naturally"
     # with the torch.autograd.function
 
-    params = list(self.parameters())  # TODO: Need to modify 07/14
     if h_c is None:
       h = torch.zeros(self.fwd_app.num_layers, x.size(0), self.fwd_app.hidden_size)
       c = torch.zeros(self.fwd_app.num_layers, x.size(0), self.fwd_app.hidden_size)
       h_c = (h,c)
 
-    return BraidFunction.apply(self.fwd_app,self.bwd_app,x,h_c[0],h_c[1],*params)
+    params = list(self.parameters())
+    if isinstance(h_c, torch.Tensor):
+      return BraidFunction.apply(self.fwd_app,self.bwd_app,1,x,h_c,*params)
+    else:
+      return BraidFunction.apply(self.fwd_app,self.bwd_app,len(h_c),x,*h_c,*params)
   # end forward
 
   def buildInit(self,t):
