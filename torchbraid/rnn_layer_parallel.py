@@ -159,6 +159,9 @@ class RNN_Parallel(nn.Module):
   def getMPIComm(self):
     return self.fwd_app.getMPIComm()
 
+  def setImplicitCoarseGrid(self,enable=True):
+    self.fwd_app.setImplicitCoarseGrid(enable)
+
   def setDtRatio(self,user_dt_ratio):
     """
     Set the Dt Ratio used to average between the
@@ -170,6 +173,9 @@ class RNN_Parallel(nn.Module):
 
     If the argument is None, then no change is made to the
     current state (this method is a no-op)
+
+    Note: This options is not used if implicit coarse grids are
+          applied
     """
     if user_dt_ratio is not None:
       self.fwd_app.setDtRatio(user_dt_ratio)
