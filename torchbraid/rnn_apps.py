@@ -73,6 +73,8 @@ class ForwardBraidApp(parent.BraidApp):
     self.seq_shapes = None
     self.backpropped = dict()
 
+    # parameters for the implicit coarse grid
+    self.implicit_coarse_grid = False
     self.implicit_level = 1
     self.coarse_iters = 1
   # end __init__
@@ -82,6 +84,9 @@ class ForwardBraidApp(parent.BraidApp):
 
   def setDtRatio(self,user_dt_ratio):
     self.user_dt_ratio = user_dt_ratio
+
+  def setImplicitCoarseGrid(self,enable=True):
+    self.implicit_coarse_grid = enable
 
   def dt_ratio(self,level,tstart,tstop):
     return self.user_dt_ratio(level,tstart,tstop,self.dt)
@@ -179,7 +184,9 @@ class ForwardBraidApp(parent.BraidApp):
 
     if level<self.implicit_level:
       return self.RNN_models(x,*u)
-    elif False:
+    elif self.implicit_coarse_grid:
+      # this introduces stability but things are not always converging...
+
       guess = u 
 
       for itr in range(self.coarse_iters):
