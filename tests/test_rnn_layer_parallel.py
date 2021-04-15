@@ -178,7 +178,7 @@ class TestRNNLayerParallel(unittest.TestCase):
     num_procs = comm.Get_size()
     my_rank   = comm.Get_rank()
       
-    Tf              = 2.0
+    Tf              = float(sequence_length)
     channels        = 1
     images          = 10
     image_size      = 28
@@ -264,7 +264,7 @@ class TestRNNLayerParallel(unittest.TestCase):
     num_procs = comm.Get_size()
     my_rank   = comm.Get_rank()
       
-    Tf              = 2.0
+    Tf              = float(sequence_length)
     channels        = 1
     images          = 10
     image_size      = 28
@@ -375,7 +375,7 @@ class TestRNNLayerParallel(unittest.TestCase):
     num_procs = comm.Get_size()
     my_rank   = comm.Get_rank()
       
-    Tf              = 2.0
+    Tf              = float(sequence_length)
     channels        = 1
     images          = 10
     image_size      = 28

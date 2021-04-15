@@ -72,6 +72,9 @@ class ForwardBraidApp(parent.BraidApp):
 
     self.seq_shapes = None
     self.backpropped = dict()
+
+    self.implicit_level = 1
+    self.coarse_iters = 1
   # end __init__
 
   def _dt_ratio_(self,level,tstart,tstop,fine_dt): 
@@ -172,11 +175,30 @@ class ForwardBraidApp(parent.BraidApp):
     y.
     """
 
-    dy = self.RNN_models(x,*u)
+    dt = tstart-tstop
 
-    y = len(dy)*[None]
-    for i in range(len(dy)):
-      y[i] = u[i] + (tstop-tstart)*dy[i]
+    if level<self.implicit_level:
+      return self.RNN_models(x,*u)
+    elif False:
+      guess = u 
+
+      for itr in range(self.coarse_iters):
+        dy = self.RNN_models(x,*guess)
+
+        # do an implicit coarse grid
+        y = len(dy)*[None]
+        for i in range(len(dy)):
+          y[i] = (u[i] + dt*dy[i])/(1.0+dt)
+
+        guess = y
+      # end for itr
+    else:
+      dt_ratio = self.dt_ratio(level,tstart,tstop)
+
+      y = self.RNN_models(x,*u)
+      y = list(y)
+      for i in range(len(y)):
+        y[i] = (1.0-dt_ratio)*u[i]+dt_ratio*y[i]
 
     return y
 
