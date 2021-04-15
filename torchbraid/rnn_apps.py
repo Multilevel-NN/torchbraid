@@ -85,8 +85,9 @@ class ForwardBraidApp(parent.BraidApp):
   def setDtRatio(self,user_dt_ratio):
     self.user_dt_ratio = user_dt_ratio
 
-  def setImplicitCoarseGrid(self,enable=True):
+  def setImplicitLevel(self,enable=True,level=1):
     self.implicit_coarse_grid = enable
+    self.implicit_level       = level
 
   def dt_ratio(self,level,tstart,tstop):
     return self.user_dt_ratio(level,tstart,tstop,self.dt)
@@ -180,7 +181,7 @@ class ForwardBraidApp(parent.BraidApp):
     y.
     """
 
-    dt = tstart-tstop
+    dt = tstop-tstart
 
     if level<self.implicit_level:
       return self.RNN_models(x,*u)

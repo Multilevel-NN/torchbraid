@@ -159,8 +159,8 @@ class RNN_Parallel(nn.Module):
   def getMPIComm(self):
     return self.fwd_app.getMPIComm()
 
-  def setImplicitCoarseGrid(self,enable=True):
-    self.fwd_app.setImplicitCoarseGrid(enable)
+  def setImplicitLevel(self,enable=True,level=1):
+    self.fwd_app.setImplicitLevel(enable,level)
 
   def setDtRatio(self,user_dt_ratio):
     """
