@@ -91,6 +91,31 @@ class RNN_Parallel(nn.Module):
        # so this is all a hack to get this thing to work
       return torch.zeros(1)*value
 
+  class RNN_Serial(nn.Module):
+    def __init__(self,RNN_models,num_layers,hidden_size):
+      super(RNN_Parallel.RNN_Serial,self).__init__()
+      self.RNN_models = RNN_models
+      self.num_layers = num_layers
+      self.hidden_size = hidden_size
+
+    def forward(self,x,h_c=None):
+      if h_c is None:
+        h = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+        c = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+        h_c = (h,c)
+      elif isinstance(h_c,torch.Tensor):
+        h_c = (h_c,)
+
+      num_steps = x.shape[1]
+      for i in range(num_steps):
+        h_c = self.RNN_models(x[:,i,:],*h_c)
+
+      if len(h_c)==1:
+        return h_c[0]
+      return h_c
+
+  ##################################################
+
   def __init__(self,comm,basic_block,num_steps,hidden_size,num_layers,Tf,max_levels=1,max_iters=10,abs_tol=1e-12):
     super(RNN_Parallel,self).__init__()
 
@@ -108,6 +133,9 @@ class RNN_Parallel(nn.Module):
 
     self.param_size = 0
   # end __init__
+
+  def getSerialModel(self):
+    return self.RNN_Serial(self.RNN_models,self.fwd_app.num_layers,self.fwd_app.hidden_size)
 
   def comp_op(self):
     """Short for compose operator, returns a functor that allows contstruction of composite neural 
