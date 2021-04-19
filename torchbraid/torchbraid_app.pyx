@@ -330,7 +330,12 @@ class BraidApp:
     self.cfactor = cfactor 
 
     core = (<PyBraid_Core> self.py_core).getCore()
-    braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
+    if isinstance(cfactor,dict):
+      for level in sorted(cfactor.keys()):
+        braid_SetCFactor(core,level,cfactor[level]) # -1 implies chage on all levels
+    
+    else: 
+      braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
 
   def setSkipDowncycle(self,skip):
     if skip:
