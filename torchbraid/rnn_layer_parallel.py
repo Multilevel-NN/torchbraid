@@ -92,11 +92,30 @@ class RNN_Parallel(nn.Module):
       return torch.zeros(1)*value
 
   class RNN_Serial(nn.Module):
-    def __init__(self,RNN_models,num_layers,hidden_size):
+    def __init__(self,RNN_models,num_layers,hidden_size,is_implicit,dt=1.0):
       super(RNN_Parallel.RNN_Serial,self).__init__()
-      self.RNN_models = RNN_models
-      self.num_layers = num_layers
+      self.RNN_models  = RNN_models
+      self.num_layers  = num_layers
       self.hidden_size = hidden_size
+      self.is_implicit = is_implicit
+      self.dt          = dt
+
+      # print('-- construct serial model: dt={}, is_implicit={}',self.dt,self.is_implicit)
+
+    def computeStep(self,x,u):
+      if not self.is_implicit:
+        return self.RNN_models(x,*u)
+      else:
+        dt = self.dt 
+        dy = self.RNN_models(x,*u)
+
+        # do an implicit coarse grid
+        y = len(dy)*[None]
+        for i in range(len(dy)):
+          y[i] = (u[i] + dt*dy[i])/(1.0+dt)
+  
+        return y
+    # end computeStep
 
     def forward(self,x,h_c=None):
       if h_c is None:
@@ -108,7 +127,7 @@ class RNN_Parallel(nn.Module):
 
       num_steps = x.shape[1]
       for i in range(num_steps):
-        h_c = self.RNN_models(x[:,i,:],*h_c)
+        h_c = self.computeStep(x[:,i,:],h_c)
 
       if len(h_c)==1:
         return h_c[0]
@@ -132,10 +151,14 @@ class RNN_Parallel(nn.Module):
     self.bwd_app = apps.BackwardBraidApp(self.fwd_app,self.timer_manager,abs_tol)
 
     self.param_size = 0
+
+    self.implicit_level   = 1
+    self.implicit_enabled = False
   # end __init__
 
   def getSerialModel(self):
-    return self.RNN_Serial(self.RNN_models,self.fwd_app.num_layers,self.fwd_app.hidden_size)
+    return self.RNN_Serial(self.RNN_models,self.fwd_app.num_layers,self.fwd_app.hidden_size,
+                           is_implicit=(self.implicit_enabled and self.implicit_level==0))
 
   def comp_op(self):
     """Short for compose operator, returns a functor that allows contstruction of composite neural 
@@ -188,6 +211,8 @@ class RNN_Parallel(nn.Module):
     return self.fwd_app.getMPIComm()
 
   def setImplicitLevel(self,enable=True,level=1):
+    self.implicit_level   = level
+    self.implicit_enabled = enable
     self.fwd_app.setImplicitLevel(enable,level)
 
   def setDtRatio(self,user_dt_ratio):

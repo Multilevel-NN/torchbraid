@@ -186,7 +186,7 @@ class ForwardBraidApp(parent.BraidApp):
     if level<self.implicit_level:
       return self.RNN_models(x,*u)
     elif self.implicit_coarse_grid:
-      # this introduces stability but things are not always converging...
+      # this introduces stability
 
       guess = u 
 
