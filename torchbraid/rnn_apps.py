@@ -62,9 +62,6 @@ class ForwardBraidApp(parent.BraidApp):
     # build up the core
     self.py_core = self.initCore()
 
-    # force evaluation of gradients at end of up-cycle
-    self.finalRelax()
-
     self.timer_manager = timer_manager
     self.use_deriv = False
 
