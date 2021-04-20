@@ -124,7 +124,7 @@ class LayerParallel(nn.Module):
     self.timer_manager = ContextTimerManager()
 
     self.fwd_app = apps.ForwardODENetApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.timer_manager,
-                                         spatial_ref_pair=spatial_ref_pair)
+                                         spatial_ref_pair=spatial_ref_pair, layer_block=layer_block)
     self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager)
 
     self.enable_diagnostics = False

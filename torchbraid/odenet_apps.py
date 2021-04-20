@@ -44,7 +44,7 @@ from mpi4py import MPI
 
 class ForwardODENetApp(BraidApp):
 
-  def __init__(self,comm,layer_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None):
+  def __init__(self,comm,layer_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None, layer_block=None):
     """
     """
     BraidApp.__init__(self,'FWDApp',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=True)
@@ -56,13 +56,18 @@ class ForwardODENetApp(BraidApp):
     my_rank       = self.getMPIComm().Get_rank()
     num_ranks     = self.getMPIComm().Get_size()
     self.my_rank = my_rank
+    self.layer_block = layer_block
 
     # send everything to the left (this helps with the adjoint method)
     if my_rank>0:
-      comm.send(self.layer_models[0],dest=my_rank-1,tag=22)
+      comm.send(list(self.layer_models[0].parameters()), dest=my_rank-1,tag=22)
     if my_rank<num_ranks-1:
       neighbor_model = comm.recv(source=my_rank+1,tag=22)
-      self.layer_models.append(neighbor_model)
+      new_model = layer_block()
+      with torch.no_grad():
+        for dest_p, src_w in zip(list(new_model.parameters()), neighbor_model):
+          dest_p.data = src_w
+      self.layer_models.append(new_model)
     else:
       # this is a sentinel at the end of the processors and layers
       self.layer_models.append(None)
@@ -77,7 +82,7 @@ class ForwardODENetApp(BraidApp):
     for p in layer_models[0].parameters(): 
       self.parameter_shapes += [p.data.size()]
 
-    self.temp_layer = copy.deepcopy(self.layer_models[0])
+    self.temp_layer = layer_block()
     self.clearTempLayerWeights()
   # end __init__
 
@@ -120,10 +125,18 @@ class ForwardODENetApp(BraidApp):
     num_ranks     = self.getMPIComm().Get_size()
 
     if my_rank>0:
-      comm.send(self.layer_models[0],dest=my_rank-1,tag=22)
+      comm.send(list(self.layer_models[0].parameters()), dest=my_rank-1,tag=22)
     if my_rank<num_ranks-1:
       neighbor_model = comm.recv(source=my_rank+1,tag=22)
-      self.layer_models[-1] = neighbor_model
+      new_model = self.layer_block()
+      with torch.no_grad():
+        for dest_p, src_w in zip(list(new_model.parameters()), neighbor_model):
+          dest_p.data = src_w
+      self.layer_models[-1] = new_model
+    else:
+      # this is a sentinel at the end of the processors and layers
+      self.layer_models.append(None)
+
 
   def run(self,x):
     # turn on derivative path (as requried)
