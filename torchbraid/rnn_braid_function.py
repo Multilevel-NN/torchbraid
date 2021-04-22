@@ -58,7 +58,8 @@ class BraidFunction(torch.autograd.Function):
 
     state = tuple([input_and_param_tensors[i] for i in range(num_input_tensors)])
 
-    result = fwd_app.run(x,state)
+    with fwd_app.timer("func:run"):
+      result = fwd_app.run(x,state)
     if num_input_tensors==1:
       result = result[0]
 

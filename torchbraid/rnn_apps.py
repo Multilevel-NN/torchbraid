@@ -159,7 +159,8 @@ class ForwardBraidApp(parent.BraidApp):
         send_request.Wait()
     # end wit htimer
 
-    y = self.runBraid(h_c)
+    with self.timer("run:run"):
+      y = self.runBraid(h_c)
 
     with self.timer("run:postcomm"):
       y = comm.bcast(y,root=num_ranks-1)
@@ -177,34 +178,38 @@ class ForwardBraidApp(parent.BraidApp):
     data input x, and hidden state u. Output hidden state
     y.
     """
+    with self.timer("computeStep"):
 
-    dt = tstop-tstart
-
-    if level<self.implicit_level:
-      return self.RNN_models(x,*u)
-    elif self.implicit_coarse_grid:
-      # this introduces stability
-
-      guess = u 
-
-      for itr in range(self.coarse_iters):
-        dy = self.RNN_models(x,*guess)
-
-        # do an implicit coarse grid
-        y = len(dy)*[None]
-        for i in range(len(dy)):
-          y[i] = (u[i] + dt*dy[i])/(1.0+dt)
-
-        guess = y
-      # end for itr
-    else:
-      dt_ratio = self.dt_ratio(level,tstart,tstop)
-
-      y = self.RNN_models(x,*u)
-      y = list(y)
-      for i in range(len(y)):
-        y[i] = (1.0-dt_ratio)*u[i]+dt_ratio*y[i]
-
+      dt = tstop-tstart
+  
+      if level<self.implicit_level:
+        with self.timer("model"):
+          return self.RNN_models(x,*u)
+      elif self.implicit_coarse_grid:
+        # this introduces stability
+  
+        guess = u 
+  
+        for itr in range(self.coarse_iters):
+          with self.timer("model"):
+            dy = self.RNN_models(x,*guess)
+  
+          with self.timer("model-other"):
+            # do an implicit coarse grid
+            y = len(dy)*[None]
+            for i in range(len(dy)):
+              y[i] = (u[i] + dt*dy[i])/(1.0+dt)
+  
+            guess = y
+        # end for itr
+      else:
+        dt_ratio = self.dt_ratio(level,tstart,tstop)
+  
+        y = self.RNN_models(x,*u)
+        y = list(y)
+        for i in range(len(y)):
+          y[i] = (1.0-dt_ratio)*u[i]+dt_ratio*y[i]
+  
     return y
 
   def eval(self,g0,tstart,tstop,level,done):
