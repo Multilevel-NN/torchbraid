@@ -74,7 +74,12 @@ class ForwardBraidApp(parent.BraidApp):
     self.implicit_coarse_grid = False
     self.implicit_level = 1
     self.coarse_iters = 1
+
+    self.computeStep = self.computeStep_hidden
   # end __init__
+
+  def setComputeStep(compute_step):
+    self.computeStep = compute_step
 
   def _dt_ratio_(self,level,tstart,tstop,fine_dt): 
     return np.sqrt(np.sqrt((tstop-tstart)/fine_dt))
@@ -172,7 +177,7 @@ class ForwardBraidApp(parent.BraidApp):
   def timer(self,name):
     return self.timer_manager.timer("ForWD::"+name)
 
-  def computeStep(self,level,tstart,tstop,x,u):
+  def computeStep_hidden(self,level,tstart,tstop,x,u):
     """
     Propagate the RNN for a single time step, given
     data input x, and hidden state u. Output hidden state

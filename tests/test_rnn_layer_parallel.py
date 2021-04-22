@@ -217,7 +217,7 @@ class TestRNNLayerParallel(unittest.TestCase):
   
     num_steps = x_block[0].shape[1]
     # RNN_parallel.py -> RNN_Parallel() class
-    parallel_rnn = torchbraid.RNN_Parallel(comm,basic_block_parallel,num_steps,hidden_size,num_layers,Tf,max_levels=max_levels,max_iters=max_iters)
+    parallel_rnn = torchbraid.RNN_Parallel(comm,basic_block_parallel(),num_steps,hidden_size,num_layers,Tf,max_levels=max_levels,max_iters=max_iters)
   
     parallel_rnn.setPrintLevel(print_level)
     parallel_rnn.setSkipDowncycle(True)
@@ -395,7 +395,7 @@ class TestRNNLayerParallel(unittest.TestCase):
     num_steps = x_block[0].shape[1]
   
     basic_block_parallel = lambda: RNN_build_block_with_dim(input_size, hidden_size, num_layers)
-    parallel_rnn = torchbraid.RNN_Parallel(comm,basic_block_parallel,num_steps,hidden_size,num_layers,Tf,max_levels=max_levels,max_iters=max_iters)
+    parallel_rnn = torchbraid.RNN_Parallel(comm,basic_block_parallel(),num_steps,hidden_size,num_layers,Tf,max_levels=max_levels,max_iters=max_iters)
   
     parallel_rnn.setPrintLevel(print_level)
     parallel_rnn.setSkipDowncycle(True)

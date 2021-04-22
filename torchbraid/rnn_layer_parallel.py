@@ -141,8 +141,7 @@ class RNN_Parallel(nn.Module):
     self.exec_helper = self.ExecLP(comm.Get_rank())
     self.comm = comm
 
-    self.basic_block = basic_block
-    self.RNN_models = basic_block()
+    self.RNN_models = basic_block
 
     self.timer_manager = ContextTimerManager()
 
