@@ -212,7 +212,7 @@ class RNN_Parallel(nn.Module):
   def setImplicitLevel(self,enable=True,level=1):
     self.implicit_level   = level
     self.implicit_enabled = enable
-    self.fwd_app.setImplicitLevel(enable,level)
+    self.fwd_app.setImplicitLevel(level)
 
   def forward(self,x,h_c=None):
     # we are doing this to take adavtage of

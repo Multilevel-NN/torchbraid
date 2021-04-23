@@ -37,6 +37,7 @@ import traceback
 import numpy as np
 
 from braid_vector import BraidVector
+from inspect import signature
 
 import torchbraid_app as parent
 import utils
@@ -69,18 +70,21 @@ class ForwardBraidApp(parent.BraidApp):
     self.backpropped = dict()
 
     # parameters for the implicit coarse grid
-    self.implicit_coarse_grid = False
     self.implicit_level = 1
-    self.coarse_iters = 1
 
+    # figure out if this takes, two arguments (use comptueStep_hidden) 
+    sig = signature(self.RNN_models)
+    #if len(sig.parameters)==2:
+    #  # the user would like us to do the time stepping
     self.computeStep = self.computeStep_hidden
+    #else:
+    #  assert(False)
   # end __init__
 
   def setComputeStep(compute_step):
     self.computeStep = compute_step
 
-  def setImplicitLevel(self,enable=True,level=1):
-    self.implicit_coarse_grid = enable
+  def setImplicitLevel(self,level=1):
     self.implicit_level       = level
 
   def getTensorShapes(self):
@@ -176,24 +180,16 @@ class ForwardBraidApp(parent.BraidApp):
       dt = tstop-tstart
   
       if level<self.implicit_level:
-        with self.timer("model"):
-          return self.RNN_models(x,*u)
+        return self.RNN_models(x,*u)
       else:
         # this introduces stability
   
-        guess = u 
+        dy = self.RNN_models(x,*u)
   
-        for itr in range(self.coarse_iters):
-          with self.timer("model"):
-            dy = self.RNN_models(x,*guess)
-  
-          with self.timer("model-other"):
-            # do an implicit coarse grid
-            y = len(dy)*[None]
-            for i in range(len(dy)):
-              y[i] = (u[i] + dt*dy[i])/(1.0+dt)
-  
-            guess = y
+        # do an implicit coarse grid
+        y = len(dy)*[None]
+        for i in range(len(dy)):
+          y[i] = (u[i] + dt*dy[i])/(1.0+dt)
         # end for itr
       #else:
       #  assert(False)
