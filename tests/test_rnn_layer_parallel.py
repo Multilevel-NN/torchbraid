@@ -138,7 +138,7 @@ class TestRNNLayerParallel(unittest.TestCase):
     self.backwardProp(applications=8)
 
   def test_backward_approx(self):
-    self.backwardProp(max_levels=3,max_iters=12,sequence_length=27,tol=1e-5)
+    self.backwardProp(max_levels=3,max_iters=20,sequence_length=27,tol=1e-5)
 
   def test_backward_lstm(self):
     if MPI.COMM_WORLD.Get_size()==1: 
@@ -401,6 +401,7 @@ class TestRNNLayerParallel(unittest.TestCase):
     parallel_rnn.setSkipDowncycle(True)
     parallel_rnn.setCFactor(cfactor)
     parallel_rnn.setNumRelax(nrelax)
+    parallel_rnn.setImplicitLevel(0)
 
     torch.manual_seed(20)
     rand_w = torch.randn([1,x_block[0].size(0),hidden_size])
@@ -472,8 +473,10 @@ class TestRNNLayerParallel(unittest.TestCase):
         parallel_hn = y_parallel_hn
         parallel_cn = y_parallel_cn
 
+      print('\n\n')
       print(torch.norm(y_serial_cn-parallel_cn).item()/torch.norm(y_serial_cn).item(),'forward cn')
       print(torch.norm(y_serial_hn-parallel_hn).item()/torch.norm(y_serial_hn).item(),'forward hn')
+      sys.stdout.flush()
 
       self.assertTrue(torch.norm(y_serial_cn-parallel_cn)/torch.norm(y_serial_cn)<tol,'cn value')
       self.assertTrue(torch.norm(y_serial_hn-parallel_hn)/torch.norm(y_serial_hn)<tol,'hn value')

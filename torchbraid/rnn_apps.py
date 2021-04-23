@@ -65,8 +65,6 @@ class ForwardBraidApp(parent.BraidApp):
     self.timer_manager = timer_manager
     self.use_deriv = False
 
-    self.user_dt_ratio = self._dt_ratio_
-
     self.seq_shapes = None
     self.backpropped = dict()
 
@@ -81,19 +79,9 @@ class ForwardBraidApp(parent.BraidApp):
   def setComputeStep(compute_step):
     self.computeStep = compute_step
 
-  def _dt_ratio_(self,level,tstart,tstop,fine_dt): 
-    return np.sqrt(np.sqrt((tstop-tstart)/fine_dt))
-
-  def setDtRatio(self,user_dt_ratio):
-    self.user_dt_ratio = user_dt_ratio
-
   def setImplicitLevel(self,enable=True,level=1):
     self.implicit_coarse_grid = enable
     self.implicit_level       = level
-
-  def dt_ratio(self,level,tstart,tstop):
-    return self.user_dt_ratio(level,tstart,tstop,self.dt)
-  # end dt_ratio
 
   def getTensorShapes(self):
     return list(self.shape0)+self.seq_shapes
@@ -190,7 +178,7 @@ class ForwardBraidApp(parent.BraidApp):
       if level<self.implicit_level:
         with self.timer("model"):
           return self.RNN_models(x,*u)
-      elif self.implicit_coarse_grid:
+      else:
         # this introduces stability
   
         guess = u 
@@ -207,13 +195,8 @@ class ForwardBraidApp(parent.BraidApp):
   
             guess = y
         # end for itr
-      else:
-        dt_ratio = self.dt_ratio(level,tstart,tstop)
-  
-        y = self.RNN_models(x,*u)
-        y = list(y)
-        for i in range(len(y)):
-          y[i] = (1.0-dt_ratio)*u[i]+dt_ratio*y[i]
+      #else:
+      #  assert(False)
   
     return y
 
