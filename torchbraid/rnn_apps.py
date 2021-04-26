@@ -37,7 +37,6 @@ import traceback
 import numpy as np
 
 from braid_vector import BraidVector
-from inspect import signature
 
 import torchbraid_app as parent
 import utils
@@ -48,7 +47,7 @@ from mpi4py import MPI
 
 class ForwardBraidApp(parent.BraidApp):
 
-  def __init__(self,comm,RNN_models,local_num_steps,hidden_size,num_layers,Tf,max_levels,max_iters,timer_manager,abs_tol):
+  def __init__(self,comm,RNN_models,local_num_steps,hidden_size,num_layers,Tf,max_levels,max_iters,timer_manager,abs_tol,model_compute_steps):
     parent.BraidApp.__init__(self,'RNN',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=None,require_storage=True,abs_tol=abs_tol)
 
     self.hidden_size = hidden_size
@@ -72,13 +71,11 @@ class ForwardBraidApp(parent.BraidApp):
     # parameters for the implicit coarse grid
     self.implicit_level = 1
 
-    # figure out if this takes, two arguments (use comptueStep_hidden) 
-    sig = signature(self.RNN_models)
-    #if len(sig.parameters)==2:
-    #  # the user would like us to do the time stepping
-    self.computeStep = self.computeStep_hidden
-    #else:
-    #  assert(False)
+    if not model_compute_steps:
+      # the user would like us to do the time stepping
+      self.computeStep = self.computeStep_hidden
+    else:
+      self.computeStep = self.RNN_models
   # end __init__
 
   def setComputeStep(compute_step):
@@ -175,24 +172,20 @@ class ForwardBraidApp(parent.BraidApp):
     data input x, and hidden state u. Output hidden state
     y.
     """
-    with self.timer("computeStep"):
 
-      dt = tstop-tstart
-  
-      if level<self.implicit_level:
-        return self.RNN_models(x,*u)
-      else:
-        # this introduces stability
-  
-        dy = self.RNN_models(x,*u)
-  
-        # do an implicit coarse grid
-        y = len(dy)*[None]
-        for i in range(len(dy)):
-          y[i] = (u[i] + dt*dy[i])/(1.0+dt)
-        # end for itr
-      #else:
-      #  assert(False)
+    dt = tstop-tstart
+
+    if level<self.implicit_level:
+      return self.RNN_models(x,*u)
+    else:
+      # this introduces stability
+
+      dy = self.RNN_models(x,*u)
+
+      # do an implicit coarse grid
+      y = len(dy)*[None]
+      for i in range(len(dy)):
+        y[i] = (u[i] + dt*dy[i])/(1.0+dt)
   
     return y
 

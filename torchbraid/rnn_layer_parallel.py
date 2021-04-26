@@ -135,7 +135,7 @@ class RNN_Parallel(nn.Module):
 
   ##################################################
 
-  def __init__(self,comm,basic_block,num_steps,hidden_size,num_layers,Tf,max_levels=1,max_iters=10,abs_tol=1e-12):
+  def __init__(self,comm,basic_block,num_steps,hidden_size,num_layers,Tf,model_compute_steps=False,max_levels=1,max_iters=10,abs_tol=1e-12):
     super(RNN_Parallel,self).__init__()
 
     self.exec_helper = self.ExecLP(comm.Get_rank())
@@ -146,7 +146,7 @@ class RNN_Parallel(nn.Module):
     self.timer_manager = ContextTimerManager()
 
     # RNN_torchbraid_apps.py -> ForwardBraidApp
-    self.fwd_app = apps.ForwardBraidApp(comm,self.RNN_models,num_steps,hidden_size,num_layers,Tf,max_levels,max_iters,self.timer_manager,abs_tol)
+    self.fwd_app = apps.ForwardBraidApp(comm,self.RNN_models,num_steps,hidden_size,num_layers,Tf,max_levels,max_iters,self.timer_manager,abs_tol,model_compute_steps)
     self.bwd_app = apps.BackwardBraidApp(self.fwd_app,self.timer_manager,abs_tol)
 
     self.param_size = 0
