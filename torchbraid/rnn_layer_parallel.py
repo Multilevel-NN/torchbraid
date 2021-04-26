@@ -146,17 +146,20 @@ class RNN_Parallel(nn.Module):
     self.timer_manager = ContextTimerManager()
 
     # RNN_torchbraid_apps.py -> ForwardBraidApp
-    self.fwd_app = apps.ForwardBraidApp(comm,self.RNN_models,num_steps,hidden_size,num_layers,Tf,max_levels,max_iters,self.timer_manager,abs_tol,model_compute_steps)
+    self.fwd_app = apps.ForwardBraidApp(comm,self.RNN_models,num_steps,Tf,max_levels,max_iters,self.timer_manager,abs_tol,model_compute_steps)
     self.bwd_app = apps.BackwardBraidApp(self.fwd_app,self.timer_manager,abs_tol)
 
     self.param_size = 0
 
     self.implicit_level   = 1
     self.implicit_enabled = False
+
+    self.num_layers = num_layers
+    self.hidden_size = hidden_size
   # end __init__
 
   def getSerialModel(self):
-    return self.RNN_Serial(self.RNN_models,self.fwd_app.num_layers,self.fwd_app.hidden_size,
+    return self.RNN_Serial(self.RNN_models,self.num_layers,self.hidden_size,
                            is_implicit=(self.implicit_enabled and self.implicit_level==0))
 
   def comp_op(self):
@@ -220,8 +223,8 @@ class RNN_Parallel(nn.Module):
     # with the torch.autograd.function
 
     if h_c is None:
-      h = torch.zeros(self.fwd_app.num_layers, x.size(0), self.fwd_app.hidden_size)
-      c = torch.zeros(self.fwd_app.num_layers, x.size(0), self.fwd_app.hidden_size)
+      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
       h_c = (h,c)
 
     params = list(self.parameters())

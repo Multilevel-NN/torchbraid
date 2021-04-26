@@ -47,11 +47,8 @@ from mpi4py import MPI
 
 class ForwardBraidApp(parent.BraidApp):
 
-  def __init__(self,comm,RNN_models,local_num_steps,hidden_size,num_layers,Tf,max_levels,max_iters,timer_manager,abs_tol,model_compute_steps):
+  def __init__(self,comm,RNN_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,abs_tol,model_compute_steps):
     parent.BraidApp.__init__(self,'RNN',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=None,require_storage=True,abs_tol=abs_tol)
-
-    self.hidden_size = hidden_size
-    self.num_layers = num_layers
 
     self.RNN_models = RNN_models
 
