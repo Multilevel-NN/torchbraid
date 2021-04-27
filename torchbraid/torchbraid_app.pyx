@@ -204,6 +204,9 @@ class BraidApp:
     else:
       self.shape0 = shape
 
+  def getShape(self):
+    return self.shape0 
+
   def initializeStates(self):
     try:
       t = 0.0
