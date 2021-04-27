@@ -45,11 +45,36 @@ from torchbraid.rnn_braid_function import BraidFunction
 
 import torchbraid.rnn_apps as apps
 
-##
-# Define your Python Braid Vector
+class RNN_Serial(nn.Module):
+  """
+  Helper class to build a serial RNN from the parallel version.
+  This makes comparison to the serial version easier
+  """
+  def __init__(self,RNN_model,num_layers,hidden_size,dt=1.0):
+    super(RNN_Serial,self).__init__()
+    self.num_layers  = num_layers
+    self.hidden_size = hidden_size
+    self.dt          = dt
 
-#  a python level module
-##########################################################
+    self.RNN_model = RNN_model 
+  # end __init__
+
+  def forward(self,x,h_c=None):
+    if h_c is None:
+      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+      h_c = (h,c)
+    elif isinstance(h_c,torch.Tensor):
+      h_c = (h_c,)
+
+    num_steps = x.shape[1]
+    for i in range(num_steps):
+      h_c = self.RNN_model(0,0.0,self.dt,x[:,i,:],h_c)
+
+    if len(h_c)==1:
+      return h_c[0]
+    return h_c
+# end RNN_Serial
 
 class RNN_Parallel(nn.Module):
   class ExecLP:
@@ -90,32 +115,7 @@ class RNN_Parallel(nn.Module):
 
        # so this is all a hack to get this thing to work
       return torch.zeros(1)*value
-
-  class RNN_Serial(nn.Module):
-    def __init__(self,compute_step,num_layers,hidden_size,dt=1.0):
-      super(RNN_Parallel.RNN_Serial,self).__init__()
-      self.num_layers  = num_layers
-      self.hidden_size = hidden_size
-      self.dt          = dt
-
-      self.computeStep = compute_step
-    # end __init__
-
-    def forward(self,x,h_c=None):
-      if h_c is None:
-        h = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
-        c = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
-        h_c = (h,c)
-      elif isinstance(h_c,torch.Tensor):
-        h_c = (h_c,)
-
-      num_steps = x.shape[1]
-      for i in range(num_steps):
-        h_c = self.computeStep(0,0.0,self.dt,x[:,i,:],h_c)
-
-      if len(h_c)==1:
-        return h_c[0]
-      return h_c
+  # end ExecLP
 
   ##################################################
 
@@ -134,9 +134,6 @@ class RNN_Parallel(nn.Module):
     self.fwd_app = apps.ForwardBraidApp(comm,self.RNN_models,num_steps,Tf,max_levels,max_iters,self.timer_manager,abs_tol)
     self.bwd_app = apps.BackwardBraidApp(self.fwd_app,self.timer_manager,abs_tol)
   # end __init__
-
-  def getSerialModel(self):
-    return self.RNN_Serial(self.RNN_models,self.num_layers,self.hidden_size)
 
   def comp_op(self):
     """Short for compose operator, returns a functor that allows contstruction of composite neural 
