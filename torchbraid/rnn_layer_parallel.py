@@ -122,28 +122,21 @@ class RNN_Parallel(nn.Module):
   def __init__(self,comm,basic_block,num_steps,hidden_size,num_layers,Tf,model_compute_steps=False,max_levels=1,max_iters=10,abs_tol=1e-12):
     super(RNN_Parallel,self).__init__()
 
+    self.comm        = comm
+    self.num_layers  = num_layers
+    self.hidden_size = hidden_size
+    self.RNN_models  = basic_block
+
     self.exec_helper = self.ExecLP(comm.Get_rank())
-    self.comm = comm
-
-    self.RNN_models = basic_block
-
     self.timer_manager = ContextTimerManager()
 
     # RNN_torchbraid_apps.py -> ForwardBraidApp
-    self.fwd_app = apps.ForwardBraidApp(comm,self.RNN_models,num_steps,Tf,max_levels,max_iters,self.timer_manager,abs_tol,model_compute_steps)
+    self.fwd_app = apps.ForwardBraidApp(comm,self.RNN_models,num_steps,Tf,max_levels,max_iters,self.timer_manager,abs_tol)
     self.bwd_app = apps.BackwardBraidApp(self.fwd_app,self.timer_manager,abs_tol)
-
-    self.param_size = 0
-
-    self.implicit_level   = 1
-    self.implicit_enabled = False
-
-    self.num_layers = num_layers
-    self.hidden_size = hidden_size
   # end __init__
 
   def getSerialModel(self):
-    return self.RNN_Serial(self.fwd_app.computeStep,self.num_layers,self.hidden_size)
+    return self.RNN_Serial(self.RNN_models,self.num_layers,self.hidden_size)
 
   def comp_op(self):
     """Short for compose operator, returns a functor that allows contstruction of composite neural 
@@ -194,11 +187,6 @@ class RNN_Parallel(nn.Module):
 
   def getMPIComm(self):
     return self.fwd_app.getMPIComm()
-
-  def setImplicitLevel(self,enable=True,level=1):
-    self.implicit_level   = level
-    self.implicit_enabled = enable
-    self.fwd_app.setImplicitLevel(level)
 
   def forward(self,x,h_c=None):
     # we are doing this to take adavtage of

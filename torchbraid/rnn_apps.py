@@ -47,7 +47,7 @@ from mpi4py import MPI
 
 class ForwardBraidApp(parent.BraidApp):
 
-  def __init__(self,comm,RNN_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,abs_tol,model_compute_steps):
+  def __init__(self,comm,RNN_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,abs_tol):
     parent.BraidApp.__init__(self,'RNN',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=None,require_storage=True,abs_tol=abs_tol)
 
     self.RNN_models = RNN_models
@@ -64,22 +64,10 @@ class ForwardBraidApp(parent.BraidApp):
 
     self.seq_shapes = None
     self.backpropped = dict()
-
-    # parameters for the implicit coarse grid
-    self.implicit_level = 1
-
-    if not model_compute_steps:
-      # the user would like us to do the time stepping
-      self.computeStep = self.computeStep_hidden
-    else:
-      self.computeStep = self.RNN_models
   # end __init__
 
-  def setComputeStep(compute_step):
-    self.computeStep = compute_step
-
-  def setImplicitLevel(self,level=1):
-    self.implicit_level       = level
+  def timer(self,name):
+    return self.timer_manager.timer("ForWD::"+name)
 
   def getTensorShapes(self):
     return list(self.shape0)+self.seq_shapes
@@ -98,21 +86,6 @@ class ForwardBraidApp(parent.BraidApp):
       value = self.x[:,0,:].detach().clone()
       
     return value
-
-  def clearTempLayerWeights(self):
-    layer = self.temp_layer
-
-    for dest_p in list(layer.parameters()):
-      dest_p.data = torch.empty(())
-  # end setLayerWeights
-
-  def setLayerWeights(self,t,tf,level,weights):
-    layer = self.getLayer(t,tf,level)
-
-    with torch.no_grad():
-      for dest_p,src_w in zip(list(layer.parameters()),weights):
-        dest_p.data = src_w
-  # end setLayerWeights
 
   def initializeVector(self,t,x):
     if t!=0.0: # don't change the initial condition
@@ -160,32 +133,6 @@ class ForwardBraidApp(parent.BraidApp):
     return y
   # end forward
 
-  def timer(self,name):
-    return self.timer_manager.timer("ForWD::"+name)
-
-  def computeStep_hidden(self,level,tstart,tstop,x,u):
-    """
-    Propagate the RNN for a single time step, given
-    data input x, and hidden state u. Output hidden state
-    y.
-    """
-
-    dt = tstop-tstart
-
-    if level<self.implicit_level:
-      return self.RNN_models(x,*u)
-    else:
-      # this introduces stability
-
-      dy = self.RNN_models(x,*u)
-
-      # do an implicit coarse grid
-      y = len(dy)*[None]
-      for i in range(len(dy)):
-        y[i] = (u[i] + dt*dy[i])/(1.0+dt)
-  
-    return y
-
   def eval(self,g0,tstart,tstop,level,done):
     """
     Method called by "my_step" in braid. This is
@@ -205,7 +152,7 @@ class ForwardBraidApp(parent.BraidApp):
       if not done or level>0:
         u = g0.tensors()
         with torch.no_grad():
-          y = self.computeStep(level,tstart,tstop,seq_x,u)
+          y = self.RNN_models(level,tstart,tstop,seq_x,u)
 
       else:
         # setup the solution vector for derivatives
@@ -214,7 +161,7 @@ class ForwardBraidApp(parent.BraidApp):
           t.requires_grad = True
 
         with torch.enable_grad():
-          y = self.computeStep(level,tstart,tstop,seq_x,u)
+          y = self.RNN_models(level,tstart,tstop,seq_x,u)
 
         # store the fine level solution for reuse later in backprop
         if level==0:
@@ -256,7 +203,7 @@ class ForwardBraidApp(parent.BraidApp):
   
       # evaluate the step
       with torch.enable_grad():
-        y = self.computeStep(level,tstart,tstop,seq_x,u)
+        y = self.RNN_models(level,tstart,tstop,seq_x,u)
    
     return y, u
   # end getPrimalWithGrad
@@ -289,15 +236,15 @@ class BackwardBraidApp(parent.BraidApp):
     self.timer_manager = timer_manager
   # end __init__
 
+  def __del__(self):
+    self.fwd_app = None
+
   def initializeVector(self,t,x):
     # this is being really careful, can't
     # change the intial condition
     if t!=0.0:
       for ten in x.tensors():
         ten[:] = 0.0
-
-  def __del__(self):
-    self.fwd_app = None
 
   def getTensorShapes(self):
     return self.shape0
