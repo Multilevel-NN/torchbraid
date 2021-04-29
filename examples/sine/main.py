@@ -141,10 +141,12 @@ parser.add_argument('--epochs', type=int, default=500, metavar='N', help='number
 parser.add_argument('--batch-size', type=int, default=20, metavar='N', help='batch size for training (default: 50)')
 parser.add_argument('--max-levels', type=int, default=10, metavar='N', help='maximum number of braid levels (default: 10)')
 parser.add_argument('--max-iters', type=int, default=1, metavar='N', help='maximum number of braid iteration (default: 1)')
-parser.add_argument('--splinet', action='store_true', default=False, help='Use SpliNet instead of Resnet')
+parser.add_argument('--nsplines', type=int, default=0, metavar='N', help='Number of splines for SpliNet (default: 0, i.e. do not use a splinet)')
+parser.add_argument('--splinedegree', type=int, default=1, metavar='N', help='Degree of splines (default: 1)')
+parser.add_argument('--recoverResNet', action='store_true', default=False, help='For debugging: Use SpliNet to recover a ResNet.')
 args = parser.parse_args()
 
-if args.splinet:
+if args.nsplines>0:
     splinet = True
 else:
     splinet = False
@@ -165,15 +167,16 @@ torch.manual_seed(0)
 # Specify network
 width = 2
 nlayers = 10
-Tstop = 10.0
+Tstop = 1.0
 
 # spline parameters
-if splinet:
-    nsplines=4
-else:
-    nsplines=0
-splinedegree=2
+nsplines=args.nsplines
+splinedegree=args.splinedegree
 
+# In order to recover a ResNet, choose nspline=nlayer+1, d=1
+if args.recoverResNet:
+    nsplines = nlayers+1
+    d=1
 
 # Specify training params
 batch_size = args.batch_size
