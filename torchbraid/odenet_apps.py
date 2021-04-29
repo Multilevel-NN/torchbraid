@@ -39,17 +39,20 @@ import sys
 import traceback
 import resource
 import copy
+import numpy as np
+
+from bsplines import evalBsplines
 
 from mpi4py import MPI
 
 class ForwardODENetApp(BraidApp):
 
-  def __init__(self,comm,layer_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None, layer_block=None):
+  def __init__(self,comm,layer_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None, layer_block=None, nsplines=0, splinedegree=1):
     """
     """
     BraidApp.__init__(self,'FWDApp',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=True)
 
-    # note that a simple equals would result in a shallow copy...bad!
+    # note that a simple equals would result in a shallow copy...bad! (SG: why would that be bad?)
     self.layer_models = [l for l in layer_models]
 
     comm          = self.getMPIComm()
@@ -58,7 +61,19 @@ class ForwardODENetApp(BraidApp):
     self.my_rank = my_rank
     self.layer_block = layer_block
 
+    # SpliNet 
+    self.splinet=False
+    if nsplines>0:
+      self.splinet=True
+      self.nsplines=nsplines
+      self.splinedegree=splinedegree
+      nKnots = nsplines - splinedegree + 1
+      self.spline_dKnots = Tf / (nKnots - 1)
+      self.splinecoeffs = np.zeros(splinedegree + 1)
+
+
     # send everything to the left (this helps with the adjoint method)
+    # SG: This is probably not needed anymore when using SpliNets... TODO: Check!
     if my_rank>0:
       comm.send(list(self.layer_models[0].parameters()), dest=my_rank-1,tag=22)
     if my_rank<num_ranks-1:
@@ -93,19 +108,45 @@ class ForwardODENetApp(BraidApp):
     return list(self.shape0)+self.parameter_shapes
 
   def setVectorWeights(self,t,tf,level,x):
-    layer = self.getLayer(t,tf,level)
-    if layer!=None:
-      weights = [p.data for p in layer.parameters()]
+    if self.splinet:
+      # print("summing over spline coeffs(t=", t, ") times layerweights here!")
+
+      # Evaluate the splines 
+      evalBsplines(self.splinedegree, self.spline_dKnots, t, self.splinecoeffs)
+
+      # Find interval k such that t \in [\tau_k, \tau_k+1] for splineknots \tau
+      k = int(t / self.spline_dKnots)   
+      
+      # Add up sum over splines(t) times weights (p+1 many non-zero spline basis functions)
+      l = 0
+      coeff = self.splinecoeffs[l]
+      layer = self.layer_models[k+l]
+      # print(" -> l=0: coeff=", coeff, ", weights at layer ", k)
+      weights = [coeff*p.data for p in layer.parameters()] # l=0
+      for l in range(1,self.splinedegree + 1): # l=1,dots, p
+        coeff = self.splinecoeffs[l]
+        layer = self.layer_models[k+l]
+        # print(" -> l=", l,": coeff=", coeff, " weights at layer ", k+l)  
+        if layer != None : # test this because at t=Tf, there is one spline missing. But weights at Tf should actually never be used. So this might be just fine.
+          for dest_w, src_p in zip(weights, list(layer.parameters())):  
+            dest_w.add_(src_p.data, alpha=coeff)
+
     else:
-      weights = []
+      layer = self.getLayer(t,tf,level)
+      if layer!=None:
+        weights = [p.data for p in layer.parameters()]
+      else:
+        weights = []
+
     x.addWeightTensors(weights)
+  # end setVectorWeights
 
   def clearTempLayerWeights(self):
     layer = self.temp_layer
 
     for dest_p in list(layer.parameters()):
       dest_p.data = torch.empty(())
-  # end setLayerWeights
+  # end clearLayerWeights
 
   def setLayerWeights(self,t,tf,level,weights):
     layer = self.getLayer(t,tf,level)
@@ -164,6 +205,12 @@ class ForwardODENetApp(BraidApp):
     return self.timer_manager.timer("ForWD::"+name)
 
   def getLayer(self,t,tf,level):
+
+    # if it is a splinet, use weights from temp_layer. It always contains the sum over spline-coeffs times spline weights, as set in setVectorWeights(tstop)
+    if self.splinet:
+      return self.temp_layer
+
+    # if not a splinet, get the layer either from storage layer_models[i] or, if it is not stored on this proc, from the temp_layer 
     index = self.getLocalTimeStepIndex(t,tf,level)
     if index < 0:
       #pre_str = "\n{}: WARNING: getLayer index negative at {}: {}\n".format(self.my_rank,t,index)
@@ -192,7 +239,7 @@ class ForwardODENetApp(BraidApp):
     def in_place_eval(t_y,tstart,tstop,level,t_x=None):
       # get some information about what to do
       dt = tstop-tstart
-      layer = self.getLayer(tstart,tstop,level) # resnet "basic block"
+      layer = self.getLayer(tstart,tstop,level) # if splinet, this returns temp_layer
 
       #print(self.my_rank, ": FWDeval level ", level, " ", tstart, "->", tstop, " using layer ", layer.getID(), ": ", layer.linearlayer.weight[0].data)
 
@@ -211,6 +258,7 @@ class ForwardODENetApp(BraidApp):
     #  2. x is a torch tensor: called internally (probably for the adjoint) 
 
     if isinstance(y,BraidVector):
+      # SG: If splinet, this will pass y.weights to temp_layer
       self.setLayerWeights(tstart,tstop,level,y.weightTensors())
 
       t_y = y.tensor().detach()
@@ -226,7 +274,7 @@ class ForwardODENetApp(BraidApp):
         y.setSendFlag(False)
       # wipe out any sent information
 
-      self.setVectorWeights(tstop,0.0,level,y)
+      self.setVectorWeights(tstop,0.0,level,y) # if splinet, this will set y.weights to the sum over spline-coeffs(tstop) times spline-weights 
 
     else: 
       x.requires_grad = True 

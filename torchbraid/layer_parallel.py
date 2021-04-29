@@ -105,7 +105,7 @@ class LayerParallel(nn.Module):
        # so this is all a hack to get this thing to work
       return torch.zeros(1)*value
 
-  def __init__(self,comm,layer_block,num_steps,Tf,max_levels=1,max_iters=10,spatial_ref_pair=None):
+  def __init__(self,comm,layer_block,num_steps,Tf,max_levels=1,max_iters=10,spatial_ref_pair=None, nsplines=0, splinedegree=1):
     super(LayerParallel,self).__init__()
 
     self.comm = comm
@@ -116,21 +116,22 @@ class LayerParallel(nn.Module):
     global_steps = num_steps*comm.Get_size()
 
     self.dt = Tf/global_steps
-  
     self.layer_block = layer_block
-    self.layer_models = [layer_block() for i in range(num_steps)]
-    # SG
-    # for i in range(num_steps):
-    #     setTime_op = getattr(self.layer_models[i], "setTime", None)
-    #     if callable(setTime_op):
-    #         self.layer_models[i].setTime(i*self.dt)
-    
+
+    # if not a SpliNet, create user's StepLayer at each time step. Else: Create user's StepLayer for each spline
+    if nsplines>0:
+      print("Torchbraid will create a splinet with ", nsplines, " splines, degree=", splinedegree)
+      print("Now creating one user-layer for each spline.")
+      self.layer_models = [layer_block() for i in range(nsplines)]
+    else: 
+      self.layer_models = [layer_block() for i in range(num_steps)]
+
+    # SG: NOT SO SURE WHERE THIS IS USED... this might break with splinets... TODO: Understand!
     self.local_layers = nn.Sequential(*self.layer_models)
 
     self.timer_manager = ContextTimerManager()
 
-    self.fwd_app = apps.ForwardODENetApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.timer_manager,
-                                         spatial_ref_pair=spatial_ref_pair, layer_block=layer_block)
+    self.fwd_app = apps.ForwardODENetApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.timer_manager, spatial_ref_pair=spatial_ref_pair, layer_block=layer_block, nsplines=nsplines, splinedegree=splinedegree)
     self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager)
 
     self.enable_diagnostics = False

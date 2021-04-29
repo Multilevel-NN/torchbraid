@@ -9,6 +9,13 @@ import torchbraid
 from mpi4py import MPI
 # import torchbraid.utils
 
+# from bspline import evalBsplines
+
+def root_print(rank,s):
+  if rank==0:
+    print(s)
+
+
 # MPI Stuff
 rank  = MPI.COMM_WORLD.Get_rank()
 procs = MPI.COMM_WORLD.Get_size()
@@ -59,39 +66,37 @@ class ClosingLayer(torch.nn.Module):
         return x
 
 # Define the steplayer
-cnt_local = 0 # counting the number of layers created on this processer
+cnt_local = 0 # counting the number of steplayers created on this processer
 class StepLayer(torch.nn.Module):
     def __init__(self, width):
         super(StepLayer, self).__init__()
         global cnt_local
 
         # Global identifier for this layer
-        layerID = rank * nlayers / procs + cnt_local
-        cnt_local = cnt_local + 1
+        layerID = round(rank * nlayers / procs) + cnt_local
         self.ID = layerID
+        init_amp = layerID + 1.0
+        cnt_local = cnt_local + 1
 
-        # Create linear layer
+        # Create linear layer. init constant for debugging
         self.linearlayer = torch.nn.Linear(width, width)
-        torch.nn.init.constant_(self.linearlayer.weight, layerID) # make constant for debugging
+        torch.nn.init.constant_(self.linearlayer.weight, init_amp) # make constant for debugging
         self.linearlayer.bias.data.fill_(0)
 
-        print(rank ,": Creating ", layerID, "-th Layer, weights_const=", self.linearlayer.weight[0].data)
-
-    def getID(self):
-        return self.ID
+        print(rank ,": Creating StepLayer ", layerID, "-th Layer, weights_const=", init_amp)
 
     def forward(self, x):
         x = torch.tanh(self.linearlayer(x))
         return x
 
 class ParallelNet(torch.nn.Module):
-    def __init__(self, Tstop=10.0, width=4, local_steps=10, max_levels=1, max_iters=1, fwd_max_iters=0, print_level=0, braid_print_level=0, cfactor=4, fine_fcf=False, skip_downcycle=True, fmg=False):
+    def __init__(self, Tstop=10.0, width=4, local_steps=10, max_levels=1, max_iters=1, fwd_max_iters=0, print_level=0, braid_print_level=0, cfactor=4, fine_fcf=False, skip_downcycle=True, fmg=False, nsplines=0, splinedegree=1):
         super(ParallelNet, self).__init__()
 
         step_layer = lambda: StepLayer(width)
 
-        # Create and store parallel net
-        self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD, step_layer, local_steps, Tstop, max_levels=max_levels, max_iters=max_iters)
+        # Create and store parallel net, use splinet flag to tell torchbraid to use spline parameterization
+        self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD, step_layer, local_steps, Tstop, max_levels=max_levels, max_iters=max_iters, nsplines=nsplines, splinedegree=splinedegree)
 
         # Set options
         if fwd_max_iters > 0:
@@ -131,9 +136,28 @@ class ParallelNet(torch.nn.Module):
 
 # Parse command line
 parser = argparse.ArgumentParser(description='TORCHBRAID Sine Example')
+parser.add_argument('--force-lp', action='store_true', default=False, help='Use layer parallel even if there is only 1 MPI rank')
+parser.add_argument('--epochs', type=int, default=500, metavar='N', help='number of epochs to train (default: 2)')
 parser.add_argument('--batch-size', type=int, default=20, metavar='N', help='batch size for training (default: 50)')
 parser.add_argument('--max-levels', type=int, default=10, metavar='N', help='maximum number of braid levels (default: 10)')
+parser.add_argument('--max-iters', type=int, default=1, metavar='N', help='maximum number of braid iteration (default: 1)')
+parser.add_argument('--splinet', action='store_true', default=False, help='Use SpliNet instead of Resnet')
 args = parser.parse_args()
+
+if args.splinet:
+    splinet = True
+else:
+    splinet = False
+
+# some logic to default to Serial if on one processor,
+# can be overriden by the user to run layer-parallel
+if args.force_lp:
+    force_lp = True
+elif procs>1:
+    force_lp = True
+else:
+    force_lp = False
+
 
 # Set a seed for reproducability
 torch.manual_seed(0)
@@ -143,10 +167,21 @@ width = 2
 nlayers = 10
 Tstop = 10.0
 
+# spline parameters
+if splinet:
+    nsplines=4
+else:
+    nsplines=0
+splinedegree=2
+
+
 # Specify training params
 batch_size = args.batch_size
+max_epochs = args.epochs
 max_levels = args.max_levels
+max_iters = args.max_iters
 learning_rate = 1e-3
+
 
 
 # Get sine data
@@ -161,9 +196,9 @@ torch.manual_seed(0)
 
 # Layer-parallel parameters
 lp_max_levels = max_levels
-lp_max_iter = 1
+lp_max_iter = max_iters
 lp_printlevel = 2
-lp_braid_printlevel = 2
+lp_braid_printlevel = 1
 lp_cfactor = 2
 # Number of local steps
 local_steps  = int(nlayers / procs)
@@ -171,8 +206,8 @@ if nlayers % procs != 0:
     print(rank,'NLayers must be an even multiple of the number of processors: %d %d' % (nlayers, procs) )
     stop
 
-# print(rank, "Building parallel net")
 # Create layer parallel network
+root_print(rank, "Building parallel net")
 model = ParallelNet(Tstop=Tstop,
             width=width,
             local_steps=local_steps,
@@ -184,7 +219,9 @@ model = ParallelNet(Tstop=Tstop,
             cfactor=lp_cfactor,
             fine_fcf=False,
             skip_downcycle=False,
-            fmg=False)
+            fmg=False, 
+            nsplines=nsplines,
+            splinedegree=splinedegree)
 
 compose = model.compose   # NOT SO SURE WHAT THAT DOES
 
