@@ -119,6 +119,12 @@ class LayerParallel(nn.Module):
   
     self.layer_block = layer_block
     self.layer_models = [layer_block() for i in range(num_steps)]
+    # SG
+    # for i in range(num_steps):
+    #     setTime_op = getattr(self.layer_models[i], "setTime", None)
+    #     if callable(setTime_op):
+    #         self.layer_models[i].setTime(i*self.dt)
+    
     self.local_layers = nn.Sequential(*self.layer_models)
 
     self.timer_manager = ContextTimerManager()

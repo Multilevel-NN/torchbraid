@@ -95,6 +95,19 @@ class BraidApp:
       self.spatial_mg = True
     # turn on spatial multigrid
 
+    # SG: why would this not work? 
+    # # Get information on Braid's grid distribution and store local times
+    # cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
+    # cdef int ilower
+    # cdef int iupper
+    # _braid_GetDistribution(core, &ilower, &iupper)
+    # self.ilower = ilower
+    # self.iupper = iupper
+
+    # self.dt       = Tf/self.num_steps
+    # self.t0_local = self.ilower * self.dt
+    # self.tf_local = self.iupper * self.dt
+
     # build up the core
     self.py_core = self.initCore()
 
