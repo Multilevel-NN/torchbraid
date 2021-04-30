@@ -64,7 +64,39 @@ class ForwardBraidApp(parent.BraidApp):
 
     self.seq_shapes = None
     self.backpropped = dict()
+    self.seq_x_reduced = dict()
+
+    self.has_fastforward = hasattr(self.RNN_models,'fastForward')
+    if self.has_fastforward:
+      assert(hasattr(self.RNN_models,'reduceX'))
   # end __init__
+
+  def computeStep(self,level,tstart,tstop,seq_x,u,allow_ff):
+    """
+    This method handles a fast forward evaluation. If the user has not
+    defined a RNN cell that can handle fast forward, a standard computation
+    is performed. If the cell can handle the fast forward, then the reduced
+    version of the sequence is computed or pulled from a dictionary. If its 
+    computed, the computed reduced value of the sequence is stored for
+    reuse. Regardless of it being computed or pulled from storage, the fastForward
+    version of the RNNcell is called (which used the reduced version of the
+    sequence variable.
+    """
+    
+    if allow_ff:
+      if tstart not in self.seq_x_reduced:
+        # don't differentiate this
+        with torch.no_grad():
+          seq_x_reduce = self.RNN_models.reduceX(seq_x)
+
+        # store for later reuse
+        self.seq_x_reduced[tstart] = seq_x_reduce
+      else:
+        seq_x_reduce = self.seq_x_reduced[tstart]
+
+      return self.RNN_models.fastForward(level,tstart,tstop,seq_x_reduce,u)
+    else:
+      return self.RNN_models(level,tstart,tstop,seq_x,u)
 
   def timer(self,name):
     return self.timer_manager.timer("ForWD::"+name)
@@ -94,6 +126,12 @@ class ForwardBraidApp(parent.BraidApp):
     seq_x = self.getSequenceVector(t,None,level=0)
     x.addWeightTensors((seq_x,))
 
+    # if fast forward is available do an early evaluation of the
+    # sequence preemptively
+    if self.has_fastforward:
+      with torch.no_grad():
+        self.seq_x_reduced[t] = self.RNN_models.reduceX(seq_x)
+
   def run(self,x,h_c):
     num_ranks     = self.mpi_comm.Get_size()
     my_rank       = self.mpi_comm.Get_rank()
@@ -101,12 +139,7 @@ class ForwardBraidApp(parent.BraidApp):
 
     assert(x.shape[1]==self.local_num_steps)
 
-    # play with the parameter gradients to make sure they are on apprpriately,
-    # store the initial state so we can revert them later
-    required_grad_state = []
-    for p in self.RNN_models.parameters(): 
-      required_grad_state += [p.requires_grad]
-      p.requires_grad = False
+    self.seq_x_reduced = dict()
 
     self.x = x
     self.seq_shapes = [x[:,0,:].shape]
@@ -136,10 +169,6 @@ class ForwardBraidApp(parent.BraidApp):
     with self.timer("run:postcomm"):
       y = comm.bcast(y,root=num_ranks-1)
 
-    # revert the gradient state to where they started
-    for p,s in zip(self.RNN_models.parameters(),required_grad_state):
-      p.requires_grad = s
-
     # y is a tuple with the final h,c components
     return y
   # end forward
@@ -158,11 +187,12 @@ class ForwardBraidApp(parent.BraidApp):
       #                          of the adjoint)
   
       seq_x = g0.weightTensors()[0]
-  
+
       # don't need derivatives or anything, just compute
       if not done or level>0:
         u = g0.tensors()
         with torch.no_grad():
+          #y = self.computeStep(level,tstart,tstop,seq_x,u,self.has_fastforward)
           y = self.RNN_models(level,tstart,tstop,seq_x,u)
 
       else:
@@ -172,6 +202,7 @@ class ForwardBraidApp(parent.BraidApp):
           t.requires_grad = True
 
         with torch.enable_grad():
+          #y = self.computeStep(level,tstart,tstop,seq_x,u,self.has_fastforward)
           y = self.RNN_models(level,tstart,tstop,seq_x,u)
 
         # store the fine level solution for reuse later in backprop
@@ -185,7 +216,7 @@ class ForwardBraidApp(parent.BraidApp):
         g0.replaceTensor(t,i)
   # end eval
 
-  def getPrimalWithGrad(self,tstart,tstop,level):
+  def getPrimalWithGrad(self,tstart,tstop,level,done):
     """ 
     Get the forward solution associated with this
     time step and also get its derivative. This is
@@ -214,6 +245,7 @@ class ForwardBraidApp(parent.BraidApp):
   
       # evaluate the step
       with torch.enable_grad():
+        #y = self.computeStep(level,tstart,tstop,seq_x,u,allow_ff=done!=1 and self.has_fastforward)
         y = self.RNN_models(level,tstart,tstop,seq_x,u)
    
     return y, u
@@ -302,7 +334,7 @@ class BackwardBraidApp(parent.BraidApp):
 
         # we need to adjust the time step values to reverse with the adjoint
         # this is so that the renumbering used by the backward problem is properly adjusted
-        t_y,t_x = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+        t_y,t_x = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level,done)
 
         # perform adjoint computation
         t_w = w.tensors()
