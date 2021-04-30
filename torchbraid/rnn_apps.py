@@ -192,9 +192,7 @@ class ForwardBraidApp(parent.BraidApp):
       if not done or level>0:
         u = g0.tensors()
         with torch.no_grad():
-          #y = self.computeStep(level,tstart,tstop,seq_x,u,self.has_fastforward)
-          y = self.RNN_models(level,tstart,tstop,seq_x,u)
-
+          y = self.computeStep(level,tstart,tstop,seq_x,u,self.has_fastforward)
       else:
         # setup the solution vector for derivatives
         u = tuple([t.detach() for t in g0.tensors()])
@@ -202,8 +200,7 @@ class ForwardBraidApp(parent.BraidApp):
           t.requires_grad = True
 
         with torch.enable_grad():
-          #y = self.computeStep(level,tstart,tstop,seq_x,u,self.has_fastforward)
-          y = self.RNN_models(level,tstart,tstop,seq_x,u)
+          y = self.computeStep(level,tstart,tstop,seq_x,u,allow_ff=False)
 
         # store the fine level solution for reuse later in backprop
         if level==0:
@@ -245,8 +242,7 @@ class ForwardBraidApp(parent.BraidApp):
   
       # evaluate the step
       with torch.enable_grad():
-        #y = self.computeStep(level,tstart,tstop,seq_x,u,allow_ff=done!=1 and self.has_fastforward)
-        y = self.RNN_models(level,tstart,tstop,seq_x,u)
+        y = self.computeStep(level,tstart,tstop,seq_x,u,allow_ff=done!=1 and self.has_fastforward)
    
     return y, u
   # end getPrimalWithGrad
