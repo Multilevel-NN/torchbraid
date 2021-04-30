@@ -101,6 +101,13 @@ class ForwardBraidApp(parent.BraidApp):
 
     assert(x.shape[1]==self.local_num_steps)
 
+    # play with the parameter gradients to make sure they are on apprpriately,
+    # store the initial state so we can revert them later
+    required_grad_state = []
+    for p in self.RNN_models.parameters(): 
+      required_grad_state += [p.requires_grad]
+      p.requires_grad = False
+
     self.x = x
     self.seq_shapes = [x[:,0,:].shape]
 
@@ -128,6 +135,10 @@ class ForwardBraidApp(parent.BraidApp):
 
     with self.timer("run:postcomm"):
       y = comm.bcast(y,root=num_ranks-1)
+
+    # revert the gradient state to where they started
+    for p,s in zip(self.RNN_models.parameters(),required_grad_state):
+      p.requires_grad = s
 
     # y is a tuple with the final h,c components
     return y
@@ -280,9 +291,6 @@ class BackwardBraidApp(parent.BraidApp):
     """
     with self.timer("eval"):
       try:
-        # we need to adjust the time step values to reverse with the adjoint
-        # this is so that the renumbering used by the backward problem is properly adjusted
-        t_y,t_x = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
 
         # play with the parameter gradients to make sure they are on apprpriately,
         # store the initial state so we can revert them later
@@ -291,6 +299,10 @@ class BackwardBraidApp(parent.BraidApp):
           for p in self.RNN_models.parameters(): 
             required_grad_state += [p.requires_grad]
             p.requires_grad = False
+
+        # we need to adjust the time step values to reverse with the adjoint
+        # this is so that the renumbering used by the backward problem is properly adjusted
+        t_y,t_x = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
 
         # perform adjoint computation
         t_w = w.tensors()
