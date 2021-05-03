@@ -120,13 +120,24 @@ class LayerParallel(nn.Module):
 
     # if not a SpliNet, create user's StepLayer at each time step. Else: Create user's StepLayer for each spline
     if nsplines>0:
-      print("Torchbraid will create a splinet with ", nsplines, " splines, degree=", splinedegree)
-      print("Now creating one user-layer for each spline.")
-      self.layer_models = [layer_block() for i in range(nsplines)]
+      if comm.Get_rank() == 0:
+        print("Torchbraid will create a splinet with ", nsplines, " splines, degree=", splinedegree)
+      # Figure out how many local user-layers are created on this proc. This is somewhat duplicated from odenet_apps constructor... bad! TODO!
+      t0_local = comm.Get_rank()*num_steps*self.dt
+      tf_local = (comm.Get_rank()+1.0)*num_steps*self.dt
+      spline_dknots = Tf / (nsplines - splinedegree)
+      if comm.Get_rank() == 0: # First processor's time-interval includes t0_local=0.0. Others exclude t0_local, owning only (t0_local, tf_local]!
+        a = int( (t0_local ) / spline_dknots )
+      else:
+        a = int( (t0_local + self.dt) / spline_dknots )
+      b = int( (tf_local ) / spline_dknots ) + splinedegree
+      nsplines_local = b-a+1
+      print(comm.Get_rank(), ": Now creating ", nsplines_local, " trainable user layers.")
+      self.layer_models = [layer_block() for i in range(nsplines_local)]
     else: 
       self.layer_models = [layer_block() for i in range(num_steps)]
 
-    # SG: NOT SO SURE WHERE THIS IS USED... this might break with splinets... TODO: Understand!
+    # SG: This magic is used by pytorch to let autograd know what the trainable parameters are.
     self.local_layers = nn.Sequential(*self.layer_models)
 
     self.timer_manager = ContextTimerManager()
