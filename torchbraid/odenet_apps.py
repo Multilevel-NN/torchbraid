@@ -409,6 +409,8 @@ class BackwardODENetApp(BraidApp):
     problem solutions at the beginning (x) and end (y) of the type step.
     """
     try:
+        print(self.fwd_app.my_rank, ": BWDeval level ", level, " ", tstart, "->", tstop)
+          
         # we need to adjust the time step values to reverse with the adjoint
         # this is so that the renumbering used by the backward problem is properly adjusted
         (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
@@ -430,10 +432,43 @@ class BackwardODENetApp(BraidApp):
             # if you are not on the fine level, compute no parameter gradients
             p.requires_grad = False
 
-        # perform adjoint computation
+        # perform adjoint computations
         t_w = w.tensor()
         t_w.requires_grad = False
         t_y.backward(t_w)
+
+        # # SG: The above probably set's the gradient of the layer.parameters(), which is the templayer
+        # # Need to spread those gradients to each spline layer in the layer_models here
+        if self.fwd_app.splinet:
+          if done==1:
+            evalBsplines(self.fwd_app.splinedegree, self.fwd_app.spline_dknots, self.Tf-tstop, self.fwd_app.splinecoeffs)
+            k = int( (self.Tf-tstop) / self.fwd_app.spline_dknots)   
+
+            # Add up sum over p+1 non-zero splines(t) times weights coeffients
+            for l in range(self.fwd_app.splinedegree + 1): # l=0,dots, p
+              layermodel_localID = k + l - self.fwd_app.splineoffset
+              assert layermodel_localID >= 0
+              coeff = self.fwd_app.splinecoeffs[l]
+              layer_out = self.fwd_app.layer_models[layermodel_localID]
+              # dataout =[x.data for x in layer_out.parameters()]
+              # print("\n update gradient at layer = ", layermodel_localID, dataout[0])
+
+              # \bar L_{k+l} += self.splinecoeffs[l] * layer.parameters().gradient
+              if layer_out != None : 
+                for dest, src in zip(list(layer_out.parameters()), list(layer.parameters())):  
+                  # coeff = 100000.0
+                  if dest.grad == None:
+                    dest.grad = src.grad * coeff
+                  else:
+                    dest.grad.add_(src.grad, alpha=coeff)
+                  # print("dest.grad=", dest.grad)
+
+            for me in self.fwd_app.layer_models:
+              if me != None:
+                for p in me.parameters():
+                  print("grad=", p.grad)
+
+              # reset layer gradient!?
 
         # this little bit of pytorch magic ensures the gradient isn't
         # stored too long in this calculation (in particulcar setting

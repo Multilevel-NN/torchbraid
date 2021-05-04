@@ -248,8 +248,22 @@ for local_batch, local_labels in training_generator:
     # loss = myloss(ypred, local_labels)
 
     # Comput gradient through backpropagation
-    # optimizer.zero_grad()
-    # loss.backward()
+    optimizer.zero_grad()
+    loss.backward()
+
+    with torch.no_grad():
+        
+        gnorm = 0.0
+        print("Trainable parameters:")
+        for p in model.parameters():
+                # print("Data=", p.data)
+                print("Grad=", p.grad)
+                if p.grad != None:
+                    gnorm += p.grad.data.norm(2).item() ** 2
+        gnorm = gnorm ** (1. / 2)
+
+        print(rank, "Loss=", loss.item(), "  ||Grad||=", gnorm)
+
 
 # Output
 print(rank, ": Loss=", loss.item())
