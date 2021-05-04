@@ -122,7 +122,7 @@ class LayerParallel(nn.Module):
     if nsplines>0:
       if comm.Get_rank() == 0:
         print("Torchbraid will create a splinet with ", nsplines, " splines, degree=", splinedegree)
-      # Figure out how many local user-layers are created on this proc. This is somewhat duplicated from odenet_apps constructor... bad! TODO!
+      # Figure out how many local user-layers are created on this proc. This is somewhat duplicated from odenet_apps constructor... BAD! TODO: Change!
       t0_local = comm.Get_rank()*num_steps*self.dt
       tf_local = (comm.Get_rank()+1.0)*num_steps*self.dt
       spline_dknots = Tf / (nsplines - splinedegree)

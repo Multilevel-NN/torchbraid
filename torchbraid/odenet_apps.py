@@ -41,7 +41,7 @@ import resource
 import copy
 import numpy as np
 
-from bsplines import evalBsplines
+from bsplines import BsplineBasis
 
 from mpi4py import MPI
 
@@ -65,15 +65,15 @@ class ForwardODENetApp(BraidApp):
     self.splinet=False
     if nsplines>0:
       self.splinet=True
-      self.nsplines=nsplines
-      self.splinedegree=splinedegree
+      self.splinebasis = BsplineBasis(nsplines, splinedegree, Tf)
+
+      # compute index offset for local layer storage in the layer_models vector
       nKnots = nsplines - splinedegree + 1
-      self.spline_dknots = Tf / (nKnots - 1)
-      # index offset for local layer storage in the layer_models vector
+      spline_dknots = Tf / (nKnots - 1)
       if my_rank == 0: # First processor's time-interval includes t0_local=0.0. Others exclude t0_local, owning only (t0_local, tf_local]!
-        self.splineoffset =  int( (self.t0_local ) / self.spline_dknots ) 
+        self.splineoffset =  int( (self.t0_local ) / spline_dknots ) 
       else:
-        self.splineoffset =  int( (self.t0_local + self.dt) / self.spline_dknots ) # index offset for local storage
+        self.splineoffset =  int( (self.t0_local + self.dt) / spline_dknots ) # index offset for local storage
 
       # print(my_rank, ": Spline offset: ", self.splineoffset)
 
@@ -118,7 +118,7 @@ class ForwardODENetApp(BraidApp):
       # print("summing over spline coeffs(t=", t, ") times layerweights here!")
 
       # Evaluate the splines at time t as well as interval k such that t \in [\tau_k, \tau_k+1] for splineknots \tau
-      splines, k = evalBsplines(self.splinedegree, self.spline_dknots, t)
+      splines, k = self.splinebasis.eval(t)
     
       # Add up sum over p+1 non-zero splines(t) times weights coeffients
       l = 0
@@ -127,7 +127,7 @@ class ForwardODENetApp(BraidApp):
       layer = self.layer_models[layermodel_localID]
       # print(" -> l=0: coeff=", coeff, ", weights at layer ", k)
       weights = [splines[l] * p.data for p in layer.parameters()] # l=0
-      for l in range(1,self.splinedegree + 1): # l=1,dots, p
+      for l in range(1,len(splines)): # l=1,dots, p
         layermodel_localID = k + l - self.splineoffset
         assert layermodel_localID >= 0
         layer = self.layer_models[layermodel_localID]
@@ -423,7 +423,7 @@ class BackwardODENetApp(BraidApp):
             if not p.grad is None:
               p.grad.data.zero_()
           else:
-            # if you are not on the fine level, compute no parameter gradients
+            # if you are not done, compute no parameter gradients
             p.requires_grad = False
 
         # perform adjoint computations
@@ -431,21 +431,21 @@ class BackwardODENetApp(BraidApp):
         t_w.requires_grad = False
         t_y.backward(t_w)
 
-        # # SG: The above probably set's the gradient of the layer.parameters(), which is the templayer
-        # # Need to spread those gradients to each spline layer in the layer_models here
-        if self.fwd_app.splinet:
-          if done==1:
-            splines, k = evalBsplines(self.fwd_app.splinedegree, self.fwd_app.spline_dknots, self.Tf-tstop)
+        # SG: The above probably set's the gradient of the layer.parameters(), which, in case of a SpliNet is the templayer. Need to spread those sensitivities to each spline layer in the layer_models.
+        if done==1:
+          if self.fwd_app.splinet:
+            splines, k = self.fwd_app.splinebasis.eval(self.Tf-tstop)
 
-            # Add up sum over p+1 non-zero splines(t) times weights coeffients
-            for l in range(self.fwd_app.splinedegree + 1): # l=0,dots, p
+            # Spread derivavites to d+1 non-zero splines(t) times weights:
+            # \bar L_{k+l} += splines[l] * layer.parameters().gradient
+            for l in range(len(splines)): 
               layermodel_localID = k + l - self.fwd_app.splineoffset
               assert layermodel_localID >= 0
               layer_out = self.fwd_app.layer_models[layermodel_localID]
               # dataout =[x.data for x in layer_out.parameters()]
               # print("\n update gradient at layer = ", layermodel_localID, dataout[0])
 
-              # \bar L_{k+l} += splines[l] * layer.parameters().gradient
+              # Update the gradient of this layer_model
               if layer_out != None : 
                 for dest, src in zip(list(layer_out.parameters()), list(layer.parameters())):  
                   # splines[l] = 100000.0
@@ -455,12 +455,13 @@ class BackwardODENetApp(BraidApp):
                     dest.grad.add_(src.grad, alpha=splines[l])
                   # print("dest.grad=", dest.grad)
 
-            for me in self.fwd_app.layer_models:
-              if me != None:
-                for p in me.parameters():
-                  print("grad=", p.grad)
+            # # test:
+            # for mylayer in self.fwd_app.layer_models:
+            #   if mylayer != None:
+            #     for p in mylayer.parameters():
+            #       print("grad=", p.grad)
 
-              # reset layer gradient!?
+            # reset layer gradient!?
 
         # this little bit of pytorch magic ensures the gradient isn't
         # stored too long in this calculation (in particulcar setting
