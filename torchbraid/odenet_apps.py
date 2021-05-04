@@ -69,7 +69,6 @@ class ForwardODENetApp(BraidApp):
       self.splinedegree=splinedegree
       nKnots = nsplines - splinedegree + 1
       self.spline_dknots = Tf / (nKnots - 1)
-      self.splinecoeffs = np.zeros(splinedegree + 1)
       # index offset for local layer storage in the layer_models vector
       if my_rank == 0: # First processor's time-interval includes t0_local=0.0. Others exclude t0_local, owning only (t0_local, tf_local]!
         self.splineoffset =  int( (self.t0_local ) / self.spline_dknots ) 
@@ -118,29 +117,24 @@ class ForwardODENetApp(BraidApp):
     if self.splinet:
       # print("summing over spline coeffs(t=", t, ") times layerweights here!")
 
-      # Evaluate the splines 
-      evalBsplines(self.splinedegree, self.spline_dknots, t, self.splinecoeffs)
-
-      # Find interval k such that t \in [\tau_k, \tau_k+1] for splineknots \tau
-      k = int(t / self.spline_dknots)   
-      
+      # Evaluate the splines at time t as well as interval k such that t \in [\tau_k, \tau_k+1] for splineknots \tau
+      splines, k = evalBsplines(self.splinedegree, self.spline_dknots, t)
+    
       # Add up sum over p+1 non-zero splines(t) times weights coeffients
       l = 0
       layermodel_localID = k + l - self.splineoffset
       assert layermodel_localID >= 0
-      coeff = self.splinecoeffs[l]
       layer = self.layer_models[layermodel_localID]
       # print(" -> l=0: coeff=", coeff, ", weights at layer ", k)
-      weights = [coeff*p.data for p in layer.parameters()] # l=0
+      weights = [splines[l] * p.data for p in layer.parameters()] # l=0
       for l in range(1,self.splinedegree + 1): # l=1,dots, p
         layermodel_localID = k + l - self.splineoffset
         assert layermodel_localID >= 0
-        coeff = self.splinecoeffs[l]
         layer = self.layer_models[layermodel_localID]
         # print(" -> l=", l,": coeff=", coeff, " weights at layer ", k+l)  
         if layer != None : # test this because at t=Tf, there is one spline missing. But weights at Tf should actually never be used. So this might be just fine.
           for dest_w, src_p in zip(weights, list(layer.parameters())):  
-            dest_w.add_(src_p.data, alpha=coeff)
+            dest_w.add_(src_p.data, alpha=splines[l])
 
     else:
       layer = self.getLayer(t,tf,level)
@@ -441,26 +435,24 @@ class BackwardODENetApp(BraidApp):
         # # Need to spread those gradients to each spline layer in the layer_models here
         if self.fwd_app.splinet:
           if done==1:
-            evalBsplines(self.fwd_app.splinedegree, self.fwd_app.spline_dknots, self.Tf-tstop, self.fwd_app.splinecoeffs)
-            k = int( (self.Tf-tstop) / self.fwd_app.spline_dknots)   
+            splines, k = evalBsplines(self.fwd_app.splinedegree, self.fwd_app.spline_dknots, self.Tf-tstop)
 
             # Add up sum over p+1 non-zero splines(t) times weights coeffients
             for l in range(self.fwd_app.splinedegree + 1): # l=0,dots, p
               layermodel_localID = k + l - self.fwd_app.splineoffset
               assert layermodel_localID >= 0
-              coeff = self.fwd_app.splinecoeffs[l]
               layer_out = self.fwd_app.layer_models[layermodel_localID]
               # dataout =[x.data for x in layer_out.parameters()]
               # print("\n update gradient at layer = ", layermodel_localID, dataout[0])
 
-              # \bar L_{k+l} += self.splinecoeffs[l] * layer.parameters().gradient
+              # \bar L_{k+l} += splines[l] * layer.parameters().gradient
               if layer_out != None : 
                 for dest, src in zip(list(layer_out.parameters()), list(layer.parameters())):  
-                  # coeff = 100000.0
+                  # splines[l] = 100000.0
                   if dest.grad == None:
-                    dest.grad = src.grad * coeff
+                    dest.grad = src.grad * splines[l]
                   else:
-                    dest.grad.add_(src.grad, alpha=coeff)
+                    dest.grad.add_(src.grad, alpha=splines[l])
                   # print("dest.grad=", dest.grad)
 
             for me in self.fwd_app.layer_models:

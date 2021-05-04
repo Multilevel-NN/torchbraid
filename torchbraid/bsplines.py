@@ -4,23 +4,26 @@ from numpy import *
 
 
 # Evaluate the splines at time t:
-# outvec holds values of d+1 splines, i.e. should be a vector of size d+1
-def evalBsplines(degree, deltaKnots, time, outvec):
+# This returns the values of d+1 spline basis functions, and the interval k s.t. t \in [tau_k, \tau_k+1] for spline knots \tau
+def evalBsplines(degree, deltaKnots, time):
 
     # Get interval index l s.t. t \in [t_l, t_l+1]
-    l = int(time / deltaKnots)   # this will round down to next smaller integer
+    k = int(time / deltaKnots)   # this will round down to next smaller integer
 
-    # Set outvec to unit vector 1, 0, 0, 0...
-    outvec[:] = 0.0
-    outvec[0] = 1.0
+    # Start with coefficient vector to unit vector 1, 0, 0, 0...
+    spline = []
+    spline.append(1.0)
 
     # Recursive loop to update splines
     for i in range(1,degree+1):        # i = 1,2,...,degree
+        spline.append(0.0)
         for r in range(i,0,-1):        # r = i, i-1, ..., 1
-            coeff1 = (time - (l-i+r)*deltaKnots)  / ( (l+r)*deltaKnots - (l-i+r)*deltaKnots )
-            coeff2 = ( (l+r+1)*deltaKnots - time) / ( (l+r+1)*deltaKnots - (l-i+r+1)*deltaKnots )
-            outvec[r] = coeff1 * outvec[r-1] + coeff2 * outvec[r]
-        outvec[0] = outvec[0] * ((l+1)*deltaKnots - time) / ((l+1)*deltaKnots - (l-i+1)*deltaKnots)
+            coeff1 = (time - (k-i+r)*deltaKnots)  / ( (k+r)*deltaKnots - (k-i+r)*deltaKnots )
+            coeff2 = ( (k+r+1)*deltaKnots - time) / ( (k+r+1)*deltaKnots - (k-i+r+1)*deltaKnots )
+            spline[r] = coeff1 * spline[r-1] + coeff2 * spline[r]
+        spline[0] = spline[0] * ((k+1)*deltaKnots - time) / ((k+1)*deltaKnots - (k-i+1)*deltaKnots)
+    
+    return spline, k
 
 
 def spline_test(degree, nSplines, Tfinal, deltax):
@@ -40,8 +43,8 @@ def spline_test(degree, nSplines, Tfinal, deltax):
 
         time = xgrid[i]
         l = int(time / deltaKnots)
-        # print(spline[l:l+degree+1,i].shape)
-        evalBsplines(degree, deltaKnots, time, spline[l:l+degree+1, i])
+        spline[l:l+degree+1,i], k = evalBsplines(degree, deltaKnots, time)
+        # print(spline[l:l+degree+1,i])
 
     # Plot
     for i in range(nSplines):
