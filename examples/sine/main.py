@@ -4,8 +4,10 @@ import torch
 from math import pi, sin
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy import linalg as LA
 from torch.autograd import gradcheck
 import torchbraid
+import torchbraid.utils as utils
 from mpi4py import MPI
 # import torchbraid.utils
 
@@ -14,6 +16,63 @@ from mpi4py import MPI
 def root_print(rank,s):
   if rank==0:
     print(s)
+
+# flatten model parameters or gradients into one vector of doubles:
+def flatten(modelparas, gradient=False):
+    with torch.no_grad():
+        vec = []
+        for p in modelparas:
+            if gradient:
+                p = p.grad
+            if p != None:
+                for elem in utils.pack_buffer(p):
+                    vec.append(elem)
+        return vec
+
+
+# Central Finite Difference testing:
+def runFinDiff(model, eps=1e-2):
+    print("### FINITE DIFFERENCES ###")
+
+    # get original loss and gradient:
+    loss_orig = evalNetwork(gradient=True)
+    grad_orig = flatten(model.parameters(), gradient=True)
+
+    gradID=0
+    maxerr = 0.0
+
+    # Loop over model parameters
+    for tens in model.parameters():
+
+        # loop over elements in this tensor 
+        for elem in tens.data.view(-1):
+
+            # Evaluate the loss function at perturbed points loss(p+eps), loss(p-eps)
+            elem += eps
+            loss_p1 = evalNetwork(gradient=False)
+            elem -= 2.*eps
+            loss_p2 = evalNetwork(gradient=False)
+            elem += eps
+            # print(" Orig params: ", flatten(model.parameters()))
+
+            # Central finite differences
+            fd = (loss_p1 - loss_p2) / (2*eps)
+            g = grad_orig[gradID]
+            err = abs(fd - g)
+            if fd == 0:
+                relerr=0.0
+            else:
+                relerr = err/abs(fd)
+            maxerr = max(maxerr, err)
+
+            # Output
+            print("FD= ", fd, " grad_orig=", g, ": abs. error=", err, ", rel. err=", relerr)
+            print("Rel. err=", relerr)
+
+            gradID = gradID+1
+
+    return maxerr
+
 
 
 # MPI Stuff
@@ -238,32 +297,42 @@ myloss = torch.nn.MSELoss(reduction='sum')
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 # Training set: Eval one epoch
-for local_batch, local_labels in training_generator:
-    local_batch = local_batch.reshape(len(local_batch),1)
-    local_labels= local_labels.reshape(len(local_labels),1)
+def evalNetwork(gradient=False):
+    i=0
+    for local_batch, local_labels in training_generator:
+        local_batch = local_batch.reshape(len(local_batch),1)
+        local_labels= local_labels.reshape(len(local_labels),1)
+    
+        print("Epoch: ", i)
+        i=i+1
+    
+        # Forward pass
+        ypred = model(local_batch)
+        loss = compose(myloss, ypred, local_labels)
+        # loss = myloss(ypred, local_labels)
+    
+        # Comput gradient through backpropagation
+        optimizer.zero_grad()
+        loss.backward()
 
-    # Forward pass
-    ypred = model(local_batch)
-    loss = compose(myloss, ypred, local_labels)
-    # loss = myloss(ypred, local_labels)
+        return loss.item()
 
-    # Comput gradient through backpropagation
-    optimizer.zero_grad()
-    loss.backward()
 
-    with torch.no_grad():
-        
-        gnorm = 0.0
-        print("Trainable parameters:")
-        for p in model.parameters():
-                # print("Data=", p.data)
-                print("Grad=", p.grad)
-                if p.grad != None:
-                    gnorm += p.grad.data.norm(2).item() ** 2
-        gnorm = gnorm ** (1. / 2)
+# Evaluate gradient
+loss = evalNetwork(gradient=True)
 
-        print(rank, "Loss=", loss.item(), "  ||Grad||=", gnorm)
-
+# compute gradient norm. if parallel, how to compute the global norm??
+with torch.no_grad():
+   param_vec = flatten(model.parameters())
+   grad_vec = flatten(model.parameters(), gradient=True)
 
 # Output
-print(rank, ": Loss=", loss.item())
+print(rank, ": Loss=", loss)
+print(rank, ": parameters=", param_vec)
+print(rank, ": gradient=", grad_vec)
+print(rank, ": ||Grad||=", LA.norm(grad_vec))
+print("\n")
+
+eps = 1e-2
+maxerr = runFinDiff(model, eps)
+print("Central Finite Difference: eps=", eps, " max. error=", maxerr)
