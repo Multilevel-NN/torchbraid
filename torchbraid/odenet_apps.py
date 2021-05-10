@@ -78,19 +78,20 @@ class ForwardODENetApp(BraidApp):
       # print(my_rank, ": Spline offset: ", self.splineoffset)
 
     # send everything to the left (this helps with the adjoint method)
-    # SG: This is probably not needed anymore when using SpliNets... TODO: Check!
-    if my_rank>0:
-      comm.send(list(self.layer_models[0].parameters()), dest=my_rank-1,tag=22)
-    if my_rank<num_ranks-1:
-      neighbor_model = comm.recv(source=my_rank+1,tag=22)
-      new_model = layer_block()
-      with torch.no_grad():
-        for dest_p, src_w in zip(list(new_model.parameters()), neighbor_model):
-          dest_p.data = src_w
-      self.layer_models.append(new_model)
-    else:
-      # this is a sentinel at the end of the processors and layers
-      self.layer_models.append(None)
+    # SG: This is probably not needed anymore. At least for the splinet version, it is not. 
+    if not self.splinet:
+      if my_rank>0:
+        comm.send(list(self.layer_models[0].parameters()), dest=my_rank-1,tag=22)
+      if my_rank<num_ranks-1:
+        neighbor_model = comm.recv(source=my_rank+1,tag=22)
+        new_model = layer_block()
+        with torch.no_grad():
+          for dest_p, src_w in zip(list(new_model.parameters()), neighbor_model):
+            dest_p.data = src_w
+        self.layer_models.append(new_model)
+      else:
+        # this is a sentinel at the end of the processors and layers
+        self.layer_models.append(None)
 
     # build up the core
     self.py_core = self.initCore()
