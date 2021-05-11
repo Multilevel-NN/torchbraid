@@ -115,27 +115,24 @@ class ForwardODENetApp(BraidApp):
     return list(self.shape0)+self.parameter_shapes
 
   def setVectorWeights(self,t,tf,level,x):
-    if self.splinet:
-      # print("summing over spline coeffs(t=", t, ") times layerweights here!")
-
+    if self.splinet: 
       with torch.no_grad():
-        # Evaluate the splines at time t as well as interval k such that t \in [\tau_k, \tau_k+1] for splineknots \tau
+        # Evaluate the splines at time t and get interval k such that t \in [\tau_k, \tau_k+1] for splineknots \tau
         splines, k = self.splinebasis.eval(t)
-    
-        # Add up sum over p+1 non-zero splines(t) times weights coeffients
-        l = 0
+        # Add up sum over p+1 non-zero splines(t) times weights coeffients, l=0,\dots,p
+        l = 0 # first one here, because I didn't know how to set the shape of 'weights' correctly...
         layermodel_localID = k + l - self.splineoffset
-        assert layermodel_localID >= 0
+        assert layermodel_localID >= 0 and layermodel_localID < len(self.layer_models)
         layer = self.layer_models[layermodel_localID]
-        # print(" -> l=0: coeff=", coeff, ", weights at layer ", k)
         weights = [splines[l] * p.data for p in layer.parameters()] # l=0
-        for l in range(1,len(splines)): # l=1,dots, p
+        # others: l=1,dots, p
+        for l in range(1,len(splines)):
           layermodel_localID = k + l - self.splineoffset
-          assert layermodel_localID >= 0
+          if t== self.Tf and l==len(splines)-1: # There is one more spline at Tf, which is zero at Tf and therefore it is not stored. Skip. 
+            continue
+          assert layermodel_localID >= 0 and layermodel_localID < len(self.layer_models)
           layer = self.layer_models[layermodel_localID]
-          # print(" -> l=", l,": coeff=", coeff, " weights at layer ", k+l)  
-          if layer != None : # test this because at t=Tf, there is one spline missing. But weights at Tf should actually never be used. So this might be just fine.
-            for dest_w, src_p in zip(weights, list(layer.parameters())):  
+          for dest_w, src_p in zip(weights, list(layer.parameters())):  
               dest_w.add_(src_p.data, alpha=splines[l])
 
     else:
@@ -433,37 +430,28 @@ class BackwardODENetApp(BraidApp):
         t_w.requires_grad = False
         t_y.backward(t_w)
 
-        # SG: The above probably set's the gradient of the layer.parameters(), which, in case of a SpliNet is the templayer. Need to spread those sensitivities to each spline layer in the layer_models.
-        if done==1:
-          if self.fwd_app.splinet:
-            splines, k = self.fwd_app.splinebasis.eval(self.Tf-tstop)
+        # The above set's the gradient of the layer.parameters(), which, in case of a SpliNet is the templayer. Need to spread those sensitivities to each spline layer in the layer_models.
+        if self.fwd_app.splinet:
+          if done==1:
+            with torch.no_grad(): # No idea if this is needed here... 
+              splines, k = self.fwd_app.splinebasis.eval(self.Tf-tstop)
 
-            # Spread derivavites to d+1 non-zero splines(t) times weights:
-            # \bar L_{k+l} += splines[l] * layer.parameters().gradient
-            for l in range(len(splines)): 
-              layermodel_localID = k + l - self.fwd_app.splineoffset
-              assert layermodel_localID >= 0
-              layer_out = self.fwd_app.layer_models[layermodel_localID]
-              # dataout =[x.data for x in layer_out.parameters()]
-              # print("\n update gradient at layer = ", layermodel_localID, dataout[0])
+              # Spread derivavites to d+1 non-zero splines(t) times weights:
+              # \bar L_{k+l} += splines[l] * layer.parameters().gradient
+              for l in range(len(splines)): 
+                # Get the layer whose gradient is to be updated
+                layermodel_localID = k + l - self.fwd_app.splineoffset
+                if (self.Tf-tstop == 0.0) and l==len(splines)-1: # There is one more spline at Tf, which is zero at Tf and therefore it is not stored. Skip. 
+                  continue
+                assert layermodel_localID >= 0 and layermodel_localID < len(self.fwd_app.layer_models)
+                layer_out = self.fwd_app.layer_models[layermodel_localID]
 
-              # Update the gradient of this layer_model
-              if layer_out != None : 
+                # Update the gradient of this layer
                 for dest, src in zip(list(layer_out.parameters()), list(layer.parameters())):  
-                  # splines[l] = 100000.0
                   if dest.grad == None:
                     dest.grad = src.grad * splines[l]
                   else:
                     dest.grad.add_(src.grad, alpha=splines[l])
-                  # print("dest.grad=", dest.grad)
-
-            # # test:
-            # for mylayer in self.fwd_app.layer_models:
-            #   if mylayer != None:
-            #     for p in mylayer.parameters():
-            #       print("grad=", p.grad)
-
-            # reset layer gradient!?
 
         # this little bit of pytorch magic ensures the gradient isn't
         # stored too long in this calculation (in particulcar setting

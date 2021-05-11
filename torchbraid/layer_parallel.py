@@ -132,6 +132,8 @@ class LayerParallel(nn.Module):
         a = int( (t0_local + self.dt) / spline_dknots )
       b = int( (tf_local ) / spline_dknots ) + splinedegree
       nsplines_local = b-a+1
+      if comm.Get_rank() == comm.Get_size() -1: 
+        nsplines_local = nsplines_local - 1  # at t=Tf, there is a spline starting, but it is zero at Tf, so don't store it. 
       print(comm.Get_rank(), ": Now creating ", nsplines_local, " trainable user layers.")
       self.layer_models = [layer_block() for i in range(nsplines_local)]
     else: 

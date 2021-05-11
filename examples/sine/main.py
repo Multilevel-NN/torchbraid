@@ -333,6 +333,7 @@ print(rank, ": gradient=", grad_vec)
 print(rank, ": ||Grad||=", LA.norm(grad_vec))
 print("\n")
 
-eps = 1e-2
-maxerr = runFinDiff(model, eps)
-print("Central Finite Difference: eps=", eps, " max. error=", maxerr)
+# # FINITE DIFFERENCE TESTING
+# eps = 1e-2
+# maxerr = runFinDiff(model, eps)
+# print("Central Finite Difference: eps=", eps, " max. error=", maxerr)
