@@ -118,7 +118,7 @@ class LayerParallel(nn.Module):
     self.dt = Tf/global_steps
     self.layer_block = layer_block
 
-    # if not a SpliNet, create user's StepLayer at each time step. Else: Create user's StepLayer for each spline
+    # If SpliNet, create one trainable user layer for each spline basis function
     if nsplines>0:
       if comm.Get_rank() == 0:
         print("Torchbraid will create a splinet with ", nsplines, " splines, degree=", splinedegree)
@@ -131,12 +131,42 @@ class LayerParallel(nn.Module):
       else:
         a = int( (t0_local + self.dt) / spline_dknots )
       b = int( (tf_local ) / spline_dknots ) + splinedegree
-      nsplines_local = b-a+1
       if comm.Get_rank() == comm.Get_size() -1: 
-        nsplines_local = nsplines_local - 1  # at t=Tf, there is a spline starting, but it is zero at Tf, so don't store it. 
+        b = b - 1  # at t=Tf, there is a spline starting, but it is zero at Tf, so don't store it. 
+      nsplines_local = b-a+1
       print(comm.Get_rank(), ": Now creating ", nsplines_local, " trainable user layers.")
       self.layer_models = [layer_block() for i in range(nsplines_local)]
-    else: 
+      print(comm.Get_rank(), ": Done.")
+
+      # create communicator groups for each spline 
+      self.comm_vec = []
+      for i in range(nsplines):
+        group = self.comm.Get_group()  # contains all processors
+        # exclude those processors that do not store splinelayer i:
+        exclude = []
+        for k in range(comm.Get_size()):
+          t0loc = k*num_steps*self.dt
+          tfloc = (k+1)*num_steps*self.dt
+          if k == 0:
+            a = int( t0loc / spline_dknots )
+          else :
+            a = int( (t0loc+self.dt) / spline_dknots )
+          b = int( tfloc / spline_dknots ) + splinedegree
+          if k == comm.Get_size()-1:
+            b = b-1
+          # print(comm.Get_rank(), "i", i, "k", k, "a", a, "b", b)
+          if i < a or i > b:
+            exclude.append(k)
+        newgroup = group.Excl(exclude)
+        # print(comm.Get_rank(), ": Creating communicator c", i, "excluding", exclude)
+        self.comm_vec.append(comm.Create(newgroup))  # This will be MPI.COMM_NULL on all processors that are excluded
+      
+      # for i in range(len(self.comm_vec)):
+        # if self.comm_vec[i] != MPI.COMM_NULL:
+          # print("In communicator ", i, ": I'm rank ", comm_i[i].Get_rank(), "out of", comm_i[i].Get_size())
+
+    # If not a SpliNet: create one trainable user layer for each time-step
+    else:   
       self.layer_models = [layer_block() for i in range(num_steps)]
 
     # SG: This magic is used by pytorch to let autograd know what the trainable parameters are.
