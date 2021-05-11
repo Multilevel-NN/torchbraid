@@ -118,24 +118,25 @@ class ForwardODENetApp(BraidApp):
     if self.splinet:
       # print("summing over spline coeffs(t=", t, ") times layerweights here!")
 
-      # Evaluate the splines at time t as well as interval k such that t \in [\tau_k, \tau_k+1] for splineknots \tau
-      splines, k = self.splinebasis.eval(t)
+      with torch.no_grad():
+        # Evaluate the splines at time t as well as interval k such that t \in [\tau_k, \tau_k+1] for splineknots \tau
+        splines, k = self.splinebasis.eval(t)
     
-      # Add up sum over p+1 non-zero splines(t) times weights coeffients
-      l = 0
-      layermodel_localID = k + l - self.splineoffset
-      assert layermodel_localID >= 0
-      layer = self.layer_models[layermodel_localID]
-      # print(" -> l=0: coeff=", coeff, ", weights at layer ", k)
-      weights = [splines[l] * p.data for p in layer.parameters()] # l=0
-      for l in range(1,len(splines)): # l=1,dots, p
+        # Add up sum over p+1 non-zero splines(t) times weights coeffients
+        l = 0
         layermodel_localID = k + l - self.splineoffset
         assert layermodel_localID >= 0
         layer = self.layer_models[layermodel_localID]
-        # print(" -> l=", l,": coeff=", coeff, " weights at layer ", k+l)  
-        if layer != None : # test this because at t=Tf, there is one spline missing. But weights at Tf should actually never be used. So this might be just fine.
-          for dest_w, src_p in zip(weights, list(layer.parameters())):  
-            dest_w.add_(src_p.data, alpha=splines[l])
+        # print(" -> l=0: coeff=", coeff, ", weights at layer ", k)
+        weights = [splines[l] * p.data for p in layer.parameters()] # l=0
+        for l in range(1,len(splines)): # l=1,dots, p
+          layermodel_localID = k + l - self.splineoffset
+          assert layermodel_localID >= 0
+          layer = self.layer_models[layermodel_localID]
+          # print(" -> l=", l,": coeff=", coeff, " weights at layer ", k+l)  
+          if layer != None : # test this because at t=Tf, there is one spline missing. But weights at Tf should actually never be used. So this might be just fine.
+            for dest_w, src_p in zip(weights, list(layer.parameters())):  
+              dest_w.add_(src_p.data, alpha=splines[l])
 
     else:
       layer = self.getLayer(t,tf,level)
