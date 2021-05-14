@@ -103,9 +103,10 @@ class ForwardODENetApp(BraidApp):
     for p in layer_models[0].parameters(): 
       self.parameter_shapes += [p.data.size()]
 
-    # print("Creating temp_layer.")
+    print(comm.Get_rank(), ": Creating the temp_layer.")
     self.temp_layer = layer_block()
     self.clearTempLayerWeights()
+    print(comm.Get_rank(), ": Done.")
   # end __init__
 
   def __del__(self):
@@ -402,7 +403,7 @@ class BackwardODENetApp(BraidApp):
     problem solutions at the beginning (x) and end (y) of the type step.
     """
     try:
-        print(self.fwd_app.my_rank, ": BWDeval level ", level, " ", tstart, "->", tstop)
+        # print(self.fwd_app.my_rank, ": BWDeval level ", level, " ", tstart, "->", tstop, "done", done)
           
         # we need to adjust the time step values to reverse with the adjoint
         # this is so that the renumbering used by the backward problem is properly adjusted
