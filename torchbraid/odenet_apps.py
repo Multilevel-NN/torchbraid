@@ -363,6 +363,29 @@ class BackwardODENetApp(BraidApp):
       if f is not None:
         f = f[0]
 
+      # Maybe communicate the splines here? 
+      if self.fwd_app.splinet:
+        print(self.getMPIComm().Get_rank(), "I will comunicate!")
+        for i,layer in enumerate(self.fwd_app.layer_models):
+            if layer is not None:
+                for p in layer.parameters():
+                  print(self.getMPIComm().Get_rank(), "Sp", i, "Grad", p.grad)
+        # req = []
+        # for splinecomm,i in self.fwd_app.spline_comm_vec:
+        #   if splinecomm is not MPI.COMM_NULL: #?? 
+        #     # pack the buffer
+        #     grad = self.fwd_app.layer_models[i].grad() #?? 
+        #     buffer = utils.pack_buffer(grad) #?? 
+
+        #     # Non-blocking allreduce on this splines communicator
+        #     req=splinecomm.Iallreduce(MPI.IN_PLACE, buffer, MPI.SUM)
+
+        # # Finish up communication
+        # # for splinecomm,i in self.fwd_app.spline_comm_vec:
+        #   # if splinecomm is not MPI.COMM_NULL:
+        #     MPI.Request.Wait(req)
+        #     utils.unpack_buffer(self.fwd_app.layer_models[i].grad(), buffer)
+
       # this code is due to how braid decomposes the backwards problem
       # The ownership of the time steps is shifted to the left (and no longer balanced)
       first = 1
