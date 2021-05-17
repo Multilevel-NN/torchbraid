@@ -288,7 +288,7 @@ class ForwardODENetApp(BraidApp):
       dt = tstop-tstart
       layer = self.getLayer(tstart,tstop,level) # if splinet, this returns temp_layer
 
-      # print(self.my_rank, ": FWDeval level ", level, " ", tstart, "->", tstop)
+      # print(self.my_rank, ": FWDeval level ", level, " ", tstart, "->", tstop, [p.data for p in layer.parameters()])
 
       if t_x==None:
         t_x = t_y
@@ -404,28 +404,33 @@ class BackwardODENetApp(BraidApp):
       if f is not None:
         f = f[0]
 
-      # Maybe communicate the splines here? 
+      # Maybe communicate the splines here, or in braid_function.py: "backward(ctx, grad_output)"
       if self.fwd_app.splinet:
-        print(self.getMPIComm().Get_rank(), "I will comunicate!")
-        for i,layer in enumerate(self.fwd_app.layer_models):
-            if layer is not None:
-                for p in layer.parameters():
-                  print(self.getMPIComm().Get_rank(), "Sp", i, "Grad", p.grad)
+        # print(self.getMPIComm().Get_rank(), " My gradient at layermodel[i]: ")
+        # for p,q in zip(self.fwd_app.layer_models[0].parameters(), self.fwd_app.layer_models[1].parameters()):
+        #     print(self.fwd_app.my_rank, ": p=", p.grad)
+        #     print(self.fwd_app.my_rank, ": q=", q.grad)
+
+        # for i,layer in enumerate(self.fwd_app.layer_models):
+        #     if layer is not None:
+        #         for p in layer.parameters():
+        #           print(self.getMPIComm().Get_rank(), "Sp", i, "Grad", p.grad)
+
         # req = []
-        # for splinecomm,i in self.fwd_app.spline_comm_vec:
-        #   if splinecomm is not MPI.COMM_NULL: #?? 
-        #     # pack the buffer
-        #     grad = self.fwd_app.layer_models[i].grad() #?? 
-        #     buffer = utils.pack_buffer(grad) #?? 
+        for i,splinecomm in enumerate(self.fwd_app.spline_comm_vec):
+          if splinecomm != MPI.COMM_NULL: #?? 
+            # print(splinecomm.Get_rank(), ": I will pack spline ", i)
+            # pack the buffer
+            splinelayer = self.fwd_app.layer_models[i - self.fwd_app.splineoffset]
+            buf = utils.pack_buffer([p.grad for p in splinelayer.parameters()])
+            # Non-blocking allreduce on this spline's communicator
+            req=splinecomm.Iallreduce(MPI.IN_PLACE, buf, MPI.SUM)
 
-        #     # Non-blocking allreduce on this splines communicator
-        #     req=splinecomm.Iallreduce(MPI.IN_PLACE, buffer, MPI.SUM)
-
-        # # Finish up communication
+        # Finish up communication
         # # for splinecomm,i in self.fwd_app.spline_comm_vec:
         #   # if splinecomm is not MPI.COMM_NULL:
-        #     MPI.Request.Wait(req)
-        #     utils.unpack_buffer(self.fwd_app.layer_models[i].grad(), buffer)
+            MPI.Request.Wait(req)
+            utils.unpack_buffer([p.grad for p in splinelayer.parameters()], buf)
 
       # this code is due to how braid decomposes the backwards problem
       # The ownership of the time steps is shifted to the left (and no longer balanced)
@@ -453,10 +458,12 @@ class BackwardODENetApp(BraidApp):
 
         self.grads += [ sub_gradlist ]
       # end for sublist
+      # print(self.getMPIComm().Get_rank(), " self.grads=", self.grads)
 
       for l in self.fwd_app.layer_models:
          if l==None: continue
          l.zero_grad()
+
     except:
       print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
