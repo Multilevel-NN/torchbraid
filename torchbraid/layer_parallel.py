@@ -138,38 +138,6 @@ class LayerParallel(nn.Module):
       self.layer_models = [layer_block() for i in range(nsplines_local)]
       print(comm.Get_rank(), ": Done.")
 
-      # create one communicator for each spline 
-      self.spline_comm_vec = []
-      for i in range(nsplines):
-        group = self.comm.Get_group()  # contains all processors
-        # exclude those processors that do not store splinelayer i:
-        exclude = []
-        for k in range(comm.Get_size()):
-          t0loc = k*num_steps*self.dt    # THIS AGAIN IS DUPLICATED CODE
-          tfloc = (k+1)*num_steps*self.dt
-          if k == 0:
-            a = int( t0loc / spline_dknots )
-          else :
-            a = int( (t0loc+self.dt) / spline_dknots )
-          b = int( tfloc / spline_dknots ) + splinedegree
-          if k == comm.Get_size()-1:
-            b = b-1
-          # print(comm.Get_rank(), "i", i, "k", k, "a", a, "b", b)
-          if i < a or i > b:
-            exclude.append(k)
-        newgroup = group.Excl(exclude)
-        # print(comm.Get_rank(), ": Creating communicator c", i, "excluding", exclude)
-
-        # Finally create the communicator and store it. 
-        # This will be MPI.COMM_NULL on all processors that are excluded
-        self.spline_comm_vec.append(comm.Create(newgroup))  
-      
-      # for i in range(len(self.spline_comm_vec)):
-      #   if self.spline_comm_vec[i] != MPI.COMM_NULL:
-      #     print(comm.Get_rank(), ": In communicator ", i, ": I'm rank ", self.spline_comm_vec[i].Get_rank(), "out of", self.spline_comm_vec[i].Get_size())
-
-      # TODO: At some point, the groups and communicators should be destroyed, no? 
-
     # If not a SpliNet: create one trainable user layer for each time-step
     else:   
       self.layer_models = [layer_block() for i in range(num_steps)]

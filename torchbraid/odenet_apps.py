@@ -77,6 +77,47 @@ class ForwardODENetApp(BraidApp):
 
       # print(my_rank, ": Spline offset: ", self.splineoffset)
 
+      # create one communicator for each spline 
+      self.spline_comm_vec = []
+      for i in range(nsplines):
+        group = comm.Get_group()  # contains all processors
+        # exclude those processors that do not store splinelayer i:
+        exclude = []
+        for k in range(comm.Get_size()):
+          dt = Tf/(local_num_steps*comm.Get_size())
+          t0loc = k*local_num_steps*dt   # THIS AGAIN IS DUPLICATED CODE
+          tfloc = (k+1)*local_num_steps*dt
+          if k == 0:
+            a = int( t0loc / spline_dknots )
+          else :
+            a = int( (t0loc+self.dt) / spline_dknots )
+          b = int( tfloc / spline_dknots ) + splinedegree
+          if k == comm.Get_size()-1:
+            b = b-1
+          # print(comm.Get_rank(), "i", i, "k", k, "a", a, "b", b)
+          if i < a or i > b:
+            exclude.append(k)
+        newgroup = group.Excl(exclude)
+
+        # Finally create the communicator and store it. 
+        # This will be MPI.COMM_NULL on all processors that are excluded
+        thiscomm = comm.Create(newgroup)
+        # print(thiscomm)
+        self.spline_comm_vec.append(thiscomm)  
+      
+      for i,commsp in enumerate(self.spline_comm_vec):
+        if commsp != MPI.COMM_NULL:
+          # print(comm.Get_rank(), ": In communicator ", i, ": I'm rank ", self.spline_comm_vec[i].Get_rank(), "out of", self.spline_comm_vec[i].Get_size())
+          if commsp.Get_rank() == 0:
+            print("comm ", i," has size ", commsp.Get_size())
+
+
+      # TODO: At some point, the groups and communicators should be destroyed, no? 
+
+
+
+
+
     # send everything to the left (this helps with the adjoint method)
     # SG: This is probably not needed anymore. At least for the splinet version, it is not. 
     if not self.splinet:
