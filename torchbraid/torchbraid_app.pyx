@@ -205,6 +205,9 @@ class BraidApp:
     else:
       self.shape0 = shape
 
+  def getShape(self):
+    return self.shape0 
+
   def initializeStates(self):
     try:
       t = 0.0
@@ -253,6 +256,22 @@ class BraidApp:
 
     return fin
 
+  def getBraidStats(self):
+    cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
+    cdef braid_Core core = py_core.getCore()
+
+    cdef double resnorm 
+    cdef int iter_cnt 
+    cdef int niter = -1 # used for lookup
+
+    braid_GetNumIter(core, &iter_cnt);
+
+    niter = -1
+    braid_GetRNorms(core, &niter, &resnorm);
+
+    return iter_cnt,resnorm
+  # end printBraidStats
+
   def printBraidStats(self):
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
     cdef braid_Core core = py_core.getCore()
@@ -274,7 +293,6 @@ class BraidApp:
     if my_rank==0:
       print('  -- \"%s\" %03d iters yields rnorm of %.6e' % (self.prefix_str,iter_cnt,resnorm))
   # end printBraidStats
-
 
   def getCore(self):
     return self.py_core    
@@ -328,7 +346,12 @@ class BraidApp:
     self.cfactor = cfactor 
 
     core = (<PyBraid_Core> self.py_core).getCore()
-    braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
+    if isinstance(cfactor,dict):
+      for level in sorted(cfactor.keys()):
+        braid_SetCFactor(core,level,cfactor[level]) # -1 implies chage on all levels
+    
+    else: 
+      braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
 
   def setSkipDowncycle(self,skip):
     if skip:

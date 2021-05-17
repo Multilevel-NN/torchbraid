@@ -11,8 +11,11 @@ makefile.inc
 
 tests/build/
 tests/torchbraid_test.c
-tests/torchbraid_test.cpython-36m-darwin.so
+tests/torchbraid_test.*.so
 tests/torchbraid_test.html
+tests/test_cbs.c
+tests/test_cbs.*.so
+tests/test_cbs.html
 torchbraid/braid.html
 torchbraid/build/
 torchbraid/torchbraid_app.c

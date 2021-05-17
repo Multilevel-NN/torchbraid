@@ -134,16 +134,17 @@ class BraidVector:
     self.send_flag_ = send_flag
   
   def clone(self):
-    tensors = [t.detach().clone() for t in self.tensors()]
-    cl = BraidVector(tuple(tensors),self.level())
+    with torch.no_grad():
+      tensors = [t.detach().clone() for t in self.tensors()]
+      cl = BraidVector(tuple(tensors),self.level())
 
-    # copy any weight tensors
-    tensors = [t.detach().clone() for t in self.weightTensors()]
-    cl.addWeightTensors(tensors)
+      # copy any weight tensors
+      tensors = [t.detach() for t in self.weightTensors()]
+      cl.addWeightTensors(tensors)
 
-    # copy layer information
-    cl.setLayerData(self.getLayerData())
+      # copy layer information
+      cl.setLayerData(self.getLayerData())
 
-    cl.setSendFlag(self.getSendFlag())
+      cl.setSendFlag(self.getSendFlag())
 
     return cl

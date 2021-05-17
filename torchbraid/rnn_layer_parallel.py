@@ -45,11 +45,36 @@ from torchbraid.rnn_braid_function import BraidFunction
 
 import torchbraid.rnn_apps as apps
 
-##
-# Define your Python Braid Vector
+class RNN_Serial(nn.Module):
+  """
+  Helper class to build a serial RNN from the parallel version.
+  This makes comparison to the serial version easier
+  """
+  def __init__(self,RNN_model,num_layers,hidden_size,dt=1.0):
+    super(RNN_Serial,self).__init__()
+    self.num_layers  = num_layers
+    self.hidden_size = hidden_size
+    self.dt          = dt
 
-#  a python level module
-##########################################################
+    self.RNN_model = RNN_model 
+  # end __init__
+
+  def forward(self,x,h_c=None):
+    if h_c is None:
+      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+      h_c = (h,c)
+    elif isinstance(h_c,torch.Tensor):
+      h_c = (h_c,)
+
+    num_steps = x.shape[1]
+    for i in range(num_steps):
+      h_c = self.RNN_model(0,0.0,self.dt,x[:,i,:],h_c)
+
+    if len(h_c)==1:
+      return h_c[0]
+    return h_c
+# end RNN_Serial
 
 class RNN_Parallel(nn.Module):
   class ExecLP:
@@ -90,23 +115,24 @@ class RNN_Parallel(nn.Module):
 
        # so this is all a hack to get this thing to work
       return torch.zeros(1)*value
+  # end ExecLP
 
-  def __init__(self,comm,basic_block,num_steps,hidden_size,num_layers,Tf,max_levels=1,max_iters=10,abs_tol=1e-12):
+  ##################################################
+
+  def __init__(self,comm,basic_block,num_steps,hidden_size,num_layers,Tf,model_compute_steps=False,max_levels=1,max_iters=10,abs_tol=1e-12):
     super(RNN_Parallel,self).__init__()
 
+    self.comm        = comm
+    self.num_layers  = num_layers
+    self.hidden_size = hidden_size
+    self.RNN_models  = basic_block
+
     self.exec_helper = self.ExecLP(comm.Get_rank())
-    self.comm = comm
-
-    self.basic_block = basic_block
-    self.RNN_models = basic_block()
-
     self.timer_manager = ContextTimerManager()
 
     # RNN_torchbraid_apps.py -> ForwardBraidApp
-    self.fwd_app = apps.ForwardBraidApp(comm,self.RNN_models,num_steps,hidden_size,num_layers,Tf,max_levels,max_iters,self.timer_manager,abs_tol)
+    self.fwd_app = apps.ForwardBraidApp(comm,self.RNN_models,num_steps,Tf,max_levels,max_iters,self.timer_manager,abs_tol)
     self.bwd_app = apps.BackwardBraidApp(self.fwd_app,self.timer_manager,abs_tol)
-
-    self.param_size = 0
   # end __init__
 
   def comp_op(self):
@@ -132,6 +158,22 @@ class RNN_Parallel(nn.Module):
     self.fwd_app.setNumRelax(relax,level=level)
     self.bwd_app.setNumRelax(relax,level=level)
 
+  def setFwdNumRelax(self,relax,level=-1):
+    self.fwd_app.setNumRelax(relax,level=level)
+
+  def setBwdNumRelax(self,relax,level=-1):
+    self.bwd_app.setNumRelax(relax,level=level)
+
+  def setMaxIters(self,max_iters):
+    self.fwd_app.setNumRelax(max_iters)
+    self.bwd_app.setNumRelax(max_iters)
+
+  def setFwdMaxIters(self,max_iters):
+    self.fwd_app.setMaxIters(max_iters)
+
+  def setBwdMaxIters(self,max_iters):
+    self.bwd_app.setMaxIters(max_iters)
+
   def setCFactor(self,cfactor):
     self.fwd_app.setCFactor(cfactor)
     self.bwd_app.setCFactor(cfactor)
@@ -143,33 +185,21 @@ class RNN_Parallel(nn.Module):
   def getMPIComm(self):
     return self.fwd_app.getMPIComm()
 
-  def setDtRatio(self,user_dt_ratio):
-    """
-    Set the Dt Ratio used to average between the
-    new time and the old time. If it is at level zero
-    it should return 1 (otherwise it will lead to wrong
-    errors).
-
-    Signature: dt_ratio = user_dt_ratio(level,tstart,tstop,fine_dt)
-
-    If the argument is None, then no change is made to the
-    current state (this method is a no-op)
-    """
-    if user_dt_ratio is not None:
-      self.fwd_app.setDtRatio(user_dt_ratio)
-
   def forward(self,x,h_c=None):
     # we are doing this to take adavtage of
     # pytorch's autograd which functions "naturally"
     # with the torch.autograd.function
 
-    params = list(self.parameters())  # TODO: Need to modify 07/14
     if h_c is None:
-      h = torch.zeros(self.fwd_app.num_layers, x.size(0), self.fwd_app.hidden_size)
-      c = torch.zeros(self.fwd_app.num_layers, x.size(0), self.fwd_app.hidden_size)
+      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
       h_c = (h,c)
 
-    return BraidFunction.apply(self.fwd_app,self.bwd_app,x,h_c[0],h_c[1],*params)
+    params = list(self.parameters())
+    if isinstance(h_c, torch.Tensor):
+      return BraidFunction.apply(self.fwd_app,self.bwd_app,1,x,h_c,*params)
+    else:
+      return BraidFunction.apply(self.fwd_app,self.bwd_app,len(h_c),x,*h_c,*params)
   # end forward
 
   def buildInit(self,t):
@@ -227,6 +257,14 @@ class RNN_Parallel(nn.Module):
     else:
       result = comm.recv(source=0,tag=build_seq_tag)
       return result
+
+  def getFwdStats(self):
+    itr, res = self.fwd_app.getBraidStats()
+    return itr,res
+
+  def getBwdStats(self):
+    itr, res = self.bwd_app.getBraidStats()
+    return itr,res
 
   def getTimersString(self):
     """
