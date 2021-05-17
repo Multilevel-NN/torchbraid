@@ -234,7 +234,7 @@ class ForwardODENetApp(BraidApp):
     with self.timer("runBraid"):
 
       # do boundary exchange for parallel weights
-      if self.use_deriv:
+      if self.use_deriv and not self.splinet: #SG: I don't understand what that is or if it would be needed.... TODO!
         self.updateParallelWeights()
 
       y = self.runBraid(x)
@@ -431,6 +431,10 @@ class BackwardODENetApp(BraidApp):
       # The ownership of the time steps is shifted to the left (and no longer balanced)
       first = 1
       if self.getMPIComm().Get_rank()==0:
+        first = 0
+
+      # SG: Reset first to 0 for splinet. THIS IS MESSY! TODO: Check all the shifting left-right of layer weights...!
+      if self.fwd_app.splinet:
         first = 0
 
       self.grads = []
