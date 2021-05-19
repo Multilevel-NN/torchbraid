@@ -122,9 +122,6 @@ class ForwardODENetApp(BraidApp):
         for dest_p, src_w in zip(list(new_model.parameters()), neighbor_model):
           dest_p.data = src_w
       self.layer_models[-1] = new_model
-    else:
-      # this is a sentinel at the end of the processors and layers
-      self.layer_models.append(None)
 
 
   def run(self,x):
