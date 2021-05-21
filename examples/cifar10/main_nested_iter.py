@@ -113,7 +113,7 @@ class SerialNet(nn.Module):
     step_layer = lambda: StepLayer(channels)
     
     self.open_nn = OpenLayer(channels)
-    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_levels=1,max_iters=1)
+    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_fwd_levels=1,max_bwd_levesl=1,max_iters=1)
     self.parallel_nn.setPrintLevel(0)
     
     self.serial_nn   = self.parallel_nn.buildSequentialOnRoot()
@@ -132,12 +132,16 @@ class ParallelNet(nn.Module):
 
     step_layer = lambda: StepLayer(channels)
 
-    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_levels=max_levels,max_iters=max_iters)
+    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_fwd_levels=max_levels,max_bwd_levels=max_levels,max_iters=max_iters)
     self.parallel_nn.setPrintLevel(print_level)
     self.parallel_nn.setCFactor(4)
     self.parallel_nn.setSkipDowncycle(True)
-    self.parallel_nn.setNumRelax(1)         # FCF elsewehre
-    self.parallel_nn.setNumRelax(0,level=0) # F-Relaxation on the fine grid
+    
+    self.parallel_nn.setFwdNumRelax(1)         # FCF elsewhere
+    self.parallel_nn.setFwdNumRelax(0,level=0) # F-Relaxation on the fine grid for forward solve
+
+    self.parallel_nn.setBwdNumRelax(1)         # FCF elsewhere
+    self.parallel_nn.setBwdNumRelax(0,level=0) # F-Relaxation on the fine grid for backward solve
 
     # this object ensures that only the LayerParallel code runs on ranks!=0
     compose = self.compose = self.parallel_nn.comp_op()
