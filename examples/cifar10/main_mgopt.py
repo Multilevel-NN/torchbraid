@@ -162,6 +162,9 @@ class ParallelNet(nn.Module):
     return x
 # end ParallelNet 
 
+#####################################################################
+# Begin functions likely to go inside multilevel MGOpt solver object
+#####################################################################
 
 ##
 # Custom loss function with MG/Opt Term
@@ -389,6 +392,57 @@ def get_network_params(model, deep_copy=False, grad=False):
 
   return pp
 
+def compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, compose, v_h):
+  '''
+  Compute a backward and forward pass for the model.
+  if lvl is 0, no MGOPT term is used
+  if lvl > 0, incorporate MGOpt term
+  '''
+  
+  optimizer.zero_grad()
+  output = model(data)
+  if lvl == 0:
+    loss = compose(criterion, output, target)
+  else: # add the MG/Opt Term
+    x_h = get_network_params(model, deep_copy=False, grad=False)
+    loss = compose(criterion, output, target, x_h, v_h)
+  ##
+  loss.backward()
+  return loss
+
+def line_search(lvl, e_h, optimizer, model, data, target, compose, criterion, fine_loss, alpha, n_line_search, v_h):
+  '''
+  Simple line-search: Add e_h to fine parameters.  If loss has
+  diminished, stop.  Else subtract 1/2 of e_h from fine parameters, and
+  continue until loss is reduced.
+  '''
+
+  # Add error update to x_h
+  # alpha*e_h + x_h --> x_h
+  x_h = get_network_params(model, deep_copy=False, grad=False)
+  tensor_list_AXPY(alpha, e_h, 1.0, x_h, inplace=True)
+  
+  # Start Line search 
+  for m in range(n_line_search):
+    print("line-search, alpha=", alpha)
+    with torch.enable_grad():
+      loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, compose, v_h)
+    
+    new_loss = loss.item()
+    if new_loss < fine_loss:
+      # loss is reduced, end line search
+      break
+    elif m < (n_line_search-1): 
+      # loss is NOT reduced, continue line search
+      alpha = alpha/4.0
+      tensor_list_AXPY(-alpha, e_h, 1.0, x_h, inplace=True)
+
+
+#####################################################################
+# End functions likely to go inside multilevel MGOpt solver object
+#####################################################################
+
+
 
 def main():
   # Training settings
@@ -482,24 +536,27 @@ def main():
 
   root_print(rank,ni_steps)
 
-# 1) Hard-code V-cycle down below the F-cycle
-#   - Done with restrict
-#   - Done with getting a gradient 
-#   - Done with modified loss function
-#
-#   Write cycle   
-#
-# 2) Want a more general cycle structure to allow for V- and F-
-#    Encapsulate more functionality in functions (???  like compute gradient, which feeds into optimization step?  or leave exposed for now...)
-#    Do you want multilevel MG/Opt object?  Probably...
-#    - Core data structure would be list of models
-#    - Functions would be initialize (call below NI) with a few params
-#    - And solve with V or F cycle
-#
-# 3) Want code to be extended to allow for two mini-batch loops, one outside of MG/Opt, and one inside MG/Opt that is used by each relaxation step.
-#    Perhaps, you want train_loader to be post-processed into doubly nested list, where each inside list is the set of batch(es) for relaxation to 
-#    iterate over, [  [],   [],   [],  .... ]
-#
+  # TODO
+  # 1) Debug two-grid MGOpt 
+  #   - How to test fixed point? 
+  #   - Other tests? 
+  #   - Ask Eric to look it over?  
+  #     Paying attention to syntax, no_grad() and enable_grad()?  Line-search?  And MGOpt correctness?
+  #
+  # 2) Convert to multilevel solver object, probably modeled off of PyAMG multilevel_solver
+  #    - Initialization always done via NI (use code below)
+  #       --> Yield core data structure of list of models
+  #    - Then support V- and F-cycles there after
+  #    - General PyAMG solver allows for easy plugging in of new relaxation and
+  #      interpolation methods, which we want
+  #
+  # 3) Extend code to allow for two mini-batch loops, one outside of MG/Opt, and
+  #    one inside MG/Opt that is used by each relaxation step.  
+  #    Perhaps, you want train_loader to be post-processed into doubly nested
+  #    list, where each inside list is the set of batch(es) for relaxation to
+  #     iterate over, [  [],   [], [],  .... ]
+  # 
+
 
   ##
   # Initialize with Nested Iteration
@@ -558,30 +615,10 @@ def main():
     # Store Model
     models.append(model)
 
-  import pdb; pdb.set_trace()
 
-  # is the ordering of parameters the same, when you iterate over children, and
-  #    parameters?  That appears to be the case.  If its ever not, your dot
-  #    product will break...so maybe not worry about it.
-  #
-  # do you need to with torch.no_grad()?
-  #
-  #
-  # (do you want to "verify" this and then use the multilevel solver PyAMG
-  #    object, and model the solver design off of SA?  For easy relaxation
-  #    plug-n-play?
-  #
-  # make this a recursive function
-  # look at linesearch, just do 1, 1/2, 1/4, 1/8/, 1/16, 1/32, halt.  Eval objective, if smaller, stop.  else halve
-  # re-arrange functions that are V-cycle specific
-  #
-  # encapsulate relaxation in function
-  #
-  # encapsulate the fwd+bwd evaluation of a network (?)  and leave the optimizer.step() to be done afterward ?
-  #
-  # encapsulate simple line search...
-  #
-  # ==> clean up code, and combine with list above ... !
+  ############################
+  #import pdb; pdb.set_trace()
+  ############################
 
 
   # Now, carry out V-cycles.  Hierarchy is initialized.
@@ -589,138 +626,114 @@ def main():
   models.reverse()
   #
   ncycles = 1
-  nrelax = 1
+  nrelax_pre = 1
+  nrelax_post = 1
   nrelax_coarse = 5 # number of optimizations for coarse-grid solve
   cf = 2
   lr = args.lr
-  n_line_search = 7
+  momentum = 0.9
+  n_line_search = 10
+  log_interval = args.log_interval
+  epochs = args.epochs
   #
   # likely recursive parameters 
   lvl = 0
-  v = None
+  v_h = None
   #
-  for batch_idx, (data, target) in enumerate(train_loader):
+  for epoch in range(1, epochs + 1):
     
-    for cycle in range(ncycles):
+    total_time = 0.0
+    for batch_idx, (data, target) in enumerate(train_loader):
+      
+      start = timer()
+      for cycle in range(ncycles):
 
-      optimizer_fine = optim.SGD(models[lvl].parameters(), lr=lr, momentum=0.9)
+        optimizer_fine = optim.SGD(models[lvl].parameters(), lr=lr, momentum=momentum)
+        
+        #import pdb; pdb.set_trace()
+        # 1. relax (carry out optimization steps)
+        for k in range(nrelax_pre):
+          loss = compute_fwd_bwd_pass(lvl, optimizer_fine, models[lvl], data, target, my_criterion, compose, v_h)
+          optimizer_fine.step()
+     
+        # 2. compute new gradient g_h
+        # First evaluate network, forward and backward.  Return value is scalar value of the loss.
+        loss = compute_fwd_bwd_pass(lvl, optimizer_fine, models[lvl], data, target, my_criterion, compose, v_h)
+        fine_loss = loss.item()
+        # Second, note that the gradient is waiting in models[lvl], to accessed next
     
-      # 1. relax (carry out optimization steps)
-      for k in range(nrelax):
-        optimizer_fine.zero_grad()
-        output = models[lvl](data)
-        if lvl == 0:
-          loss = compose(my_criterion, output, target)
-        else: # add the MG/Opt Term
-          x_h = get_network_params(models[lvl], deep_copy=False, grad=False)
-          loss = compose(my_criterion, output, target, x_h, v)
-        ##
-        loss.backward()
-        optimizer_fine.step()
-  
-   
-      # 2. compute new gradient g_h
-      # First evaluate network, forward and backward
-      optimizer_fine.zero_grad()
-      output = models[lvl](data)
-      if lvl == 0:
-        loss = compose(my_criterion, output, target)
-      else: # add the MG/Opt Term
-        x_h = get_network_params(models[lvl], deep_copy=False, grad=False)
-        loss = compose(my_criterion, output, target, x_h, v)
-      ##
-      loss.backward()
-      fine_loss = loss.item()
-      # Second, note that the gradient is waiting in models[lvl], to accessed next
+        # 3. restrict parameters (x_h) and gradient (g_h) to H
+        #    x_H^{zero} = R(x_h)   and    \tilde{g}_H = R(g_h)
+        with torch.no_grad():
+          gtilde_H = restrict_network_params(models[lvl], cf=cf, deep_copy=True, grad=True)
+          x_H      = restrict_network_params(models[lvl], cf=cf, deep_copy=True, grad=False)
+          # For x_H to take effect, these parameters must be written to the next coarser network
+          write_network_params_inplace(models[lvl+1], x_H)
+          # Must store x_H for later error computation
+          x_H_zero = tensor_list_deep_copy(x_H)
+    
+        # 4. compute gradient on coarse level, using restricted parameters
+        #  g_H = grad( f_H(x_H) )
+        optimizer_coarse = optim.SGD(models[lvl+1].parameters(), lr=lr, momentum=momentum)
+        # Evaluate gradient.  For computing fwd_bwd_pass, give 0 as first
+        # parameter, so that the MGOpt term is turned-off.  We just want hte
+        # gradient of f_H here.
+        loss = compute_fwd_bwd_pass(0, optimizer_coarse, models[lvl+1], data, target, my_criterion, compose, None)
+        with torch.no_grad():
+          g_H = get_network_params(models[lvl+1], deep_copy=True, grad=True)
+    
+        # 5. compute coupling term
+        #  v = g_H - \tilde{g}_H
+        with torch.no_grad():
+          v_H = tensor_list_AXPY(1.0, g_H, -1.0, gtilde_H)
+    
+        # 6. solve coarse-grid (eventually do recursive call if not coarsest level)
+        #  x_H = min f_H(x_H) - <v_H, x_H>
+        for m in range(nrelax_coarse):
+          loss = compute_fwd_bwd_pass(lvl+1, optimizer_coarse, models[lvl+1], data, target, my_criterion, compose, v_H)
+          optimizer_coarse.step()
+    
+        # 7. interpolate correction to fine-level
+        #  e_h = P( x_H - x_H^{init})
+        with torch.no_grad():
+          x_H = get_network_params(models[lvl+1], deep_copy=False, grad=False)
+          e_H = tensor_list_AXPY(1.0, x_H, -1.0, x_H_zero)
+          #
+          # to correctly interpolate e_H --> e_h, we need to put these values in a
+          # network, so the interpolation knows the layer-parallel structure and
+          # where to refine.
+          write_network_params_inplace(models[lvl+1], e_H)
+          e_h = interpolate_network_params(models[lvl+1], cf=cf, deep_copy=True, grad=False)
+    
+        # 8. apply linesearch to update x_h
+        #  x_h = x_h + alpha*e_h
+        with torch.no_grad():
+          alpha = 1.0
+          line_search(lvl, e_h, optimizer_fine, models[lvl], data, target, compose, my_criterion, fine_loss, alpha, n_line_search, v_h )
 
-
-      # 3. restrict parameters (x_h) and gradient (g_h) to H
-      #    x_H^{zero} = R(x_h)   and    \tilde{g}_H = R(g_h)
-      with torch.no_grad():
-        gtilde_H = restrict_network_params(models[lvl], cf=cf, deep_copy=True, grad=True)
-        x_H      = restrict_network_params(models[lvl], cf=cf, deep_copy=True, grad=False)
-        # For x_H to take effect, these parameters must be written to the next coarser network
-        write_network_params_inplace(models[lvl+1], x_H)
-        # Must store x_H for later error computation
-        x_H_zero = tensor_list_deep_copy(x_H)
-
-
-      # 4. compute gradient on coarse level, using restricted parameters
-      #  g_H = grad( f_H(x_H) )
-      optimizer_coarse = optim.SGD(models[lvl+1].parameters(), lr=lr, momentum=0.9)
-      optimizer_coarse.zero_grad()
-      output = models[lvl+1](data)
-      loss = compose(my_criterion, output, target)  # we just want gradient of f_H here, with no MG/Opt term
-      loss.backward()
-      with torch.no_grad():
-        g_H = get_network_params(models[lvl+1], deep_copy=True, grad=True)
-   
-  
-      # 5. compute coupling term
-      #  v = g_H - \tilde{g}_H
-      with torch.no_grad():
-        v_H = tensor_list_AXPY(1.0, g_H, -1.0, gtilde_H)
-
-
-      # 6. solve coarse-grid (eventually do recursive call if not coarsest level)
-      #  x_H = min f_H(x_H) - <v_H, x_H>
-      for m in range(nrelax_coarse):
-        optimizer_coarse.zero_grad()
-        output = models[lvl+1](data)
-        x_H = get_network_params(models[lvl+1], deep_copy=False, grad=False)
-        loss = compose(my_criterion, output, target, x_H, v_H)
-        loss.backward()
-        optimizer_coarse.step()
-
-
-      # 7. interpolate correction to fine-level
-      #  e_h = P( x_H - x_H^{init})
-      with torch.no_grad():
-        x_H = get_network_params(models[lvl+1], deep_copy=False, grad=False)
-        e_H = tensor_list_AXPY(1.0, x_H, -1.0, x_H_zero)
-        #
-        # to correctly interpolate e_H --> e_h, we need to put these values in a
-        # network, so the interpolation knows the layer-parallel structure and
-        # where to refine.
-        write_network_params_inplace(models[lvl+1], e_H)
-        e_h = interpolate_network_params(models[lvl+1], cf=cf, deep_copy=True, grad=False)
+        # 9. post-relaxation
+        for k in range(nrelax_post):
+          loss = compute_fwd_bwd_pass(lvl, optimizer_fine, models[lvl], data, target, my_criterion, compose, v_h)
+          optimizer_fine.step()
+        
+      ## End cycle
+      # record timer
+      end = timer()
+      total_time += (end-start)
       
+      if batch_idx % log_interval == 0:
+        root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
+            epoch, batch_idx * len(data), len(train_loader.dataset),
+            100. * batch_idx / len(train_loader), loss.item(), total_time/(batch_idx+1.0)))
+    
+    ## End Batch loop
 
-      # 8. apply linesearch to update x_h
-      #  x_h = x_h + alpha*e_h
-      #     
-      # Simple line-search: Add e_h to fine parameters.  If loss has
-      # diminished, stop.  Else subtract 1/2 of e_h from fine parameters, and
-      # continue until loss is reduced.
-      
-      # Add error update to x_h
-      # alpha*e_h + x_h --> x_h
-      with torch.no_grad():
-        x_h = get_network_params(models[lvl], deep_copy=False, grad=False)
-        alpha = 1.0
-        tensor_list_AXPY(alpha, e_h, 1.0, x_h, inplace=True)
-      
-        # Start Line search 
-        for m in range(n_line_search):
-          print("wwww", m, alpha)
-          
-          optimizer_fine.zero_grad()
-          output = models[lvl](data)
-          if lvl == 0:
-            loss = compose(my_criterion, output, target)
-          else: # add the MG/Opt Term
-            x_h = get_network_params(models[lvl], deep_copy=False, grad=False)
-            loss = compose(my_criterion, output, target, x_h, v)
-          ##
-          new_loss = loss.item()
-          if new_loss < fine_loss:
-            break
-          elif m < (n_line_search-1): 
-            alpha = alpha/2.0
-            tensor_list_AXPY(-alpha, e_h, 1.0, x_h, inplace=True)
+    root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
+      epoch, (batch_idx+1) * len(data), len(train_loader.dataset),
+      100. * (batch_idx+1) / len(train_loader), loss.item(),total_time/(batch_idx+1.0)))
 
-      ##
-      # no need to return anything, fine network is modified in place
+    ##
+    # no need to return anything, fine network is modified in place
 
   root_print(rank,'TIME PER EPOCH: %.2e (1 std dev %.2e)' % (stats.mean(epoch_times),stats.stdev(epoch_times)))
   root_print(rank,'TIME PER TEST:  %.2e (1 std dev %.2e)' % (stats.mean(test_times), stats.stdev(test_times)))
@@ -728,8 +741,9 @@ def main():
 if __name__ == '__main__':
   main()
 
-
-
+#Train Epoch: 1 [500/500 (100%)]	Loss: 1.263040	Time Per Batch 0.990054
+#Train Epoch: 2 [0/500 (0%)]	Loss: 1.429151	Time Per Batch 1.015982
+#Train Epoch: 2 [500/500 (100%)]	Loss: 0.901805	Time Per Batch 0.988055
 
 #####################
 # Code Graveyard
