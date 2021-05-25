@@ -36,6 +36,7 @@ import torch
 import numpy as np
 import traceback
 
+from libc.stdio cimport FILE, stdout
 from braid_vector import BraidVector
 
 cimport mpi4py.MPI as MPI
@@ -150,7 +151,7 @@ class BraidApp:
       braid_SetSpatialCoarsen(core,b_coarsen)
       braid_SetSpatialRefine(core,b_refine)
     # end if refinement_on
-
+    
     # Set Braid options
     if self.require_storage:
       braid_SetStorage(core,0)
@@ -170,7 +171,7 @@ class BraidApp:
     # store the c pointer
     py_core = PyBraid_Core()
     py_core.setCore(core)
-
+    
     return py_core
   # end initCore
 
@@ -230,9 +231,55 @@ class BraidApp:
     cdef braid_Core core = py_core.getCore()
     braid_SetFinalFCRelax(core)
 
+  def testBraid(self, x):
+    """
+    Run some Braid Diagnostics
+    """
+
+    cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
+    cdef braid_Core core = py_core.getCore()
+    cdef MPI.Comm comm = self.getMPIComm()
+    cdef braid_PtFcnStep  b_step  = <braid_PtFcnStep> my_step
+    cdef braid_PtFcnInit  b_init  = <braid_PtFcnInit> my_init
+    cdef braid_PtFcnClone b_clone = <braid_PtFcnClone> my_clone
+    cdef braid_PtFcnFree  b_free  = <braid_PtFcnFree> my_free
+    cdef braid_PtFcnSum   b_sum   = <braid_PtFcnSum> my_sum
+    cdef braid_PtFcnSpatialNorm b_norm = <braid_PtFcnSpatialNorm> my_norm
+    cdef braid_PtFcnAccess b_access = <braid_PtFcnAccess> my_access
+    cdef braid_PtFcnBufSize b_bufsize = <braid_PtFcnBufSize> my_bufsize
+    cdef braid_PtFcnBufPack b_bufpack = <braid_PtFcnBufPack> my_bufpack
+    cdef braid_PtFcnBufUnpack b_bufunpack = <braid_PtFcnBufUnpack> my_bufunpack
+    cdef braid_PtFcnSCoarsen b_coarsen = <braid_PtFcnSCoarsen> my_coarsen
+    cdef braid_PtFcnSRefine b_refine = <braid_PtFcnSRefine> my_refine
+    
+    py_core = <PyBraid_Core> self.py_core
+    core = py_core.getCore()
+
+    self.setInitial(x)
+ 
+    if not self.first:
+        self.initializeStates()
+    
+    self.first = False
+
+    # Other test functions possible.  See braid.pyx.
+    #braid_TestBuf(<braid_App> self, comm.ob_mpi, stdout, 0.0,
+    #              b_init, b_free, b_sum, b_norm, b_bufsize, b_bufpack, b_bufunpack) 
+
+    if self.spatial_mg:
+        braid_TestAll( <braid_App> self, comm.ob_mpi, stdout, 0.0, 0.1, 0.2, 
+                    b_init, b_free, b_clone, b_sum, b_norm, b_bufsize, b_bufpack, b_bufunpack,
+                    b_coarsen, b_refine, NULL, b_step)    
+    
+    else:
+        braid_TestAll( <braid_App> self, comm.ob_mpi, stdout, 0.0, 0.1, 0.2, 
+                    b_init, b_free, b_clone, b_sum, b_norm, b_bufsize, b_bufpack, b_bufunpack,
+                    NULL,    NULL,   NULL,    b_step)    
+
   def runBraid(self,x):
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
     cdef braid_Core core = py_core.getCore()
+    
     try:
        py_core = <PyBraid_Core> self.py_core
        core = py_core.getCore()

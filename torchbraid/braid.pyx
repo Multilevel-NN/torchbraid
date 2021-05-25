@@ -38,6 +38,7 @@ Cython header file defining the Braid-Python interface
 
 cimport mpi4py.libmpi as libmpi
 from cpython.ref cimport PyObject
+from libc.stdio cimport FILE
 
 ctypedef PyObject _braid_App_struct 
 ctypedef _braid_App_struct* braid_App
@@ -222,6 +223,40 @@ cdef extern from "braid.h":
     int braid_SplitCommworld (const libmpi.MPI_Comm *comm_world, int px, libmpi.MPI_Comm *comm_x, libmpi.MPI_Comm *comm_t)
     int braid_SetShell (braid_Core core, braid_PtFcnSInit sinit, braid_PtFcnSClone sclone, braid_PtFcnSFree sfree)
     
+
+    ##
+    # Braid Test Routines
+    int braid_TestInitAccess(braid_App app, libmpi.MPI_Comm comm_x, FILE *fp, double t, 
+                        braid_PtFcnInit init, braid_PtFcnAccess access, braid_PtFcnFree free);
+    int braid_TestClone(braid_App app, libmpi.MPI_Comm comm_x, FILE *fp, double t,
+                        braid_PtFcnInit init, braid_PtFcnAccess access, 
+                        braid_PtFcnFree free, braid_PtFcnClone clone);
+    int braid_TestSum(braid_App app, libmpi.MPI_Comm comm_x, FILE *fp, double t,
+                        braid_PtFcnInit  init, braid_PtFcnAccess access, braid_PtFcnFree free, 
+                        braid_PtFcnClone clone, braid_PtFcnSum sum);
+    int braid_TestSpatialNorm( braid_App app, libmpi.MPI_Comm comm_x, FILE *fp, double t,
+                        braid_PtFcnInit init, braid_PtFcnFree free, braid_PtFcnClone clone, 
+                        braid_PtFcnSum sum, braid_PtFcnSpatialNorm spatialnorm);
+    int braid_TestBuf(braid_App app, libmpi.MPI_Comm comm_x, FILE  *fp, double t,
+                        braid_PtFcnInit init, braid_PtFcnFree free, braid_PtFcnSum sum, 
+                        braid_PtFcnSpatialNorm spatialnorm, braid_PtFcnBufSize bufsize, 
+                        braid_PtFcnBufPack bufpack, braid_PtFcnBufUnpack bufunpack);
+    int braid_TestCoarsenRefine(braid_App app, libmpi.MPI_Comm comm_x, FILE *fp, double t, double fdt, double cdt,  
+                        braid_PtFcnInit init, braid_PtFcnAccess access, braid_PtFcnFree free,
+                        braid_PtFcnClone clone, braid_PtFcnSum sum, braid_PtFcnSpatialNorm spatialnorm,
+                        braid_PtFcnSCoarsen coarsen, braid_PtFcnSRefine refine)
+    int braid_TestResidual( braid_App app, libmpi.MPI_Comm comm_x, FILE *fp, double t, double dt, 
+                        braid_PtFcnInit myinit, braid_PtFcnAccess myaccess, braid_PtFcnFree myfree,
+                        braid_PtFcnClone clone, braid_PtFcnSum sum, braid_PtFcnSpatialNorm spatialnorm,
+                        braid_PtFcnResidual residual, braid_PtFcnStep step);
+    int braid_TestAll( braid_App app, libmpi.MPI_Comm comm_x, FILE *fp, double t, double fdt, double cdt, 
+                        braid_PtFcnInit init, braid_PtFcnFree free, braid_PtFcnClone clone, braid_PtFcnSum sum, 
+                        braid_PtFcnSpatialNorm spatialnorm, braid_PtFcnBufSize bufsize, braid_PtFcnBufPack bufpack, 
+                        braid_PtFcnBufUnpack bufunpack, braid_PtFcnSCoarsen coarsen,
+                        braid_PtFcnSRefine refine, braid_PtFcnResidual residual, braid_PtFcnStep step); 
+
+
+
     ##
     # Wrap BraidGet Routines
     int braid_GetNumIter (braid_Core core, int *iter_ptr)

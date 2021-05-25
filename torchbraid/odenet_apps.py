@@ -141,6 +141,9 @@ class ForwardODENetApp(BraidApp):
   def run(self,x):
     # turn on derivative path (as requried)
     self.use_deriv = self.training
+    
+    # instead of doing runBraid, can execute tests
+    #self.testBraid(x)
 
     # run the braid solver
     with self.timer("runBraid"):
@@ -304,6 +307,9 @@ class BackwardODENetApp(BraidApp):
     return self.timer_manager.timer("BckWD::"+name)
 
   def run(self,x):
+    
+    # instead of doing runBraid, can execute tests
+    #self.testBraid(x)
 
     try:
       f = self.runBraid(x)
