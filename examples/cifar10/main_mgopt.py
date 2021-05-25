@@ -294,13 +294,13 @@ def interpolate_network_params(model, cf=2, deep_copy=False, grad=False):
   interp_params = []
 
   # loop over all the children, interpolating the layer-parallel weights
-  for child in model.children():
-    # handle layer parallel modules differently 
-    if isinstance(child, torchbraid.LayerParallel):
-      
-      # loop over each layer-parallel layer -- this is where the "interpolation" occurs
-      for (lp_child, lp_f) in duplicate(child.layer_models, cf):
-        with torch.no_grad():
+  with torch.no_grad():
+    for child in model.children():
+      # handle layer parallel modules differently 
+      if isinstance(child, torchbraid.LayerParallel):
+        
+        # loop over each layer-parallel layer -- this is where the "interpolation" occurs
+        for (lp_child, lp_f) in duplicate(child.layer_models, cf):
           for param in lp_child.parameters():
             if deep_copy:
               if grad: interp_params.append(torch.clone(param.grad))
@@ -308,10 +308,9 @@ def interpolate_network_params(model, cf=2, deep_copy=False, grad=False):
             else: # no deep copy
               if grad: interp_params.append(param.grad)
               else:    interp_params.append(param)
-             
-    else:
-      # Do simple injection for the opening and closing layers
-      with torch.no_grad():
+               
+      else:
+        # Do simple injection for the opening and closing layers
         for param in child.parameters():
           if deep_copy:
             if grad: interp_params.append(torch.clone(param.grad))
@@ -398,7 +397,8 @@ def compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, compose
   if lvl is 0, no MGOPT term is used
   if lvl > 0, incorporate MGOpt term
   '''
-  
+  model.train()
+
   optimizer.zero_grad()
   output = model(data)
   if lvl == 0:
@@ -579,6 +579,7 @@ def main():
 
       new_params = interpolate_network_params(models[-1], cf=cf, deep_copy=True, grad=False)
       write_network_params_inplace(model, new_params)
+      del new_params
 
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -704,7 +705,7 @@ def main():
           # where to refine.
           write_network_params_inplace(models[lvl+1], e_H)
           e_h = interpolate_network_params(models[lvl+1], cf=cf, deep_copy=True, grad=False)
-    
+          
         # 8. apply linesearch to update x_h
         #  x_h = x_h + alpha*e_h
         with torch.no_grad():
@@ -716,6 +717,7 @@ def main():
           loss = compute_fwd_bwd_pass(lvl, optimizer_fine, models[lvl], data, target, my_criterion, compose, v_h)
           optimizer_fine.step()
         
+
       ## End cycle
       # record timer
       end = timer()
