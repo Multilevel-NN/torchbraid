@@ -266,15 +266,19 @@ class BraidApp:
     #braid_TestBuf(<braid_App> self, comm.ob_mpi, stdout, 0.0,
     #              b_init, b_free, b_sum, b_norm, b_bufsize, b_bufpack, b_bufunpack) 
 
-    if self.spatial_mg:
-        braid_TestAll( <braid_App> self, comm.ob_mpi, stdout, 0.0, 0.1, 0.2, 
-                    b_init, b_free, b_clone, b_sum, b_norm, b_bufsize, b_bufpack, b_bufunpack,
-                    b_coarsen, b_refine, NULL, b_step)    
+    braid_TestCoarsenRefine(<braid_App> self, comm.ob_mpi, stdout, 0.0, 0.1, 0.2, 
+                            b_init, b_access, b_free, b_clone, b_sum, b_norm, 
+                            b_coarsen, b_refine)            
+
+    #if self.spatial_mg:
+    #    braid_TestAll( <braid_App> self, comm.ob_mpi, stdout, 0.0, 0.1, 0.2, 
+    #                b_init, b_free, b_clone, b_sum, b_norm, b_bufsize, b_bufpack, b_bufunpack,
+    #                b_coarsen, b_refine, NULL, b_step)    
     
-    else:
-        braid_TestAll( <braid_App> self, comm.ob_mpi, stdout, 0.0, 0.1, 0.2, 
-                    b_init, b_free, b_clone, b_sum, b_norm, b_bufsize, b_bufpack, b_bufunpack,
-                    NULL,    NULL,   NULL,    b_step)    
+    #else:
+    #    braid_TestAll( <braid_App> self, comm.ob_mpi, stdout, 0.0, 0.1, 0.2, 
+    #                b_init, b_free, b_clone, b_sum, b_norm, b_bufsize, b_bufpack, b_bufunpack,
+    #                NULL,    NULL,   NULL,    b_step)    
 
   def runBraid(self,x):
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
