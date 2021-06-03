@@ -114,6 +114,7 @@ class ForwardODENetApp(BraidApp):
     num_ranks     = self.getMPIComm().Get_size()
 
     if my_rank>0:
+      #print('  sending', my_rank)
       comm.send(list(self.layer_models[0].parameters()), dest=my_rank-1,tag=22)
     if my_rank<num_ranks-1:
       neighbor_model = comm.recv(source=my_rank+1,tag=22)
@@ -122,6 +123,7 @@ class ForwardODENetApp(BraidApp):
         for dest_p, src_w in zip(list(new_model.parameters()), neighbor_model):
           dest_p.data = src_w
       self.layer_models[-1] = new_model
+      #print('  recv', my_rank,len(self.layer_models)-1)
 
 
   def run(self,x):
@@ -132,8 +134,8 @@ class ForwardODENetApp(BraidApp):
     with self.timer("runBraid"):
 
       # do boundary exchange for parallel weights
-      if self.use_deriv:
-        self.updateParallelWeights()
+      #if self.use_deriv:
+      #  self.updateParallelWeights()
 
       y = self.runBraid(x)
 
@@ -230,20 +232,33 @@ class ForwardODENetApp(BraidApp):
     so it can be stored internally instead of
     being recomputed.
     """
+
     
-    layer = self.getLayer(tstart,tstop,level)
+    if level==0:
+      layer = self.getLayer(tstart,tstop,level)
+
+      if layer==None:
+        layer = self.layer_block()
+        self.layer_models[-1] = layer
+    else:
+      layer = self.temp_layer
 
     b_x = self.getUVector(0,tstart)
     t_x = b_x.tensor()
 
-    self.setLayerWeights(tstart,tstop,level,b_x.weightTensors())
+    with torch.no_grad():
+      for dest_p,src_w in zip(list(layer.parameters()),b_x.weightTensors()):
+        dest_p.data = src_w
 
     x = t_x.detach()
     y = t_x.detach().clone()
 
-    x.requires_grad = t_x.requires_grad
+    #x.requires_grad = t_x.requires_grad
 
-    self.eval(y,tstart,tstop,0,done=0,x=x)
+    x.requires_grad = True 
+    dt = tstop-tstart
+    with torch.enable_grad():
+      y = x + dt * layer(x)
     return (y, x), layer
   # end getPrimalWithGrad
 
@@ -289,6 +304,7 @@ class BackwardODENetApp(BraidApp):
 
   def run(self,x):
 
+    self.fwd_app.layer_models[-1] = None
     try:
       f = self.runBraid(x)
       if f is not None:
