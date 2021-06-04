@@ -176,6 +176,9 @@ class ForwardODENetApp(BraidApp):
     condition x. The level is defined by braid
     """
 
+    print('forward rank={}, tstart={:.2}, tstop={:.2}'.format(self.my_rank,tstart,tstop))
+    sys.stdout.flush()
+
     # this function is used twice below to define an in place evaluation
     def in_place_eval(t_y,tstart,tstop,level,t_x=None):
       # get some information about what to do
@@ -349,6 +352,9 @@ class BackwardODENetApp(BraidApp):
     adjoint solution. The variables 'x' and 'y' refer to the forward
     problem solutions at the beginning (x) and end (y) of the type step.
     """
+    print('backward rank={}, tstart={:.2}, tstop={:.2}'.format(self.fwd_app.my_rank,tstart,tstop))
+    sys.stdout.flush()
+
     try:
         # we need to adjust the time step values to reverse with the adjoint
         # this is so that the renumbering used by the backward problem is properly adjusted
