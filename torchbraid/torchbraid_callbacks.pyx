@@ -73,6 +73,7 @@ cdef int my_access(braid_App app,braid_Vector u,braid_AccessStatus status):
 cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Vector vec_u, braid_StepStatus status):
   cdef double tstart
   cdef double tstop
+  cdef int tindex
   cdef int level
   cdef int done 
 
@@ -82,21 +83,35 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
 
       tstart = 0.0
       tstop = 5.0
+      tindex = -1
       level = -1
       braid_StepStatusGetTstartTstop(status, &tstart, &tstop)
       braid_StepStatusGetLevel(status, &level)
       braid_StepStatusGetDone(status, &done)
+      braid_StepStatusGetDone(status, &done)
+      braid_StepStatusGetTIndex(status, &tindex)
+
+      pyApp.setTimeStepIndex(tindex)
 
       # modify the state vector in place
       u =  <object> vec_u
       pyApp.eval(u,tstart,tstop,level,done)
+
+      pyApp.setTimeStepIndex(None)
+
   except:
-    output_exception("my_step: rank={}, step=({},{}), level={}, sf={}".format(pyApp.getMPIComm().Get_rank(),tstart,tstop,level,u.getSendFlag()))
+    output_exception("my_step: rank={}, step=({},{}), level={}, sf={}, ts_index={}".format(pyApp.getMPIComm().Get_rank(),
+                                                                                           tstart,
+                                                                                           tstop,
+                                                                                           level,
+                                                                                           u.getSendFlag(),
+                                                                                           tindex))
 
   return 0
 # end my_access
 
 cdef int my_init(braid_App app, double t, braid_Vector *u_ptr):
+
   try:
     pyApp = <object> app
     with pyApp.timer("init"):

@@ -68,6 +68,8 @@ class BraidApp:
     self.require_storage = require_storage
     self.abs_tol = abs_tol
 
+    self.tindex = None
+
     self.mpi_comm        = comm
     self.Tf              = Tf
     self.local_num_steps = local_num_steps
@@ -97,6 +99,8 @@ class BraidApp:
 
     # build up the core
     self.py_core = self.initCore()
+
+    self.start_layer,self.end_layer = self.getStepBounds()
 
     # this tracks if you are training or not,
     # this is intended to match the behavior of
@@ -181,6 +185,22 @@ class BraidApp:
       # Destroy Braid Core C-Struct
       braid_Destroy(core) # this should be on
     # end core
+
+  def getNumSteps(self):
+    """
+    Get the total number of steps over all procesors.
+    """
+    return self.num_steps
+
+  def getTimeStepIndex(self):
+    """
+    Get the global index of the current time step. If this returns
+    None, then the time step is not being evaluated
+    """
+    return self.tindex
+
+  def setTimeStepIndex(self,tindex):
+    self.tindex = tindex
 
   def diagnostics(self,enable):
     """
@@ -353,6 +373,7 @@ class BraidApp:
     self.reverted = reverted 
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetRevertedRanks(core,reverted)
+    self.start_layer,self.end_layer = self.getStepBounds()
 
   def getUVector(self,level,t):
     cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
@@ -360,7 +381,7 @@ class BraidApp:
 
     with self.timer("getUVector"): 
       
-      index = self.getGlobalTimeStepIndex(t,None,level)
+      index = self.getGlobalTimeIndex(t,level)
       _braid_UGetVectorRef(core, level,index,&bv)
 
       # this can be null, return that the vector was not found
@@ -373,9 +394,12 @@ class BraidApp:
     return self.mpi_comm
 
   def getLocalTimeStepIndex(self,t,tf,level):
-    return round((t-self.t0_local) / self.dt)
+    #return round((t-self.t0_local) / self.dt)
+    #return (t-self.dt*self.lower_node)/self.dt
+#round((t-self.t0_local) / self.dt)
+    pass
 
-  def getGlobalTimeStepIndex(self,t,tf,level):
+  def getGlobalTimeIndex(self,t,level):
     return round(t / self.dt)
 
   def setInitial(self,x0):
@@ -438,6 +462,9 @@ class BraidApp:
 
   def getStepBounds(self):
     cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
-    return (core.grids[0].ilower, core.grids[0].iupper)
+    cdef int ilower
+    cdef int iupper
+    _braid_GetDistribution(core, &ilower,&iupper)
 
+    return ilower,iupper
 # end BraidApp

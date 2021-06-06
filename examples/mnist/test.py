@@ -79,12 +79,16 @@ def main():
   comm = MPI.COMM_WORLD
 
   local_steps = 3
-  levels = 1
+  levels = 2
 
   step_layer = lambda: StepLayer(channels=2)
 
   parallel_nn = torchbraid.LayerParallel(comm,step_layer,local_steps,Tf=comm.Get_size()*local_steps,max_levels=levels,max_iters=1)
   parallel_nn.setPrintLevel(0)
+
+  fwd_lower,fwd_upper = parallel_nn.fwd_app.getStepBounds()
+  bwd_lower,bwd_upper = parallel_nn.bwd_app.getStepBounds()
+
 
   parallel_nn.train()
 
@@ -93,9 +97,17 @@ def main():
   root_print(comm.Get_rank(),'======================')
   y = parallel_nn(x)
 
+  print('  %d) fwd lower,upper = ' % comm.Get_rank(),fwd_lower,fwd_upper)
+  sys.stdout.flush()
+  comm.barrier()
+
   root_print(comm.Get_rank(),'\n\nBACKWARD')
   root_print(comm.Get_rank(),'======================')
   y.backward(torch.ones(y.shape))
+
+  print('  %d) bwd lower,upper = ' % comm.Get_rank(),bwd_lower,bwd_upper)
+  sys.stdout.flush()
+  comm.barrier()
 
   #root_print(comm.Get_rank(),'\n======================')
   #for p in parallel_nn.parameters():
