@@ -88,11 +88,11 @@ class BraidFunction(torch.autograd.Function):
 
     # send gradients to the right 
     grads = ctx.bwd_app.grads
-    if my_rank<num_ranks-1:
-      comm.send(grads[-1],dest=my_rank+1,tag=22)
-    if my_rank>0:
-      neighbor_model = comm.recv(source=my_rank-1,tag=22)
-      grads.insert(0,neighbor_model)
+    #if my_rank<num_ranks-1:
+    #  comm.send(grads[-1],dest=my_rank+1,tag=22)
+    #if my_rank>0:
+    #  neighbor_model = comm.recv(source=my_rank-1,tag=22)
+    #  grads.insert(0,neighbor_model)
 
     # flatten the grads array
     grads = [g for sublist in grads for g in sublist]

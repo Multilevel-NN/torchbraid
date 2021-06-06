@@ -79,7 +79,7 @@ class ForwardODENetApp(BraidApp):
     return list(self.shape0)+self.parameter_shapes
 
   def setVectorWeights(self,layer_index,level,x):
-    if layer_index<len(self.layer_models):
+    if layer_index<len(self.layer_models) and layer_index>=0:
       layer = self.layer_models[layer_index]
     else:
       layer = None
@@ -218,25 +218,20 @@ class ForwardODENetApp(BraidApp):
     being recomputed.
     """
 
-    
-    if level==0:
-    #  print('backward rank={}, tstart={:.2}, tstop={:.2}, ts_index={}'.format(self.my_rank,tstart,tstop,ts_index))
-    #  sys.stdout.flush()
+    b_x = self.getUVector(0,tstart)
+
+    if ts_index<len(self.layer_models):
       layer = self.layer_models[ts_index]
     else:
       layer = self.temp_layer
+      with torch.no_grad():
+        for dest_p,src_w in zip(list(layer.parameters()),b_x.weightTensors()):
+          dest_p.data = src_w
 
-    b_x = self.getUVector(0,tstart)
+
     t_x = b_x.tensor()
-
-    with torch.no_grad():
-      for dest_p,src_w in zip(list(layer.parameters()),b_x.weightTensors()):
-        dest_p.data = src_w
-
     x = t_x.detach()
     y = t_x.detach().clone()
-
-    #x.requires_grad = t_x.requires_grad
 
     x.requires_grad = True 
     dt = tstop-tstart
@@ -291,19 +286,13 @@ class BackwardODENetApp(BraidApp):
       if f is not None:
         f = f[0]
 
-      # this code is due to how braid decomposes the backwards problem
-      # The ownership of the time steps is shifted to the left (and no longer balanced)
-      first = 1
-      if self.getMPIComm().Get_rank()==0:
-        first = 0
-
       self.grads = []
 
       # preserve the layerwise structure, to ease communication
       # - note the prection of the 'None' case, this is so that individual layers
       # - can have gradient's turned off
       my_params = self.fwd_app.parameters()
-      for sublist in my_params[first:]:
+      for sublist in my_params:
         sub_gradlist = [] 
         for item in sublist:
           if item.grad is not None:
@@ -374,7 +363,9 @@ class BackwardODENetApp(BraidApp):
         for p,s in zip(layer.parameters(),required_grad_state):
           p.requires_grad = s
     except:
-      print('\n**** Torchbraid Internal Exception ****\n')
+      print('\n**** Torchbraid Internal Exception: ' 
+           +'backward eval: rank={}, level={}, time interval=({:.2f},{:.2f}) ****\n'.format(self.fwd_app.my_rank,level,tstart,tstop))
+      print('bwd_global=',bwd_glbl_index,'fwd_local=',fwd_local_index,'numstepps=',self.getNumSteps())
       traceback.print_exc()
   # end eval
 
