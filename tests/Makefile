@@ -22,8 +22,8 @@ tests test:
 	$(MPIRUN) -n 1 $(PYTHON) test_FlatPackUnpack.py
 	$(MPIRUN) -n 3 $(PYTHON) test_layer_parallel.py
 	#$(MPIRUN) -n 3 $(PYTHON) test_network_parallel.py -v
-	#$(MPIRUN) -n 3 $(PYTHON) test_composite.py
-	$(MPIRUN) -n 3 $(PYTHON) test_grad_update.py
+	$(MPIRUN) -n 3 $(PYTHON) test_composite.py
+	#$(MPIRUN) -n 3 $(PYTHON) test_grad_update.py
 	#$(MPIRUN) -n 3 $(PYTHON) test_rnn_layer_parallel.py
 	$(PYTHON) test_ContextTimer.py
 
@@ -31,8 +31,8 @@ tests-serial test-serial:
 	$(MPIRUN) -n 1 $(PYTHON) test_callbacks.py
 	$(MPIRUN) -n 1 $(PYTHON) test_FlatPackUnpack.py
 	$(MPIRUN) -n 1 $(PYTHON) test_layer_parallel.py
-	$(MPIRUN) -n 1 $(PYTHON) test_network_parallel.py
+	# $(MPIRUN) -n 1 $(PYTHON) test_network_parallel.py
 	$(MPIRUN) -n 1 $(PYTHON) test_composite.py
-	$(MPIRUN) -n 1 $(PYTHON) test_grad_update.py
-	$(MPIRUN) -n 1 $(PYTHON) test_rnn_layer_parallel.py
+	#$(MPIRUN) -n 1 $(PYTHON) test_grad_update.py
+	#$(MPIRUN) -n 1 $(PYTHON) test_rnn_layer_parallel.py
 	$(PYTHON) test_ContextTimer.py

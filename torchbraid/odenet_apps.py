@@ -109,33 +109,12 @@ class ForwardODENetApp(BraidApp):
     index = self.getGlobalTimeIndex(t,0)-self.start_layer
     self.setVectorWeights(index,0,x)
 
-  def updateParallelWeights(self):
-    # send everything to the left 
-    comm          = self.getMPIComm()
-    my_rank       = self.getMPIComm().Get_rank()
-    num_ranks     = self.getMPIComm().Get_size()
-
-    if my_rank>0:
-      #print('  sending', my_rank)
-      comm.send(list(self.layer_models[0].parameters()), dest=my_rank-1,tag=22)
-    if my_rank<num_ranks-1:
-      neighbor_model = comm.recv(source=my_rank+1,tag=22)
-      new_model = self.layer_block()
-      with torch.no_grad():
-        for dest_p, src_w in zip(list(new_model.parameters()), neighbor_model):
-          dest_p.data = src_w
-      self.layer_models[-1] = new_model
-
   def run(self,x):
     # turn on derivative path (as requried)
     self.use_deriv = self.training
 
     # run the braid solver
     with self.timer("runBraid"):
-
-      # do boundary exchange for parallel weights
-      #if self.use_deriv:
-      #  self.updateParallelWeights()
 
       y = self.runBraid(x)
 
@@ -181,18 +160,17 @@ class ForwardODENetApp(BraidApp):
     #  2. x is a torch tensor: called internally (probably for the adjoint) 
 
     if isinstance(y,BraidVector):
-      if level==0:
-        layer = self.layer_models[self.getTimeStepIndex()-self.start_layer]
-      else:
-        self.setLayerWeights(tstart,tstop,level,y.weightTensors())
-        layer = self.temp_layer
+      self.setLayerWeights(tstart,tstop,level,y.weightTensors())
+      layer = self.temp_layer
 
       t_y = y.tensor().detach()
 
       # no gradients are necessary here, so don't compute them
       dt = tstop-tstart
       with torch.no_grad():
+        k = torch.norm(t_y).item()
         q = dt*layer(t_y)
+        kq = torch.norm(q).item()
         t_y.add_(q)
         del q
 
