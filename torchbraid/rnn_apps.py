@@ -134,8 +134,7 @@ class ForwardBraidApp(parent.BraidApp):
         if t!=0.0: # don't change the initial condition
           for ten in x.tensors():
             ten[:] = 0.0
-        index = self.getDataVectorIndex(t,level=0)
-        value = self.x[:,index,:]
+        value = self.getSequenceVector(t,0)
         x.addWeightTensors((value,))
 
         # if fast forward is available do an early evaluation of the
