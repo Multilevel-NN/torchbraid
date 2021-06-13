@@ -393,12 +393,6 @@ class BraidApp:
   def getMPIComm(self):
     return self.mpi_comm
 
-  def getLocalTimeStepIndex(self,t,tf,level):
-    #return round((t-self.t0_local) / self.dt)
-    #return (t-self.dt*self.lower_node)/self.dt
-#round((t-self.t0_local) / self.dt)
-    pass
-
   def getGlobalTimeIndex(self,t,level):
     return round(t / self.dt)
 
