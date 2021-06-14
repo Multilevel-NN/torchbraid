@@ -137,6 +137,8 @@ class StepLayer(torch.nn.Module):
         # init_amp = layerID + 1.0
         cnt_local = cnt_local + 1
         init_amp = cnt_local
+        if MPI.COMM_WORLD.Get_rank() == 1:
+            init_amp = init_amp + 1
 
         # Create linear layer. init constant for debugging
         self.linearlayer = torch.nn.Linear(width, width)
@@ -226,8 +228,8 @@ torch.manual_seed(0)
 
 # Specify network
 width = 2
-nlayers = 10
-Tstop = 1.0
+nlayers = 6
+Tstop = 6.0
 
 # spline parameters
 nsplines=args.nsplines
@@ -319,22 +321,22 @@ def evalNetwork(gradient=False):
         return loss.item()
 
 
-# Evaluate gradient
 loss = evalNetwork(gradient=True)
+# loss = evalNetwork(gradient=False)
 
-# compute gradient norm. if parallel, how to compute the global norm??
+# # compute gradient norm. if parallel, how to compute the global norm??
 with torch.no_grad():
    param_vec = flatten(model.parameters())
    grad_vec = flatten(model.parameters(), gradient=True)
 
 # Output
 print(rank, ": Loss=", loss)
-print(rank, ": parameters=", param_vec)
+# print(rank, ": parameters=", param_vec)
 print(rank, ": gradient=", grad_vec)
-print(rank, ": ||Grad||=", LA.norm(grad_vec))
+# print(rank, ": ||Grad||=", LA.norm(grad_vec))
 print("\n")
 
-# # FINITE DIFFERENCE TESTING
+# FINITE DIFFERENCE TESTING. Run on one core!!
 # eps = 1e-2
 # maxerr = runFinDiff(model, eps)
 # print("Central Finite Difference: eps=", eps, " max. error=", maxerr)
