@@ -153,10 +153,6 @@ class ForwardODENetApp(BraidApp):
     condition x. The level is defined by braid
     """
 
-    # there are two paths by which eval is called:
-    #  1. x is a BraidVector: my step has called this method
-    #  2. x is a torch tensor: called internally (probably for the adjoint) 
-
     self.setLayerWeights(tstart,tstop,level,y.weightTensors())
     layer = self.temp_layer
 
@@ -171,14 +167,6 @@ class ForwardODENetApp(BraidApp):
       t_y.add_(q)
       del q
 
-    #if y.getSendFlag():
-    #  self.clearTempLayerWeights()
-    #
-    #  y.releaseWeightTensors()
-    #  y.setSendFlag(False)
-    # wipe out any sent information
-
-    #tstop_index = self.getTimeStepIndex()+1 # get end time stepl
     tstop_index = self.getGlobalTimeIndex(tstop)
     self.setVectorWeights(tstop_index-self.start_layer,level,y)
   # end eval
@@ -189,9 +177,6 @@ class ForwardODENetApp(BraidApp):
     time step and also get its derivative. This is
     used by the BackwardApp in computation of the
     adjoint (backprop) state and parameter derivatives.
-    Its intent is to abstract the forward solution
-    so it can be stored internally instead of
-    being recomputed.
     """
 
     b_x = self.getUVector(0,tstart)
@@ -330,7 +315,6 @@ class BackwardODENetApp(BraidApp):
     except:
       print('\n**** Torchbraid Internal Exception: ' 
            +'backward eval: rank={}, level={}, time interval=({:.2f},{:.2f}) ****\n'.format(self.fwd_app.my_rank,level,tstart,tstop))
-      print('bwd_global=',bwd_glbl_index,'fwd_local=',fwd_local_index,'numstepps=',self.getNumSteps())
       traceback.print_exc()
   # end eval
 
