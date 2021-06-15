@@ -104,15 +104,15 @@ class ForwardBraidApp(parent.BraidApp):
   def getTensorShapes(self):
     return list(self.shape0)+self.seq_shapes
 
-  def getDataVectorIndex(self,t,level):
+  def getDataVectorIndex(self,t):
     shift = 0
     if self.mpi_comm.Get_rank()>0:
       shift = 1
 
     return self.getGlobalTimeIndex(t)-self.start_layer+shift
 
-  def getSequenceVector(self,t,level):
-    index = self.getDataVectorIndex(t,level)
+  def getSequenceVector(self,t):
+    index = self.getDataVectorIndex(t)
     if index<0: 
       my_rank = self.mpi_comm.Get_rank()
       pre_str  = "\n{}: WARNING: getSequenceVector index negative at {}: {}\n".format(my_rank,t,index)
@@ -134,7 +134,7 @@ class ForwardBraidApp(parent.BraidApp):
         if t!=0.0: # don't change the initial condition
           for ten in x.tensors():
             ten[:] = 0.0
-        value = self.getSequenceVector(t,0)
+        value = self.getSequenceVector(t)
         x.addWeightTensors((value,))
 
         # if fast forward is available do an early evaluation of the
@@ -218,7 +218,7 @@ class ForwardBraidApp(parent.BraidApp):
         if level==0:
           self.backpropped[tstart,tstop] = (u,y)
   
-      seq_x = self.getSequenceVector(tstop,level)
+      seq_x = self.getSequenceVector(tstop)
   
       g0.addWeightTensors((seq_x,))
       for i,t in enumerate(y):
@@ -243,10 +243,10 @@ class ForwardBraidApp(parent.BraidApp):
       return y,u
 
     with self.timer("getPrimalWithGrad-long"):
-      # extract teh various vectors for this value from the fine level to linearize around
+      # extract the various vectors for this value from the fine level to linearize around
       b_u = self.getUVector(0,tstart)
 
-      seq_x = b_u.weightTensors()[0]
+      seq_x = self.getSequenceVector(tstart)
       u = tuple([v.detach() for v in b_u.tensors()])
 
       for t in u:
