@@ -44,13 +44,12 @@ from mpi4py import MPI
 
 class ForwardODENetApp(BraidApp):
 
-  def __init__(self,comm,layer_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None, layer_block=None):
+  def __init__(self,comm,local_num_steps,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None, layer_block=None):
     """
     """
     BraidApp.__init__(self,'FWDApp',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=True)
 
-    # note that a simple equals would result in a shallow copy...bad!
-    self.layer_models = [l for l in layer_models]
+    sys.stdout.flush()
 
     comm          = self.getMPIComm()
     my_rank       = self.getMPIComm().Get_rank()
@@ -58,31 +57,34 @@ class ForwardODENetApp(BraidApp):
     self.my_rank = my_rank
     self.layer_block = layer_block
 
-    # add a sentinal at the end
-    self.layer_models.append(None)
+    owned_layers = self.end_layer-self.start_layer+1
+    if my_rank==num_ranks-1:
+      # the last time step should not create a layer, there is no step being
+      # taken on that final step
+      owned_layers -= 1
 
-    # build up the core
-    self.py_core = self.initCore()
+    self.layer_models = [self.layer_block() for _ in range(owned_layers)]
 
     self.timer_manager = timer_manager
     self.use_deriv = False
 
     self.parameter_shapes = []
-    for p in layer_models[0].parameters(): 
+    for p in self.layer_models[0].parameters(): 
       self.parameter_shapes += [p.data.size()]
 
     self.temp_layer = layer_block()
     self.clearTempLayerWeights()
   # end __init__
 
-  def __del__(self):
-    pass
-
   def getTensorShapes(self):
     return list(self.shape0)+self.parameter_shapes
 
-  def setVectorWeights(self,t,tf,level,x):
-    layer = self.getLayer(t,tf,level)
+  def setVectorWeights(self,layer_index,level,x):
+    if layer_index<len(self.layer_models) and layer_index>=0:
+      layer = self.layer_models[layer_index]
+    else:
+      layer = None
+
     if layer!=None:
       weights = [p.data for p in layer.parameters()]
     else:
@@ -94,10 +96,10 @@ class ForwardODENetApp(BraidApp):
 
     for dest_p in list(layer.parameters()):
       dest_p.data = torch.empty(())
-  # end setLayerWeights
+  # end clearTempLayerWeights
 
   def setLayerWeights(self,t,tf,level,weights):
-    layer = self.getLayer(t,tf,level)
+    layer = self.temp_layer
 
     with torch.no_grad():
       for dest_p,src_w in zip(list(layer.parameters()),weights):
@@ -105,24 +107,8 @@ class ForwardODENetApp(BraidApp):
   # end setLayerWeights
 
   def initializeVector(self,t,x):
-    self.setVectorWeights(t,0.0,0,x)
-
-  def updateParallelWeights(self):
-    # send everything to the left (this helps with the adjoint method)
-    comm          = self.getMPIComm()
-    my_rank       = self.getMPIComm().Get_rank()
-    num_ranks     = self.getMPIComm().Get_size()
-
-    if my_rank>0:
-      comm.send(list(self.layer_models[0].parameters()), dest=my_rank-1,tag=22)
-    if my_rank<num_ranks-1:
-      neighbor_model = comm.recv(source=my_rank+1,tag=22)
-      new_model = self.layer_block()
-      with torch.no_grad():
-        for dest_p, src_w in zip(list(new_model.parameters()), neighbor_model):
-          dest_p.data = src_w
-      self.layer_models[-1] = new_model
-
+    index = self.getGlobalTimeIndex(t)-self.start_layer
+    self.setVectorWeights(index,0,x)
 
   def run(self,x):
     # turn on derivative path (as requried)
@@ -130,10 +116,6 @@ class ForwardODENetApp(BraidApp):
 
     # run the braid solver
     with self.timer("runBraid"):
-
-      # do boundary exchange for parallel weights
-      if self.use_deriv:
-        self.updateParallelWeights()
 
       y = self.runBraid(x)
 
@@ -152,9 +134,6 @@ class ForwardODENetApp(BraidApp):
   def getLayer(self,t,tf,level):
     index = self.getLocalTimeStepIndex(t,tf,level)
     if index < 0:
-      #pre_str = "\n{}: WARNING: getLayer index negative at {}: {}\n".format(self.my_rank,t,index)
-      #stack_str = utils.stack_string('{}: |- '.format(self.my_rank))
-      #print(pre_str+stack_str)
       return self.temp_layer
 
     return self.layer_models[index]
@@ -174,76 +153,47 @@ class ForwardODENetApp(BraidApp):
     condition x. The level is defined by braid
     """
 
-    # this function is used twice below to define an in place evaluation
-    def in_place_eval(t_y,tstart,tstop,level,t_x=None):
-      # get some information about what to do
-      dt = tstop-tstart
-      layer = self.getLayer(tstart,tstop,level) # resnet "basic block"
+    self.setLayerWeights(tstart,tstop,level,y.weightTensors())
+    layer = self.temp_layer
 
-      #print(self.my_rank, ": FWDeval level ", level, " ", tstart, "->", tstop, " using layer ", layer.getID(), ": ", layer.linearlayer.weight[0].data)
+    t_y = y.tensor().detach()
 
-      if t_x==None:
-        t_x = t_y
-      else:
-        t_y.copy_(t_x)
-
-      q = dt*layer(t_x)
+    # no gradients are necessary here, so don't compute them
+    dt = tstop-tstart
+    with torch.no_grad():
+      k = torch.norm(t_y).item()
+      q = dt*layer(t_y)
+      kq = torch.norm(q).item()
       t_y.add_(q)
       del q
-    # end in_place_eval
 
-    # there are two paths by which eval is called:
-    #  1. x is a BraidVector: my step has called this method
-    #  2. x is a torch tensor: called internally (probably for the adjoint) 
-
-    if isinstance(y,BraidVector):
-      self.setLayerWeights(tstart,tstop,level,y.weightTensors())
-
-      t_y = y.tensor().detach()
-
-      # no gradients are necessary here, so don't compute them
-      with torch.no_grad():
-        in_place_eval(t_y,tstart,tstop,level)
-
-      if y.getSendFlag():
-        self.clearTempLayerWeights()
-
-        y.releaseWeightTensors()
-        y.setSendFlag(False)
-      # wipe out any sent information
-
-      self.setVectorWeights(tstop,0.0,level,y)
-
-    else: 
-      x.requires_grad = True 
-      with torch.enable_grad():
-        in_place_eval(y,tstart,tstop,level,t_x=x)
+    tstop_index = self.getGlobalTimeIndex(tstop)
+    self.setVectorWeights(tstop_index-self.start_layer,level,y)
   # end eval
 
-  def getPrimalWithGrad(self,tstart,tstop,level):
+  def getPrimalWithGrad(self,tstart,tstop):
     """ 
     Get the forward solution associated with this
     time step and also get its derivative. This is
     used by the BackwardApp in computation of the
     adjoint (backprop) state and parameter derivatives.
-    Its intent is to abstract the forward solution
-    so it can be stored internally instead of
-    being recomputed.
     """
-    
-    layer = self.getLayer(tstart,tstop,level)
 
     b_x = self.getUVector(0,tstart)
+
+    ts_index = self.getGlobalTimeIndex(tstart)-self.start_layer
+
+    assert(ts_index<len(self.layer_models))
+    layer = self.layer_models[ts_index]
+
     t_x = b_x.tensor()
-
-    self.setLayerWeights(tstart,tstop,level,b_x.weightTensors())
-
     x = t_x.detach()
     y = t_x.detach().clone()
 
-    x.requires_grad = t_x.requires_grad
-
-    self.eval(y,tstart,tstop,0,done=0,x=x)
+    x.requires_grad = True 
+    dt = tstop-tstart
+    with torch.enable_grad():
+      y = x + dt * layer(x)
     return (y, x), layer
   # end getPrimalWithGrad
 
@@ -266,8 +216,7 @@ class BackwardODENetApp(BraidApp):
     self.fwd_app = fwd_app
 
     # build up the core
-    self.py_core = self.initCore()
-
+    self.initCore()
 
     # reverse ordering for adjoint/backprop
     self.setRevertedRanks(1)
@@ -294,19 +243,13 @@ class BackwardODENetApp(BraidApp):
       if f is not None:
         f = f[0]
 
-      # this code is due to how braid decomposes the backwards problem
-      # The ownership of the time steps is shifted to the left (and no longer balanced)
-      first = 1
-      if self.getMPIComm().Get_rank()==0:
-        first = 0
-
       self.grads = []
 
       # preserve the layerwise structure, to ease communication
       # - note the prection of the 'None' case, this is so that individual layers
       # - can have gradient's turned off
       my_params = self.fwd_app.parameters()
-      for sublist in my_params[first:]:
+      for sublist in my_params:
         sub_gradlist = [] 
         for item in sublist:
           if item.grad is not None:
@@ -336,7 +279,9 @@ class BackwardODENetApp(BraidApp):
     try:
         # we need to adjust the time step values to reverse with the adjoint
         # this is so that the renumbering used by the backward problem is properly adjusted
-        (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+        (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,
+                                                         self.Tf-tstart)
+                                                         
 
         # t_x should have no gradient (for memory reasons)
         assert(t_x.grad is None)
@@ -368,7 +313,8 @@ class BackwardODENetApp(BraidApp):
         for p,s in zip(layer.parameters(),required_grad_state):
           p.requires_grad = s
     except:
-      print('\n**** Torchbraid Internal Exception ****\n')
+      print('\n**** Torchbraid Internal Exception: ' 
+           +'backward eval: rank={}, level={}, time interval=({:.2f},{:.2f}) ****\n'.format(self.fwd_app.my_rank,level,tstart,tstop))
       traceback.print_exc()
   # end eval
 

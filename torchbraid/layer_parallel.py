@@ -118,13 +118,13 @@ class LayerParallel(nn.Module):
     self.dt = Tf/global_steps
   
     self.layer_block = layer_block
-    self.layer_models = [layer_block() for i in range(num_steps)]
-    self.local_layers = nn.Sequential(*self.layer_models)
 
     self.timer_manager = ContextTimerManager()
 
-    self.fwd_app = apps.ForwardODENetApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.timer_manager,
+    self.fwd_app = apps.ForwardODENetApp(comm,num_steps,Tf,max_levels,max_iters,self.timer_manager,
                                          spatial_ref_pair=spatial_ref_pair, layer_block=layer_block)
+    self.layer_models = [l for l in self.fwd_app.layer_models]
+    self.local_layers = nn.Sequential(*self.layer_models)
     self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager)
 
     self.enable_diagnostics = False
