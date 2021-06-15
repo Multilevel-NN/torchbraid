@@ -76,6 +76,9 @@ class ForwardODENetApp(BraidApp):
     self.clearTempLayerWeights()
   # end __init__
 
+  def __del__(self):
+    pass
+
   def getTensorShapes(self):
     return list(self.shape0)+self.parameter_shapes
 

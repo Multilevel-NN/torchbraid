@@ -177,11 +177,14 @@ class BraidApp:
 
   def __del__(self):
     if self.py_core is not None:
+
       py_core = <PyBraid_Core> self.py_core
       core = py_core.getCore()
 
       # Destroy Braid Core C-Struct
       braid_Destroy(core) # this should be on
+
+      self.py_core = None
     # end core
 
   def getNumSteps(self):
