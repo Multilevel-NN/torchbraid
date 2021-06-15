@@ -36,10 +36,10 @@ import torch
 import traceback
 import numpy as np
 
-from braid_vector import BraidVector
+from torchbraid.braid_vector import BraidVector
 
-import torchbraid_app as parent
-import utils
+import torchbraid.torchbraid_app as parent
+# import torchbraid.utils
 
 import sys
 

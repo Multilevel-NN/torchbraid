@@ -36,7 +36,7 @@ import torch
 import numpy as np
 import traceback
 
-from braid_vector import BraidVector
+from torchbraid.braid_vector import BraidVector
 
 cimport mpi4py.MPI as MPI
 
@@ -88,7 +88,7 @@ class BraidApp:
 
     self.spatial_mg = False
     self.spatial_ref_pair = spatial_ref_pair
-    if spatial_ref_pair!=None:
+    if spatial_ref_pair is not None:
       c,r = spatial_ref_pair
       self.spatial_coarse = c
       self.spatial_refine = r
@@ -145,7 +145,7 @@ class BraidApp:
                b_sum, b_norm, b_access, 
                b_bufsize, b_bufpack, b_bufunpack, 
                &core)
-
+    
     if self.spatial_mg:
       braid_SetSpatialCoarsen(core,b_coarsen)
       braid_SetSpatialRefine(core,b_refine)
@@ -159,7 +159,7 @@ class BraidApp:
     braid_SetPrintLevel(core,self.print_level)
     braid_SetNRelax(core,-1,self.nrelax)
     braid_SetNRelax(core,0,0) # set F relax on fine grid
-    braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
+    braid_SetCFactor(core,-1,self.cfactor) # -1 implies change on all levels
     braid_SetAbsTol(core,self.abs_tol)
     if self.skip_downcycle==0:
       braid_SetSkip(core,0)

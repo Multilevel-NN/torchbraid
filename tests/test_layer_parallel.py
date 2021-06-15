@@ -149,16 +149,18 @@ class TestTorchBraid(unittest.TestCase):
     max_iters = 12
 
     def coarsen(x,level):
-      return 0.5*(x[...,0::2]+x[...,1::2]).clone()
-      # return x.clone()
+      print("coarsen")
+      # return 0.5*(x[...,0::2]+x[...,1::2]).clone()
+      return x.clone()
 
     def refine(x,level):
+      print("refine")
       # this little bit of torch magic simply does injection (I'm not sure I can explain it)
       # I looked up "interleave" and pytorch and eventually came to this
-      shape = list(x.shape)
-      shape[-1] *= 2
-      return torch.stack((x,x),dim=-1).view(shape).contiguous()
-      # return x.clone()
+      # shape = list(x.shape)
+      # shape[-1] *= 2
+      # return torch.stack((x,x),dim=-1).view(shape).contiguous()
+      return x.clone()
 
     c = coarsen(x0,0)
     xi = refine(c,0)
@@ -168,7 +170,7 @@ class TestTorchBraid(unittest.TestCase):
     # this catch block, augments the 
     rank = MPI.COMM_WORLD.Get_rank()
     try:
-      #self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx_coarse_ref',ref_pair=(coarsen,refine),check_grad=False,num_steps=12,print_level=3)
+      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx_coarse_ref',ref_pair=(coarsen,refine),check_grad=False,num_steps=12,print_level=3)
       pass
     except RuntimeError as err:
       raise RuntimeError("proc=%d) reLUNet_Exact..failure" % rank) from err

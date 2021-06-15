@@ -1,0 +1,4250 @@
+Invalid MIT-MAGIC-COOKIE-1 keyMNIST ODENet:
+-- Using Digit MNIST
+-- procs    = 1
+-- channels = 4
+-- tf       = 1.0
+-- steps    = 4
+
+Using ParallelNet:
+-- max_levels = 3
+-- max_iters  = 2
+-- fwd_iters  = -1
+-- cfactor    = 2
+-- fine fcf   = False
+-- skip down  = True
+-- fmg        = False
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+Train Epoch: 1 [0/50000 (0%)]	Loss: 2.271392	Time Per Batch 0.066777
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+Train Epoch: 1 [500/50000 (1%)]	Loss: 1.253240	Time Per Batch 0.068242
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+Train Epoch: 1 [1000/50000 (2%)]	Loss: 0.697896	Time Per Batch 0.067508
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+Train Epoch: 1 [1500/50000 (3%)]	Loss: 0.520096	Time Per Batch 0.066654
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+Train Epoch: 1 [2000/50000 (4%)]	Loss: 0.653381	Time Per Batch 0.065702
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 238, in getPrimalWithGrad
+    t_x = b_x.tensor()
+AttributeError: 'NoneType' object has no attribute 'tensor'
+Traceback (most recent call last):
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 347, in eval
+    (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
+  File "/home/cadaverous/Projects/torchbraid/torchbraid/odenet_apps.py", line 254, in getPrimalWithGrad
+    return (y, x), layer
+UnboundLocalError: local variable 'y' referenced before assignment
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.5, 1.0, 1 ERIC*
+
+
+**** Torchbraid Internal Exception ****
+
+
+*ERIC 0.0, 0.5, 1 ERIC*
+

@@ -41,7 +41,7 @@ class BraidVector:
     BraidVector.instance += 1
 
     self.instance = BraidVector.instance
-    self.weight_tensor_data_ = []
+    self.weight_tensor_data_ = ()
     self.layer_data_ = None
 
     if isinstance(tensor,torch.Tensor):
@@ -78,10 +78,10 @@ class BraidVector:
     """
      
     """
-    self.weight_tensor_data_ = list(weights)
+    self.weight_tensor_data_ = tuple(weights)
 
   def releaseWeightTensors(self):
-    self.weight_tensor_data_ = []
+    self.weight_tensor_data_ = ()
 
   def replaceTensor(self,tensor,i=0):
     """
@@ -122,7 +122,7 @@ class BraidVector:
     return self.weight_tensor_data_
 
   def allTensors(self):
-    return list(self.tensor_data_) + self.weight_tensor_data_
+    return list(self.tensor_data_) + list(self.weight_tensor_data_)
 
   def level(self):
     return self.level_

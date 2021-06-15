@@ -31,9 +31,9 @@
 
 import torch
 
-from braid_vector import BraidVector
-from torchbraid_app import BraidApp
-import utils 
+from torchbraid.braid_vector import BraidVector
+from torchbraid.torchbraid_app import BraidApp
+# import torchbraid.utils 
 
 import sys
 import traceback

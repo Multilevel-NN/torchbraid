@@ -94,7 +94,7 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
     output_exception("my_step: rank={}, step=({},{}), level={}, sf={}".format(pyApp.getMPIComm().Get_rank(),tstart,tstop,level,u.getSendFlag()))
 
   return 0
-# end my_access
+# end my_step
 
 cdef int my_init(braid_App app, double t, braid_Vector *u_ptr):
   try:
@@ -102,6 +102,7 @@ cdef int my_init(braid_App app, double t, braid_Vector *u_ptr):
     with pyApp.timer("init"):
       u_mem = pyApp.buildInit(t)
       Py_INCREF(u_mem) # why do we need this?
+      print(f"init made {u_mem.instance}, level: {u_mem.level_}")
 
       u_ptr[0] = <braid_Vector> u_mem
   except:
@@ -123,7 +124,7 @@ cdef int my_free(braid_App app, braid_Vector u):
   return 0
 
 cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_Vector y):
-  # This routine cna be made faster by using the pyTorch tensor operations
+  # This routine can be made faster by using the pyTorch tensor operations
   # My initial attempt at this failed however
 
   try:
@@ -131,7 +132,10 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
     with pyApp.timer("sum"):
       bv_X = <object> x
       bv_Y = <object> y
-      for ten_X,ten_Y in zip(bv_X.tensors(),bv_Y.tensors()):
+      print(f"my_sum x {bv_X.instance}, my_sum y {bv_Y.instance}")
+      for ten_X, ten_Y in zip(bv_X.tensors(),bv_Y.tensors()):
+        # print(f"my_sum x {ten_X[...,0]}, my_sum y {ten_Y[...,0]}")
+        print(f"my_sum x {ten_X.shape}, my_sum y {ten_Y.shape}")
         ten_Y.mul_(float(beta))
         ten_Y.add_(ten_X,alpha=float(alpha))
   except:
@@ -147,6 +151,7 @@ cdef int my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
       v_mem = ten_U.clone()
       Py_INCREF(v_mem) # why do we need this?
       v_ptr[0] = <braid_Vector> v_mem
+      print(f"clone made {ten_U.instance} --> {v_mem.instance}")
   except:
     output_exception("my_clone")
 
@@ -355,35 +360,51 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   return 0
 
 cdef int my_coarsen(braid_App app, braid_Vector fu, braid_Vector *cu_ptr, braid_CoarsenRefStatus status):
-  cdef int level = -1
+  cdef int level = 0
 
-  pyApp  = <object> app
-  with pyApp.timer("coarsen"):
-    ten_fu =  (<object> fu).tensor()
+  try:
+    pyApp  = <object> app
+    with pyApp.timer("coarsen"):
+      ten_fu =  (<object> fu).tensor()
+      weight = (<object> fu).weightTensors()
 
-    braid_CoarsenRefStatusGetLevel(status,&level)
+      braid_CoarsenRefStatusGetLevel(status,&level)
 
-    cu_mem = pyApp.spatial_coarse(ten_fu,level)
-    cu_vec = BraidVector(cu_mem,level)
-    Py_INCREF(cu_vec) # why do we need this?
+      cu_mem = pyApp.spatial_coarse(ten_fu,level)
+      cu_vec = BraidVector(cu_mem,level)
+      print(f"coarsen made {(<object> fu).instance}, {ten_fu.shape} --> {cu_vec.instance}, {cu_mem.shape}, level: {cu_vec.level_}")
+      cu_vec.addWeightTensors(weight)
+      
 
-    cu_ptr[0] = <braid_Vector> cu_vec
+      Py_INCREF(cu_vec) # why do we need this?
+
+      cu_ptr[0] = <braid_Vector> cu_vec
+  except:
+    output_exception("my_coarsen")
 
   return 0
 
 cdef int my_refine(braid_App app, braid_Vector cu, braid_Vector *fu_ptr, braid_CoarsenRefStatus status):
-  cdef int level = -1
+  cdef int level = 0
 
-  pyApp  = <object> app
-  with pyApp.timer("refine"):
-    ten_cu =  (<object> cu).tensor()
+  try:
+    pyApp  = <object> app
+    with pyApp.timer("refine"):
+      ten_cu =  (<object> cu).tensor()
+      weight = (<object> cu).weightTensors()
 
-    braid_CoarsenRefStatusGetNRefine(status,&level)
+      braid_CoarsenRefStatusGetNRefine(status,&level)
 
-    fu_mem = pyApp.spatial_refine(ten_cu,level)
-    fu_vec = BraidVector(fu_mem,level)
-    Py_INCREF(fu_vec) # why do we need this?
+      fu_mem = pyApp.spatial_refine(ten_cu,level)
+      fu_vec = BraidVector(fu_mem,level)
+      print(f"refine made {(<object> cu).instance}, {ten_cu.shape} --> {fu_vec.instance}, {fu_mem.shape}, level: {fu_vec.level_}")
+      fu_vec.addWeightTensors(weight)
+      # print(f"This is the shape from my_refine {fu_vec.tensor().shape}")
 
-    fu_ptr[0] = <braid_Vector> fu_vec
+      Py_INCREF(fu_vec) # why do we need this?
+
+      fu_ptr[0] = <braid_Vector> fu_vec
+  except:
+    output_exception("my_refine")
 
   return 0

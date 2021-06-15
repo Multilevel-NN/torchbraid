@@ -188,7 +188,7 @@ class LayerParallel(nn.Module):
     return self.fwd_app.getMPIComm()
 
   def forward(self,x):
-    # we are doing this to take adavtage of
+    # we are doing this to take advantage of
     # pytorch's autograd which functions "naturally"
     # with the torch.autograd.function
     params = list(self.parameters())
@@ -205,7 +205,7 @@ class LayerParallel(nn.Module):
 
   def diagnostics(self,enable):
     """
-    This method tells torchbraid, to keep track of the feature vectors
+    This method tells torchbraid to keep track of the feature vectors
     and parameters for eventual output. This is to help debug stability
     questions and other potential issues
     """

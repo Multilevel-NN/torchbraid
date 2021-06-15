@@ -31,9 +31,9 @@
 
 import torch
 
-from braid_vector import BraidVector
-from torchbraid_app import BraidApp
-import utils 
+from torchbraid.braid_vector import BraidVector
+from torchbraid.torchbraid_app import BraidApp
+# import torchbraid.utils 
 
 import sys
 import traceback
@@ -57,6 +57,13 @@ class ForwardODENetApp(BraidApp):
     num_ranks     = self.getMPIComm().Get_size()
     self.my_rank = my_rank
     self.layer_block = layer_block
+
+    # need access to this in order to coarsen state vectors up from the fine grid
+    # for getPrimalWithGrad
+    if spatial_ref_pair is not None:
+      self.spatial_coarsen = spatial_ref_pair[0]
+    else:
+      self.spatial_coarsen = None
 
     # add a sentinal at the end
     self.layer_models.append(None)
@@ -230,20 +237,31 @@ class ForwardODENetApp(BraidApp):
     so it can be stored internally instead of
     being recomputed.
     """
+    try:
+      layer = self.getLayer(tstart,tstop,level)
+
+      # get state from fine-grid, then coarsen appropriately
+      b_x = self.getUVector(0,tstart)
+      t_x = b_x.tensor()
+
+      if self.spatial_coarsen:
+        for l in range(level):
+          t_x = self.spatial_coarsen(t_x, l)
+      
+      self.setLayerWeights(tstart,tstop,level,b_x.weightTensors())
+
+      x = t_x.detach()
+      y = t_x.detach().clone()
+
+      x.requires_grad = t_x.requires_grad
+
+      self.eval(y,tstart,tstop,0,done=0,x=x)
+    except:
+      print(f'\n*** {tstart}, {tstop}, {level} ***\n')
+      sys.stdout.flush()
+      traceback.print_exc()
+      sys.stdout.flush()
     
-    layer = self.getLayer(tstart,tstop,level)
-
-    b_x = self.getUVector(0,tstart)
-    t_x = b_x.tensor()
-
-    self.setLayerWeights(tstart,tstop,level,b_x.weightTensors())
-
-    x = t_x.detach()
-    y = t_x.detach().clone()
-
-    x.requires_grad = t_x.requires_grad
-
-    self.eval(y,tstart,tstop,0,done=0,x=x)
     return (y, x), layer
   # end getPrimalWithGrad
 
@@ -337,7 +355,6 @@ class BackwardODENetApp(BraidApp):
         # we need to adjust the time step values to reverse with the adjoint
         # this is so that the renumbering used by the backward problem is properly adjusted
         (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
-
         # t_x should have no gradient (for memory reasons)
         assert(t_x.grad is None)
 
@@ -345,7 +362,7 @@ class BackwardODENetApp(BraidApp):
         # to where they started!
         required_grad_state = []
 
-        # play with the layers gradient to make sure they are on apprpriately
+        # play with the layers gradient to make sure they are on appropriately
         for p in layer.parameters(): 
           required_grad_state += [p.requires_grad]
           if done==1:
