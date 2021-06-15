@@ -275,6 +275,8 @@ cdef extern from "_braid.h":
                              int         index,
                              braid_BaseVector *u_ptr);
 
+    ## 
+    # helper function for getting the lower and upper time step indices
     int _braid_GetDistribution(braid_Core   core,
                                int   *ilower_ptr,
                                int   *iupper_ptr);

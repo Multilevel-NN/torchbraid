@@ -44,7 +44,7 @@ from mpi4py import MPI
 
 class ForwardODENetApp(BraidApp):
 
-  def __init__(self,comm,layer_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None, layer_block=None):
+  def __init__(self,comm,local_num_steps,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None, layer_block=None):
     """
     """
     BraidApp.__init__(self,'FWDApp',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=True)
@@ -57,9 +57,10 @@ class ForwardODENetApp(BraidApp):
     self.my_rank = my_rank
     self.layer_block = layer_block
 
-    sys.stdout.flush()
     owned_layers = self.end_layer-self.start_layer+1
     if my_rank==num_ranks-1:
+      # the last time step should not create a layer, there is no step being
+      # taken on that final step
       owned_layers -= 1
 
     self.layer_models = [self.layer_block() for _ in range(owned_layers)]
@@ -159,30 +160,29 @@ class ForwardODENetApp(BraidApp):
     #  1. x is a BraidVector: my step has called this method
     #  2. x is a torch tensor: called internally (probably for the adjoint) 
 
-    if isinstance(y,BraidVector):
-      self.setLayerWeights(tstart,tstop,level,y.weightTensors())
-      layer = self.temp_layer
+    self.setLayerWeights(tstart,tstop,level,y.weightTensors())
+    layer = self.temp_layer
 
-      t_y = y.tensor().detach()
+    t_y = y.tensor().detach()
 
-      # no gradients are necessary here, so don't compute them
-      dt = tstop-tstart
-      with torch.no_grad():
-        k = torch.norm(t_y).item()
-        q = dt*layer(t_y)
-        kq = torch.norm(q).item()
-        t_y.add_(q)
-        del q
+    # no gradients are necessary here, so don't compute them
+    dt = tstop-tstart
+    with torch.no_grad():
+      k = torch.norm(t_y).item()
+      q = dt*layer(t_y)
+      kq = torch.norm(q).item()
+      t_y.add_(q)
+      del q
 
-      #if y.getSendFlag():
-      #  self.clearTempLayerWeights()
-#
-#        y.releaseWeightTensors()
-#        y.setSendFlag(False)
-#      # wipe out any sent information
+    #if y.getSendFlag():
+    #  self.clearTempLayerWeights()
+    #
+    #  y.releaseWeightTensors()
+    #  y.setSendFlag(False)
+    # wipe out any sent information
 
-      tstop_index = self.getTimeStepIndex()+1 # get end time stepl
-      self.setVectorWeights(tstop_index-self.start_layer,level,y)
+    tstop_index = self.getTimeStepIndex()+1 # get end time stepl
+    self.setVectorWeights(tstop_index-self.start_layer,level,y)
   # end eval
 
   def getPrimalWithGrad(self,tstart,tstop,ts_index,level):
