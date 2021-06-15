@@ -109,7 +109,7 @@ class ForwardBraidApp(parent.BraidApp):
     if self.mpi_comm.Get_rank()>0:
       shift = 1
 
-    return self.getGlobalTimeIndex(t,level)-self.start_layer+shift
+    return self.getGlobalTimeIndex(t)-self.start_layer+shift
 
   def getSequenceVector(self,t,level):
     index = self.getDataVectorIndex(t,level)

@@ -369,7 +369,7 @@ class BraidApp:
 
     with self.timer("getUVector"): 
       
-      index = self.getGlobalTimeIndex(t,level)
+      index = self.getGlobalTimeIndex(t)
       _braid_UGetVectorRef(core, level,index,&bv)
 
       # this can be null, return that the vector was not found
@@ -381,7 +381,7 @@ class BraidApp:
   def getMPIComm(self):
     return self.mpi_comm
 
-  def getGlobalTimeIndex(self,t,level):
+  def getGlobalTimeIndex(self,t):
     return round(t / self.dt)
 
   def setInitial(self,x0):
