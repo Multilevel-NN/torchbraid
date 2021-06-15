@@ -68,8 +68,6 @@ class BraidApp:
     self.require_storage = require_storage
     self.abs_tol = abs_tol
 
-    self.tindex = None
-
     self.mpi_comm        = comm
     self.Tf              = Tf
     self.local_num_steps = local_num_steps
@@ -191,16 +189,6 @@ class BraidApp:
     Get the total number of steps over all procesors.
     """
     return self.num_steps
-
-  def getTimeStepIndex(self):
-    """
-    Get the global index of the current time step. If this returns
-    None, then the time step is not being evaluated
-    """
-    return self.tindex
-
-  def setTimeStepIndex(self,tindex):
-    self.tindex = tindex
 
   def diagnostics(self,enable):
     """

@@ -181,7 +181,8 @@ class ForwardODENetApp(BraidApp):
     #  y.setSendFlag(False)
     # wipe out any sent information
 
-    tstop_index = self.getTimeStepIndex()+1 # get end time stepl
+    #tstop_index = self.getTimeStepIndex()+1 # get end time stepl
+    tstop_index = self.getGlobalTimeIndex(tstop,level)
     self.setVectorWeights(tstop_index-self.start_layer,level,y)
   # end eval
 
@@ -298,7 +299,8 @@ class BackwardODENetApp(BraidApp):
     problem solutions at the beginning (x) and end (y) of the type step.
     """
     try:
-        bwd_glbl_index = self.getTimeStepIndex()
+        #bwd_glbl_index = self.getTimeStepIndex()
+        bwd_glbl_index = self.getGlobalTimeIndex(tstart,level)
         fwd_local_index = self.getNumSteps()-(bwd_glbl_index+1)  -self.fwd_app.start_layer
                        # This is the local index of the starting time point for the "forward" step
                        # this is where the layer information is stored. This converts the global
