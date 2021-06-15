@@ -134,9 +134,6 @@ class ForwardODENetApp(BraidApp):
   def getLayer(self,t,tf,level):
     index = self.getLocalTimeStepIndex(t,tf,level)
     if index < 0:
-      #pre_str = "\n{}: WARNING: getLayer index negative at {}: {}\n".format(self.my_rank,t,index)
-      #stack_str = utils.stack_string('{}: |- '.format(self.my_rank))
-      #print(pre_str+stack_str)
       return self.temp_layer
 
     return self.layer_models[index]
@@ -186,7 +183,7 @@ class ForwardODENetApp(BraidApp):
     self.setVectorWeights(tstop_index-self.start_layer,level,y)
   # end eval
 
-  def getPrimalWithGrad(self,tstart,tstop,ts_index,level):
+  def getPrimalWithGrad(self,tstart,tstop,level):
     """ 
     Get the forward solution associated with this
     time step and also get its derivative. This is
@@ -199,14 +196,10 @@ class ForwardODENetApp(BraidApp):
 
     b_x = self.getUVector(0,tstart)
 
-    if ts_index<len(self.layer_models):
-      layer = self.layer_models[ts_index]
-    else:
-      layer = self.temp_layer
-      with torch.no_grad():
-        for dest_p,src_w in zip(list(layer.parameters()),b_x.weightTensors()):
-          dest_p.data = src_w
+    ts_index = self.getGlobalTimeIndex(tstart,level)-self.start_layer
 
+    assert(ts_index<len(self.layer_models))
+    layer = self.layer_models[ts_index]
 
     t_x = b_x.tensor()
     x = t_x.detach()
@@ -299,18 +292,10 @@ class BackwardODENetApp(BraidApp):
     problem solutions at the beginning (x) and end (y) of the type step.
     """
     try:
-        #bwd_glbl_index = self.getTimeStepIndex()
-        bwd_glbl_index = self.getGlobalTimeIndex(tstart,level)
-        fwd_local_index = self.getNumSteps()-(bwd_glbl_index+1)  -self.fwd_app.start_layer
-                       # This is the local index of the starting time point for the "forward" step
-                       # this is where the layer information is stored. This converts the global
-                       # BWD time step index, to a forward index, then computes a local index from that
-
         # we need to adjust the time step values to reverse with the adjoint
         # this is so that the renumbering used by the backward problem is properly adjusted
         (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,
                                                          self.Tf-tstart,
-                                                         fwd_local_index,
                                                          level)
 
         # t_x should have no gradient (for memory reasons)
