@@ -504,4 +504,120 @@ class BraidApp:
     cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
     return (core.grids[0].ilower, core.grids[0].iupper)
 
+
+  def interp_network_state(self, coarse_app, cf):
+    
+    ''' 
+    Interp the network state present in coarse_app into this app.  It is
+    assumed that this app is a regular refinement (relative to coarsening
+    factor cf) of coarse_app.  
+    '''
+    
+
+    # Get braid_Core
+    cdef braid_Core fine_core = (<PyBraid_Core> self.py_core).getCore()
+    cdef braid_Core coarse_core = (<PyBraid_Core> coarse_app.py_core).getCore()
+    
+    # Get fine and coarse grid information.  Note, braid traditionally uses
+    # values like ncpoints, clower, and cupper for these calcuations, but we
+    # don't do that here, because we want to treat the sequential Braid and
+    # MGRIT Braid modes the same.
+    cdef fine_ilower = fine_core.grids[0].ilower    
+    cdef fine_iupper = fine_core.grids[0].iupper    
+    cdef coarse_ilower = coarse_core.grids[0].ilower    
+    cdef coarse_iupper = coarse_core.grids[0].iupper    
+    #print(fine_ilower, fine_iupper, coarse_ilower, coarse_iupper)
+
+    cdef braid_BaseVector fine_bv, coarse_bv
+
+    # The number of C points in fine app (self) must match the number of points in the coarse_app
+    fine_indices = np.arange(fine_ilower, fine_iupper+1)
+    fine_indices = fine_indices[ (fine_indices % cf) == 0 ] # picks off the Cpts 
+    coarse_indices = np.arange(coarse_ilower, coarse_iupper+1)
+    #print(fine_indices, coarse_indices)
+    assert( fine_indices.shape[0] == coarse_indices.shape[0])
+
+    ##
+    # Note, this is only designed to work in serial.  When moving to parallel,
+    # we'll have to send messages and use GetProc
+    ## 
+
+    for fine_pt, coarse_pt in zip(fine_indices, coarse_indices):
+      
+      # Get the fine vector
+      _braid_UGetVectorRef(fine_core, 0, fine_pt, &fine_bv)
+      assert(<unsigned int>(fine_bv)!=0)
+
+      # Get the coarse vector
+      _braid_UGetVectorRef(coarse_core, 0, coarse_pt, &coarse_bv)
+      assert(<unsigned int>(coarse_bv)!=0)
+ 
+      # Copy coarse to fine at C-pt
+      # --> ERIC please check how I do this deep copy from coarse_bv --> fine_bv 
+      py_fine_bv = <object> fine_bv.userVector
+      py_coarse_bv = <object> coarse_bv.userVector
+      py_coarse_bv_clone = BraidVector(torch.clone(py_coarse_bv.tensor_data_), 0)
+      py_fine_bv.replaceTensor(py_coarse_bv_clone)
+      
+      # Do piece-wise constant to fill in fine-grid F-points
+      for k in range(cf-1):
+        
+        _braid_UGetVectorRef(fine_core, 0, fine_pt+k, &fine_bv)
+        
+        # F-point may or may not be stored.  Only copy if stored
+        if (<unsigned int>(fine_bv) != 0):
+          py_fine_bv = <object> fine_bv.userVector
+          py_fine_bv.replaceTensor(py_coarse_bv_clone)
+        
+
+  def inject_network_state(self, fine_app, cf):
+    
+    ''' 
+    Inject the network state present in fine_app into this app.  It is
+    assumed that fine_app is a regular refinement (relative to coarsening factor cf) 
+    of this app.  
+    '''
+    
+
+    # Get braid_Core
+    cdef braid_Core fine_core = (<PyBraid_Core> fine_app.py_core).getCore()
+    cdef braid_Core coarse_core = (<PyBraid_Core> self.py_core).getCore()
+    
+    # Get fine and coarse grid information.  Note, braid traditionally uses
+    # values like ncpoints, clower, and cupper for these calcuations, but we
+    # don't do that here, because we want to treat the sequential Braid and
+    # MGRIT Braid modes the same.
+    cdef fine_ilower = fine_core.grids[0].ilower    
+    cdef fine_iupper = fine_core.grids[0].iupper    
+    cdef coarse_ilower = coarse_core.grids[0].ilower    
+    cdef coarse_iupper = coarse_core.grids[0].iupper    
+    #print(fine_ilower, fine_iupper, coarse_ilower, coarse_iupper)
+
+    cdef braid_BaseVector fine_bv, coarse_bv
+
+    # The number of C points in fine_app must match the number of points in the coarse app (self)
+    fine_indices = np.arange(fine_ilower, fine_iupper+1)
+    fine_indices = fine_indices[ (fine_indices % cf) == 0 ] # picks off the Cpts 
+    coarse_indices = np.arange(coarse_ilower, coarse_iupper+1)
+    #print(fine_indices, coarse_indices)
+    assert( fine_indices.shape[0] == coarse_indices.shape[0])
+
+    for fine_pt, coarse_pt in zip(fine_indices, coarse_indices):
+      
+      # Get the fine vector
+      _braid_UGetVectorRef(fine_core, 0, fine_pt, &fine_bv)
+      assert(<unsigned int>(fine_bv)!=0)
+
+      # Get the coarse vector
+      _braid_UGetVectorRef(coarse_core, 0, coarse_pt, &coarse_bv)
+      assert(<unsigned int>(coarse_bv)!=0)
+ 
+      # Copy fine to coarse  
+      # --> ERIC please check how I do this deep copy from fine_bv --> coarse_bv 
+      py_fine_bv = <object> fine_bv.userVector
+      py_coarse_bv = <object> coarse_bv.userVector
+      py_fine_bv_clone = BraidVector(torch.clone(py_fine_bv.tensor_data_), 0)
+      py_coarse_bv.replaceTensor(py_fine_bv_clone)
+
+
 # end BraidApp

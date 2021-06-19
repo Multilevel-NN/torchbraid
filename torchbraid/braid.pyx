@@ -295,8 +295,16 @@ cdef extern from "_braid.h":
       braid_Vector    userVector
 
     cdef struct _braid_Grid:
-      int          ilower
-      int          iupper
+        int          level         # Level that grid is on
+        int          ilower        # smallest time index at this level
+        int          iupper        # largest time index at this level
+        int          clower        # smallest C point index
+        int          cupper        # largest C point index
+        int          gupper        # global size of the grid
+        int          cfactor       # coarsening factor
+        int          ncpoints      # number of C points
+        int          nupoints      # number of unknown vector points
+
 
     ctypedef _braid_BaseVector_struct *braid_BaseVector
 
@@ -306,11 +314,29 @@ cdef extern from "_braid.h":
                          int   level);
 
     ## 
-    # helper functions for accessing primal vectors
-    int _braid_UGetVectorRef(braid_Core        core,
+    # helper function for accessing primal vectors, returns a reference
+    int _braid_UGetVectorRef(braid_Core  core,
                              int         level,
                              int         index,
                              braid_BaseVector *u_ptr);
+    
+    ## 
+    # helper function for accessing primal vectors, returns a copy 
+    int _braid_UGetVector(braid_Core  core,
+                          int         level,
+                          int         index,
+                          braid_BaseVector *u_ptr);
+    ##
+    # helper function to get F and C index information for "interval_index"
+    # each processor has ncpoints total intervals
+    int _braid_GetInterval(braid_Core   core,
+                           int          level,
+                           int          interval_index,
+                           int         *flo_ptr,
+                           int         *fhi_ptr,
+                           int         *ci_ptr);
+
+
 
 # cdef object convert_carray_to_numpy(double * v, dim1, dim2=1, dim3=1):
 #     '''

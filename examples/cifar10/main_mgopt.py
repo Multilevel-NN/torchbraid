@@ -134,7 +134,7 @@ class ParallelNet(nn.Module):
 
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_fwd_levels=max_levels,max_bwd_levels=max_levels,max_iters=max_iters)
     self.parallel_nn.setPrintLevel(print_level)
-    self.parallel_nn.setCFactor(4)
+    self.parallel_nn.setCFactor(2)
     self.parallel_nn.setSkipDowncycle(True)
     
     self.parallel_nn.setFwdNumRelax(1)         # FCF elsewhere
@@ -172,8 +172,8 @@ def my_criterion(output, target, network_parameters=None, v=None):
   '''
   Define cross entropy loss with optional new MG/Opt term
   '''
-  if True:
-    # Manually define basic cross-entropy
+  if False:
+    # Manually define basic cross-entropy (probably not useful)
     log_prob = -1.0 * F.log_softmax(output, 1)
     loss = log_prob.gather(1, target.unsqueeze(1))
     loss = loss.mean()
@@ -366,6 +366,39 @@ def restrict_network_params(model, cf=2, deep_copy=False, grad=False):
   return restrict_params 
 
 
+def restrict_network_state(model_fine, model_coarse, cf=2, deep_copy=True):
+  ''' 
+  Restrict the model state according to coarsening-factor in time cf.
+  Return a list of the restricted model state.
+
+  If deep_copy is True, return a deep copy.
+  If grad is True, return the network gradient instead
+  '''
+  
+  ##
+  # Inject network state to model_coarse.  
+  # Note:  We need access to cython cdef to do this, so we put the restrict/interp inside torchbraid_app.pyx
+  model_coarse.parallel_nn.fwd_app.inject_network_state(  model_fine.parallel_nn.fwd_app, cf )  
+  model_coarse.parallel_nn.bwd_app.inject_network_state(  model_fine.parallel_nn.bwd_app, cf )  
+
+
+def interp_network_state(model_fine, model_coarse, cf=2, deep_copy=True):
+  ''' 
+  Restrict the model state according to coarsening-factor in time cf.
+  Return a list of the restricted model state.
+
+  If deep_copy is True, return a deep copy.
+  If grad is True, return the network gradient instead
+  '''
+  
+  ##
+  # interp network state to model_fine.  
+  # Note:  We need access to cython cdef to do this, so we put the restrict/interp inside torchbraid_app.pyx
+  model_fine.parallel_nn.fwd_app.interp_network_state(  model_coarse.parallel_nn.fwd_app, cf )  
+  model_fine.parallel_nn.bwd_app.interp_network_state(  model_coarse.parallel_nn.bwd_app, cf )  
+
+
+
 def write_network_params_inplace(model, new_params):
   '''
   Write the parameters of model in-place, overwriting with new_params
@@ -429,13 +462,15 @@ def line_search(lvl, e_h, optimizer, model, data, target, compose, criterion, fi
       loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, compose, v_h)
     
     new_loss = loss.item()
-    if new_loss < fine_loss:
-      # loss is reduced, end line search
+    if new_loss < 0.999*fine_loss:
+      # loss is reduced by at least a fixed amount, end line search
       break
     elif m < (n_line_search-1): 
       # loss is NOT reduced, continue line search
-      alpha = alpha/4.0
+      alpha = alpha/2.0
       tensor_list_AXPY(-alpha, e_h, 1.0, x_h, inplace=True)
+
+  return alpha
 
 
 #####################################################################
@@ -533,8 +568,7 @@ def main():
                                              shuffle=False)
 
   ni_steps = [int(args.steps/(ni_rfactor**(ni_levels-i-1))) for i in range(ni_levels)]
-
-  root_print(rank,ni_steps)
+  #root_print(rank,ni_steps)
 
   # TODO
   # 1) Debug two-grid MGOpt 
@@ -620,7 +654,11 @@ def main():
   ############################
   #import pdb; pdb.set_trace()
   ############################
-
+  #restrict_network_state(models[1], models[0], cf=2, deep_copy=True)
+  #restrict_network_state(models[2], models[1], cf=2, deep_copy=True)
+  #interp_network_state(models[1], models[0], cf=2, deep_copy=True)
+  #interp_network_state(models[2], models[1], cf=2, deep_copy=True)
+  #return
 
   # Now, carry out V-cycles.  Hierarchy is initialized.
   # First, reverse list, so entry 0 is the finest level
@@ -633,7 +671,10 @@ def main():
   cf = 2
   lr = args.lr
   momentum = 0.9
-  n_line_search = 10
+  
+  n_line_search = 6
+  alpha = 1.0
+  
   log_interval = args.log_interval
   epochs = args.epochs
   #
@@ -709,8 +750,8 @@ def main():
         # 8. apply linesearch to update x_h
         #  x_h = x_h + alpha*e_h
         with torch.no_grad():
-          alpha = 1.0
-          line_search(lvl, e_h, optimizer_fine, models[lvl], data, target, compose, my_criterion, fine_loss, alpha, n_line_search, v_h )
+          alpha = line_search(lvl, e_h, optimizer_fine, models[lvl], data, target, compose, my_criterion, fine_loss, alpha, n_line_search, v_h )
+          alpha = alpha*2
 
         # 9. post-relaxation
         for k in range(nrelax_post):
