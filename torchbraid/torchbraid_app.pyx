@@ -556,7 +556,7 @@ class BraidApp:
       # --> ERIC please check how I do this deep copy from coarse_bv --> fine_bv 
       py_fine_bv = <object> fine_bv.userVector
       py_coarse_bv = <object> coarse_bv.userVector
-      py_coarse_bv_clone = BraidVector(torch.clone(py_coarse_bv.tensor_data_), 0)
+      py_coarse_bv_clone = BraidVector(py_coarse_bv.tensor_data_.detach().clone(), 0)
       py_fine_bv.replaceTensor(py_coarse_bv_clone)
       
       # Do piece-wise constant to fill in fine-grid F-points
@@ -616,7 +616,7 @@ class BraidApp:
       # --> ERIC please check how I do this deep copy from fine_bv --> coarse_bv 
       py_fine_bv = <object> fine_bv.userVector
       py_coarse_bv = <object> coarse_bv.userVector
-      py_fine_bv_clone = BraidVector(torch.clone(py_fine_bv.tensor_data_), 0)
+      py_fine_bv_clone = BraidVector(py_fine_bv.tensor_data_.detach().clone(), 0)
       py_coarse_bv.replaceTensor(py_fine_bv_clone)
 
 
