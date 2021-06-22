@@ -994,7 +994,7 @@ if False:
   print(torch.dot(diff, diff) )
 
 
-# Test restrict/interpolate state
+# Test restrict state
 if False:
   
   #models[1].parallel_nn.fwd_app.print_network("model_one_fwd", state=True, parameters=True)
@@ -1006,26 +1006,69 @@ if False:
   #models[1].parallel_nn.bwd_app.print_network("model_one_bwd_after", state=True, parameters=True)
   #models[0].parallel_nn.fwd_app.print_network("model_zer_fwd_after", state=True, parameters=True)
   #models[0].parallel_nn.bwd_app.print_network("model_zer_bwd_after", state=True, parameters=True)
+  
   # use commands like     diff model_one_fwd.0.000002.00 model_one_fwd_after.0.000002.00 | grep "^>" | wc -l
-  # see test_restric.sh
+  # see test_restrict.sh
 
+  #models[2].parallel_nn.fwd_app.print_network("model_two_fwd", state=True, parameters=True)
+  #models[2].parallel_nn.bwd_app.print_network("model_two_bwd", state=True, parameters=True)
+  #models[1].parallel_nn.fwd_app.print_network("model_one_fwd", state=True, parameters=True)
+  #models[1].parallel_nn.bwd_app.print_network("model_one_bwd", state=True, parameters=True)
+  #restrict_network_state(models[2], models[1], cf=2)
+  #models[2].parallel_nn.fwd_app.print_network("model_two_fwd_after", state=True, parameters=True)
+  #models[2].parallel_nn.bwd_app.print_network("model_two_bwd_after", state=True, parameters=True)
+  #models[1].parallel_nn.fwd_app.print_network("model_one_fwd_after", state=True, parameters=True)
+  #models[1].parallel_nn.bwd_app.print_network("model_one_bwd_after", state=True, parameters=True)
+  
+  models[3].parallel_nn.fwd_app.print_network("model_thr_fwd", state=True, parameters=True)
+  models[3].parallel_nn.bwd_app.print_network("model_thr_bwd", state=True, parameters=True)
   models[2].parallel_nn.fwd_app.print_network("model_two_fwd", state=True, parameters=True)
   models[2].parallel_nn.bwd_app.print_network("model_two_bwd", state=True, parameters=True)
-  models[1].parallel_nn.fwd_app.print_network("model_one_fwd", state=True, parameters=True)
-  models[1].parallel_nn.bwd_app.print_network("model_one_bwd", state=True, parameters=True)
-  restrict_network_state(models[2], models[1], cf=2)
+  restrict_network_state(models[3], models[2], cf=2)
+  models[3].parallel_nn.fwd_app.print_network("model_thr_fwd_after", state=True, parameters=True)
+  models[3].parallel_nn.bwd_app.print_network("model_thr_bwd_after", state=True, parameters=True)
   models[2].parallel_nn.fwd_app.print_network("model_two_fwd_after", state=True, parameters=True)
   models[2].parallel_nn.bwd_app.print_network("model_two_bwd_after", state=True, parameters=True)
-  models[1].parallel_nn.fwd_app.print_network("model_one_fwd_after", state=True, parameters=True)
-  models[1].parallel_nn.bwd_app.print_network("model_one_bwd_after", state=True, parameters=True)
   
-
-  #interp_network_state(models[1], models[0], cf=2)
-  #interp_network_state(models[2], models[1], cf=2)
-
   return
 
+# Test interp state
+if False:
+  
+  #models[1].parallel_nn.fwd_app.print_network("model_one_fwd", state=True, parameters=True)
+  #models[1].parallel_nn.bwd_app.print_network("model_one_bwd", state=True, parameters=True)
+  #models[0].parallel_nn.fwd_app.print_network("model_zer_fwd", state=True, parameters=True)
+  #models[0].parallel_nn.bwd_app.print_network("model_zer_bwd", state=True, parameters=True)
+  #interp_network_state(models[1], models[0], cf=2)
+  #models[1].parallel_nn.fwd_app.print_network("model_one_fwd_after", state=True, parameters=True)
+  #models[1].parallel_nn.bwd_app.print_network("model_one_bwd_after", state=True, parameters=True)
+  #models[0].parallel_nn.fwd_app.print_network("model_zer_fwd_after", state=True, parameters=True)
+  #models[0].parallel_nn.bwd_app.print_network("model_zer_bwd_after", state=True, parameters=True)
+  
+  # use commands like     diff model_one_fwd.0.000002.00 model_one_fwd_after.0.000002.00 | grep "^>" | wc -l
+  # see test_interp.sh
 
+  #models[2].parallel_nn.fwd_app.print_network("model_two_fwd", state=True, parameters=True)
+  #models[2].parallel_nn.bwd_app.print_network("model_two_bwd", state=True, parameters=True)
+  #models[1].parallel_nn.fwd_app.print_network("model_one_fwd", state=True, parameters=True)
+  #models[1].parallel_nn.bwd_app.print_network("model_one_bwd", state=True, parameters=True)
+  #interp_network_state(models[2], models[1], cf=2)
+  #models[2].parallel_nn.fwd_app.print_network("model_two_fwd_after", state=True, parameters=True)
+  #models[2].parallel_nn.bwd_app.print_network("model_two_bwd_after", state=True, parameters=True)
+  #models[1].parallel_nn.fwd_app.print_network("model_one_fwd_after", state=True, parameters=True)
+  #models[1].parallel_nn.bwd_app.print_network("model_one_bwd_after", state=True, parameters=True)
+  
+  models[3].parallel_nn.fwd_app.print_network("model_thr_fwd", state=True, parameters=True)
+  models[3].parallel_nn.bwd_app.print_network("model_thr_bwd", state=True, parameters=True)
+  models[2].parallel_nn.fwd_app.print_network("model_two_fwd", state=True, parameters=True)
+  models[2].parallel_nn.bwd_app.print_network("model_two_bwd", state=True, parameters=True)
+  interp_network_state(models[3], models[2], cf=2)
+  models[3].parallel_nn.fwd_app.print_network("model_thr_fwd_after", state=True, parameters=True)
+  models[3].parallel_nn.bwd_app.print_network("model_thr_bwd_after", state=True, parameters=True)
+  models[2].parallel_nn.fwd_app.print_network("model_two_fwd_after", state=True, parameters=True)
+  models[2].parallel_nn.bwd_app.print_network("model_two_bwd_after", state=True, parameters=True)
+  
+  return
 
 
 ########
