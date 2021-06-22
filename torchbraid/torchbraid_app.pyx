@@ -509,6 +509,45 @@ class BraidApp:
     return (core.grids[0].ilower, core.grids[0].iupper)
 
 
+  def print_network(self, filename, state=True, parameters=True):
+    '''
+    Print the network to filename.  Can choose to print the state and/or parameters
+    
+    Filename format is:
+      state :     fname.rank.timestep.tensor_index
+      parameters: fname.rank.parameter_index.subparameter_index
+    '''
+
+    my_rank = self.getMPIComm().Get_rank()
+    
+    # Print network state
+    with torch.no_grad():
+      if state:
+        try:
+          t = 0.0
+          for i in range(self.local_num_steps+1):
+            t = self.t0_local + i*self.dt
+            u_vec = self.getUVector(0,t) # returns a Braid uservector, which is what you want
+            for j,ten in enumerate(u_vec.tensor_data_):
+              fname = filename + ".state." + str(my_rank) + "." + "%06d"%i + "." + "%02d"%j
+              np.savetxt(fname, ten.numpy().flatten())
+        
+        except:
+          output_exception("Unable to print network state to file") 
+    
+    # Print network state
+    with torch.no_grad():
+      try:
+        if parameters:
+          for j,params in enumerate(self.parameters()): 
+            for k,pp in enumerate(params):
+              fname = filename + ".params." + str(my_rank) + "." + "%06d"%j + "." + "%06d"%k
+              np.savetxt(fname, pp.numpy().flatten())
+        
+      except:
+        output_exception("Unable to print network parameters to file") 
+
+
   def interp_network_state(self, coarse_app, cf):
     
     ''' 

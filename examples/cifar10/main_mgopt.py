@@ -392,7 +392,6 @@ def interp_network_state(model_fine, model_coarse, cf=2):
   model_fine.parallel_nn.bwd_app.interp_network_state(  model_coarse.parallel_nn.bwd_app, cf )  
 
 
-
 def write_network_params_inplace(model, new_params):
   '''
   Write the parameters of model in-place, overwriting with new_params
@@ -657,11 +656,6 @@ def main():
   ############################
   #import pdb; pdb.set_trace()
   ############################
-  restrict_network_state(models[1], models[0], cf=2)
-  #restrict_network_state(models[2], models[1], cf=2)
-  #interp_network_state(models[1], models[0], cf=2)
-  #interp_network_state(models[2], models[1], cf=2)
-  #return
 
   # Now, carry out V-cycles.  Hierarchy is initialized.
   # First, reverse list, so entry 0 is the finest level
@@ -998,6 +992,40 @@ if False:
   print(torch.dot(diff, diff) )
   diff = models[2].parallel_nn.local_layers[3].bn2.weight.flatten() - models[1].parallel_nn.local_layers[1].bn2.weight.flatten()
   print(torch.dot(diff, diff) )
+
+
+# Test restrict/interpolate state
+if False:
+  
+  #models[1].parallel_nn.fwd_app.print_network("model_one_fwd", state=True, parameters=True)
+  #models[1].parallel_nn.bwd_app.print_network("model_one_bwd", state=True, parameters=True)
+  #models[0].parallel_nn.fwd_app.print_network("model_zer_fwd", state=True, parameters=True)
+  #models[0].parallel_nn.bwd_app.print_network("model_zer_bwd", state=True, parameters=True)
+  #restrict_network_state(models[1], models[0], cf=2)
+  #models[1].parallel_nn.fwd_app.print_network("model_one_fwd_after", state=True, parameters=True)
+  #models[1].parallel_nn.bwd_app.print_network("model_one_bwd_after", state=True, parameters=True)
+  #models[0].parallel_nn.fwd_app.print_network("model_zer_fwd_after", state=True, parameters=True)
+  #models[0].parallel_nn.bwd_app.print_network("model_zer_bwd_after", state=True, parameters=True)
+  # use commands like     diff model_one_fwd.0.000002.00 model_one_fwd_after.0.000002.00 | grep "^>" | wc -l
+  # see test_restric.sh
+
+  models[2].parallel_nn.fwd_app.print_network("model_two_fwd", state=True, parameters=True)
+  models[2].parallel_nn.bwd_app.print_network("model_two_bwd", state=True, parameters=True)
+  models[1].parallel_nn.fwd_app.print_network("model_one_fwd", state=True, parameters=True)
+  models[1].parallel_nn.bwd_app.print_network("model_one_bwd", state=True, parameters=True)
+  restrict_network_state(models[2], models[1], cf=2)
+  models[2].parallel_nn.fwd_app.print_network("model_two_fwd_after", state=True, parameters=True)
+  models[2].parallel_nn.bwd_app.print_network("model_two_bwd_after", state=True, parameters=True)
+  models[1].parallel_nn.fwd_app.print_network("model_one_fwd_after", state=True, parameters=True)
+  models[1].parallel_nn.bwd_app.print_network("model_one_bwd_after", state=True, parameters=True)
+  
+
+  #interp_network_state(models[1], models[0], cf=2)
+  #interp_network_state(models[2], models[1], cf=2)
+
+  return
+
+
 
 
 ########
