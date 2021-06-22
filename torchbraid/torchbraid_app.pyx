@@ -364,6 +364,10 @@ class BraidApp:
 
       core = (<PyBraid_Core> self.py_core).getCore()
       braid_SetPrintLevel(core,self.print_level)
+  
+  def setStorage(self, storage):
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetStorage(core, storage)
 
   def setMinCoarse(self, mc):
     core = (<PyBraid_Core> self.py_core).getCore()
@@ -542,32 +546,30 @@ class BraidApp:
     # we'll have to send messages and use GetProc
     ## 
 
-    for fine_pt, coarse_pt in zip(fine_indices, coarse_indices):
+    with torch.no_grad():
+      for fine_pt, coarse_pt in zip(fine_indices, coarse_indices):
+        
+        # Get the coarse vector
+        _braid_UGetVectorRef(coarse_core, 0, coarse_pt, &coarse_bv)
+        assert(<unsigned int>(coarse_bv)!=0)
+        py_coarse_bv = <object> coarse_bv.userVector
       
-      # Get the fine vector
-      _braid_UGetVectorRef(fine_core, 0, fine_pt, &fine_bv)
-      assert(<unsigned int>(fine_bv)!=0)
+        # Do piece-wise constant to fill in fine-grid, F- and C-points
+        for k in range(0,cf):
 
-      # Get the coarse vector
-      _braid_UGetVectorRef(coarse_core, 0, coarse_pt, &coarse_bv)
-      assert(<unsigned int>(coarse_bv)!=0)
- 
-      # Copy coarse to fine at C-pt
-      # --> ERIC please check how I do this deep copy from coarse_bv --> fine_bv 
-      py_fine_bv = <object> fine_bv.userVector
-      py_coarse_bv = <object> coarse_bv.userVector
-      py_coarse_bv_clone = BraidVector(py_coarse_bv.tensor_data_.detach().clone(), 0)
-      py_fine_bv.replaceTensor(py_coarse_bv_clone)
-      
-      # Do piece-wise constant to fill in fine-grid F-points
-      for k in range(cf-1):
-        
-        _braid_UGetVectorRef(fine_core, 0, fine_pt+k, &fine_bv)
-        
-        # F-point may or may not be stored.  Only copy if stored
-        if (<unsigned int>(fine_bv) != 0):
-          py_fine_bv = <object> fine_bv.userVector
-          py_fine_bv.replaceTensor(py_coarse_bv_clone)
+          # Get the fine vector, but if C-point make sure that pointer is non-Null
+          _braid_UGetVectorRef(fine_core, 0, fine_pt+k, &fine_bv)
+          if k == 0:
+            assert(<unsigned int>(fine_bv)!=0) 
+          
+          # Copy coarse to fine at C-pt
+          # F-points may or may not be stored.  Only copy if stored
+          if (<unsigned int>(fine_bv) != 0):
+            py_fine_bv = <object> fine_bv.userVector
+            py_coarse_bv_clone = py_coarse_bv.clone() 
+            py_fine_bv.replaceTensor(py_coarse_bv_clone.tensors())
+            ##tensor_clone = tuple( [ ten.detach().clone() for ten in py_coarse_bv.tensor_data_])
+            ##py_fine_bv.replaceTensor(tensor_clone)
         
 
   def inject_network_state(self, fine_app, cf):
@@ -595,6 +597,17 @@ class BraidApp:
 
     cdef braid_BaseVector fine_bv, coarse_bv
 
+    
+    #cdef braid_BaseVector u0 = fine_core.grids[0].ua[0]
+    #cdef braid_BaseVector u1 = fine_core.grids[0].ua[1]
+    #cdef braid_BaseVector u2 = fine_core.grids[0].ua[2]
+    #cdef braid_BaseVector uLast = fine_core.grids[0].ulast
+    #print("EE 0:  " + str( <unsigned int>(u0) ))
+    #print("EE 1:  " + str( <unsigned int>(u1) ))
+    #print("EE 2:  " + str( <unsigned int>(u2) ))
+    #print("EE L:  " + str( <unsigned int>(uLast) ))
+
+
     # The number of C points in fine_app must match the number of points in the coarse app (self)
     fine_indices = np.arange(fine_ilower, fine_iupper+1)
     fine_indices = fine_indices[ (fine_indices % cf) == 0 ] # picks off the Cpts 
@@ -602,22 +615,23 @@ class BraidApp:
     #print(fine_indices, coarse_indices)
     assert( fine_indices.shape[0] == coarse_indices.shape[0])
 
-    for fine_pt, coarse_pt in zip(fine_indices, coarse_indices):
+    with torch.no_grad():
+      for fine_pt, coarse_pt in zip(fine_indices, coarse_indices):
+        
+        # Get the fine vector
+        _braid_UGetVectorRef(fine_core, 0, fine_pt, &fine_bv)
+        assert(<unsigned int>(fine_bv)!=0)
       
-      # Get the fine vector
-      _braid_UGetVectorRef(fine_core, 0, fine_pt, &fine_bv)
-      assert(<unsigned int>(fine_bv)!=0)
-
-      # Get the coarse vector
-      _braid_UGetVectorRef(coarse_core, 0, coarse_pt, &coarse_bv)
-      assert(<unsigned int>(coarse_bv)!=0)
- 
-      # Copy fine to coarse  
-      # --> ERIC please check how I do this deep copy from fine_bv --> coarse_bv 
-      py_fine_bv = <object> fine_bv.userVector
-      py_coarse_bv = <object> coarse_bv.userVector
-      py_fine_bv_clone = BraidVector(py_fine_bv.tensor_data_.detach().clone(), 0)
-      py_coarse_bv.replaceTensor(py_fine_bv_clone)
-
-
+        # Get the coarse vector
+        _braid_UGetVectorRef(coarse_core, 0, coarse_pt, &coarse_bv)
+        assert(<unsigned int>(coarse_bv)!=0)
+      
+        # Copy fine to coarse  
+        py_coarse_bv = <object> coarse_bv.userVector
+        py_fine_bv = <object> fine_bv.userVector
+        py_fine_bv_clone = py_fine_bv.clone() 
+        py_coarse_bv.replaceTensor(py_fine_bv_clone.tensors())
+        ##tensor_clone = tuple( [ ten.detach().clone() for ten in py_fine_bv.tensor_data_])
+        ##py_coarse_bv.replaceTensor(tensor_clone)
+    
 # end BraidApp

@@ -157,6 +157,12 @@ class LayerParallel(nn.Module):
     self.fwd_app.setPrintLevel(print_level,tb_print)
     self.bwd_app.setPrintLevel(print_level,tb_print)
 
+  def setFwdStorage(self, storage):
+    self.fwd_app.setStorage(storage)
+
+  def setBwdStorage(self, storage):
+    self.bwd_app.setStorage(storage)
+
   def setMinCoarse(self, mc):
     self.fwd_app.setMinCoarse(mc)
     self.bwd_app.setMinCoarse(mc)

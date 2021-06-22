@@ -294,6 +294,8 @@ cdef extern from "_braid.h":
     cdef struct _braid_BaseVector_struct:
       braid_Vector    userVector
 
+    ctypedef _braid_BaseVector_struct *braid_BaseVector
+
     cdef struct _braid_Grid:
         int          level         # Level that grid is on
         int          ilower        # smallest time index at this level
@@ -304,9 +306,8 @@ cdef extern from "_braid.h":
         int          cfactor       # coarsening factor
         int          ncpoints      # number of C points
         int          nupoints      # number of unknown vector points
-
-
-    ctypedef _braid_BaseVector_struct *braid_BaseVector
+        braid_BaseVector  *ua      # unknown vectors  (C-points at least)
+        braid_BaseVector   ulast   # stores vector at last time step, only set in FAccess and FCRelax if done is True 
 
     ##
     # helper function for initializing coarse vectors

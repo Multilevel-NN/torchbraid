@@ -366,13 +366,10 @@ def restrict_network_params(model, cf=2, deep_copy=False, grad=False):
   return restrict_params 
 
 
-def restrict_network_state(model_fine, model_coarse, cf=2, deep_copy=True):
+def restrict_network_state(model_fine, model_coarse, cf=2):
   ''' 
   Restrict the model state according to coarsening-factor in time cf.
-  Return a list of the restricted model state.
-
-  If deep_copy is True, return a deep copy.
-  If grad is True, return the network gradient instead
+  The restricted model state is placed inside of model_coarse
   '''
   
   ##
@@ -382,13 +379,10 @@ def restrict_network_state(model_fine, model_coarse, cf=2, deep_copy=True):
   model_coarse.parallel_nn.bwd_app.inject_network_state(  model_fine.parallel_nn.bwd_app, cf )  
 
 
-def interp_network_state(model_fine, model_coarse, cf=2, deep_copy=True):
+def interp_network_state(model_fine, model_coarse, cf=2):
   ''' 
-  Restrict the model state according to coarsening-factor in time cf.
-  Return a list of the restricted model state.
-
-  If deep_copy is True, return a deep copy.
-  If grad is True, return the network gradient instead
+  Interp the model state according to coarsening-factor in time cf.
+  The interpolated model state is placed inside of model_fine 
   '''
   
   ##
@@ -591,6 +585,9 @@ def main():
   #     iterate over, [  [],   [], [],  .... ]
   # 
 
+  ##
+  # Where "code" for multilevel solver object starts
+  ##
 
   ##
   # Initialize with Nested Iteration
@@ -605,6 +602,12 @@ def main():
                         max_levels=args.lp_levels,
                         max_iters=args.lp_iters,
                         print_level=args.lp_print)
+
+    # If Braid will create a single level solver (max_levels==1 or
+    # global_steps/m < min_coarse) Needed, because by default, Braid won't
+    # store any time-points except 0 and T-final for a single level solver.
+    model.parallel_nn.setBwdStorage(0)
+    
 
     # pass the weights along to the next iteration
     if len(models) > 0: 
@@ -654,10 +657,10 @@ def main():
   ############################
   #import pdb; pdb.set_trace()
   ############################
-  #restrict_network_state(models[1], models[0], cf=2, deep_copy=True)
-  #restrict_network_state(models[2], models[1], cf=2, deep_copy=True)
-  #interp_network_state(models[1], models[0], cf=2, deep_copy=True)
-  #interp_network_state(models[2], models[1], cf=2, deep_copy=True)
+  restrict_network_state(models[1], models[0], cf=2)
+  #restrict_network_state(models[2], models[1], cf=2)
+  #interp_network_state(models[1], models[0], cf=2)
+  #interp_network_state(models[2], models[1], cf=2)
   #return
 
   # Now, carry out V-cycles.  Hierarchy is initialized.
