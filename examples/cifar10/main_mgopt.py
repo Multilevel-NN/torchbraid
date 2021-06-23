@@ -450,7 +450,7 @@ def line_search(lvl, e_h, optimizer, model, data, target, compose, criterion, fi
   
   # Start Line search 
   for m in range(n_line_search):
-    print("line-search, alpha=", alpha)
+    #print("line-search, alpha=", alpha)
     with torch.enable_grad():
       loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, compose, v_h)
     
@@ -564,24 +564,20 @@ def main():
   #root_print(rank,ni_steps)
 
   # TODO
-  # 1) Debug two-grid MGOpt 
-  #   - How to test fixed point? 
-  #   - Other tests? 
-  #   - Ask Eric to look it over?  
-  #     Paying attention to syntax, no_grad() and enable_grad()?  Line-search?  And MGOpt correctness?
   #
-  # 2) Convert to multilevel solver object, probably modeled off of PyAMG multilevel_solver
+  # 1) Convert to multilevel solver object, probably modeled off of PyAMG multilevel_solver
   #    - Initialization always done via NI (use code below)
   #       --> Yield core data structure of list of models
   #    - Then support V- and F-cycles there after
   #    - General PyAMG solver allows for easy plugging in of new relaxation and
   #      interpolation methods, which we want
   #
-  # 3) Extend code to allow for two mini-batch loops, one outside of MG/Opt, and
-  #    one inside MG/Opt that is used by each relaxation step.  
-  #    Perhaps, you want train_loader to be post-processed into doubly nested
-  #    list, where each inside list is the set of batch(es) for relaxation to
-  #     iterate over, [  [],   [], [],  .... ]
+  # 2) Test code and extend code 
+  #    - Can you do a fixed point test?  Or load a fully trained network, see if its almost a fixed point?
+  #    - How to structure mini-batch loops, e.g., one loop outside of MG/Opt and/or one loop inside MG/Opt (used by each relaxation step)
+  #      Perhaps, you want train_loader to be post-processed into doubly nested
+  #      list, where each inside list is the set of batch(es) for relaxation to
+  #       iterate over, [  [],   [], [],  .... ]
   # 
 
   ##
@@ -661,7 +657,7 @@ def main():
   # First, reverse list, so entry 0 is the finest level
   models.reverse()
   #
-  ncycles = 1
+  mgopt_iters = 1
   nrelax_pre = 1
   nrelax_post = 1
   nrelax_coarse = 5 # number of optimizations for coarse-grid solve
@@ -672,6 +668,7 @@ def main():
   n_line_search = 6
   alpha = 1.0
   
+  mgopt_printlevel = 1
   log_interval = args.log_interval
   epochs = args.epochs
   #
@@ -685,7 +682,9 @@ def main():
     for batch_idx, (data, target) in enumerate(train_loader):
       
       start = timer()
-      for cycle in range(ncycles):
+      for it in range(mgopt_iters):
+        if (mgopt_printlevel == 1) and (lvl == 0):  root_print(rank, "\nMG/Opt Iter:  " + str(it) + "   batch_idx:  " + str(batch_idx) ) 
+        if mgopt_printlevel == 1:  root_print(rank, "\n  Level:  " + str(lvl)) 
 
         optimizer_fine = optim.SGD(models[lvl].parameters(), lr=lr, momentum=momentum)
         
@@ -693,17 +692,23 @@ def main():
         # 1. relax (carry out optimization steps)
         for k in range(nrelax_pre):
           loss = compute_fwd_bwd_pass(lvl, optimizer_fine, models[lvl], data, target, my_criterion, compose, v_h)
+          if (mgopt_printlevel == 1):  root_print(rank, "  Pre-relax loss:       " + str(loss.item()) ) 
           optimizer_fine.step()
      
         # 2. compute new gradient g_h
         # First evaluate network, forward and backward.  Return value is scalar value of the loss.
         loss = compute_fwd_bwd_pass(lvl, optimizer_fine, models[lvl], data, target, my_criterion, compose, v_h)
         fine_loss = loss.item()
+        if mgopt_printlevel == 1:  root_print(rank, "  Pre-relax done loss:  " + str(loss.item())) 
         # Second, note that the gradient is waiting in models[lvl], to accessed next
-    
-        # 3. restrict parameters (x_h) and gradient (g_h) to H
-        #    x_H^{zero} = R(x_h)   and    \tilde{g}_H = R(g_h)
+   
+        # 3. Restrict 
+        #    (i)   Network state (primal and adjoint), 
+        #    (ii)  Parameters (x_h), and 
+        #    (iii) Gradient (g_h) to H
+        # x_H^{zero} = R(x_h)   and    \tilde{g}_H = R(g_h)
         with torch.no_grad():
+          restrict_network_state(models[lvl], models[lvl+1], cf=2)
           gtilde_H = restrict_network_params(models[lvl], cf=cf, deep_copy=True, grad=True)
           x_H      = restrict_network_params(models[lvl], cf=cf, deep_copy=True, grad=False)
           # For x_H to take effect, these parameters must be written to the next coarser network
@@ -732,7 +737,9 @@ def main():
           loss = compute_fwd_bwd_pass(lvl+1, optimizer_coarse, models[lvl+1], data, target, my_criterion, compose, v_H)
           optimizer_coarse.step()
     
-        # 7. interpolate correction to fine-level
+        # 7. Interpolate 
+        #    (i)  error correction to fine-level, and 
+        #    (ii) network state to fine-level (primal and adjoint)
         #  e_h = P( x_H - x_H^{init})
         with torch.no_grad():
           x_H = get_network_params(models[lvl+1], deep_copy=False, grad=False)
@@ -743,18 +750,25 @@ def main():
           # where to refine.
           write_network_params_inplace(models[lvl+1], e_H)
           e_h = interpolate_network_params(models[lvl+1], cf=cf, deep_copy=True, grad=False)
+          interp_network_state(models[lvl], models[lvl+1], cf=2)
           
         # 8. apply linesearch to update x_h
         #  x_h = x_h + alpha*e_h
         with torch.no_grad():
           alpha = line_search(lvl, e_h, optimizer_fine, models[lvl], data, target, compose, my_criterion, fine_loss, alpha, n_line_search, v_h )
+          root_print(rank, "  LS Alpha used:        " + str(alpha)) 
           alpha = alpha*2
 
         # 9. post-relaxation
         for k in range(nrelax_post):
           loss = compute_fwd_bwd_pass(lvl, optimizer_fine, models[lvl], data, target, my_criterion, compose, v_h)
+          if (mgopt_printlevel == 1) and (k==0) :  root_print(rank, "  CG Corr done loss:    " + str(loss.item()) ) 
+          elif (mgopt_printlevel == 1):  root_print(rank, "  Post-relax loss:      " + str(loss.item()) )
           optimizer_fine.step()
         
+        if (mgopt_printlevel == 1):  
+          loss = compute_fwd_bwd_pass(lvl, optimizer_fine, models[lvl], data, target, my_criterion, compose, v_h)
+          root_print(rank, "  Post-relax loss:      " + str(loss.item()) )
 
       ## End cycle
       # record timer
@@ -762,9 +776,11 @@ def main():
       total_time += (end-start)
       
       if batch_idx % log_interval == 0:
+        if (mgopt_printlevel == 1):  root_print(rank, "\n------------------------------------------------------------------------")
         root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
             epoch, batch_idx * len(data), len(train_loader.dataset),
             100. * batch_idx / len(train_loader), loss.item(), total_time/(batch_idx+1.0)))
+        if (mgopt_printlevel == 1):  root_print(rank, "------------------------------------------------------------------------")
     
     ## End Batch loop
 
