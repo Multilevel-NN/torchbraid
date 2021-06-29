@@ -139,7 +139,7 @@ class TestGradUpdate(unittest.TestCase):
     f = m.buildSequentialOnRoot()
 
     # run forward/backward propgation
-    lr = 1e-6
+    lr = 1e-3
 
     # propogation with torchbraid
     #######################################
@@ -209,11 +209,12 @@ class TestGradUpdate(unittest.TestCase):
         self.assertTrue(not pm_grad is None)
 
         # accumulate parameter errors for testing purposes
-        param_errors += [(torch.norm(pf.grad-pm_grad)/torch.norm(pf.grad)).item()]
+        param_errors += [(torch.norm(pf.grad-pm_grad)/(1e-15+torch.norm(pf.grad))).item()]
  
         # check the error conditions
-        self.assertTrue(torch.norm(pf.grad-pm_grad)<=test_tol)
         #print('%s: p_grad error = %.6e (%.6e %.6e)' % (prefix,torch.norm(pf.grad-pm_grad),torch.norm(pf.grad),torch.norm(pm_grad)))
+        #sys.stdout.flush()
+        self.assertTrue(torch.norm(pf.grad-pm_grad)<=test_tol)
 
       if len(param_errors)>0:
         print('%s: p grad error (mean,stddev) = %.6e, %.6e' % (prefix,stats.mean(param_errors),stats.stdev(param_errors)))

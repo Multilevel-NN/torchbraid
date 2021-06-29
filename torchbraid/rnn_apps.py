@@ -47,7 +47,7 @@ from mpi4py import MPI
 
 class ForwardBraidApp(parent.BraidApp):
 
-  def __init__(self,comm,RNN_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,abs_tol,model_compute_steps):
+  def __init__(self,comm,RNN_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,abs_tol):
     parent.BraidApp.__init__(self,'RNN',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=None,require_storage=True,abs_tol=abs_tol)
 
     self.RNN_models = RNN_models
@@ -64,32 +64,62 @@ class ForwardBraidApp(parent.BraidApp):
 
     self.seq_shapes = None
     self.backpropped = dict()
+    self.seq_x_reduced = dict()
 
-    # parameters for the implicit coarse grid
-    self.implicit_level = 1
-
-    if not model_compute_steps:
-      # the user would like us to do the time stepping
-      self.computeStep = self.computeStep_hidden
-    else:
-      self.computeStep = self.RNN_models
+    self.has_fastforward = hasattr(self.RNN_models,'fastForward')
+    if self.has_fastforward:
+      assert(hasattr(self.RNN_models,'reduceX'))
   # end __init__
 
-  def setComputeStep(compute_step):
-    self.computeStep = compute_step
+  def computeStep(self,level,tstart,tstop,seq_x,u,allow_ff):
+    """
+    This method handles a fast forward evaluation. If the user has not
+    defined a RNN cell that can handle fast forward, a standard computation
+    is performed. If the cell can handle the fast forward, then the reduced
+    version of the sequence is computed or pulled from a dictionary. If its 
+    computed, the computed reduced value of the sequence is stored for
+    reuse. Regardless of it being computed or pulled from storage, the fastForward
+    version of the RNNcell is called (which used the reduced version of the
+    sequence variable.
+    """
+    
+    if allow_ff:
+      if tstart not in self.seq_x_reduced:
+        # don't differentiate this
+        with torch.no_grad():
+          seq_x_reduce = self.RNN_models.reduceX(seq_x)
 
-  def setImplicitLevel(self,level=1):
-    self.implicit_level       = level
+        # store for later reuse
+        self.seq_x_reduced[tstart] = seq_x_reduce
+      else:
+        seq_x_reduce = self.seq_x_reduced[tstart]
+
+      return self.RNN_models.fastForward(level,tstart,tstop,seq_x_reduce,u)
+    else:
+      return self.RNN_models(level,tstart,tstop,seq_x,u)
+
+  def timer(self,name):
+    return self.timer_manager.timer("ForWD::"+name)
 
   def getTensorShapes(self):
     return list(self.shape0)+self.seq_shapes
 
-  def getSequenceVector(self,t,tf,level):
-    index = self.getLocalTimeStepIndex(t,tf,level)
+  def getDataVectorIndex(self,t):
+    shift = 0
+    if self.mpi_comm.Get_rank()>0:
+      shift = 1
+
+    return self.getGlobalTimeIndex(t)-self.start_layer+shift
+
+  def getSequenceVector(self,t):
+    index = self.getDataVectorIndex(t)
     if index<0: 
-      pre_str = "\n{}: WARNING: getSequenceVector index negative at {}: {}\n".format(self.my_rank,t,index)
-      stack_str = utils.stack_string('{}: |- '.format(self.my_rank))
+      my_rank = self.mpi_comm.Get_rank()
+      pre_str  = "\n{}: WARNING: getSequenceVector index negative at {}: {}\n".format(my_rank,t,index)
+      pre_str += "\n{}:          step index = {}, start_layer = {}, stop_layer = {}\n".format(my_rank,self.getTimeStepIndex(),self.start_layer,self.end_layer)
+      stack_str = utils.stack_string('{}: |- '.format(my_rank))
       print(pre_str+stack_str)
+      sys.stdout.flush()
  
     if index<self.x.shape[1]:
       value = self.x[:,index,:]
@@ -99,27 +129,23 @@ class ForwardBraidApp(parent.BraidApp):
       
     return value
 
-  def clearTempLayerWeights(self):
-    layer = self.temp_layer
-
-    for dest_p in list(layer.parameters()):
-      dest_p.data = torch.empty(())
-  # end setLayerWeights
-
-  def setLayerWeights(self,t,tf,level,weights):
-    layer = self.getLayer(t,tf,level)
-
-    with torch.no_grad():
-      for dest_p,src_w in zip(list(layer.parameters()),weights):
-        dest_p.data = src_w
-  # end setLayerWeights
-
   def initializeVector(self,t,x):
-    if t!=0.0: # don't change the initial condition
-      for ten in x.tensors():
-        ten[:] = 0.0
-    seq_x = self.getSequenceVector(t,None,level=0)
-    x.addWeightTensors((seq_x,))
+    try:
+        if t!=0.0: # don't change the initial condition
+          for ten in x.tensors():
+            ten[:] = 0.0
+        value = self.getSequenceVector(t)
+        x.addWeightTensors((value,))
+
+        # if fast forward is available do an early evaluation of the
+        # sequence preemptively
+        if self.has_fastforward:
+          with torch.no_grad():
+            self.seq_x_reduced[t] = self.RNN_models.reduceX(value)
+    except:
+      print('\n**** InitializeVector: Torchbraid Internal Exception ****\n')
+      sys.stdout.flush()
+      traceback.print_exc()
 
   def run(self,x,h_c):
     num_ranks     = self.mpi_comm.Get_size()
@@ -128,10 +154,13 @@ class ForwardBraidApp(parent.BraidApp):
 
     assert(x.shape[1]==self.local_num_steps)
 
+    self.seq_x_reduced = dict()
+
     self.x = x
     self.seq_shapes = [x[:,0,:].shape]
 
     with self.timer("run:precomm"):
+      # recive deta vector from the right 
       recv_request = None
       if my_rank<num_ranks-1:
         neighbor_x = torch.zeros(x[:,0,:].shape)
@@ -160,32 +189,6 @@ class ForwardBraidApp(parent.BraidApp):
     return y
   # end forward
 
-  def timer(self,name):
-    return self.timer_manager.timer("ForWD::"+name)
-
-  def computeStep_hidden(self,level,tstart,tstop,x,u):
-    """
-    Propagate the RNN for a single time step, given
-    data input x, and hidden state u. Output hidden state
-    y.
-    """
-
-    dt = tstop-tstart
-
-    if level<self.implicit_level:
-      return self.RNN_models(x,*u)
-    else:
-      # this introduces stability
-
-      dy = self.RNN_models(x,*u)
-
-      # do an implicit coarse grid
-      y = len(dy)*[None]
-      for i in range(len(dy)):
-        y[i] = (u[i] + dt*dy[i])/(1.0+dt)
-  
-    return y
-
   def eval(self,g0,tstart,tstop,level,done):
     """
     Method called by "my_step" in braid. This is
@@ -194,19 +197,14 @@ class ForwardBraidApp(parent.BraidApp):
     """
 
     with self.timer("eval"):
-      # there are two paths by which eval is called:
-      #  1. x is a BraidVector: my step has called this method
-      #  2. x is a torch tensor: called internally (probably at the behest
-      #                          of the adjoint)
   
       seq_x = g0.weightTensors()[0]
-  
+
       # don't need derivatives or anything, just compute
       if not done or level>0:
         u = g0.tensors()
         with torch.no_grad():
-          y = self.computeStep(level,tstart,tstop,seq_x,u)
-
+          y = self.computeStep(level,tstart,tstop,seq_x,u,self.has_fastforward)
       else:
         # setup the solution vector for derivatives
         u = tuple([t.detach() for t in g0.tensors()])
@@ -214,20 +212,20 @@ class ForwardBraidApp(parent.BraidApp):
           t.requires_grad = True
 
         with torch.enable_grad():
-          y = self.computeStep(level,tstart,tstop,seq_x,u)
+          y = self.computeStep(level,tstart,tstop,seq_x,u,allow_ff=False)
 
         # store the fine level solution for reuse later in backprop
         if level==0:
           self.backpropped[tstart,tstop] = (u,y)
   
-      seq_x = self.getSequenceVector(tstop,None,level)
+      seq_x = self.getSequenceVector(tstop)
   
       g0.addWeightTensors((seq_x,))
       for i,t in enumerate(y):
         g0.replaceTensor(t,i)
   # end eval
 
-  def getPrimalWithGrad(self,tstart,tstop,level):
+  def getPrimalWithGrad(self,tstart,tstop,level,done):
     """ 
     Get the forward solution associated with this
     time step and also get its derivative. This is
@@ -245,10 +243,10 @@ class ForwardBraidApp(parent.BraidApp):
       return y,u
 
     with self.timer("getPrimalWithGrad-long"):
-      # extract teh various vectors for this value from the fine level to linearize around
+      # extract the various vectors for this value from the fine level to linearize around
       b_u = self.getUVector(0,tstart)
 
-      seq_x = b_u.weightTensors()[0]
+      seq_x = self.getSequenceVector(tstart)
       u = tuple([v.detach() for v in b_u.tensors()])
 
       for t in u:
@@ -256,7 +254,7 @@ class ForwardBraidApp(parent.BraidApp):
   
       # evaluate the step
       with torch.enable_grad():
-        y = self.computeStep(level,tstart,tstop,seq_x,u)
+        y = self.computeStep(level,tstart,tstop,seq_x,u,allow_ff=done!=1 and self.has_fastforward)
    
     return y, u
   # end getPrimalWithGrad
@@ -289,15 +287,15 @@ class BackwardBraidApp(parent.BraidApp):
     self.timer_manager = timer_manager
   # end __init__
 
+  def __del__(self):
+    self.fwd_app = None
+
   def initializeVector(self,t,x):
     # this is being really careful, can't
     # change the intial condition
     if t!=0.0:
       for ten in x.tensors():
         ten[:] = 0.0
-
-  def __del__(self):
-    self.fwd_app = None
 
   def getTensorShapes(self):
     return self.shape0
@@ -333,9 +331,6 @@ class BackwardBraidApp(parent.BraidApp):
     """
     with self.timer("eval"):
       try:
-        # we need to adjust the time step values to reverse with the adjoint
-        # this is so that the renumbering used by the backward problem is properly adjusted
-        t_y,t_x = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level)
 
         # play with the parameter gradients to make sure they are on apprpriately,
         # store the initial state so we can revert them later
@@ -344,6 +339,10 @@ class BackwardBraidApp(parent.BraidApp):
           for p in self.RNN_models.parameters(): 
             required_grad_state += [p.requires_grad]
             p.requires_grad = False
+
+        # we need to adjust the time step values to reverse with the adjoint
+        # this is so that the renumbering used by the backward problem is properly adjusted
+        t_y,t_x = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level,done)
 
         # perform adjoint computation
         t_w = w.tensors()

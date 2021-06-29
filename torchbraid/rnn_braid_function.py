@@ -34,9 +34,21 @@ import torch.autograd
 import torchbraid.utils as utils
 import traceback
 
+from torch.nn.functional import pad
 from mpi4py import MPI
 
 class BraidFunction(torch.autograd.Function):
+
+  @staticmethod
+  def padForBatchChange(old_batch,temp_batch,ten,batch_dim):
+    shape = ten.size()
+    assert(len(shape)>batch_dim)
+
+    padding = []
+    for i in range(len(shape)-batch_dim-1):
+      padding += [0,0]
+    padding += [0,old_batch-temp_batch]
+    return pad(ten,tuple(padding),'constant',0.0)
 
   @staticmethod
   def forward(ctx, fwd_app, bwd_app, num_input_tensors, x, *input_and_param_tensors):
@@ -47,23 +59,38 @@ class BraidFunction(torch.autograd.Function):
       sizes = tuple([input_and_param_tensors[i].size() for i in range(num_input_tensors)])
       shape = comm.bcast(sizes,root=0)
 
+    old_shape = fwd_app.getShape()
+    adjusting = old_shape is not None and old_shape!=shape
+
+    if adjusting:
+      old_batch  = old_shape[0][1]
+      temp_batch = shape[0][1]
+      state = tuple([BraidFunction.padForBatchChange(old_batch,temp_batch,input_and_param_tensors[i],1) for i in range(num_input_tensors)])
+      x = BraidFunction.padForBatchChange(old_batch,temp_batch,x,0)
+      ctx.old_batch = old_batch
+      ctx.temp_batch = temp_batch
+    else:
+      fwd_app.setShape(shape)
+      bwd_app.setShape(shape)
+
+      state = tuple([input_and_param_tensors[i] for i in range(num_input_tensors)])
+
     # setup context
     ctx.fwd_app = fwd_app
     ctx.bwd_app = bwd_app
     ctx.num_input_tensors = num_input_tensors
+    ctx.adjusting = adjusting
     ctx.save_for_backward(x, *input_and_param_tensors)
-
-    fwd_app.setShape(shape)
-    bwd_app.setShape(shape)
-
-    state = tuple([input_and_param_tensors[i] for i in range(num_input_tensors)])
 
     with fwd_app.timer("func:run"):
       result = fwd_app.run(x,state)
     if num_input_tensors==1:
       result = result[0]
 
-    return result
+    if adjusting:
+      return result[:,0:temp_batch,:]
+    else:
+      return result
 
   @staticmethod
   def backward(ctx, *grad_state):
@@ -89,6 +116,8 @@ class BraidFunction(torch.autograd.Function):
 
     with ctx.bwd_app.timer("func:run"):
       if my_rank==num_ranks-1:
+        if ctx.adjusting:
+          grad_state = tuple([BraidFunction.padForBatchChange(ctx.old_batch,ctx.temp_batch,t,1) for t in grad_state])
         result = ctx.bwd_app.run(grad_state)
       else:
         result = ctx.bwd_app.run(None)

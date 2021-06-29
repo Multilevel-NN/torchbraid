@@ -116,38 +116,15 @@ class LayerParallel(nn.Module):
     global_steps = num_steps*comm.Get_size()
 
     self.dt = Tf/global_steps
+
     self.layer_block = layer_block
-
-    # If SpliNet, create one trainable user layer for each spline basis function
-    if nsplines>0:
-      if comm.Get_rank() == 0:
-        print("Torchbraid will create a splinet with ", nsplines, " splines, degree=", splinedegree)
-      # Figure out how many local user-layers are created on this proc. This is somewhat duplicated from odenet_apps constructor... BAD! TODO: Change!
-      t0_local = comm.Get_rank()*num_steps*self.dt
-      tf_local = (comm.Get_rank()+1.0)*num_steps*self.dt
-      spline_dknots = Tf / (nsplines - splinedegree)
-      if comm.Get_rank() == 0: # First processor's time-interval includes t0_local=0.0. Others exclude t0_local, owning only (t0_local, tf_local]!
-        a = int( (t0_local ) / spline_dknots )
-      else:
-        a = int( (t0_local + self.dt) / spline_dknots )
-      b = int( (tf_local ) / spline_dknots ) + splinedegree
-      if comm.Get_rank() == comm.Get_size() -1: 
-        b = b - 1  # at t=Tf, there is a spline starting, but it is zero at Tf, so don't store it. 
-      nsplines_local = b-a+1
-      print(comm.Get_rank(), ": Now creating ", nsplines_local, " trainable user layers.")
-      self.layer_models = [layer_block() for i in range(nsplines_local)]
-      print(comm.Get_rank(), ": Done.")
-
-    # If not a SpliNet: create one trainable user layer for each time-step
-    else:   
-      self.layer_models = [layer_block() for i in range(num_steps)]
-
-    # SG: This magic is used by pytorch to let autograd know what the trainable parameters are.
-    self.local_layers = nn.Sequential(*self.layer_models)
 
     self.timer_manager = ContextTimerManager()
 
-    self.fwd_app = apps.ForwardODENetApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.timer_manager, spatial_ref_pair=spatial_ref_pair, layer_block=layer_block, nsplines=nsplines, splinedegree=splinedegree)
+    self.fwd_app = apps.ForwardODENetApp(comm,num_steps,Tf,max_levels,max_iters,self.timer_manager,
+                                         spatial_ref_pair=spatial_ref_pair, layer_block=layer_block, nsplines=nsplines, splinedegree=splinedegree)
+    self.layer_models = [l for l in self.fwd_app.layer_models]
+    self.local_layers = nn.Sequential(*self.layer_models)
     self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager)
 
     self.enable_diagnostics = False

@@ -98,6 +98,8 @@ class BraidApp:
     # build up the core
     self.py_core = self.initCore()
 
+    self.start_layer,self.end_layer = self.getStepBounds()
+
     # this tracks if you are training or not,
     # this is intended to match the behavior of
     # the PyTorch Module class, note though torchbraid
@@ -175,12 +177,21 @@ class BraidApp:
 
   def __del__(self):
     if self.py_core is not None:
+
       py_core = <PyBraid_Core> self.py_core
       core = py_core.getCore()
 
       # Destroy Braid Core C-Struct
       braid_Destroy(core) # this should be on
+
+      self.py_core = None
     # end core
+
+  def getNumSteps(self):
+    """
+    Get the total number of steps over all procesors.
+    """
+    return self.num_steps
 
   def diagnostics(self,enable):
     """
@@ -203,6 +214,9 @@ class BraidApp:
       self.shape0 = (shape,)
     else:
       self.shape0 = shape
+
+  def getShape(self):
+    return self.shape0 
 
   def initializeStates(self):
     try:
@@ -350,6 +364,7 @@ class BraidApp:
     self.reverted = reverted 
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetRevertedRanks(core,reverted)
+    self.start_layer,self.end_layer = self.getStepBounds()
 
   def getUVector(self,level,t):
     cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
@@ -357,7 +372,7 @@ class BraidApp:
 
     with self.timer("getUVector"): 
       
-      index = self.getGlobalTimeStepIndex(t,None,level)
+      index = self.getGlobalTimeIndex(t)
       _braid_UGetVectorRef(core, level,index,&bv)
 
       # this can be null, return that the vector was not found
@@ -369,10 +384,7 @@ class BraidApp:
   def getMPIComm(self):
     return self.mpi_comm
 
-  def getLocalTimeStepIndex(self,t,tf,level):
-    return round((t-self.t0_local) / self.dt)
-
-  def getGlobalTimeStepIndex(self,t,tf,level):
+  def getGlobalTimeIndex(self,t):
     return round(t / self.dt)
 
   def setInitial(self,x0):
@@ -436,6 +448,9 @@ class BraidApp:
 
   def getStepBounds(self):
     cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
-    return (core.grids[0].ilower, core.grids[0].iupper)
+    cdef int ilower
+    cdef int iupper
+    _braid_GetDistribution(core, &ilower,&iupper)
 
+    return ilower,iupper
 # end BraidApp

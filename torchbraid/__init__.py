@@ -30,8 +30,7 @@
 #@HEADER
 
 from .layer_parallel import LayerParallel
-from .rnn_layer_parallel import RNN_Parallel
-from .network_parallel import NetworkParallel, distributeNetworkFromRoot
+from .rnn_layer_parallel import RNN_Parallel, RNN_Serial
 
 #from . import torchbraid_app
 from .braid_vector import BraidVector
