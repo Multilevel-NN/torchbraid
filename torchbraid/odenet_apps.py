@@ -63,7 +63,7 @@ class ForwardODENetApp(BraidApp):
     if nsplines>0:
       self.splinet = True
       if comm.Get_rank() == 0:
-        print("Torchbraid will create a SpliNet with ", nsplines, " spline basis functions of degree=", splinedegree)
+        print("Torchbraid will create a SpliNet with ", nsplines, " spline basis functions of degree", splinedegree)
 
       self.splinebasis = BsplineBasis(nsplines, splinedegree, Tf)
       spline_dknots = Tf / (nsplines - splinedegree) # spacing of spline knots
@@ -326,16 +326,16 @@ class BackwardODENetApp(BraidApp):
       if self.fwd_app.splinet:
         # req = []
         for i,splinecomm in enumerate(self.fwd_app.spline_comm_vec):
-          if splinecomm != MPI.COMM_NULL: # Does this work? 
+          if splinecomm != MPI.COMM_NULL: 
             # print(splinecomm.Get_rank(), ": I will pack spline ", i)
             # pack the spline into a buffer and initiate non-blocking allredude
             splinelayer = self.fwd_app.layer_models[i - self.fwd_app.start_layer]
             buf = utils.pack_buffer([p.grad for p in splinelayer.parameters()])
             req=splinecomm.Iallreduce(MPI.IN_PLACE, buf, MPI.SUM)
 
-        # Finish up communication
-        # # for splinecomm,i in self.fwd_app.spline_comm_vec:
-        #   # if splinecomm is not MPI.COMM_NULL:
+        # Finish up communication. TODO: Queue all requests.
+        # for i, splinecomm in enumerate(self.fwd_app.spline_comm_vec):
+          # if splinecomm != MPI.COMM_NULL:
             MPI.Request.Wait(req)
             utils.unpack_buffer([p.grad for p in splinelayer.parameters()], buf)
 
