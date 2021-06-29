@@ -209,15 +209,6 @@ class ForwardODENetApp(BraidApp):
   def timer(self,name):
     return self.timer_manager.timer("ForWD::"+name)
 
-  def getLayer(self,t,tf,level):
-    print("THIS SHOULD PROBABLY NEVER BEEN CALLED !\n")
-
-    index = self.getLocalTimeStepIndex(t,tf,level)
-    if index < 0:
-      return self.temp_layer
-
-    return self.layer_models[index]
-
   def parameters(self):
     params = []
     for l in self.layer_models:
