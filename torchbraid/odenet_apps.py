@@ -39,8 +39,6 @@ import sys
 import traceback
 import resource
 import copy
-import numpy as np
-
 from bsplines import BsplineBasis
 
 from mpi4py import MPI
@@ -64,11 +62,11 @@ class ForwardODENetApp(BraidApp):
     self.splinet = False
     if nsplines>0:
       self.splinet = True
-      self.splinebasis = BsplineBasis(nsplines, splinedegree, Tf)
       if comm.Get_rank() == 0:
-        print("Torchbraid will create a splinet with ", nsplines, " splines, degree=", splinedegree)
-      # Figure out how many local user-layers are created on this proc. 
-      spline_dknots = Tf / (nsplines - splinedegree)
+        print("Torchbraid will create a SpliNet with ", nsplines, " spline basis functions of degree=", splinedegree)
+
+      self.splinebasis = BsplineBasis(nsplines, splinedegree, Tf)
+      spline_dknots = Tf / (nsplines - splinedegree) # spacing of spline knots
       if comm.Get_rank() == 0: # First processor's time-interval includes t0_local=0.0. Others exclude t0_local, owning only (t0_local, tf_local]!
         self.start_layer = int( (self.t0_local ) / spline_dknots )
       else:
@@ -83,10 +81,7 @@ class ForwardODENetApp(BraidApp):
       owned_layers -= 1
 
     # Now creating the trainable layers
-    print(comm.Get_rank(), ": Now creating ", owned_layers, " trainable user layers.")
     self.layer_models = [self.layer_block() for _ in range(owned_layers)]
-    print(comm.Get_rank(), ": Done.")
-
 
     self.timer_manager = timer_manager
     self.use_deriv = False
@@ -95,47 +90,41 @@ class ForwardODENetApp(BraidApp):
     for p in self.layer_models[0].parameters(): 
       self.parameter_shapes += [p.data.size()]
 
-    print(comm.Get_rank(), ": Creating the temp_layer.")
     self.temp_layer = layer_block()
     self.clearTempLayerWeights()
-    print(comm.Get_rank(), ": Done.")
 
 
     # If this is a SpliNet, create communicators for shared weights
     if self.splinet:
-      # create one communicator for each spline 
+      # For each spline basis function, create one communicator that contains all processors that store this spline.
       self.spline_comm_vec = []
       for i in range(nsplines):
-        group = comm.Get_group()  # contains all processors
-        # exclude those processors that do not store splinelayer i
+        group = comm.Get_group()  # all processors, then exclude those who don't store i
         exclude = []
         for k in range(comm.Get_size()):
+          # recompute start_layer and end_layer for all other processors.
           dt = Tf/(local_num_steps*comm.Get_size())
-          t0loc = k*local_num_steps*dt   # THE BELOW IS DUPLICATED CODE... Bad!
+          t0loc = k*local_num_steps*dt  
           tfloc = (k+1)*local_num_steps*dt
           if k == 0:
-            a = int( t0loc / spline_dknots )
+            startlayer = int( t0loc / spline_dknots )
           else :
-            a = int( (t0loc+self.dt) / spline_dknots )
-          b = int( tfloc / spline_dknots ) + splinedegree
+            startlayer = int( (t0loc+self.dt) / spline_dknots )
+          endlayer = int( tfloc / spline_dknots ) + splinedegree
           if k == comm.Get_size()-1:
-            b = b-1
-          # print(comm.Get_rank(), "i", i, "k", k, "a", a, "b", b)
-          if i < a or i > b:
+            endlayer = endlayer-1
+          if i < startlayer or i > endlayer:
             exclude.append(k)
         newgroup = group.Excl(exclude)
-
         # Finally create the communicator and store it. 
         thiscomm = comm.Create(newgroup) # This will be MPI.COMM_NULL on all processors that are excluded
         self.spline_comm_vec.append(thiscomm)  
       
-      for i,commsp in enumerate(self.spline_comm_vec):
-        if commsp != MPI.COMM_NULL:
-          # print(comm.Get_rank(), ": In communicator ", i, ": I'm rank ", self.spline_comm_vec[i].Get_rank(), "out of", self.spline_comm_vec[i].Get_size())
-          if commsp.Get_rank() == 0:
-            print("comm ", i," has size ", commsp.Get_size())
-      # SG TODO: At some point, the groups and communicators should be destroyed, no? 
-
+      # for i,commsp in enumerate(self.spline_comm_vec):
+      #   if commsp != MPI.COMM_NULL:
+      #     # print(comm.Get_rank(), ": In communicator ", i, ": I'm rank ", self.spline_comm_vec[i].Get_rank(), "out of", self.spline_comm_vec[i].Get_size())
+      #     if commsp.Get_rank() == 0:
+      #       print("comm ", i," has size ", commsp.Get_size())
   # end __init__
 
   def __del__(self):

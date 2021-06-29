@@ -406,7 +406,6 @@ class BraidApp:
         py_bv = <object> bv.userVector
         py_bv.replaceTensor(x0)
 
-  # SG: Default implementation for base class. Derived Forward ODEapp implements this!
   def initializeVector(self,t,x):  
     pass
 

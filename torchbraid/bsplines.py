@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import matplotlib.pyplot as plt
-from numpy import *
 
 
 class BsplineBasis():
