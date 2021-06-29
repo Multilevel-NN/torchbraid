@@ -132,13 +132,12 @@ class StepLayer(torch.nn.Module):
         global cnt_local
 
         # Global identifier for this layer
-        layerID = round(rank * nlayers / procs) + cnt_local
+        layerID = rank * round((nlayers) / procs) + cnt_local
+        if MPI.COMM_WORLD.Get_rank() != 0:
+            layerID += 1
         self.ID = layerID
-        # init_amp = layerID + 1.0
+        init_amp = layerID
         cnt_local = cnt_local + 1
-        init_amp = cnt_local
-        if MPI.COMM_WORLD.Get_rank() == 1:
-            init_amp = init_amp + 1
 
         # Create linear layer. init constant for debugging
         self.linearlayer = torch.nn.Linear(width, width)
