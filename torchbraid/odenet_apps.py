@@ -136,8 +136,8 @@ class ForwardODENetApp(BraidApp):
   def setVectorWeights(self,t,x):
 
     if self.splinet: 
+      # Evaluate the splines at time t and get interval k such that t \in [\tau_k, \tau_k+1] for splineknots \tau
       with torch.no_grad():
-        # Evaluate the splines at time t and get interval k such that t \in [\tau_k, \tau_k+1] for splineknots \tau
         splines, k = self.splinebasis.eval(t)
         # Add up sum over p+1 non-zero splines(t) times weights coeffients, l=0,\dots,p
         l = 0 # first one here, because I didn't know how to set the shape of 'weights' correctly...
@@ -210,13 +210,8 @@ class ForwardODENetApp(BraidApp):
     return self.timer_manager.timer("ForWD::"+name)
 
   def getLayer(self,t,tf,level):
-    print("SHOULD NEVER BE CALLED!?")
+    print("THIS SHOULD PROBABLY NEVER BEEN CALLED !\n")
 
-    # if it is a splinet, use weights from temp_layer. It always contains the sum over spline-coeffs times spline weights, as set in setVectorWeights(tstop)
-    if self.splinet:
-      return self.temp_layer
-
-    # if not a splinet, get the layer either from storage layer_models[i] or, if it is not stored on this proc, from the temp_layer 
     index = self.getLocalTimeStepIndex(t,tf,level)
     if index < 0:
       return self.temp_layer
@@ -254,7 +249,7 @@ class ForwardODENetApp(BraidApp):
       t_y.add_(q)
       del q
 
-    # If splinet, this evaluates the splines at tstop and stores the resulting weight tensor in y
+    # This connects weights at tstop with the vector y. For a SpliNet, the weights at tstop are evaluated using the spline basis function. 
     self.setVectorWeights(tstop,y)
   # end eval
 
@@ -268,13 +263,14 @@ class ForwardODENetApp(BraidApp):
 
     b_x = self.getUVector(0,tstart)
 
+    # Set the layer at tstart. For a SpliNet, get the layer weights from x at tstart, otherwise, get layer and weights from storage.
     if self.splinet:
       self.clearTempLayerWeights()
       self.setLayerWeights(tstart,tstop,0,b_x.weightTensors())
       layer = self.temp_layer
     else:
       ts_index = self.getGlobalTimeIndex(tstart)-self.start_layer
-      assert(ts_index <  len(self.layer_models))
+      assert(ts_index<len(self.layer_models))
       assert(ts_index >= 0)
       layer = self.layer_models[ts_index]
 
@@ -335,26 +331,15 @@ class BackwardODENetApp(BraidApp):
       if f is not None:
         f = f[0]
 
-      # Maybe communicate the splines here, or in braid_function.py: "backward(ctx, grad_output)"
+      # Communicate the spline gradients here. Alternatively, this could be done in braid_function.py: "backward(ctx, grad_output)" ?
       if self.fwd_app.splinet:
-        # print(self.getMPIComm().Get_rank(), " My gradient at layermodel[i]: ")
-        # for p,q in zip(self.fwd_app.layer_models[0].parameters(), self.fwd_app.layer_models[1].parameters()):
-        #     print(self.fwd_app.my_rank, ": p=", p.grad)
-        #     print(self.fwd_app.my_rank, ": q=", q.grad)
-
-        # for i,layer in enumerate(self.fwd_app.layer_models):
-        #     if layer is not None:
-        #         for p in layer.parameters():
-        #           print(self.getMPIComm().Get_rank(), "Sp", i, "Grad", p.grad)
-
         # req = []
         for i,splinecomm in enumerate(self.fwd_app.spline_comm_vec):
-          if splinecomm != MPI.COMM_NULL: #?? 
+          if splinecomm != MPI.COMM_NULL: # Does this work? 
             # print(splinecomm.Get_rank(), ": I will pack spline ", i)
-            # pack the buffer
+            # pack the spline into a buffer and initiate non-blocking allredude
             splinelayer = self.fwd_app.layer_models[i - self.fwd_app.start_layer]
             buf = utils.pack_buffer([p.grad for p in splinelayer.parameters()])
-            # Non-blocking allreduce on this spline's communicator
             req=splinecomm.Iallreduce(MPI.IN_PLACE, buf, MPI.SUM)
 
         # Finish up communication
