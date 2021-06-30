@@ -71,11 +71,14 @@ class ForwardODENetApp(BraidApp):
         self.start_layer = int( (self.t0_local ) / spline_dknots )
       else:
         self.start_layer = int( (self.t0_local + self.dt) / spline_dknots )
-      self.end_layer = int( (self.tf_local ) / spline_dknots ) + splinedegree
+      if comm.Get_rank() == num_ranks-1: # Last processor's time-interval excludes tf_local because no step is being done from there.
+        self.end_layer = int( (self.tf_local - self.dt ) / spline_dknots ) + splinedegree
+      else:
+        self.end_layer = int( (self.tf_local ) / spline_dknots ) + splinedegree
 
     # Number of locally stored layers
     owned_layers = self.end_layer-self.start_layer+1
-    if my_rank==num_ranks-1:
+    if my_rank==num_ranks-1 and not self.splinet:
       # the last time step should not create a layer, there is no step being
       # taken on that final step
       owned_layers -= 1
