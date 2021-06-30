@@ -125,26 +125,27 @@ class ClosingLayer(torch.nn.Module):
         return x
 
 # Define the steplayer
-cnt_local = 0 # counting the number of steplayers created on this processer
+cnt_local = 0 # counting the number of steplayers created on this processer. Needed only for debugging
 class StepLayer(torch.nn.Module):
     def __init__(self, width):
         super(StepLayer, self).__init__()
         global cnt_local
 
-        # Global identifier for this layer
+        # Global identifier for this layer. Needed only for debugging. 
         layerID = rank * round((nlayers) / procs) + cnt_local
         if MPI.COMM_WORLD.Get_rank() != 0:
             layerID += 1
         self.ID = layerID
         init_amp = layerID
         cnt_local = cnt_local + 1
+        # Careful here with initialization when debugging with npt>1
+        # init_amp = cnt_local
 
-        # Create linear layer. init constant for debugging
-        self.linearlayer = torch.nn.Linear(width, width)
-        torch.nn.init.constant_(self.linearlayer.weight, init_amp) # make constant for debugging
-        self.linearlayer.bias.data.fill_(0)
-
-        print(rank ,": Creating StepLayer ", layerID, "-th Layer, weights_const=", init_amp)
+        # Create linear layer.
+        # print(rank ,": Creating a stepLayer")
+        self.linearlayer = torch.nn.Linear(width, width, bias=True)
+        # torch.nn.init.constant_(self.linearlayer.weight, init_amp) # make constant for debugging
+        # self.linearlayer.bias.data.fill_(0)
 
     def forward(self, x):
         x = torch.tanh(self.linearlayer(x))
@@ -197,14 +198,13 @@ class ParallelNet(torch.nn.Module):
 
 # Parse command line
 parser = argparse.ArgumentParser(description='TORCHBRAID Sine Example')
-parser.add_argument('--force-lp', action='store_true', default=False, help='Use layer parallel even if there is only 1 MPI rank')
-parser.add_argument('--epochs', type=int, default=500, metavar='N', help='number of epochs to train (default: 2)')
-parser.add_argument('--batch-size', type=int, default=20, metavar='N', help='batch size for training (default: 50)')
+parser.add_argument('--epochs', type=int, default=1, metavar='N', help='number of epochs to train (default: 1, i.e. only one gradient evaluation)')
+parser.add_argument('--batch-size', type=int, default=20, metavar='N', help='batch size for training (default: 20 = full batch)')
 parser.add_argument('--max-levels', type=int, default=10, metavar='N', help='maximum number of braid levels (default: 10)')
-parser.add_argument('--max-iters', type=int, default=1, metavar='N', help='maximum number of braid iteration (default: 1)')
-parser.add_argument('--nsplines', type=int, default=0, metavar='N', help='Number of splines for SpliNet (default: 0, i.e. do not use a splinet)')
-parser.add_argument('--splinedegree', type=int, default=1, metavar='N', help='Degree of splines (default: 1)')
-parser.add_argument('--recoverResNet', action='store_true', default=False, help='For debugging: Use SpliNet to recover a ResNet.')
+parser.add_argument('--max-iters', type=int, default=2, metavar='N', help='maximum number of braid iteration (default: 2)')
+parser.add_argument('--nsplines', type=int, default=0, metavar='N', help='Number of splines for SpliNet (default: 0, i.e. do not use a SpliNet)')
+parser.add_argument('--splinedegree', type=int, default=1, metavar='N', help='Degree of splines (default: 1, hat-functions)')
+parser.add_argument('--recoverResNet', action='store_true', default=False, help='For debugging: Using a SpliNet to recover a ResNet structure.')
 args = parser.parse_args()
 
 if args.nsplines>0:
@@ -212,29 +212,19 @@ if args.nsplines>0:
 else:
     splinet = False
 
-# some logic to default to Serial if on one processor,
-# can be overriden by the user to run layer-parallel
-if args.force_lp:
-    force_lp = True
-elif procs>1:
-    force_lp = True
-else:
-    force_lp = False
-
-
 # Set a seed for reproducability
 torch.manual_seed(0)
 
 # Specify network
-width = 2
-nlayers = 6
-Tstop = 6.0
+width = 4
+nlayers = 10 
+Tstop = 1.0
 
 # spline parameters
 nsplines=args.nsplines
 splinedegree=args.splinedegree
 
-# In order to recover a ResNet, choose nspline=nlayer+1, d=1
+# In order to recover a ResNet using the spline basis functions, choose nspline=nlayer+1 and spline degree=1
 if args.recoverResNet:
     nsplines = nlayers+1
     d=1
@@ -289,8 +279,7 @@ model = ParallelNet(Tstop=Tstop,
 
 compose = model.compose   # NOT SO SURE WHAT THAT DOES
 
-# Enable diagnostics (?)
-model.parallel_nn.diagnostics(True)
+# model.parallel_nn.diagnostics(True)
 
 # Construct loss function
 myloss = torch.nn.MSELoss(reduction='sum')
@@ -298,44 +287,38 @@ myloss = torch.nn.MSELoss(reduction='sum')
 # Set up optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-# Training set: Eval one epoch
-def evalNetwork(gradient=False):
-    i=0
+# Training set: Evaluate one epoch
+for i in range(args.epochs):
+
     for local_batch, local_labels in training_generator:
         local_batch = local_batch.reshape(len(local_batch),1)
         local_labels= local_labels.reshape(len(local_labels),1)
-    
-        print("Epoch: ", i)
-        i=i+1
-    
+
         # Forward pass
         ypred = model(local_batch)
         loss = compose(myloss, ypred, local_labels)
-        # loss = myloss(ypred, local_labels)
-    
+
         # Comput gradient through backpropagation
         optimizer.zero_grad()
         loss.backward()
 
-        return loss.item()
+        optimizer.step()
+    print("---> Epoch ",i, "Loss on training data=", loss.item())
 
 
-loss = evalNetwork(gradient=True)
-# loss = evalNetwork(gradient=False)
-
-# # compute gradient norm. if parallel, how to compute the global norm??
 with torch.no_grad():
    param_vec = flatten(model.parameters())
    grad_vec = flatten(model.parameters(), gradient=True)
 
 # Output
-print(rank, ": Loss=", loss)
+print(rank, ": Final Loss=", loss.item())
 # print(rank, ": parameters=", param_vec)
-print(rank, ": gradient=", grad_vec)
+# print(rank, ": gradient=", grad_vec)
 # print(rank, ": ||Grad||=", LA.norm(grad_vec))
 print("\n")
 
-# FINITE DIFFERENCE TESTING. Run on one core!!
-# eps = 1e-2
+
+##### FINITE DIFFERENCE TESTING. Run on one core!! #######
+# eps = 1e-3
 # maxerr = runFinDiff(model, eps)
-# print("Central Finite Difference: eps=", eps, " max. error=", maxerr)
+# print("Central Finite Difference: eps=", eps, " max. abs. error=", maxerr)
