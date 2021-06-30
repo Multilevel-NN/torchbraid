@@ -216,7 +216,7 @@ else:
 torch.manual_seed(0)
 
 # Specify network
-width = 4
+width = 2
 nlayers = 10 
 Tstop = 1.0
 
