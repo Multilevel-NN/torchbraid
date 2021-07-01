@@ -79,17 +79,17 @@ def main():
                                    transform=transform,train=False)
   
   ##
-  # reduce the number of samples for faster execution
+  # Define the train and test loaders, while reducing the number of samples (if desired) for faster execution
   train_set = torch.utils.data.Subset(train_set,range(int(50000*args.samp_ratio)))
   test_set = torch.utils.data.Subset(test_set,range(int(10000*args.samp_ratio)))
   train_loader = torch.utils.data.DataLoader(train_set,
                                              batch_size=args.batch_size, 
-                                             shuffle=True)
+                                             shuffle=False)
   test_loader  = torch.utils.data.DataLoader(test_set,
                                              batch_size=args.batch_size, 
                                              shuffle=False)
   print("\nTraining setup:  Batch size:  " + str(args.batch_size) + "  Sample ratio:  " + str(args.samp_ratio) + "  MG/Opt Epochs:  " + str(args.epochs) )
-
+  
   ##
   # Compute number of nested iteration steps
   ni_steps = np.array([int(args.steps/(args.ni_rfactor**(args.ni_levels-i-1))) for i in range(args.ni_levels)])
@@ -107,7 +107,7 @@ def main():
                                       'print_level' : args.lp_print} ) )
                                  
   ##
-  # Define interpolation, optimization, and criterion for each nested iteration level (use the same at each level)
+  # Define interpolation, optimization, and criterion for each nested iteration level (use the same here at each level)
   interp_params = [ "tb_get_injection_interp_params" for i in range(len(ni_steps)) ]
   optims = [ ("pytorch_sgd", { 'lr':args.lr, 'momentum':0.9}) for i in range(len(ni_steps)) ]
   criterions = [ "tb_mgopt_cross_ent" for i in range(len(ni_steps)) ]
@@ -116,13 +116,17 @@ def main():
   ##
   # Initialize MG/Opt solver with nested iteration
   # --> Hardcode in only 2 epochs
+  epochs = 2
+  mgopt_printlevel = 1
+  log_interval = args.log_interval
   mgopt = mgopt_solver()
-  training_setup = (train_loader, test_loader, 2, args.log_interval)
-  mgopt.initialize_with_nested_iteration(ni_steps, training_setup=training_setup, networks=networks, 
-                                         interp_params=interp_params, optims=optims, criterions=criterions, 
-                                         seed=args.seed)
+  mgopt.initialize_with_nested_iteration(ni_steps, train_loader, test_loader,
+          networks, epochs=epochs, log_interval=log_interval,
+          mgopt_printlevel=mgopt_printlevel, interp_params=interp_params,
+          optims=optims, criterions=criterions, seed=args.seed) 
+  
   print(mgopt)
-  print(mgopt.options_used())
+  mgopt.options_used()
   
   ##
   # Run the MG/Opt solver
@@ -131,7 +135,7 @@ def main():
   #   interp and restrict options here.  (This reuse could be changed, if needed.)
   
   ##
-  # Define restriction strategy for network parameters, gradients, and state (use the same at each level)
+  # Define restriction strategy for network parameters, gradients, and state (use the same here at each level)
   restrict_params = [ ("tb_get_injection_restrict_params", {'grad' : False}) for i in range(len(ni_steps)) ]
   restrict_grads  = [ ("tb_get_injection_restrict_params", {'grad' : True})  for i in range(len(ni_steps)) ]
   restrict_states = [ "tb_injection_restrict_network_state" for i in range(len(ni_steps)) ]
@@ -139,25 +143,29 @@ def main():
   line_search     = [ ("tb_simple_backtrack_ls", {'ls_params' : {'n_line_search' : 6, 'alpha' : 1.0}} ) for i in range(len(ni_steps)) ]
 
   ##
-  # Define training setup (same as for nested iteration, except use command line number of epochs)
-  training_setup = (train_loader, test_loader, args.epochs, args.log_interval)
-
-  ##
   # Run MG/Opt 
-  import pdb; pdb.set_trace()
+  # epochs and log_interval set in args
+  epochs = args.epochs
+  log_interval = args.log_interval
+  mgopt_printlevel = 2
   mgopt_iter=1
+  mgopt_levels=2
   mgopt_tol=0 
   nrelax_pre=1
   nrelax_post=1 
   nrelax_coarse=5 
-  mgopt_printlevel=1
-  mgopt.mgopt_solve(self, training_setup=training_setup, mgopt_tol=mgopt_tol,
+  mgopt.mgopt_solve(train_loader, test_loader, epochs=epochs,
+          log_interval=log_interval, mgopt_tol=mgopt_tol,
           mgopt_iter=mgopt_iter, nrelax_pre=nrelax_pre,
           nrelax_post=nrelax_post, nrelax_coarse=nrelax_coarse,
-          mgopt_printlevel=mgopt_printlevel, restrict_params=restrict_params,
-          restrict_grads=restrict_grads, restrict_states=restrict_states,
-          interp_states=interp_states, line_search=line_search)
+          mgopt_printlevel=mgopt_printlevel, mgopt_levels=mgopt_levels,
+          restrict_params=restrict_params, restrict_grads=restrict_grads,
+          restrict_states=restrict_states, interp_states=interp_states,
+          line_search=line_search)
  
+  print(mgopt)
+  mgopt.options_used()
+  
 
 if __name__ == '__main__':
   main()

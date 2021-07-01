@@ -555,7 +555,7 @@ def main():
 
   train_loader = torch.utils.data.DataLoader(train_set,
                                              batch_size=args.batch_size, 
-                                             shuffle=True)
+                                             shuffle=False)
   test_loader  = torch.utils.data.DataLoader(test_set,
                                              batch_size=args.batch_size, 
                                              shuffle=False)
@@ -667,7 +667,8 @@ def main():
   
   n_line_search = 6
   alpha = 1.0
-  
+ 
+
   mgopt_printlevel = 1
   log_interval = args.log_interval
   epochs = args.epochs
@@ -675,6 +676,9 @@ def main():
   # likely recursive parameters 
   lvl = 0
   v_h = None
+  #
+  optimizer_fine = optim.SGD(models[lvl].parameters(), lr=lr, momentum=momentum)
+  optimizer_coarse = optim.SGD(models[lvl+1].parameters(), lr=lr, momentum=momentum)
   #
   for epoch in range(1, epochs + 1):
     
@@ -686,8 +690,6 @@ def main():
         if (mgopt_printlevel == 1) and (lvl == 0):  root_print(rank, "\nMG/Opt Iter:  " + str(it) + "   batch_idx:  " + str(batch_idx) ) 
         if mgopt_printlevel == 1:  root_print(rank, "\n  Level:  " + str(lvl)) 
 
-        optimizer_fine = optim.SGD(models[lvl].parameters(), lr=lr, momentum=momentum)
-        
         #import pdb; pdb.set_trace()
         # 1. relax (carry out optimization steps)
         for k in range(nrelax_pre):
@@ -718,7 +720,6 @@ def main():
     
         # 4. compute gradient on coarse level, using restricted parameters
         #  g_H = grad( f_H(x_H) )
-        optimizer_coarse = optim.SGD(models[lvl+1].parameters(), lr=lr, momentum=momentum)
         # Evaluate gradient.  For computing fwd_bwd_pass, give 0 as first
         # parameter, so that the MGOpt term is turned-off.  We just want hte
         # gradient of f_H here.

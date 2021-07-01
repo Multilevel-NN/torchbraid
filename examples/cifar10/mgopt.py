@@ -180,7 +180,7 @@ def train_epoch(rank, model, train_loader, optimizer, epoch, criterion, criterio
     100. * (batch_idx+1) / len(train_loader), loss.item(), total_time/(batch_idx+1.0)))
 
 
-def test(rank, model, test_loader, criterion, criterion_kwargs, compose, mgopt_printlevel):
+def test(rank, model, test_loader, criterion, criterion_kwargs, compose, mgopt_printlevel, indent=''):
   ''' Compute loss and accuracy '''
   model.eval()
   test_loss = 0
@@ -197,7 +197,7 @@ def test(rank, model, test_loader, criterion, criterion_kwargs, compose, mgopt_p
 
   test_loss /= len(test_loader.dataset)
 
-  root_print(rank, mgopt_printlevel, 1, '  Test set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+  root_print(rank, mgopt_printlevel, 1, indent + 'Test set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
       test_loss, correct, len(test_loader.dataset),
       100. * correct / len(test_loader.dataset)))
 
@@ -415,12 +415,12 @@ def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, c
   diminished, stop.  Else subtract 1/2 of e_h from fine parameters, and
   continue until loss is reduced.
   '''
+  rank  = MPI.COMM_WORLD.Get_rank()
   try:
     n_line_search = ls_params['n_line_search']
     alpha = ls_params['alpha']
   except:
-    raise ValueError('tb_simple_backtrack_ls requires a ls_params dictionary
-            with n_line_search and alpha as dictionary keys.')
+    raise ValueError('tb_simple_backtrack_ls requires a ls_params dictionary with n_line_search and alpha as dictionary keys.')
 
   # Add error update to x_h
   # alpha*e_h + x_h --> x_h
@@ -444,8 +444,8 @@ def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, c
   # end for-loop
 
   # Double alpha, and store for next time in ls_params, before returning
+  root_print(rank, mgopt_printlevel, 2, "  LS Alpha used:        " + str(alpha) ) 
   ls_params['alpha'] = alpha*2
-  root_print(rank, mgopt_printlevel, 2, "  LS Alpha used:        " + str(ls_params['alpha']) ) 
             
 
 ##
@@ -554,7 +554,7 @@ def root_print(rank, printlevel_cutoff, importance, s):
   Only print if rank == 0 and the message is "important"
   '''
   if rank==0:
-    if importance >= printlevel_cutoff:
+    if importance <= printlevel_cutoff:
       print(s)
 
 
@@ -569,7 +569,7 @@ def unpack_arg(v):
 def check_has_args(arg_dict, list_to_check, method):
   ''' Check that arg_dict has a key associated with every member of list_to_check '''
   for to_check in list_to_check:
-    if not arg_dict.has_key(to_check):
+    if not (to_check in arg_dict):
       raise ValueError('Missing arguement for ' + method + ':  ' + to_check)
 
 
@@ -704,21 +704,27 @@ class mgopt_solver:
 
   def options_used(self):
     """ Print the options selected to form the hierarchy """
-    
+    rank  = MPI.COMM_WORLD.Get_rank()
+    output = ""
     for k, lvl in enumerate(self.levels):
-      print("MG/Opt parameters from level " + str(k) )
-      if hasattr(self.levels[k], 'network'): print( print_option(lvl.network, attr_name="network: " ) )
-      if hasattr(self.levels[k], 'interp_params'): print( print_option(lvl.interp_params, attr_name="interp_params: ") )
-      if hasattr(self.levels[k], 'optim'): print( print_option(lvl.optim, attr_name="optim: ") )
-      if hasattr(self.levels[k], 'criterion'): print( print_option(lvl.criterion, attr_name="criterion: ") )
-      if hasattr(self.levels[k], 'restrict_params'): print( print_option(lvl.restrict_params, attr_name="restrict_params: ") )
-      if hasattr(self.levels[k], 'restrict_grads'): print( print_option(lvl.restrict_grads, attr_name="restrict_grads: ") )
-      if hasattr(self.levels[k], 'restrict_states'): print( print_option(lvl.restrict_states, attr_name="restrict_states: ") )
-      if hasattr(self.levels[k], 'interp_states'): print( print_option(lvl.interp_states, attr_name="interp_states: ") )
-      if hasattr(self.levels[k], 'line_search'): print( print_option(lvl.line_search, attr_name="line_search: ") )
+      output = output + "MG/Opt parameters from level " + str(k)
+      if hasattr(self.levels[k], 'network'): output = output + print_option(lvl.network, attr_name="network: ") + '\n' 
+      if hasattr(self.levels[k], 'interp_params'): output = output + print_option(lvl.interp_params, attr_name="interp_params: ") + '\n'
+      if hasattr(self.levels[k], 'optim'): output = output + print_option(lvl.optims, attr_name="optim: ") + '\n'
+      if hasattr(self.levels[k], 'criterion'): output = output + print_option(lvl.criterions, attr_name="criterion: ") + '\n'
+      if hasattr(self.levels[k], 'restrict_params'): output = output + print_option(lvl.restrict_params, attr_name="restrict_params: ") + '\n'
+      if hasattr(self.levels[k], 'restrict_grads'): output = output + print_option(lvl.restrict_grads, attr_name="restrict_grads: ") + '\n'
+      if hasattr(self.levels[k], 'restrict_states'): output = output + print_option(lvl.restrict_states, attr_name="restrict_states: ") + '\n'
+      if hasattr(self.levels[k], 'interp_states'): output = output + print_option(lvl.interp_states, attr_name="interp_states: ") + '\n'
+      if hasattr(self.levels[k], 'line_search'): output = output + print_option(lvl.line_search, attr_name="line_search: ") + '\n'
+    ##
+    root_print(rank, 1, 1, output)
+      
 
 
-  def initialize_with_nested_iteration(self, ni_steps, mgopt_printlevel=1, training_setup=None, networks=None, interp_params=None, optims=None, criterions=None, seed=None):
+  def initialize_with_nested_iteration(self, ni_steps, train_loader,
+          test_loader, networks, epochs=1, log_interval=1, mgopt_printlevel=1,
+          interp_params=None, optims=None, criterions=None, seed=None):
     """
     Use nested iteration to create a hierarchy of models
 
@@ -726,21 +732,22 @@ class mgopt_solver:
     ----------
     ni_steps : array
       array of the number of time_steps at each level of nested iteration 
+      length of ni_steps also defines the number of nested iteraiton levels
 
-    mgopt_printlevel : int
-      output level for mgopt.  0 = no output, 1 = some output, 2 = detailed output
-
-    training_setup : tuple
-      tuple of form (train_loader, test_loader, epochs, log_interval)
-        
-      train_loader : PyTorch data loader for training
-      test_loader  : PyTorch data loader for testing
-      epochs       : int, number of training epochs
-      log_interval : int, how often to output timing and loss data
+    train_loader : PyTorch data loader for training
+   
+    test_loader  : PyTorch data loader for testing
     
     networks : list
       networks[k] describes the network architecture level k in the nested
       iteration hierarchy, starting from coarse to fine. 
+
+    epochs : int, number of training epochs
+    
+    log_interval : int, how often to output batch-level timing and loss data
+
+    mgopt_printlevel : int
+      output level for mgopt.  0 = no output, 1 = some output, 2 = detailed output
 
     interp_params : list
       interp_params[k] describes how to interpolate the network
@@ -775,9 +782,6 @@ class mgopt_solver:
 
     """
           
-    ##
-    # Unpack args
-    (train_loader, test_loader, epochs, log_interval) = training_setup
     rank  = MPI.COMM_WORLD.Get_rank()
     procs = MPI.COMM_WORLD.Get_size()
 
@@ -874,7 +878,7 @@ class mgopt_solver:
     
         # test() is designed to be general for PyTorch networks
         start_time = timer()
-        test(rank, model, test_loader, criterion, criterion_kwargs, compose, mgopt_printlevel)
+        test(rank, model, test_loader, criterion, criterion_kwargs, compose, mgopt_printlevel, indent='\n  ')
         end_time = timer()
         test_times.append( end_time-start_time )
       
@@ -884,8 +888,8 @@ class mgopt_solver:
       self.levels[-1].model = model
       self.levels[-1].network = networks[k]
       self.levels[-1].interp_params = interp_params[k]
-      self.levels[-1].optim = optims[k]
-      self.levels[-1].criterion = criterions[k]
+      self.levels[-1].optims = optims[k]
+      self.levels[-1].criterions = criterions[k]
 
       # Print epoch-level time averages
       if epochs == 1:
@@ -901,24 +905,24 @@ class mgopt_solver:
     self.levels.reverse()
 
 
-  def mgopt_solve(self, training_setup=None, mgopt_tol=0, mgopt_iter=1, nrelax_pre=1,
-          nrelax_post=1, nrelax_coarse=5, mgopt_printlevel=1,
+  def mgopt_solve(self, train_loader, test_loader, epochs=1, log_interval=1,
+          mgopt_tol=0, mgopt_iter=1, nrelax_pre=1, nrelax_post=1,
+          nrelax_coarse=5, mgopt_printlevel=1, mgopt_levels=None,
           restrict_params=None, restrict_grads=None, restrict_states=None,
           interp_states=None, line_search=None):
-
     """
     Use nested iteration to create a hierarchy of models
 
     Parameters
     ----------
     
-    training_setup : tuple
-      tuple of form (train_loader, test_loader, epochs, log_interval)
-        
-      train_loader : PyTorch data loader for training
-      test_loader  : PyTorch data loader for testing
-      epochs       : int, number of training epochs
-      log_interval : int, how often to output timing and loss data
+    train_loader : PyTorch data loader for training
+   
+    test_loader  : PyTorch data loader for testing
+    
+    epochs : int, number of training epochs
+    
+    log_interval : int, how often to output batch-level timing and loss data
     
     mgopt_tol : float
       If the objective evaluation (loss) drops below this value, then halt 
@@ -940,6 +944,10 @@ class mgopt_solver:
       output level for mgopt.  0 = no output, 1 = some output, 2 = detailed output
       ==> Note, turning this option on, results in more frequent measurements
           of the loss, and will change the return loss values
+
+    mgopt_levels : int or None
+      Defines number of MG/Opt levels to use.  Must be less than or equal
+      to the total number hiearchy levels.  If None, all levels are used.
 
     restrict_params : list
       restrict_params[k] describes the strategy for restricting network
@@ -983,32 +991,25 @@ class mgopt_solver:
     - List of loss values from each MG/Opt epoch
 
     """
-
+    
     # Update parameter processing
     #   want to have individual processing routines for each option
     #   gets rid of repeat code in NI and for coarse options
     #   need to update in NI the processing of interp, optimization, criterion
+    #   need to update in solve() criterion processing
     #   ==> Put these down below
     #
-    #  Move most param decs from main_mgopt to just strings in the headers.  Maybe just leave things like 
+    #  Move most param declarations from main_mgopt to just strings in the headers.  Maybe just leave things like 
     #    training setup and networks as required parameters  
     #
     #  At start of NI for interp, optimization, criterion, and in mgopt for all others
     #    levelize each param w.r.t. to len(ni_levels) in NI  and  len(self.levels) in mgopt
-    #
-    #
-    #  Make sure two codes give the same result
-    #   - Get it to run, and step through everything, verifying that it does what you expect
-    #     Chekc params, especially CHECK ALPHA!!
-    #
-    #
-    #  Make the data sets level-dependent, put this in NI, saving them on each level
-    #   - have to change main_mgopt2 to set this up
-    #   - have to change mgopt to load them
-    #   ==> Step through again to verify this happens
-    #   ==> Update 4 AND 6 with coarse data set  --- compare this side by side with orig main_mgopt.py
-    #   ==> Can you print this out in the print options?
     
+    # Need a separate function for setup optimizers
+
+
+    # Double check the output again, looking at alpha 
+
     # Clean up excess code in both files, especially main_mgopt2.py, and especially with imports,  
     #   - CAN you put all torchbraid functions in a file -- separate them somehow?
     #   - Review documention in this file
@@ -1024,21 +1025,16 @@ class mgopt_solver:
     # Put together sample local relaxation script
 
     # Get multilevel running
-    #
-    # Allow user to specify number of levels to use -- make it user parameter
 
     # Future Work:
+    #  - The data and target could be "coarsened" or sampled differently on
+    #    each level.  There are not hooks for this right now, but they would be
+    #    easy to add.
     #  - Parallel
     #  - More control over how the trainloader is iterated  ... inside or outside?
     #  - Coarsegrid convexity tweak from 
 
-
-
-    ##
-    # Unpack args
-    (train_loader, test_loader, epochs, log_interval) = training_setup
     rank  = MPI.COMM_WORLD.Get_rank()
-    procs = MPI.COMM_WORLD.Get_size()
     
     ##
     # Parameter length checking 
@@ -1054,45 +1050,92 @@ class mgopt_solver:
       raise ValueError('Length of line_search must equal number of levels, i.e., you must have a line search defined for each level of nested iteration')
     
     ##
+    # Determine number of mgopt_levels
+    if mgopt_levels == None:
+      mgopt_levels = len(self.levels)
+    elif mgopt_levels > len(self.levels):
+      raise ValueError('Number of mgopt_levels must be less than or equal to the total number of hierarchy levels: ' + str(len(self.levels))) 
+
+    ##
     # To measure overall accuracy, select (i) criterion (objective) for level 0 and (ii) the compose function
     criterion_string, criterion_kwargs = unpack_arg(self.levels[0].criterions)
     if criterion_string == "tb_mgopt_cross_ent":
       criterion = tb_mgopt_cross_ent
-      compose = model.compose
+      compose = self.levels[0].model.compose
     else:
       raise ValueError('Unsupported optimizer: ' + optim_string)
     
+    ##
+    # Set up the optimizer on each level (some optimizers preserve state
+    # between runs, so we create them here)
+    for k in range(mgopt_levels):
+      method, optim_kwargs = unpack_arg(self.levels[k].optims)
+      if method == "pytorch_sgd":
+        self.levels[k].optimizer = optim.SGD(self.levels[k].model, **optim_kwargs)
+      else:
+        raise ValueError('Unsupported optimizer: ' + method)
+
+
     ##
     # Begin loop over epochs
     losses = []
     epoch_times = []
     test_times = []
     for epoch in range(1, epochs + 1):
+      epoch_time_start = timer()
       
-      # Recursive parameters 
-      lvl = 0      
-      v_h = None
-      
-      # Initiate recursive MG/Opt solve
-      start = timer()
-      loss = self.__solve(lvl, v_h, mgopt_tol, mgopt_iter, nrelax_pre,
-              nrelax_post, nrelax_coarse, mgopt_printlevel, log_interval,
-              restrict_params, restrict_grads, restrict_states, interp_states,
-              line_search)
-      end = timer()
-      epoch_times.append( end_time-start_time )
-      losses.append(loss)
+      ##
+      # Begin loop over batches
+      batch_total_time = 0.0
+      for batch_idx, (data, target) in enumerate(train_loader):
+        ##
+        # Initiate recursive MG/Opt solve
+        lvl = 0      
+        v_h = None
+        root_print(rank, mgopt_printlevel, 2, "\nBatch:  " + str(batch_idx)) 
+        start_batch_time = timer()
+
+        loss_item = self.__solve(lvl, data, target, v_h, mgopt_iter,
+                                 nrelax_pre, nrelax_post, nrelax_coarse, 
+                                 mgopt_printlevel, mgopt_levels, restrict_params, 
+                                 restrict_grads, restrict_states, interp_states, 
+                                 line_search)
+        
+        losses.append(loss_item)
+        end_batch_time = timer()
+        batch_total_time += (end_batch_time - start_batch_time)
+        
+        ##
+        # Batch-level diagnostic printing
+        if (batch_idx % log_interval == 0) or (batch_idx == (len(train_loader)-1) ):  
+          root_print(rank, mgopt_printlevel, 2, "\n------------------------------------------------------------------------------")
+          root_print(rank, mgopt_printlevel, 1, 'Train Epoch: {} [{}/{} ({:.0f}%)]     \tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
+              epoch, (batch_idx+1) * len(data), len(train_loader.dataset),
+              100. * (batch_idx+1) / len(train_loader), losses[-1], batch_total_time/(batch_idx+1.0)))
+          root_print(rank, mgopt_printlevel, 2, "------------------------------------------------------------------------------")
+
+      ##
+      # End Batch loop
+      epoch_time_end = timer()
+      epoch_times.append( epoch_time_end - epoch_time_start)
 
       ##
       # Measure training accuracy
       start = timer()
-      test(rank, self.levels[0].model, test_loader, criterion, criterion_kwargs, compose, mgopt_printlevel)
+      test(rank, self.levels[0].model, test_loader, criterion, criterion_kwargs, compose, mgopt_printlevel, indent='\n  ')
       end = timer()
-      test_times.append( end_time-start_time )
+      test_times.append( end -start )
+      
+      ##
+      # For printlevel 2, also test accuracy ong coarse-levels
+      if(mgopt_printlevel >= 2):
+        for i, level in enumerate(self.levels[1:]):
+          root_print(rank, mgopt_printlevel, 2, '  Test accuracy information for level ' + str(i))
+          test(rank, level.model, test_loader, criterion, criterion_kwargs, compose, mgopt_printlevel, indent='    ')
       
       ##
       # Print epoch-level time averages
-      if epochs == 1:
+      if epoch == 1:
         root_print(rank, mgopt_printlevel, 1, '  Time per epoch: %.2e ' % (stats.mean(epoch_times)) ) 
         root_print(rank, mgopt_printlevel, 1, '  Time per test:  %.2e ' % (stats.mean(test_times)) )
       else:
@@ -1109,19 +1152,22 @@ class mgopt_solver:
     return losses
 
 
-  def __solve(self, lvl, v_h, mgopt_iter, nrelax_pre, nrelax_post,
-              nrelax_coarse, mgopt_printlevel, log_interval, restrict_params,
-              restrict_grads, restrict_states, interp_states, line_search):
+  def __solve(self, lvl, data, target, v_h, mgopt_iter, nrelax_pre,
+          nrelax_post, nrelax_coarse, mgopt_printlevel, mgopt_levels,
+          restrict_params, restrict_grads, restrict_states, interp_states,
+          line_search):
 
     """
     Recursive solve function for carrying out mgopt_iter iterations 
     See solve() for parameter description
     """
     
+    rank  = MPI.COMM_WORLD.Get_rank()
     model = self.levels[lvl].model
+    optimizer = self.levels[lvl].optimizer
     coarse_model = self.levels[lvl+1].model
+    coarse_optimizer = self.levels[lvl+1].optimizer
     ni_rfactor = self.ni_rfactor
-    #import pdb; pdb.set_trace()
     
     ##
     # Store new options needed by MG/Opt
@@ -1132,17 +1178,8 @@ class mgopt_solver:
     self.levels[lvl].line_search     = line_search[lvl]
     # Rembember these, options were stored previously by nested iteration
     #   self.levels[lvl].interp_params
-    #   self.levels[lvl].optim
-    #   self.levels[lvl].criterion
-
-
-    ##
-    # Select Optimizer for this level
-    method, optim_kwargs = unpack_arg(self.levels[lvl].optim)
-    if method == "pytorch_sgd":
-      optimizer = optim.SGD(model.parameters(), **optim_kwargs)
-    else:
-      raise ValueError('Unsupported optimizer: ' + method)
+    #   self.levels[lvl].optims
+    #   self.levels[lvl].criterions
 
     ##
     # Select Criterion (objective) for this level, and the compose function
@@ -1176,7 +1213,7 @@ class mgopt_solver:
     method, restrict_params_kwargs = unpack_arg(self.levels[lvl].restrict_params)
     if method == "tb_get_injection_restrict_params":
       get_restrict_params = tb_get_injection_restrict_params
-      restrict_params_kwargs.update({'cf' : ni_rfactor, 'deep_copy' : True, 'grad' : True})
+      restrict_params_kwargs.update({'cf' : ni_rfactor, 'deep_copy' : True, 'grad' : False})
     else:
       raise ValueError('Unsupported restrict params: ' + method)  
     
@@ -1207,15 +1244,6 @@ class mgopt_solver:
     else:
       raise ValueError('Unsupported interp state: ' + method)
 
-    # Can this all be dumped into another parser function?
-    ##
-    # Select Coarse Optimizer
-    method, coarse_optim_kwargs = unpack_arg(self.levels[lvl+1].optim)
-    if method == "pytorch_sgd":
-      coarse_optimizer = optim.SGD(coarse_model.parameters(), **coarse_optim_kwargs)
-    else:
-      raise ValueError('Unsupported optimizer: ' + method)
-
     ##
     # Select Coarse Criterion (objective) for this level, and the coarse compose function
     method, coarse_criterion_kwargs = unpack_arg(self.levels[lvl+1].criterions)
@@ -1226,122 +1254,106 @@ class mgopt_solver:
       raise ValueError('Unsupported optimizer: ' + method)  
 
 
-
     ##
-    # Begin loop over batches
-    total_time = 0.0
-    for batch_idx, (data, target) in enumerate(train_loader):
+    # Begin Cycle loop
+    for it in range(mgopt_iter):
       
-      start = timer()
-      for it in range(mgopt_iter):
-        
-        if (lvl == 0):  root_print(rank, mgopt_printlevel, 2, "\nMG/Opt Iter:  " + str(it) + "   batch_idx:  " + str(batch_idx) )
-        root_print(rank, mgopt_printlevel, 2, "\n  Level:  " + str(lvl)) 
-        
-        # 1. relax (carry out optimization steps)
-        for k in range(nrelax_pre):
-          loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
-          root_print(rank, mgopt_printlevel, 2, "  Pre-relax loss:       " + str(loss.item()) ) 
-          optimizer.step()
-     
-        # 2. compute new gradient g_h
-        # First evaluate network, forward and backward.  Return value is scalar value of the loss.
+      if (lvl == 0):  root_print(rank, mgopt_printlevel, 2, "MG/Opt Iter:  " + str(it)) 
+      root_print(rank, mgopt_printlevel, 2, "\n  Level:  " + str(lvl)) 
+      
+      # 1. relax (carry out optimization steps)
+      for k in range(nrelax_pre):
         loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
-        fine_loss = loss.item()
-        # Second, note that the gradient is waiting in models[lvl], to accessed next
-        root_print(rank, mgopt_printlevel, 2, "  Pre-relax done loss:  " + str(loss.item())) 
-
-
-        # 3. Restrict 
-        #    (i)   Network state (primal and adjoint), 
-        #    (ii)  Parameters (x_h), and 
-        #    (iii) Gradient (g_h) to H
-        # x_H^{zero} = R(x_h)   and    \tilde{g}_H = R(g_h)
-        with torch.no_grad():
-          restrict_states(model, coarse_model, **restrict_states_kwargs)
-          gtilde_H = get_restrict_grad(model, **restrict_grad_kwargs)
-          x_H      = get_restrict_params(model, **restrict_params_kwargs) 
-          # For x_H to take effect, these parameters must be written to the next coarser network
-          write_params_inplace(self.levels[lvl+1].model, x_H)
-          # Must store x_H for later error computation
-          x_H_zero = tensor_list_deep_copy(x_H)
+        root_print(rank, mgopt_printlevel, 2, "  Pre-relax loss:       " + str(loss.item()) ) 
+        optimizer.step()
     
-        
-        # 4. compute gradient on coarse level, using restricted parameters
-        #  g_H = grad( f_H(x_H) )
-        #
-        # Evaluate gradient.  For computing fwd_bwd_pass, give 0 as first
-        # parameter, so that the MG/Opt term is turned-off.  We just want hte
-        # gradient of f_H here.
-        loss = compute_fwd_bwd_pass(0, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, None)
-        with torch.no_grad():
-          g_H = get_params(coarse_model, deep_copy=True, grad=True)
+      # 2. compute new gradient g_h
+      # First evaluate network, forward and backward.  Return value is scalar value of the loss.
+      loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
+      fine_loss = loss.item()
+      # Second, note that the gradient is waiting in models[lvl], to accessed next
+      root_print(rank, mgopt_printlevel, 2, "  Pre-relax done loss:  " + str(loss.item())) 
 
-    
-        # 5. compute coupling term
-        #  v = g_H - \tilde{g}_H
-        with torch.no_grad():
-          v_H = tensor_list_AXPY(1.0, g_H, -1.0, gtilde_H)
-    
-        # 6. solve coarse-grid 
-        #  x_H = min f_H(x_H) - <v_H, x_H>
-        if (lvl+2) == len(self.levels):
-          # If on coarsest level, do a "solve" by carrying out a number of relaxation steps
-          for m in range(nrelax_coarse):
-            loss = compute_fwd_bwd_pass(lvl+1, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, v_H)
-            coarse_optimizer.step()
-        else:
-          # Recursive call
-          __solve(lvl+1, v_H, mgopt_iter, nrelax_pre, nrelax_post,
-                  nrelax_coarse, mgopt_printlevel, log_interval,
-                  restrict_params, restrict_grads, restrict_states,
-                  interp_states, line_search)
-              
-        # 7. Interpolate 
-        #    (i)  error correction to fine-level, and 
-        #    (ii) network state to fine-level (primal and adjoint)
-        #  e_h = P( x_H - x_H^{init})
-        with torch.no_grad():
-          x_H = get_params(coarse_model, deep_copy=False, grad=False)
-          e_H = tensor_list_AXPY(1.0, x_H, -1.0, x_H_zero)
-          #
-          # to correctly interpolate e_H --> e_h, we need to put these values in a
-          # network, so the interpolation knows the layer-parallel structure and
-          # where to refine.
-          write_params_inplace(coarse_model, e_H)
-          e_h = get_interp_params(coarse_model, **interp_params_kwargs) 
-          interp_states(model, coarse_model, **interp_states_kwargs)
-  
-        # 8. apply linesearch to update x_h
-        #  x_h = x_h + alpha*e_h
-        with torch.no_grad():
-          x_h = get_params(model, deep_copy=False, grad=False)
-          # Note, that line_search can store values between runs, like alpha, by having ls_kwargs = { 'ls_params' : {'alpha' : ...}} 
-          line_search(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, fine_loss, mgopt_printlevel, **ls_kwargs)
 
-        # 9. post-relaxation
-        for k in range(nrelax_post):
-          loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
-          if (k==0):  root_print(rank, mgopt_printlevel, 2, "  CG Corr done loss:    " + str(loss.item()) ) 
-          else:       root_print(rank, mgopt_printlevel, 2, "  Post-relax loss:      " + str(loss.item()) )
-          optimizer.step()
-        ##
-        if (mgopt_printlevel == 2):  
-          loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
-          root_print(rank, mgopt_printlevel, 2, "  Post-relax loss:      " + str(loss.item()) )
-  
-      ##
-      # End cycle loop
-      end = timer()
-      total_time += (end-start)
+      # 3. Restrict 
+      #    (i)   Network state (primal and adjoint), 
+      #    (ii)  Parameters (x_h), and 
+      #    (iii) Gradient (g_h) to H
+      # x_H^{zero} = R(x_h)   and    \tilde{g}_H = R(g_h)
+      with torch.no_grad():
+        restrict_states(model, coarse_model, **restrict_states_kwargs)
+        gtilde_H = get_restrict_grad(model, **restrict_grad_kwargs)
+        x_H      = get_restrict_params(model, **restrict_params_kwargs) 
+        # For x_H to take effect, these parameters must be written to the next coarser network
+        write_params_inplace(coarse_model, x_H)
+        # Must store x_H for later error computation
+        x_H_zero = tensor_list_deep_copy(x_H)
+    
       
-      if batch_idx % log_interval == 0:  
-        root_print(rank, mgopt_printlevel, 2, "\n------------------------------------------------------------------------")
-        root_print(rank, mgopt_printlevel, 1, '  Train Epoch: {} [{}/{} ({:.0f}%)]     \tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
-            epoch, batch_idx * len(data), len(train_loader.dataset),
-            100. * batch_idx / len(train_loader), loss.item(), total_time/(batch_idx+1.0)))
-        root_print(rank, mgopt_printlevel, 2, "------------------------------------------------------------------------")
+      # 4. compute gradient on coarse level, using restricted parameters
+      #  g_H = grad( f_H(x_H) )
+      #
+      # Evaluate gradient.  For computing fwd_bwd_pass, give 0 as first
+      # parameter, so that the MG/Opt term is turned-off.  We just want hte
+      # gradient of f_H here.
+      loss = compute_fwd_bwd_pass(0, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, None)
+      with torch.no_grad():
+        g_H = get_params(coarse_model, deep_copy=True, grad=True)
+
     
-    ## End Batch loop
+      # 5. compute coupling term
+      #  v = g_H - \tilde{g}_H
+      with torch.no_grad():
+        v_H = tensor_list_AXPY(1.0, g_H, -1.0, gtilde_H)
+    
+      # 6. solve coarse-grid 
+      #  x_H = min f_H(x_H) - <v_H, x_H>
+      if (lvl+2) == mgopt_levels:
+        # If on coarsest level, do a "solve" by carrying out a number of relaxation steps
+        for m in range(nrelax_coarse):
+          loss = compute_fwd_bwd_pass(lvl+1, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, v_H)
+          coarse_optimizer.step()
+      else:
+        # Recursive call
+        __solve(lvl+1, v_H, mgopt_iter, nrelax_pre, nrelax_post, nrelax_coarse,
+                mgopt_printlevel, mgopt_levels, restrict_params, restrict_grads,
+                restrict_states, interp_states, line_search)
+            
+      # 7. Interpolate 
+      #    (i)  error correction to fine-level, and 
+      #    (ii) network state to fine-level (primal and adjoint)
+      #  e_h = P( x_H - x_H^{init})
+      with torch.no_grad():
+        x_H = get_params(coarse_model, deep_copy=False, grad=False)
+        e_H = tensor_list_AXPY(1.0, x_H, -1.0, x_H_zero)
+        #
+        # to correctly interpolate e_H --> e_h, we need to put these values in a
+        # network, so the interpolation knows the layer-parallel structure and
+        # where to refine.
+        write_params_inplace(coarse_model, e_H)
+        e_h = get_interp_params(coarse_model, **interp_params_kwargs) 
+        interp_states(model, coarse_model, **interp_states_kwargs)
+  
+      # 8. apply linesearch to update x_h
+      #  x_h = x_h + alpha*e_h
+      with torch.no_grad():
+        x_h = get_params(model, deep_copy=False, grad=False)
+        # Note, that line_search can store values between runs, like alpha, by having ls_kwargs = { 'ls_params' : {'alpha' : ...}} 
+        line_search(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, fine_loss, mgopt_printlevel, **ls_kwargs)
+
+      # 9. post-relaxation
+      for k in range(nrelax_post):
+        loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
+        if (k==0):  root_print(rank, mgopt_printlevel, 2, "  CG Corr done loss:    " + str(loss.item()) ) 
+        else:       root_print(rank, mgopt_printlevel, 2, "  Post-relax loss:      " + str(loss.item()) )
+        optimizer.step()
+      ##
+      if (mgopt_printlevel == 2):  
+        loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
+        root_print(rank, mgopt_printlevel, 2, "  Post-relax loss:      " + str(loss.item()) )
+  
+    ##
+    # End cycle loop
+
     return loss.item()   
         
