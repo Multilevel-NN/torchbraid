@@ -732,7 +732,7 @@ class mgopt_solver:
     ----------
     ni_steps : array
       array of the number of time_steps at each level of nested iteration 
-      length of ni_steps also defines the number of nested iteraiton levels
+      lenght of ni_steps also defines the number of nested iteraiton levels
 
     train_loader : PyTorch data loader for training
    
@@ -825,17 +825,10 @@ class mgopt_solver:
       ##
       # Select Interpolate weights from coarser model to the new model
       if len(self.levels) > 0: 
-        interp_params_string, kwargs = unpack_arg(interp_params[k])
-        if interp_params_string == "tb_get_injection_interp_params":
-          get_interp_params = tb_get_injection_interp_params
-          kwargs.update({'deep_copy' : True, 'grad' : False, 'cf' : ni_rfactor})
-        else:
-          raise ValueError('Unsupported interpolation: ' + interp_string)
-        ##
-        new_params = get_interp_params(self.levels[-1].model, **kwargs)
+        (get_interp_params, interp_params_kwargs) = self.process_get_interp_params(interp_params[k])
+        new_params = get_interp_params(self.levels[-1].model, **interp_params_kwargs)
         write_params_inplace(model, new_params)
         del new_params
-
 
       ##
       # Diagnostic printing
@@ -848,25 +841,16 @@ class mgopt_solver:
       root_print(rank, mgopt_printlevel, 1, '  train params: {}'.format([c[1] for c in counts]))
       root_print(rank, mgopt_printlevel, 1, '')
 
-
       ##
       # Select Optimization method
-      optim_string, optim_kwargs = unpack_arg(optims[k])
-      if optim_string == "pytorch_sgd":
-        optimizer = optim.SGD(model.parameters(), **optim_kwargs)
-      else:
-        raise ValueError('Unsupported optimizer: ' + optim_string)
-      
+      (optimizer, optim_kwargs) = self.process_optimizer(optims[k], model)
 
       ##
       # Select Criterion (objective) and compose function
-      criterion_string, criterion_kwargs = unpack_arg(criterions[k])
-      if criterion_string == "tb_mgopt_cross_ent":
-        criterion = tb_mgopt_cross_ent
-        compose = model.compose
-      else:
-        raise ValueError('Unsupported optimizer: ' + optim_string)
+      (criterion, compose, criterion_kwargs) = self.process_criterion(criterions[k], model)
       
+      ##
+      # Begin epoch loop
       epoch_times = []
       test_times = []
       for epoch in range(1, epochs + 1):
@@ -992,23 +976,18 @@ class mgopt_solver:
 
     """
     
-    # Update parameter processing
-    #   want to have individual processing routines for each option
-    #   gets rid of repeat code in NI and for coarse options
-    #   need to update in NI the processing of interp, optimization, criterion
-    #   need to update in solve() criterion processing
-    #   ==> Put these down below
-    #
     #  Move most param declarations from main_mgopt to just strings in the headers.  Maybe just leave things like 
     #    training setup and networks as required parameters  
     #
     #  At start of NI for interp, optimization, criterion, and in mgopt for all others
     #    levelize each param w.r.t. to len(ni_levels) in NI  and  len(self.levels) in mgopt
     
-    # Need a separate function for setup optimizers
 
 
-    # Double check the output again, looking at alpha 
+    #  Make sure two codes give the same result
+    #   - Get it to run, and step through everything, verifying that it does what you expect
+    #     Check params, especially CHECK ALPHA!!
+    #
 
     # Clean up excess code in both files, especially main_mgopt2.py, and especially with imports,  
     #   - CAN you put all torchbraid functions in a file -- separate them somehow?
@@ -1057,24 +1036,14 @@ class mgopt_solver:
       raise ValueError('Number of mgopt_levels must be less than or equal to the total number of hierarchy levels: ' + str(len(self.levels))) 
 
     ##
-    # To measure overall accuracy, select (i) criterion (objective) for level 0 and (ii) the compose function
-    criterion_string, criterion_kwargs = unpack_arg(self.levels[0].criterions)
-    if criterion_string == "tb_mgopt_cross_ent":
-      criterion = tb_mgopt_cross_ent
-      compose = self.levels[0].model.compose
-    else:
-      raise ValueError('Unsupported optimizer: ' + optim_string)
+    # For epoch-level accuracy measurements, select (i) criterion (objective) for level 0 and (ii) the compose function
+    (criterion, compose, criterion_kwargs) = self.process_criterion(self.levels[0].criterions, self.levels[0].model)
     
     ##
-    # Set up the optimizer on each level (some optimizers preserve state
-    # between runs, so we create them here)
+    # Set the optimizer on each level (some optimizers preserve state between runs, so we instantiate here)
     for k in range(mgopt_levels):
-      method, optim_kwargs = unpack_arg(self.levels[k].optims)
-      if method == "pytorch_sgd":
-        self.levels[k].optimizer = optim.SGD(self.levels[k].model, **optim_kwargs)
-      else:
-        raise ValueError('Unsupported optimizer: ' + method)
-
+      (optimizer, optim_kwargs) = self.process_optimizer(self.levels[k].optims, self.levels[k].model)
+      self.levels[k].optimizer = optimizer
 
     ##
     # Begin loop over epochs
@@ -1167,7 +1136,6 @@ class mgopt_solver:
     optimizer = self.levels[lvl].optimizer
     coarse_model = self.levels[lvl+1].model
     coarse_optimizer = self.levels[lvl+1].optimizer
-    ni_rfactor = self.ni_rfactor
     
     ##
     # Store new options needed by MG/Opt
@@ -1182,77 +1150,16 @@ class mgopt_solver:
     #   self.levels[lvl].criterions
 
     ##
-    # Select Criterion (objective) for this level, and the compose function
-    method, criterion_kwargs = unpack_arg(self.levels[lvl].criterions)
-    if method == "tb_mgopt_cross_ent":
-      criterion = tb_mgopt_cross_ent
-      compose = model.compose
-    else:
-      raise ValueError('Unsupported criterion: ' + method)  
-
-    ##
-    # Select line search for htis level
-    method, ls_kwargs = unpack_arg(self.levels[lvl].line_search)
-    if method == "tb_simple_backtrack_ls":
-      check_has_args(ls_kwargs, ['ls_params'], method)
-      line_search = tb_simple_backtrack_ls
-    else:
-      raise ValueError('Unsupported line search: ' + method)
-
-    ##
-    # Select Restrict states fine to coarse
-    method, restrict_states_kwargs = unpack_arg(self.levels[lvl].restrict_states)
-    if method == "tb_injection_restrict_network_state":
-      restrict_states = tb_injection_restrict_network_state
-      restrict_states_kwargs.update({'cf' : ni_rfactor})
-    else:
-      raise ValueError('Unsupported restrict state: ' + method)  
-    
-    ##
-    # Select Restrict params fine to coarse
-    method, restrict_params_kwargs = unpack_arg(self.levels[lvl].restrict_params)
-    if method == "tb_get_injection_restrict_params":
-      get_restrict_params = tb_get_injection_restrict_params
-      restrict_params_kwargs.update({'cf' : ni_rfactor, 'deep_copy' : True, 'grad' : False})
-    else:
-      raise ValueError('Unsupported restrict params: ' + method)  
-    
-    ##
-    # Select Restrict gradients fine to coarse
-    method, restrict_grad_kwargs = unpack_arg(self.levels[lvl].restrict_grads)
-    if method == "tb_get_injection_restrict_params":
-      get_restrict_grad = tb_get_injection_restrict_params
-      restrict_grad_kwargs.update({'cf' : ni_rfactor, 'deep_copy' : True, 'grad' : True})
-    else:
-      raise ValueError('Unsupported restrict grad: ' + method)  
-
-    ##
-    # Select Interp params from coarse to fine
-    method, interp_params_kwargs = unpack_arg(self.levels[lvl].interp_params)
-    if method == "tb_get_injection_interp_params":
-      get_interp_params = tb_get_injection_interp_params
-      interp_params_kwargs.update({'deep_copy' : True, 'grad' : False, 'cf' : ni_rfactor})
-    else:
-      raise ValueError('Unsupported interp params: ' + method)
-
-    ##
-    # Select Interp state from coarse to fine
-    method, interp_states_kwargs = unpack_arg(self.levels[lvl].interp_states)
-    if method == "tb_injection_interp_network_state":
-      interp_states = tb_injection_interp_network_state
-      interp_states_kwargs.update({'cf' : ni_rfactor})
-    else:
-      raise ValueError('Unsupported interp state: ' + method)
-
-    ##
-    # Select Coarse Criterion (objective) for this level, and the coarse compose function
-    method, coarse_criterion_kwargs = unpack_arg(self.levels[lvl+1].criterions)
-    if method == "tb_mgopt_cross_ent":
-      coarse_criterion = tb_mgopt_cross_ent
-      coarse_compose = coarse_model.compose
-    else:
-      raise ValueError('Unsupported optimizer: ' + method)  
-
+    # Process the user-specifiec options for restriction, interpolation, criterion, ...
+    (criterion, compose, criterion_kwargs)        = self.process_criterion(self.levels[lvl].criterions, model)
+    (line_search, ls_kwargs)                      = self.process_line_search(self.levels[lvl].line_search)
+    (restrict_states, restrict_states_kwargs)     = self.process_restrict_states(self.levels[lvl].restrict_states)
+    (get_restrict_params, restrict_params_kwargs) = self.process_get_restrict_params(self.levels[lvl].restrict_params)
+    (get_restrict_grad, restrict_grad_kwargs)     = self.process_get_restrict_grad(self.levels[lvl].restrict_grads)
+    (get_interp_params, interp_params_kwargs)     = self.process_get_interp_params(self.levels[lvl].interp_params)
+    (interp_states, interp_states_kwargs)         = self.process_interp_states(self.levels[lvl].interp_states)
+    #
+    (coarse_criterion, coarse_compose, coarse_criterion_kwargs) = self.process_criterion(self.levels[lvl+1].criterions, model)
 
     ##
     # Begin Cycle loop
@@ -1357,3 +1264,103 @@ class mgopt_solver:
 
     return loss.item()   
         
+        
+  ###
+  # Begin user option processing routines
+  ###
+
+  def process_criterion(self, option, model):
+    ''' Return Criterion (objective) and the compose function for option '''
+    method, criterion_kwargs = unpack_arg(option)
+    if method == "tb_mgopt_cross_ent":
+      criterion = tb_mgopt_cross_ent
+      compose = model.compose
+    else:
+      raise ValueError('Unsupported criterion: ' + method)  
+    ##
+    return criterion, compose, criterion_kwargs
+
+
+  def process_optimizer(self, option, model):
+    ''' Return optimizer for option '''
+    method, optim_kwargs = unpack_arg(option)
+    if method == "pytorch_sgd":
+      optimizer = optim.SGD(model.parameters(), **optim_kwargs)
+    else:
+      raise ValueError('Unsupported optimizer: ' + method)
+    ##
+    return optimizer, optim_kwargs
+
+
+  def process_line_search(self, option):
+    ''' Return line search for option '''
+    method, ls_kwargs = unpack_arg(option)
+    if method == "tb_simple_backtrack_ls":
+      check_has_args(ls_kwargs, ['ls_params'], method)
+      line_search = tb_simple_backtrack_ls
+    else:
+      raise ValueError('Unsupported line search: ' + method)
+    ##
+    return line_search, ls_kwargs
+
+    
+  def process_restrict_states(self, option):
+    ''' Return restrict states for option '''
+    method, restrict_states_kwargs = unpack_arg(option)
+    if method == "tb_injection_restrict_network_state":
+      restrict_states = tb_injection_restrict_network_state
+      restrict_states_kwargs.update({'cf' : self.ni_rfactor})
+    else:
+      raise ValueError('Unsupported restrict state: ' + method)  
+    ##
+    return restrict_states, restrict_states_kwargs
+    
+
+  def process_get_restrict_params(self, option):
+    ''' Return restrict params for option '''
+    method, restrict_params_kwargs = unpack_arg(option)
+    if method == "tb_get_injection_restrict_params":
+      get_restrict_params = tb_get_injection_restrict_params
+      restrict_params_kwargs.update({'cf' : self.ni_rfactor, 'deep_copy' : True, 'grad' : False})
+    else:
+      raise ValueError('Unsupported restrict params: ' + method)  
+    ##
+    return get_restrict_params, restrict_params_kwargs
+    
+
+  def process_get_restrict_grad(self, option):
+    ''' Return restrict grad for option '''
+    method, restrict_grad_kwargs = unpack_arg(option)
+    if method == "tb_get_injection_restrict_params":
+      get_restrict_grad = tb_get_injection_restrict_params
+      restrict_grad_kwargs.update({'cf' : self.ni_rfactor, 'deep_copy' : True, 'grad' : True})
+    else:
+      raise ValueError('Unsupported restrict grad: ' + method)  
+    ##
+    return get_restrict_grad, restrict_grad_kwargs
+    
+
+  def process_get_interp_params(self, option):
+    ''' Return interp params for option '''
+    method, interp_params_kwargs = unpack_arg(option)
+    if method == "tb_get_injection_interp_params":
+      get_interp_params = tb_get_injection_interp_params
+      interp_params_kwargs.update({'deep_copy' : True, 'grad' : False, 'cf' : self.ni_rfactor})
+    else:
+      raise ValueError('Unsupported interp params: ' + method)
+    ##
+    return get_interp_params, interp_params_kwargs
+    
+
+  def process_interp_states(self, option):
+    ''' Return interp state for option '''
+    method, interp_states_kwargs = unpack_arg(option)
+    if method == "tb_injection_interp_network_state":
+      interp_states = tb_injection_interp_network_state
+      interp_states_kwargs.update({'cf' : self.ni_rfactor})
+    else:
+      raise ValueError('Unsupported interp state: ' + method)
+    ##
+    return interp_states, interp_states_kwargs
+      
+
