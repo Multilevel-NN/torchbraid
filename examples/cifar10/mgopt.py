@@ -722,9 +722,17 @@ class mgopt_solver:
       
 
 
-  def initialize_with_nested_iteration(self, ni_steps, train_loader,
-          test_loader, networks, epochs=1, log_interval=1, mgopt_printlevel=1,
-          interp_params=None, optims=None, criterions=None, seed=None):
+  def initialize_with_nested_iteration(self, ni_steps, 
+                                       train_loader, 
+                                       test_loader, 
+                                       networks, 
+                                       epochs           = 1, 
+                                       log_interval     = 1, 
+                                       mgopt_printlevel = 1,
+                                       interp_params    = "tb_get_injection_interp_params", 
+                                       optims           = ("pytorch_sgd", { 'lr':0.01, 'momentum':0.9}), 
+                                       criterions       = "tb_mgopt_cross_ent", 
+                                       seed             = None):
     """
     Use nested iteration to create a hierarchy of models
 
@@ -782,18 +790,18 @@ class mgopt_solver:
 
     """
           
+    nlevels = len(ni_steps)
     rank  = MPI.COMM_WORLD.Get_rank()
     procs = MPI.COMM_WORLD.Get_size()
 
+    ##
+    # Process arguments 
+    interp_params = self.levelize_argument(interp_params, nlevels)
+    optims        = self.levelize_argument(optims, nlevels)
+    criterions    = self.levelize_argument(criterions, nlevels)
     if( len(ni_steps) != len(networks) ):
       raise ValueError('Length of ni_steps must equal length of networks, i.e., you must have a network architecture defined for each level of nested iteration')
-    if( len(ni_steps) != len(interp_params) ):
-      raise ValueError('Length of ni_steps must equal length of interp_params, i.e., you must have an interpolation strategy defined for each level of nested iteration')
-    if( len(ni_steps) != len(optims) ):
-      raise ValueError('Length of ni_steps must equal length of optims, i.e., you must have an optimization strategy defined for each level of nested iteration')
-    if( len(ni_steps) != len(criterions) ):
-      raise ValueError('Length of ni_steps must equal length of criterions, i.e., you must have a criterion (objective) defined for each level of nested iteration')
-    
+
     ##
     # Seed the generator for the below training 
     if seed is not None:
@@ -801,7 +809,6 @@ class mgopt_solver:
     
     ##
     # Check ni_steps that it is a constant r_factor
-    nlevels = len(ni_steps)
     ni_rfactor = int(max(ni_steps[1:] / ni_steps[:-1]))
     ni_rfactor_min = int(min(ni_steps[1:] / ni_steps[:-1]))
     self.ni_steps = ni_steps
@@ -889,11 +896,23 @@ class mgopt_solver:
     self.levels.reverse()
 
 
-  def mgopt_solve(self, train_loader, test_loader, epochs=1, log_interval=1,
-          mgopt_tol=0, mgopt_iter=1, nrelax_pre=1, nrelax_post=1,
-          nrelax_coarse=5, mgopt_printlevel=1, mgopt_levels=None,
-          restrict_params=None, restrict_grads=None, restrict_states=None,
-          interp_states=None, line_search=None):
+  def mgopt_solve(self, train_loader, 
+                       test_loader, 
+                       epochs = 1, 
+                       log_interval = 1,
+                       mgopt_tol = 0, 
+                       mgopt_iter = 1, 
+                       nrelax_pre = 1, 
+                       nrelax_post = 1,
+                       nrelax_coarse = 5, 
+                       mgopt_printlevel = 1, 
+                       mgopt_levels = None,
+                       restrict_params = ("tb_get_injection_restrict_params", {'grad' : False}), 
+                       restrict_grads = ("tb_get_injection_restrict_params", {'grad' : True}), 
+                       restrict_states = "tb_injection_restrict_network_state",
+                       interp_states = "tb_injection_interp_network_state", 
+                       line_search = ("tb_simple_backtrack_ls", {'ls_params' : {'n_line_search' : 6, 'alpha' : 1.0}} ) 
+                       ):    
     """
     Use nested iteration to create a hierarchy of models
 
@@ -976,36 +995,20 @@ class mgopt_solver:
 
     """
     
-    #  Move most param declarations from main_mgopt to just strings in the headers.  Maybe just leave things like 
-    #    training setup and networks as required parameters  
-    #
-    #  At start of NI for interp, optimization, criterion, and in mgopt for all others
-    #    levelize each param w.r.t. to len(ni_levels) in NI  and  len(self.levels) in mgopt
-    
-
-
-    #  Make sure two codes give the same result
-    #   - Get it to run, and step through everything, verifying that it does what you expect
-    #     Check params, especially CHECK ALPHA!!
-    #
-
     # Clean up excess code in both files, especially main_mgopt2.py, and especially with imports,  
     #   - CAN you put all torchbraid functions in a file -- separate them somehow?
     #   - Review documention in this file
-    
-
-    # Test code and extend code 
-    #    - Can you do a fixed point test?  Or load a fully trained network, see if its almost a fixed point?
-    #    - How to structure mini-batch loops, e.g., one loop outside of MG/Opt and/or one loop inside MG/Opt (used by each relaxation step)
-    #      Perhaps, you want train_loader to be post-processed into doubly nested
-    #      list, where each inside list is the set of batch(es) for relaxation to
-    #       iterate over, [  [],   [], [],  .... ]
-    
-    # Put together sample local relaxation script
-
+    # ==> Or do you want to do that?  Shouldn't all functions used by this object, remain with this object?
+    #     Maybe you can look up splitting an object into multiple files
+    #
     # Get multilevel running
+    #
+    # Put together sample local relaxation script
+    # Put together sample regression test (store .txt)
 
     # Future Work:
+    #  - Can you do a fixed point test?  Or load a fully trained network, see if its almost a fixed point?
+    #  - How to structure mini-batch loops, e.g., one loop outside of MG/Opt and/or one loop inside MG/Opt (used by each relaxation step)
     #  - The data and target could be "coarsened" or sampled differently on
     #    each level.  There are not hooks for this right now, but they would be
     #    easy to add.
@@ -1013,28 +1016,24 @@ class mgopt_solver:
     #  - More control over how the trainloader is iterated  ... inside or outside?
     #  - Coarsegrid convexity tweak from 
 
+
     rank  = MPI.COMM_WORLD.Get_rank()
-    
-    ##
-    # Parameter length checking 
-    if( len(self.levels) != len(restrict_params) ):
-      raise ValueError('Length of restrict_params must equal number of levels, i.e., you must have a restriction for parameters defined for each level of nested iteration')
-    if( len(self.levels) != len(restrict_grads) ):
-      raise ValueError('Length of restrict_grads must equal number of levels, i.e., you must have a restriction for gradients defined for each level of nested iteration')
-    if( len(self.levels) != len(restrict_states) ):
-      raise ValueError('Length of restrict_states must equal number of levels, i.e., you must have a restriction for states defined for each level of nested iteration')
-    if( len(self.levels) != len(interp_states) ):
-      raise ValueError('Length of interp_states must equal number of levels, i.e., you must have an interpolation for states defined for each level of nested iteration')
-    if( len(self.levels) != len(line_search) ):
-      raise ValueError('Length of line_search must equal number of levels, i.e., you must have a line search defined for each level of nested iteration')
-    
+     
     ##
     # Determine number of mgopt_levels
     if mgopt_levels == None:
       mgopt_levels = len(self.levels)
     elif mgopt_levels > len(self.levels):
       raise ValueError('Number of mgopt_levels must be less than or equal to the total number of hierarchy levels: ' + str(len(self.levels))) 
-
+    
+    ##
+    # Process arguments 
+    restrict_params  = self.levelize_argument(restrict_params, mgopt_levels)
+    restrict_grads   = self.levelize_argument(restrict_grads, mgopt_levels)
+    restrict_states  = self.levelize_argument(restrict_states, mgopt_levels)
+    interp_states    = self.levelize_argument(interp_states, mgopt_levels)
+    line_search      = self.levelize_argument(line_search, mgopt_levels)
+        
     ##
     # For epoch-level accuracy measurements, select (i) criterion (objective) for level 0 and (ii) the compose function
     (criterion, compose, criterion_kwargs) = self.process_criterion(self.levels[0].criterions, self.levels[0].model)
@@ -1265,6 +1264,48 @@ class mgopt_solver:
     return loss.item()   
         
         
+
+  def levelize_argument(self, to_levelize, max_levels):
+        """
+        Helper function to preprocess parameter specifications so that they
+        become a a per-level list specifying the paramter on that level.
+
+        Parameters
+        ----------
+        to_levelize : {string, tuple, list}
+            Parameter to preprocess, i.e., levelize and convert to a level-by-level
+            list such that entry i specifies the parameter at level i
+        max_levels : int
+            Defines the maximum number of levels considered
+
+        Returns
+        -------
+        to_levelize : list
+            The parameter list such that entry i specifies the parameter choice
+            at level i.
+
+        Notes
+        --------
+        This routine is needed because the user will pass in a parameter option
+        such as arg1='something' or arg1=['something1, something2] or
+        arg1=('something, {}), and we want these formats to all be converted to 
+        per-level parameter specifications.
+        """
+        if isinstance(to_levelize, tuple) or isinstance(to_levelize, str):
+            to_levelize = [to_levelize for i in range(max_levels)]
+        elif isinstance(to_levelize, list):
+            if len(to_levelize) < max_levels:
+                mlz = max_levels - len(to_levelize)
+                toext = [to_levelize[-1] for i in range(mlz)]
+                to_levelize.extend(toext)
+        elif to_levelize is None:
+            to_levelize = [(None, {}) for i in range(max_levels)]
+
+        return to_levelize
+
+
+
+
   ###
   # Begin user option processing routines
   ###

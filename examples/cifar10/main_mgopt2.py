@@ -107,44 +107,25 @@ def main():
                                       'print_level' : args.lp_print} ) )
                                  
   ##
-  # Define interpolation, optimization, and criterion for each nested iteration level (use the same here at each level)
-  interp_params = [ "tb_get_injection_interp_params" for i in range(len(ni_steps)) ]
+  # Specify optimization routine on each level.
   optims = [ ("pytorch_sgd", { 'lr':args.lr, 'momentum':0.9}) for i in range(len(ni_steps)) ]
-  criterions = [ "tb_mgopt_cross_ent" for i in range(len(ni_steps)) ]
-
 
   ##
-  # Initialize MG/Opt solver with nested iteration
-  # --> Hardcode in only 2 epochs
+  # Initialize MG/Opt solver with nested iteration 
   epochs = 2
   mgopt_printlevel = 1
   log_interval = args.log_interval
   mgopt = mgopt_solver()
   mgopt.initialize_with_nested_iteration(ni_steps, train_loader, test_loader,
           networks, epochs=epochs, log_interval=log_interval,
-          mgopt_printlevel=mgopt_printlevel, interp_params=interp_params,
-          optims=optims, criterions=criterions, seed=args.seed) 
-  
+          mgopt_printlevel=mgopt_printlevel, optims=optims, seed=args.seed) 
+   
   print(mgopt)
   mgopt.options_used()
   
   ##
   # Run the MG/Opt solver
-  #   Note: the MG/Opt solver reuses the same interp_params, optims, and 
-  #   criterions defined above for nested iteration. Thus, we only need to define a few more
-  #   interp and restrict options here.  (This reuse could be changed, if needed.)
-  
-  ##
-  # Define restriction strategy for network parameters, gradients, and state (use the same here at each level)
-  restrict_params = [ ("tb_get_injection_restrict_params", {'grad' : False}) for i in range(len(ni_steps)) ]
-  restrict_grads  = [ ("tb_get_injection_restrict_params", {'grad' : True})  for i in range(len(ni_steps)) ]
-  restrict_states = [ "tb_injection_restrict_network_state" for i in range(len(ni_steps)) ]
-  interp_states   = [ "tb_injection_interp_network_state"   for i in range(len(ni_steps)) ]
-  line_search     = [ ("tb_simple_backtrack_ls", {'ls_params' : {'n_line_search' : 6, 'alpha' : 1.0}} ) for i in range(len(ni_steps)) ]
-
-  ##
-  # Run MG/Opt 
-  # epochs and log_interval set in args
+  #   Note: that we use the default restrict, interp, and line_search options, but these can be modified on a per-level basis
   epochs = args.epochs
   log_interval = args.log_interval
   mgopt_printlevel = 2
@@ -158,10 +139,7 @@ def main():
           log_interval=log_interval, mgopt_tol=mgopt_tol,
           mgopt_iter=mgopt_iter, nrelax_pre=nrelax_pre,
           nrelax_post=nrelax_post, nrelax_coarse=nrelax_coarse,
-          mgopt_printlevel=mgopt_printlevel, mgopt_levels=mgopt_levels,
-          restrict_params=restrict_params, restrict_grads=restrict_grads,
-          restrict_states=restrict_states, interp_states=interp_states,
-          line_search=line_search)
+          mgopt_printlevel=mgopt_printlevel, mgopt_levels=mgopt_levels)
  
   print(mgopt)
   mgopt.options_used()
