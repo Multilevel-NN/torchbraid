@@ -8,7 +8,6 @@ This file contains:
 
 
 from __future__ import print_function
-from warnings import warn
 
 import numpy as np
 
@@ -28,15 +27,46 @@ from timeit import default_timer as timer
 
 from mpi4py import MPI
 
+##
+# TODO
+#  - Get multilevel running
+#
+# Put together sample local relaxation script
+#  --> Update the parameters from yoru other main_eric
+#  --> Comment at top of main_mgopt.py to compare lcoal and non-local relax, TB vs. MG/Opt vs. MG/Opt+Local
+#
+# Put together sample regression test (store .txt)
+
+# Future Work:
+#
+#  - Put together a fixed point test, where a solver is trained on a batch
+#    which it correctly classifies.  The coarse-grid correction should be zero. 
+#
+#  - Any multilevel debug? 
+#
+#  - Parallel
+#
+#  - Break this file up into parts?
+#
+#  - How to structure mini-batch loops, e.g., one loop outside of MG/Opt and/or one loop inside MG/Opt (used by each relaxation step)
+#
+#  - The data and target could be "coarsened" or sampled differently on
+#    each level.  There are not hooks for this right now, but they would be
+#    easy to add.
+#
+#  - Coarsegrid convexity tweak from Nash's original paper 
+
+
+
 
 __all__ = [ 'mgopt_solver', 'parse_args' ]
 
 ####################################################################################
 ####################################################################################
 # Classes and functions that define the basic network types for MG/Opt and TorchBraid.
-# Could go into separate file
 
 class OpenLayer(nn.Module):
+  ''' Opening layer (not ODE-net, not parallelized in time) '''
   def __init__(self,channels):
     super(OpenLayer, self).__init__()
     ker_width = 3
@@ -47,6 +77,7 @@ class OpenLayer(nn.Module):
 # end OpenLayer
 
 class CloseLayer(nn.Module):
+  ''' Closing layer (not ODE-net, not parallelized in time) '''
   def __init__(self,channels):
     super(CloseLayer, self).__init__()
     ker_width = 3
@@ -68,6 +99,7 @@ class CloseLayer(nn.Module):
 # end CloseLayer
 
 class StepLayer(nn.Module):
+  ''' Single ODE-net layer will be parallelized in time ''' 
   def __init__(self,channels):
     super(StepLayer, self).__init__()
     ker_width = 3
@@ -81,6 +113,7 @@ class StepLayer(nn.Module):
 # end StepLayer
 
 class ParallelNet(nn.Module):
+  ''' Full parallel ODE-net based on StepLayer,  will be parallelized in time ''' 
   def __init__(self,channels=12,local_steps=8,Tf=1.0,max_levels=1,max_iters=1,print_level=0):
     super(ParallelNet, self).__init__()
 
@@ -121,12 +154,10 @@ class ParallelNet(nn.Module):
 
 ####################################################################################
 ####################################################################################
-# Classes and functions that define the basic operations of MG/Opt for TorchBraid.
-# Could go into separate file
-# These top functions are PyTorch general, so one file for that, and then the TB specific functions go into that file?
+# Functions to facilitate MG/Opt and PyTorch 
 
 ##
-# Linear algebra functions
+# Basic Linear algebra functions
 def tensor_list_dot(v, w):
   ''' Compute dot product of two vectors, v and w, where each vector is a list of tensors '''
   return sum([ torch.dot(vv.flatten(), ww.flatten()) for (vv,ww) in zip(v, w) ])
@@ -149,10 +180,8 @@ def tensor_list_deep_copy(w):
   return [ torch.clone(ww) for ww in w ]
 
 
-
-
 ##
-# PyTorch train and test network functions (used by nested iteration) 
+# PyTorch train and test network functions
 def train_epoch(rank, model, train_loader, optimizer, epoch, criterion, criterion_kwargs, compose, log_interval, mgopt_printlevel):
   ''' Carry out one complete training epoch '''
   model.train()
@@ -179,7 +208,6 @@ def train_epoch(rank, model, train_loader, optimizer, epoch, criterion, criterio
     epoch, (batch_idx+1) * len(data), len(train_loader.dataset),
     100. * (batch_idx+1) / len(train_loader), loss.item(), total_time/(batch_idx+1.0)))
 
-
 def test(rank, model, test_loader, criterion, criterion_kwargs, compose, mgopt_printlevel, indent=''):
   ''' Compute loss and accuracy '''
   model.eval()
@@ -201,7 +229,24 @@ def test(rank, model, test_loader, criterion, criterion_kwargs, compose, mgopt_p
       test_loss, correct, len(test_loader.dataset),
       100. * correct / len(test_loader.dataset)))
 
+def compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h):
+  '''
+  Compute a backward and forward pass for the model.
+  if lvl is 0, no MGOPT term is used
+  if lvl > 0, incorporate MGOpt term
+  '''
+  model.train()
 
+  optimizer.zero_grad()
+  output = model(data)
+  if lvl == 0:
+    loss = compose(criterion, output, target, **criterion_kwargs)
+  else: # add the MG/Opt Term
+    x_h = get_params(model, deep_copy=False, grad=False)
+    loss = compose(criterion, output, target, x_h, v_h, **criterion_kwargs)
+  ##
+  loss.backward()
+  return loss
 
 
 ##
@@ -233,14 +278,15 @@ def get_params(model, deep_copy=False, grad=False):
 
   return pp
 
+####################################################################################
+####################################################################################
 
 
 
-
-
-
-##
+####################################################################################
+####################################################################################
 # TorchBraid Interp / restrict functions
+
 def tb_get_injection_interp_params(model, cf=2, deep_copy=False, grad=False):
   
   ''' 
@@ -385,30 +431,6 @@ def tb_mgopt_cross_ent(output, target, network_parameters=None, v=None):
     return loss
 
 
-
-
-##
-# Compute TB fwd and bwd pass 
-def compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h):
-  '''
-  Compute a backward and forward pass for the model.
-  if lvl is 0, no MGOPT term is used
-  if lvl > 0, incorporate MGOpt term
-  '''
-  model.train()
-
-  optimizer.zero_grad()
-  output = model(data)
-  if lvl == 0:
-    loss = compose(criterion, output, target, **criterion_kwargs)
-  else: # add the MG/Opt Term
-    x_h = get_params(model, deep_copy=False, grad=False)
-    loss = compose(criterion, output, target, x_h, v_h, **criterion_kwargs)
-  ##
-  loss.backward()
-  return loss
-
-
 def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, old_loss, mgopt_printlevel, ls_params):
   '''
   Simple line-search: Add e_h to fine parameters.  If loss has
@@ -446,10 +468,18 @@ def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, c
   # Double alpha, and store for next time in ls_params, before returning
   root_print(rank, mgopt_printlevel, 2, "  LS Alpha used:        " + str(alpha) ) 
   ls_params['alpha'] = alpha*2
+
+####################################################################################
+####################################################################################
             
 
-##
+
+
+
+####################################################################################
+####################################################################################
 # Parsing functions
+
 def parse_args():
   """
   Return back an args dictionary based on a standard parsing of the command line inputs
@@ -546,7 +576,7 @@ def parse_args():
 
 ####################################################################################
 ####################################################################################
-# Small Helper Functions (could eventually go in a utils.py)
+# Small Helper Functions 
 
 def root_print(rank, printlevel_cutoff, importance, s):
   ''' 
@@ -557,14 +587,12 @@ def root_print(rank, printlevel_cutoff, importance, s):
     if importance <= printlevel_cutoff:
       print(s)
 
-
 def unpack_arg(v):
   ''' Helper function for unpacking arguments '''
   if isinstance(v, tuple):
       return v[0], v[1]
   else:
       return v, {}
-
 
 def check_has_args(arg_dict, list_to_check, method):
   ''' Check that arg_dict has a key associated with every member of list_to_check '''
@@ -573,35 +601,27 @@ def check_has_args(arg_dict, list_to_check, method):
       raise ValueError('Missing arguement for ' + method + ':  ' + to_check)
 
 
-def print_option(o, indent="  ", attr_name=""):
-  method,args = unpack_arg(o)
-  output = indent + attr_name + method + '\n' 
-  if args == {}:
-    output += indent + indent + "Parameters: None\n"
-  else:
-    for a in args:
-      output += indent + indent +a + " : " + str(args[a]) + '\n'
-  ##
-  return output
-
 ####################################################################################
 ####################################################################################
 
 
 
 class mgopt_solver:
-  """Stores multigrid hierarchy and implements the multigrid cycle.
+  """
+  Stores the MG/Opt hierarchy of PyTorch (usually TorchBraid) neural networks, and
+  implements the MG/Opt cycling for multilevel optimization.   
 
-  The class constructs the cycling process and points to the methods for
-  coarse grid solves.  A call to multilevel_solver.solve() is a typical
-  access point.  
+  Typically, initialize_with_nested_iteration(...) is called to initialize the
+  hierarchy with nested iteration, followed by multilevel optimization with
+  mgopt_solve(...) 
 
   Attributes
   ----------
   levels : level array
 
-    Array of level objects that contain the information needed to coarsen,
-    interpolate and relax.  See levels definition below.
+    Array of level objects that contain the information needed to do
+    optimization at that level  and  coarsen/interp parameters and states. See
+    levels definition below.
 
   Methods
   -------
@@ -621,13 +641,17 @@ class mgopt_solver:
 
     Attributes
     ----------
-    model : PyTorch NN model, tested so far with TorchBraid ParallelNet model
-    network : tuple describing the model setup parameters 
-    interp_params : tuple describing the option selected for interpolating network parameters 
-    optim : tuple describing the option selected for the underlying optimizationg method 
-    criterion : tuple describing the option selected for the criterion (objective)
-    training_params : tuple describing the training options selected
-
+    model           : PyTorch NN model, tested so far with TorchBraid ParallelNet model defined above
+    network         : tuple describing the model setup parameters 
+    interp_params   : tuple describing the option selected for interpolating network parameters 
+    optims          : tuple describing the option selected for the underlying optimizationg method 
+    criterions      : tuple describing the option selected for the criterion (objective)
+    restrict_params : tuple describing the option selected for restricting network parameters 
+    restrict_grads  : tuple describing the option selected for restricting gradients 
+    restrict_states : tuple describing the option selected for restricting network states
+    interp_states   : tuple describing the option selected for interpolating network states 
+    line_search     : tuple describing the option selected for doing a line-search
+    optimizer       : PyTorch optimizer for smoothing at each level 
     """
 
     def __init__(self):
@@ -636,13 +660,7 @@ class mgopt_solver:
 
 
   def __init__(self):
-    """Class constructor responsible for creating the objecte 
-
-    Parameters
-    ----------
-    None
-  
-    """
+    """ MG/Oopt constructor """
     self.levels = []
 
 
@@ -704,6 +722,20 @@ class mgopt_solver:
 
   def options_used(self):
     """ Print the options selected to form the hierarchy """
+    
+    def print_option(o, indent="  ", attr_name=""):
+      ''' Helper function to print the user-defined options to a formatted string'''
+      method,args = unpack_arg(o)
+      output = indent + attr_name + method + '\n' 
+      if args == {}:
+        output += indent + indent + "Parameters: None\n"
+      else:
+        for a in args:
+          output += indent + indent +a + " : " + str(args[a]) + '\n'
+      ##
+      return output
+
+
     rank  = MPI.COMM_WORLD.Get_rank()
     output = ""
     for k, lvl in enumerate(self.levels):
@@ -739,39 +771,47 @@ class mgopt_solver:
     Parameters
     ----------
     ni_steps : array
-      array of the number of time_steps at each level of nested iteration 
-      lenght of ni_steps also defines the number of nested iteraiton levels
+      array of the number of time_steps at each level of nested iteration, e.g., [1, 2, 4]
+      Note: the sequence of steps must be constant refinements, e.g., by a factor of 2 or 3
+      Note: length of ni_steps also defines the number of nested iteraiton levels
 
-    train_loader : PyTorch data loader for training
+    train_loader : PyTorch data loader 
+      Data loader for training
    
-    test_loader  : PyTorch data loader for testing
+    test_loader  : PyTorch data loader 
+      Data loader for testing
     
     networks : list
-      networks[k] describes the network architecture level k in the nested
-      iteration hierarchy, starting from coarse to fine. 
-
-    epochs : int, number of training epochs
+      networks[k] describes the network architecture at level k in the nested
+      iteration hierarchy, starting from fine to coarse, with level k=0 the finest. 
+      
+    epochs : int
+      Number of training epochs
     
-    log_interval : int, how often to output batch-level timing and loss data
+    log_interval : int
+      How often to output batch-level timing and loss data
 
     mgopt_printlevel : int
       output level for mgopt.  0 = no output, 1 = some output, 2 = detailed output
 
-    interp_params : list
-      interp_params[k] describes how to interpolate the network
-      parameters at level k in the nested iteration hierarchy, starting from
-      coarse to fine.  
+    interp_params : list|string|tuple
+      interp_params[k] describes how to interpolate the network parameters at
+      level k in the nested iteration hierarchy, with level k=0 the finest.
+      -> If string or tuple, then the string/tuple defines option at all levels.
 
-    optims : list
+    optims : list|string|tuple
       optims[k] describes the optimization strategy to use at level k in the
-      nested iteration hierarchy, starting from coarse to fine.  
+      nested iteration hierarchy, with level k=0 the finest.  
+      -> If string or tuple, then the string/tuple defines option at all levels.
    
-    criterions : list
+    criterions : list|string|tuple
       criterions[k] describes the criterion or objective function at level k
-      in the nested iteration hierarchy, starting from coarse to fine.  
-      --> If writing a new criterion, it needs to support two modes.  The
-          classic criterion(output, target), and a mode that supports the
-          additional MG/Opt term, criterion(output, target, x_h, v_h)
+      in the nested iteration hierarchy, with level k=0 the finest.
+      -> If string or tuple, then the string/tuple defines option at all levels.
+
+      Note: If writing a new criterion, it needs to support two modes.  The
+      classic criterion(output, target), and a mode that supports the
+      additional MG/Opt term, criterion(output, target, x_h, v_h)
 
     seed : int
       seed for random number generate (e.g., when initializing weights)
@@ -779,9 +819,14 @@ class mgopt_solver:
 
     Notes
     -----
-    The list entries above are desiged to be of this format, 
-      ('string', param_dict), 
-    where string is a supported option, and takes parameters 'param_dict'
+    The list entries above are desiged to be in a variety of formats.
+    If entry is 'string', then the 'string' corresponds to a parameter option 
+      to use at all levels.
+    If entry is tuple of ('string', param_dict), then string is a supported
+      parameter option that takes parameters 'param_dict'
+    If a list, the entry [k] is a 'string' or tuple defining the option at 
+      level k, which k=0 the finest.
+
 
     Returns
     -------
@@ -801,6 +846,13 @@ class mgopt_solver:
     criterions    = self.levelize_argument(criterions, nlevels)
     if( len(ni_steps) != len(networks) ):
       raise ValueError('Length of ni_steps must equal length of networks, i.e., you must have a network architecture defined for each level of nested iteration')
+    
+    ##
+    # Reverse order of arguments, because we start from coarse to fine
+    interp_params.reverse()
+    optims.reverse()
+    criterions.reverse()
+    networks.reverse()
 
     ##
     # Seed the generator for the below training 
@@ -897,42 +949,46 @@ class mgopt_solver:
 
 
   def mgopt_solve(self, train_loader, 
-                       test_loader, 
-                       epochs = 1, 
-                       log_interval = 1,
-                       mgopt_tol = 0, 
-                       mgopt_iter = 1, 
-                       nrelax_pre = 1, 
-                       nrelax_post = 1,
-                       nrelax_coarse = 5, 
-                       mgopt_printlevel = 1, 
-                       mgopt_levels = None,
-                       restrict_params = ("tb_get_injection_restrict_params", {'grad' : False}), 
-                       restrict_grads = ("tb_get_injection_restrict_params", {'grad' : True}), 
-                       restrict_states = "tb_injection_restrict_network_state",
-                       interp_states = "tb_injection_interp_network_state", 
-                       line_search = ("tb_simple_backtrack_ls", {'ls_params' : {'n_line_search' : 6, 'alpha' : 1.0}} ) 
-                       ):    
+                        test_loader, 
+                        epochs = 1, 
+                        log_interval = 1,
+                        mgopt_tol = 0, 
+                        mgopt_iter = 1, 
+                        nrelax_pre = 1, 
+                        nrelax_post = 1,
+                        nrelax_coarse = 5, 
+                        mgopt_printlevel = 1, 
+                        mgopt_levels = None,
+                        restrict_params = ("tb_get_injection_restrict_params", {'grad' : False}), 
+                        restrict_grads = ("tb_get_injection_restrict_params", {'grad' : True}), 
+                        restrict_states = "tb_injection_restrict_network_state",
+                        interp_states = "tb_injection_interp_network_state", 
+                        line_search = ("tb_simple_backtrack_ls", {'ls_params' : {'n_line_search' : 6, 'alpha' : 1.0}} ) 
+                        ):    
     """
     Use nested iteration to create a hierarchy of models
 
     Parameters
     ----------
     
-    train_loader : PyTorch data loader for training
+    train_loader : PyTorch data loader 
+      Data loader for training
    
-    test_loader  : PyTorch data loader for testing
+    test_loader  : PyTorch data loader 
+      Data loader for testing
     
-    epochs : int, number of training epochs
+    epochs : int
+      Number of training epochs
     
-    log_interval : int, how often to output batch-level timing and loss data
+    log_interval : int
+      How often to output batch-level timing and loss data
     
     mgopt_tol : float
       If the objective evaluation (loss) drops below this value, then halt 
 
     mgopt_iter : int
-      Number of MG/Opt iterations for each training batch
-      This is an inner loop in the total process
+      Number of MG/Opt iterations for each training batch.
+      This is an inner loop in the total process.
 
     nrelax_pre : int
       Number of pre-relaxation steps
@@ -945,78 +1001,67 @@ class mgopt_solver:
 
     mgopt_printlevel : int
       output level for mgopt.  0 = no output, 1 = some output, 2 = detailed output
-      ==> Note, turning this option on, results in more frequent measurements
-          of the loss, and will change the return loss values
+      ==> Note, turning this option to 2, results in more frequent measurements
+          of the loss, and will change the returned loss values
 
     mgopt_levels : int or None
       Defines number of MG/Opt levels to use.  Must be less than or equal
-      to the total number hiearchy levels.  If None, all levels are used.
+      to the total number of hierarchy levels.  If None, all levels are used.
 
-    restrict_params : list
+    restrict_params : list|string|tuple
       restrict_params[k] describes the strategy for restricting network
       parameters on level k in the MG/Opt hierarchy 
+      -> If string or tuple, then the string/tuple defines option at all levels.
 
-    restrict_grads : list
+    restrict_grads : list|string|tuple
       restrict_grads[k] describes the strategy for restricting network
       gradients on level k in the MG/Opt hierarchy 
+      -> If string or tuple, then the string/tuple defines option at all levels.
 
-    restrict_states : list
+    restrict_states : list|string|tuple
       restrict_states[k] describes the strategy for restricting network
       states on level k in the MG/Opt hierarchy 
+      -> If string or tuple, then the string/tuple defines option at all levels.
 
-    interp_states : list
+    interp_states : list|string|tuple
       interpt_states[k] describes the strategy for interpolating network
       states on level k in the MG/Opt hierarchy 
+      -> If string or tuple, then the string/tuple defines option at all levels.
 
-    line_search : list
+    line_search : list|string|tuple
       line_search[k] describes the strategy for line search with the
       coarse-grid correction on level k in the MG/Opt hierarchy 
+      -> If string or tuple, then the string/tuple defines option at all levels.
 
     Notes
     -----
-    The list entries above are desiged to be of this format, 
-      ('string', param_dict), 
-    where string is a supported option, and takes parameters 'param_dict'
+    The list entries above are desiged to be in a variety of formats.
+    If entry is 'string', then the 'string' corresponds to a parameter option 
+      to use at all levels.
+    If entry is tuple of ('string', param_dict), then string is a supported
+      parameter option that takes parameters 'param_dict'
+    If a list, the entry [k] is a 'string' or tuple defining the option at 
+      level k, which k=0 the finest.
 
     In general, the restrict/interp state functions work like
       restrict(model_fine, model_coarse, **kwargs)
       interp(model_fine, model_coarse, **kwargs)
 
-    In general, the get restrict/interp parameter and gradient functions work like
+    In general, the get_restrict/interp parameter and gradient functions work like
       restricted_params   = get_restrict_params(model, **kwargs)
       restricted_grad     = get_restrict_grad(model, **kwargs)
       interpolated_params = get_interp_params(model, **kwargs)
 
+    
     Returns
     -------
-    - Trains the hiearchy in place.  Look in self.levels[i].model for the
-      trained model on level i, with i=0 the finest level. 
-    - List of loss values from each MG/Opt epoch
+    Trains the hiearchy in place.  Look in self.levels[i].model for the
+    trained model on level i, with i=0 the finest level. 
+    
+    List of loss values from each MG/Opt epoch
 
     """
     
-    # Clean up excess code in both files, especially main_mgopt2.py, and especially with imports,  
-    #   - CAN you put all torchbraid functions in a file -- separate them somehow?
-    #   - Review documention in this file
-    # ==> Or do you want to do that?  Shouldn't all functions used by this object, remain with this object?
-    #     Maybe you can look up splitting an object into multiple files
-    #
-    # Get multilevel running
-    #
-    # Put together sample local relaxation script
-    # Put together sample regression test (store .txt)
-
-    # Future Work:
-    #  - Can you do a fixed point test?  Or load a fully trained network, see if its almost a fixed point?
-    #  - How to structure mini-batch loops, e.g., one loop outside of MG/Opt and/or one loop inside MG/Opt (used by each relaxation step)
-    #  - The data and target could be "coarsened" or sampled differently on
-    #    each level.  There are not hooks for this right now, but they would be
-    #    easy to add.
-    #  - Parallel
-    #  - More control over how the trainloader is iterated  ... inside or outside?
-    #  - Coarsegrid convexity tweak from 
-
-
     rank  = MPI.COMM_WORLD.Get_rank()
      
     ##
@@ -1302,8 +1347,6 @@ class mgopt_solver:
             to_levelize = [(None, {}) for i in range(max_levels)]
 
         return to_levelize
-
-
 
 
   ###

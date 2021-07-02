@@ -29,6 +29,7 @@
 # ************************************************************************
 #@HEADER
 
+
 # some helpful examples
 # 
 # BATCH_SIZE=50
@@ -39,26 +40,13 @@
 # python  main_mgopt2.py --steps ${STEPS} --channels ${CHANNELS} --batch-size ${BATCH_SIZE} --log-interval 100 --epochs 20 # 2>&1 | tee serial.out
 # mpirun -n 4 python  main_mgopt2.py --steps ${STEPS} --channels ${CHANNELS} --batch-size ${BATCH_SIZE} --log-interval 100 --epochs 20 # 2>&1 | tee serial.out
 
+
 from __future__ import print_function
-import sys
-import argparse
-import statistics as stats
 import numpy as np
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-
-import torchbraid
-import torchbraid.utils
-
 from torchvision import datasets, transforms
-
-from timeit import default_timer as timer
-
 from mpi4py import MPI
-
 from mgopt import parse_args, mgopt_solver
 
 def main():
@@ -91,13 +79,13 @@ def main():
   print("\nTraining setup:  Batch size:  " + str(args.batch_size) + "  Sample ratio:  " + str(args.samp_ratio) + "  MG/Opt Epochs:  " + str(args.epochs) )
   
   ##
-  # Compute number of nested iteration steps
+  # Compute number of nested iteration steps, going from fine to coarse
   ni_steps = np.array([int(args.steps/(args.ni_rfactor**(args.ni_levels-i-1))) for i in range(args.ni_levels)])
   ni_steps = ni_steps[ ni_steps != 0 ]
-  local_ni_steps = np.array(ni_steps / procs, dtype=int)
+  local_ni_steps = np.flip( np.array(ni_steps / procs, dtype=int) )
 
   ##
-  # Define ParNet parameters for each nested iteration level, starting from coarse to fine
+  # Define ParNet parameters for each nested iteration level, starting from fine to coarse
   networks = [] 
   for lsteps in local_ni_steps: 
     networks.append( ('ParallelNet', {'channels'    : args.channels, 
@@ -107,7 +95,7 @@ def main():
                                       'print_level' : args.lp_print} ) )
                                  
   ##
-  # Specify optimization routine on each level.
+  # Specify optimization routine on each level, starting from fine to coarse
   optims = [ ("pytorch_sgd", { 'lr':args.lr, 'momentum':0.9}) for i in range(len(ni_steps)) ]
 
   ##
@@ -143,7 +131,6 @@ def main():
  
   print(mgopt)
   mgopt.options_used()
-  
 
 if __name__ == '__main__':
   main()
