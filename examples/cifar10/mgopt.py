@@ -29,8 +29,6 @@ from mpi4py import MPI
 
 ##
 # TODO
-#  - Get multilevel running
-#
 # Put together sample local relaxation script
 #  --> Update the parameters from yoru other main_eric
 #  --> Comment at top of main_mgopt.py to compare lcoal and non-local relax, TB vs. MG/Opt vs. MG/Opt+Local
@@ -1196,12 +1194,12 @@ class mgopt_solver:
     ##
     # Process the user-specifiec options for restriction, interpolation, criterion, ...
     (criterion, compose, criterion_kwargs)        = self.process_criterion(self.levels[lvl].criterions, model)
-    (line_search, ls_kwargs)                      = self.process_line_search(self.levels[lvl].line_search)
-    (restrict_states, restrict_states_kwargs)     = self.process_restrict_states(self.levels[lvl].restrict_states)
+    (do_line_search, ls_kwargs)                   = self.process_line_search(self.levels[lvl].line_search)
+    (do_restrict_states, restrict_states_kwargs)  = self.process_restrict_states(self.levels[lvl].restrict_states)
     (get_restrict_params, restrict_params_kwargs) = self.process_get_restrict_params(self.levels[lvl].restrict_params)
     (get_restrict_grad, restrict_grad_kwargs)     = self.process_get_restrict_grad(self.levels[lvl].restrict_grads)
     (get_interp_params, interp_params_kwargs)     = self.process_get_interp_params(self.levels[lvl].interp_params)
-    (interp_states, interp_states_kwargs)         = self.process_interp_states(self.levels[lvl].interp_states)
+    (do_interp_states, interp_states_kwargs)      = self.process_interp_states(self.levels[lvl].interp_states)
     #
     (coarse_criterion, coarse_compose, coarse_criterion_kwargs) = self.process_criterion(self.levels[lvl+1].criterions, model)
 
@@ -1225,21 +1223,19 @@ class mgopt_solver:
       # Second, note that the gradient is waiting in models[lvl], to accessed next
       root_print(rank, mgopt_printlevel, 2, "  Pre-relax done loss:  " + str(loss.item())) 
 
-
       # 3. Restrict 
       #    (i)   Network state (primal and adjoint), 
       #    (ii)  Parameters (x_h), and 
       #    (iii) Gradient (g_h) to H
       # x_H^{zero} = R(x_h)   and    \tilde{g}_H = R(g_h)
       with torch.no_grad():
-        restrict_states(model, coarse_model, **restrict_states_kwargs)
+        do_restrict_states(model, coarse_model, **restrict_states_kwargs)
         gtilde_H = get_restrict_grad(model, **restrict_grad_kwargs)
         x_H      = get_restrict_params(model, **restrict_params_kwargs) 
         # For x_H to take effect, these parameters must be written to the next coarser network
         write_params_inplace(coarse_model, x_H)
         # Must store x_H for later error computation
         x_H_zero = tensor_list_deep_copy(x_H)
-    
       
       # 4. compute gradient on coarse level, using restricted parameters
       #  g_H = grad( f_H(x_H) )
@@ -1250,7 +1246,6 @@ class mgopt_solver:
       loss = compute_fwd_bwd_pass(0, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, None)
       with torch.no_grad():
         g_H = get_params(coarse_model, deep_copy=True, grad=True)
-
     
       # 5. compute coupling term
       #  v = g_H - \tilde{g}_H
@@ -1266,10 +1261,10 @@ class mgopt_solver:
           coarse_optimizer.step()
       else:
         # Recursive call
-        __solve(lvl+1, v_H, mgopt_iter, nrelax_pre, nrelax_post, nrelax_coarse,
-                mgopt_printlevel, mgopt_levels, restrict_params, restrict_grads,
-                restrict_states, interp_states, line_search)
-            
+        self.__solve(lvl+1, data, target, v_H, mgopt_iter, nrelax_pre, nrelax_post, nrelax_coarse,
+                     mgopt_printlevel, mgopt_levels, restrict_params, restrict_grads,
+                     restrict_states, interp_states, line_search)
+        
       # 7. Interpolate 
       #    (i)  error correction to fine-level, and 
       #    (ii) network state to fine-level (primal and adjoint)
@@ -1283,14 +1278,14 @@ class mgopt_solver:
         # where to refine.
         write_params_inplace(coarse_model, e_H)
         e_h = get_interp_params(coarse_model, **interp_params_kwargs) 
-        interp_states(model, coarse_model, **interp_states_kwargs)
+        do_interp_states(model, coarse_model, **interp_states_kwargs)
   
       # 8. apply linesearch to update x_h
       #  x_h = x_h + alpha*e_h
       with torch.no_grad():
         x_h = get_params(model, deep_copy=False, grad=False)
         # Note, that line_search can store values between runs, like alpha, by having ls_kwargs = { 'ls_params' : {'alpha' : ...}} 
-        line_search(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, fine_loss, mgopt_printlevel, **ls_kwargs)
+        do_line_search(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, fine_loss, mgopt_printlevel, **ls_kwargs)
 
       # 9. post-relaxation
       for k in range(nrelax_post):
