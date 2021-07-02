@@ -193,13 +193,11 @@ class LayerParallel(nn.Module):
   def setBwdFinalFCRelax(self):
     self.bwd_app.finalRelax()
 
-  def setRelaxOnlyCG(self, flag):
+  def setBwdRelaxOnlyCG(self, flag):
     self.bwd_app.setRelaxOnlyCG(flag)
-    #
-    # Probably leave commented out for forward solve, still need to accurately
-    # process incoming data.  It's the gradient solve that we believe can be
-    # made more inexact.
-    #self.fwd_app.setRelaxOnlyCG(flag)
+  
+  def setFwdRelaxOnlyCG(self, flag):
+    self.fwd_app.setRelaxOnlyCG(flag)
 
   def setCRelaxWt(self, CWt):
     self.bwd_app.setCRelaxWt(CWt)

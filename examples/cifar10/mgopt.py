@@ -27,16 +27,12 @@ from timeit import default_timer as timer
 
 from mpi4py import MPI
 
-##
-# TODO
-# Put together sample local relaxation script
-#  --> Update the parameters from yoru other main_eric
-#  --> Comment at top of main_mgopt.py to compare lcoal and non-local relax, TB vs. MG/Opt vs. MG/Opt+Local
-
 # Future Work:
 #
 #  - Put together a fixed point test, where a solver is trained on a batch
 #    which it correctly classifies.  The coarse-grid correction should be zero. 
+#
+#  - Could someone look over the line-search, test it out?
 #
 #  - Any multilevel debug? 
 #
@@ -51,7 +47,6 @@ from mpi4py import MPI
 #    easy to add.
 #
 #  - Coarsegrid convexity tweak from Nash's original paper 
-
 
 
 
@@ -108,23 +103,47 @@ class StepLayer(nn.Module):
     return F.relu(self.bn2(self.conv2(F.relu(self.bn1(self.conv1(x))))))
 # end StepLayer
 
+
 class ParallelNet(nn.Module):
   ''' Full parallel ODE-net based on StepLayer,  will be parallelized in time ''' 
-  def __init__(self,channels=12,local_steps=8,Tf=1.0,max_levels=1,max_iters=1,print_level=0):
+  def __init__(self, channels=12, local_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
+                     print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
+                     fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
+                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False):
     super(ParallelNet, self).__init__()
 
     step_layer = lambda: StepLayer(channels)
 
-    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_fwd_levels=max_levels,max_bwd_levels=max_levels,max_iters=max_iters)
-    self.parallel_nn.setPrintLevel(print_level)
-    self.parallel_nn.setCFactor(2)
-    self.parallel_nn.setSkipDowncycle(True)
-    
-    self.parallel_nn.setFwdNumRelax(1)         # FCF elsewhere
-    self.parallel_nn.setFwdNumRelax(0,level=0) # F-Relaxation on the fine grid for forward solve
+    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_fwd_levels=max_fwd_levels,max_bwd_levels=max_bwd_levels,max_iters=max_iters)
+    if max_fwd_iters>0:
+      self.parallel_nn.setFwdMaxIters(max_fwd_iters)
+    self.parallel_nn.setPrintLevel(print_level,True)
+    #self.parallel_nn.setPrintLevel(2,False)
+    self.parallel_nn.setPrintLevel(braid_print_level,False)
+    self.parallel_nn.setFwdCFactor(fwd_cfactor)
+    self.parallel_nn.setBwdCFactor(bwd_cfactor)
+    self.parallel_nn.setSkipDowncycle(skip_downcycle)
+    self.parallel_nn.setBwdRelaxOnlyCG(bwd_relax_only_cg)
+    self.parallel_nn.setFwdRelaxOnlyCG(fwd_relax_only_cg)
+    self.parallel_nn.setCRelaxWt(CWt)
+    self.parallel_nn.setMinCoarse(2)
 
-    self.parallel_nn.setBwdNumRelax(1)         # FCF elsewhere
-    self.parallel_nn.setBwdNumRelax(0,level=0) # F-Relaxation on the fine grid for backward solve
+    if fwd_finalrelax:
+        self.parallel_nn.setFwdFinalFCRelax()
+
+    if fmg:
+      self.parallel_nn.setFMG()
+
+    self.parallel_nn.setFwdNumRelax(fwd_nrelax)  # Set relaxation iters for forward solve 
+    self.parallel_nn.setBwdNumRelax(bwd_nrelax)  # Set relaxation iters for backward solve
+    if not fine_fwd_fcf:
+      self.parallel_nn.setFwdNumRelax(0,level=0) # F-Relaxation on the fine grid for forward solve
+    else:
+      self.parallel_nn.setFwdNumRelax(1,level=0) # FCF-Relaxation on the fine grid for forward solve
+    if not fine_bwd_fcf:
+      self.parallel_nn.setBwdNumRelax(0,level=0) # F-Relaxation on the fine grid for backward solve
+    else:
+      self.parallel_nn.setBwdNumRelax(1,level=0) # FCF-Relaxation on the fine grid for backward solve
 
     # this object ensures that only the LayerParallel code runs on ranks!=0
     compose = self.compose = self.parallel_nn.comp_op()
@@ -133,7 +152,7 @@ class ParallelNet(nn.Module):
     # on processors not equal to 0, these will be None (there are no parameters to train there)
     self.open_nn = compose(OpenLayer,channels)
     self.close_nn = compose(CloseLayer,channels)
- 
+
   def forward(self, x):
     # by passing this through 'o' (mean composition: e.g. self.open_nn o x) 
     # this makes sure this is run on only processor 0
@@ -504,7 +523,9 @@ def parse_args():
                       help='Number of times steps in the resnet layer (default: 4)')
   parser.add_argument('--channels', type=int, default=4, metavar='N',
                       help='Number of channels in resnet layer (default: 4)')
-  
+  parser.add_argument('--tf',type=float,default=1.0,
+                      help='Final time')
+
   # algorithmic settings (gradient descent and batching
   parser.add_argument('--batch-size', type=int, default=50, metavar='N',
                       help='input batch size for training (default: 50)')
@@ -516,37 +537,78 @@ def parse_args():
                       help='learning rate (default: 0.01)')
   
   # algorithmic settings (parallel or serial)
-  parser.add_argument('--force-lp', action='store_true', default=False,
-                      help='Use layer parallel even if there is only 1 MPI rank')
-  parser.add_argument('--lp-levels', type=int, default=3, metavar='N',
-                      help='Layer parallel levels (default: 3)')
+  parser.add_argument('--lp-fwd-levels', type=int, default=3, metavar='N',
+                      help='Layer parallel levels for forward solve (default: 3)')
+  parser.add_argument('--lp-bwd-levels', type=int, default=3, metavar='N',
+                      help='Layer parallel levels for backward solve (default: 3)')
   parser.add_argument('--lp-iters', type=int, default=2, metavar='N',
                       help='Layer parallel iterations (default: 2)')
+  parser.add_argument('--lp-fwd-iters', type=int, default=-1, metavar='N',
+                      help='Layer parallel (forward) iterations (default: -1, default --lp-iters)')
   parser.add_argument('--lp-print', type=int, default=0, metavar='N',
-                      help='Layer parallel print level (default: 0)')
-  
+                      help='Layer parallel internal print level (default: 0)')
+  parser.add_argument('--lp-braid-print', type=int, default=0, metavar='N',
+                      help='Layer parallel braid print level (default: 0)')
+  parser.add_argument('--lp-fwd-cfactor', type=int, default=4, metavar='N',
+                      help='Layer parallel coarsening factor for forward solve (default: 4)')
+  parser.add_argument('--lp-bwd-cfactor', type=int, default=4, metavar='N',
+                      help='Layer parallel coarsening factor for backward solve (default: 4)')
+  parser.add_argument('--lp-fwd-nrelax-coarse', type=int, default=1, metavar='N',
+                      help='Layer parallel relaxation steps on coarse grids for forward solve (default: 1)')
+  parser.add_argument('--lp-bwd-nrelax-coarse', type=int, default=1, metavar='N',
+                      help='Layer parallel relaxation steps on coarse grids for backward solve (default: 1)')
+  parser.add_argument('--lp-fwd-finefcf',action='store_true', default=False, 
+                      help='Layer parallel fine FCF for forward solve, on or off (default: False)')
+  parser.add_argument('--lp-bwd-finefcf',action='store_true', default=False, 
+                      help='Layer parallel fine FCF for backward solve, on or off (default: False)')
+  parser.add_argument('--lp-fwd-finalrelax',action='store_true', default=False, 
+                      help='Layer parallel do final FC relax after forward cycle ends (always on for backward). (default: False)')
+  parser.add_argument('--lp-use-downcycle',action='store_true', default=False, 
+                      help='Layer parallel use downcycle on or off (default: False)')
+  parser.add_argument('--lp-use-fmg',action='store_true', default=False, 
+                      help='Layer parallel use FMG for one cycle (default: False)')
+  parser.add_argument('--lp-bwd-relaxonlycg',action='store_true', default=0, 
+                      help='Layer parallel use relaxation only on coarse grid for backward cycle (default: False)')
+  parser.add_argument('--lp-fwd-relaxonlycg',action='store_true', default=0, 
+                      help='Layer parallel use relaxation only on coarse grid for forward cycle (default: False)')
+  parser.add_argument('--lp-use-crelax-wt', type=float, default=1.0, metavar='CWt',
+                      help='Layer parallel use weighted C-relaxation on backwards solve (default: 1.0).  Not used for coarsest braid level.')
+
   # algorithmic settings (nested iteration)
   parser.add_argument('--ni-levels', type=int, default=3, metavar='N',
                       help='Number of nested iteration levels (default: 3)')
   parser.add_argument('--ni-rfactor', type=int, default=2, metavar='N',
                       help='Refinment factor for nested iteration (default: 2)')
-  group = parser.add_mutually_exclusive_group(required=False)
-  group.add_argument('--ni-fixed-coarse', dest='ni_fixed_coarse', action='store_true',
-                      help='Fix the weights on the coarse levels once trained (default: off)')
-  group.add_argument('--ni-no-fixed-coarse', dest='ni_fixed_coarse', action='store_false',
-                      help='Fix the weights on the coarse levels once trained (default: off)')
-  parser.set_defaults(ni_fixed_coarse=False)
   
+  # algorithmic settings (MG/Opt)
+  parser.add_argument('--mgopt-printlevel', type=int, default=1, metavar='N',
+                      help='Print level for MG/Opt, 0 least, 1 some, 2 a lot') 
+  parser.add_argument('--mgopt-iter', type=int, default=1, metavar='N',
+                      help='Number of MG/Opt iterations to optimize over a batch')
+  parser.add_argument('--mgopt-levels', type=int, default=2, metavar='N',
+                      help='Number of MG/Opt levels to use')
+  parser.add_argument('--mgopt-nrelax-pre', type=int, default=1, metavar='N',
+                      help='Number of MG/Opt pre-relaxations on each level')
+  parser.add_argument('--mgopt-nrelax-post', type=int, default=1, metavar='N',
+                      help='Number of MG/Opt post-relaxations on each level')
+  parser.add_argument('--mgopt-nrelax-coarse', type=int, default=3, metavar='N',
+                      help='Number of MG/Opt relaxations to solve the coarsest grid')
+
+
   ##
   # Do some parameter checking
   rank  = MPI.COMM_WORLD.Get_rank()
   procs = MPI.COMM_WORLD.Get_size()
   args = parser.parse_args()
   
-  if args.lp_levels==-1:
-    min_coarse_size = 7
-    args.lp_levels = compute_levels(args.steps, min_coarse_size, 4)
-  
+  if args.lp_bwd_levels==-1:
+    min_coarse_size = 3
+    args.lp_bwd_levels = compute_levels(args.steps, min_coarse_size, args.lp_bwd_cfactor)
+
+  if args.lp_fwd_levels==-1:
+    min_coarse_size = 3
+    args.lp_fwd_levels = compute_levels(args.steps,min_coarse_size,args.lp_fwd_cfactor)
+
   if args.steps % procs!=0:
     root_print(rank, 1, 1, 'Steps must be an even multiple of the number of processors: %d %d' % (args.steps,procs) )
     sys.exit(0)
@@ -1104,11 +1166,16 @@ class mgopt_solver:
         root_print(rank, mgopt_printlevel, 2, "\nBatch:  " + str(batch_idx)) 
         start_batch_time = timer()
 
-        loss_item = self.__solve(lvl, data, target, v_h, mgopt_iter,
-                                 nrelax_pre, nrelax_post, nrelax_coarse, 
-                                 mgopt_printlevel, mgopt_levels, restrict_params, 
-                                 restrict_grads, restrict_states, interp_states, 
-                                 line_search)
+        ##
+        # Begin Cycle loop
+        for it in range(mgopt_iter):
+          root_print(rank, mgopt_printlevel, 2, "MG/Opt Iter:  " + str(it)) 
+          loss_item = self.__solve(lvl, data, target, v_h, nrelax_pre,
+                                   nrelax_post, nrelax_coarse, mgopt_printlevel, 
+                                   mgopt_levels, restrict_params, restrict_grads, 
+                                   restrict_states, interp_states, line_search)
+        ##
+        # End cycle loop
         
         losses.append(loss_item)
         end_batch_time = timer()
@@ -1161,13 +1228,12 @@ class mgopt_solver:
     return losses
 
 
-  def __solve(self, lvl, data, target, v_h, mgopt_iter, nrelax_pre,
-          nrelax_post, nrelax_coarse, mgopt_printlevel, mgopt_levels,
-          restrict_params, restrict_grads, restrict_states, interp_states,
-          line_search):
+  def __solve(self, lvl, data, target, v_h, nrelax_pre, nrelax_post,
+          nrelax_coarse, mgopt_printlevel, mgopt_levels, restrict_params,
+          restrict_grads, restrict_states, interp_states, line_search):
 
     """
-    Recursive solve function for carrying out mgopt_iter iterations 
+    Recursive solve function for carrying out one MG/Opt iteration
     See solve() for parameter description
     """
     
@@ -1176,6 +1242,7 @@ class mgopt_solver:
     optimizer = self.levels[lvl].optimizer
     coarse_model = self.levels[lvl+1].model
     coarse_optimizer = self.levels[lvl+1].optimizer
+    root_print(rank, mgopt_printlevel, 2, "\n  Level:  " + str(lvl)) 
     
     ##
     # Store new options needed by MG/Opt
@@ -1201,104 +1268,98 @@ class mgopt_solver:
     #
     (coarse_criterion, coarse_compose, coarse_criterion_kwargs) = self.process_criterion(self.levels[lvl+1].criterions, model)
 
-    ##
-    # Begin Cycle loop
-    for it in range(mgopt_iter):
-      
-      if (lvl == 0):  root_print(rank, mgopt_printlevel, 2, "MG/Opt Iter:  " + str(it)) 
-      root_print(rank, mgopt_printlevel, 2, "\n  Level:  " + str(lvl)) 
-      
-      # 1. relax (carry out optimization steps)
-      for k in range(nrelax_pre):
-        loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
-        root_print(rank, mgopt_printlevel, 2, "  Pre-relax loss:       " + str(loss.item()) ) 
-        optimizer.step()
-    
-      # 2. compute new gradient g_h
-      # First evaluate network, forward and backward.  Return value is scalar value of the loss.
+    # 1. relax (carry out optimization steps)
+    for k in range(nrelax_pre):
       loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
-      fine_loss = loss.item()
-      # Second, note that the gradient is waiting in models[lvl], to accessed next
-      root_print(rank, mgopt_printlevel, 2, "  Pre-relax done loss:  " + str(loss.item())) 
+      root_print(rank, mgopt_printlevel, 2, "  Pre-relax loss:       " + str(loss.item()) ) 
+      optimizer.step()
+    
+    # 2. compute new gradient g_h
+    # First evaluate network, forward and backward.  Return value is scalar value of the loss.
+    loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
+    fine_loss = loss.item()
+    # Second, note that the gradient is waiting in models[lvl], to accessed next
+    root_print(rank, mgopt_printlevel, 2, "  Pre-relax done loss:  " + str(loss.item())) 
 
-      # 3. Restrict 
-      #    (i)   Network state (primal and adjoint), 
-      #    (ii)  Parameters (x_h), and 
-      #    (iii) Gradient (g_h) to H
-      # x_H^{zero} = R(x_h)   and    \tilde{g}_H = R(g_h)
-      with torch.no_grad():
-        do_restrict_states(model, coarse_model, **restrict_states_kwargs)
-        gtilde_H = get_restrict_grad(model, **restrict_grad_kwargs)
-        x_H      = get_restrict_params(model, **restrict_params_kwargs) 
-        # For x_H to take effect, these parameters must be written to the next coarser network
-        write_params_inplace(coarse_model, x_H)
-        # Must store x_H for later error computation
-        x_H_zero = tensor_list_deep_copy(x_H)
+    # 3. Restrict 
+    #    (i)   Network state (primal and adjoint), 
+    #    (ii)  Parameters (x_h), and 
+    #    (iii) Gradient (g_h) to H
+    # x_H^{zero} = R(x_h)   and    \tilde{g}_H = R(g_h)
+    with torch.no_grad():
+      do_restrict_states(model, coarse_model, **restrict_states_kwargs)
+      gtilde_H = get_restrict_grad(model, **restrict_grad_kwargs)
+      x_H      = get_restrict_params(model, **restrict_params_kwargs) 
+      # For x_H to take effect, these parameters must be written to the next coarser network
+      write_params_inplace(coarse_model, x_H)
+      # Must store x_H for later error computation
+      x_H_zero = tensor_list_deep_copy(x_H)
+    
+    # 4. compute gradient on coarse level, using restricted parameters
+    #  g_H = grad( f_H(x_H) )
+    #
+    # Evaluate gradient.  For computing fwd_bwd_pass, give 0 as first
+    # parameter, so that the MG/Opt term is turned-off.  We just want hte
+    # gradient of f_H here.
+    loss = compute_fwd_bwd_pass(0, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, None)
+    with torch.no_grad():
+      g_H = get_params(coarse_model, deep_copy=True, grad=True)
+    
+    # 5. compute coupling term
+    #  v = g_H - \tilde{g}_H
+    with torch.no_grad():
+      v_H = tensor_list_AXPY(1.0, g_H, -1.0, gtilde_H)
+    
+    # 6. solve coarse-grid 
+    #  x_H = min f_H(x_H) - <v_H, x_H>
+    if (lvl+2) == mgopt_levels:
+      # If on coarsest level, do a "solve" by carrying out a number of relaxation steps
+      root_print(rank, mgopt_printlevel, 2, "\n  Level:  " + str(lvl+1))
+      for m in range(nrelax_coarse):
+        loss = compute_fwd_bwd_pass(lvl+1, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, v_H)
+        coarse_optimizer.step()
+        root_print(rank, mgopt_printlevel, 2, "  Coarsest grid solve loss: " + str(loss.item())) 
+    else:
+      # Recursive call
+      self.__solve(lvl+1, data, target, v_H, nrelax_pre, nrelax_post, nrelax_coarse,
+                   mgopt_printlevel, mgopt_levels, restrict_params, restrict_grads,
+                   restrict_states, interp_states, line_search)
+    #
+    root_print(rank, mgopt_printlevel, 2, "  Recursion exited\n")
       
-      # 4. compute gradient on coarse level, using restricted parameters
-      #  g_H = grad( f_H(x_H) )
+    # 7. Interpolate 
+    #    (i)  error correction to fine-level, and 
+    #    (ii) network state to fine-level (primal and adjoint)
+    #  e_h = P( x_H - x_H^{init})
+    with torch.no_grad():
+      x_H = get_params(coarse_model, deep_copy=False, grad=False)
+      e_H = tensor_list_AXPY(1.0, x_H, -1.0, x_H_zero)
       #
-      # Evaluate gradient.  For computing fwd_bwd_pass, give 0 as first
-      # parameter, so that the MG/Opt term is turned-off.  We just want hte
-      # gradient of f_H here.
-      loss = compute_fwd_bwd_pass(0, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, None)
-      with torch.no_grad():
-        g_H = get_params(coarse_model, deep_copy=True, grad=True)
-    
-      # 5. compute coupling term
-      #  v = g_H - \tilde{g}_H
-      with torch.no_grad():
-        v_H = tensor_list_AXPY(1.0, g_H, -1.0, gtilde_H)
-    
-      # 6. solve coarse-grid 
-      #  x_H = min f_H(x_H) - <v_H, x_H>
-      if (lvl+2) == mgopt_levels:
-        # If on coarsest level, do a "solve" by carrying out a number of relaxation steps
-        for m in range(nrelax_coarse):
-          loss = compute_fwd_bwd_pass(lvl+1, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, v_H)
-          coarse_optimizer.step()
-      else:
-        # Recursive call
-        self.__solve(lvl+1, data, target, v_H, mgopt_iter, nrelax_pre, nrelax_post, nrelax_coarse,
-                     mgopt_printlevel, mgopt_levels, restrict_params, restrict_grads,
-                     restrict_states, interp_states, line_search)
-        
-      # 7. Interpolate 
-      #    (i)  error correction to fine-level, and 
-      #    (ii) network state to fine-level (primal and adjoint)
-      #  e_h = P( x_H - x_H^{init})
-      with torch.no_grad():
-        x_H = get_params(coarse_model, deep_copy=False, grad=False)
-        e_H = tensor_list_AXPY(1.0, x_H, -1.0, x_H_zero)
-        #
-        # to correctly interpolate e_H --> e_h, we need to put these values in a
-        # network, so the interpolation knows the layer-parallel structure and
-        # where to refine.
-        write_params_inplace(coarse_model, e_H)
-        e_h = get_interp_params(coarse_model, **interp_params_kwargs) 
-        do_interp_states(model, coarse_model, **interp_states_kwargs)
+      # to correctly interpolate e_H --> e_h, we need to put these values in a
+      # network, so the interpolation knows the layer-parallel structure and
+      # where to refine.
+      write_params_inplace(coarse_model, e_H)
+      e_h = get_interp_params(coarse_model, **interp_params_kwargs) 
+      do_interp_states(model, coarse_model, **interp_states_kwargs)
   
-      # 8. apply linesearch to update x_h
-      #  x_h = x_h + alpha*e_h
-      with torch.no_grad():
-        x_h = get_params(model, deep_copy=False, grad=False)
-        # Note, that line_search can store values between runs, like alpha, by having ls_kwargs = { 'ls_params' : {'alpha' : ...}} 
-        do_line_search(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, fine_loss, mgopt_printlevel, **ls_kwargs)
+    # 8. apply linesearch to update x_h
+    #  x_h = x_h + alpha*e_h
+    with torch.no_grad():
+      x_h = get_params(model, deep_copy=False, grad=False)
+      # Note, that line_search can store values between runs, like alpha, by having ls_kwargs = { 'ls_params' : {'alpha' : ...}} 
+      do_line_search(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, fine_loss, mgopt_printlevel, **ls_kwargs)
 
-      # 9. post-relaxation
-      for k in range(nrelax_post):
-        loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
-        if (k==0):  root_print(rank, mgopt_printlevel, 2, "  CG Corr done loss:    " + str(loss.item()) ) 
-        else:       root_print(rank, mgopt_printlevel, 2, "  Post-relax loss:      " + str(loss.item()) )
-        optimizer.step()
-      ##
-      if (mgopt_printlevel == 2):  
-        loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
-        root_print(rank, mgopt_printlevel, 2, "  Post-relax loss:      " + str(loss.item()) )
-  
+    # 9. post-relaxation
+    for k in range(nrelax_post):
+      loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
+      if (k==0):  root_print(rank, mgopt_printlevel, 2, "  CG Corr done loss:    " + str(loss.item()) ) 
+      else:       root_print(rank, mgopt_printlevel, 2, "  Post-relax loss:      " + str(loss.item()) )
+      optimizer.step()
     ##
-    # End cycle loop
-
+    if (mgopt_printlevel == 2):  
+      loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
+      root_print(rank, mgopt_printlevel, 2, "  Post-relax loss:      " + str(loss.item()) )
+  
     return loss.item()   
         
         

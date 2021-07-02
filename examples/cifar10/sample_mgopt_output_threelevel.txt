@@ -1,3 +1,8 @@
+Output for
+$ python3 main_mgopt.py --samp-ratio 0.01 --lp-fwd-cfactor 2 --lp-bwd-cfactor 2
+
+#########
+
 
 Training setup:  Batch size:  50  Sample ratio:  0.01  MG/Opt Epochs:  2
 
@@ -6,54 +11,54 @@ Nested Iter Level:  0
   total params: [7010]
   train params: [7010]
 
-  Train Epoch: 1 [0/500 (0%)]     	Loss: 2.315328	Time Per Batch 0.064960
-  Train Epoch: 1 [500/500 (100%)]     	Loss: 2.271688	Time Per Batch 0.048927
+  Train Epoch: 1 [0/500 (0%)]     	Loss: 2.315328	Time Per Batch 0.059511
+  Train Epoch: 1 [500/500 (100%)]     	Loss: 2.271688	Time Per Batch 0.049025
 
   Test set: Average loss: 0.0458, Accuracy: 13/100 (13%)
 
-  Train Epoch: 2 [0/500 (0%)]     	Loss: 2.257113	Time Per Batch 0.045371
-  Train Epoch: 2 [500/500 (100%)]     	Loss: 2.173811	Time Per Batch 0.048629
+  Train Epoch: 2 [0/500 (0%)]     	Loss: 2.257113	Time Per Batch 0.046714
+  Train Epoch: 2 [500/500 (100%)]     	Loss: 2.173811	Time Per Batch 0.045705
 
   Test set: Average loss: 0.0457, Accuracy: 8/100 (8%)
 
-  Time per epoch: 5.95e-01 (1 std dev 7.48e-03)
-  Time per test:  6.65e-02 (1 std dev 3.50e-02)
+  Time per epoch: 5.77e-01 (1 std dev 3.18e-02)
+  Time per test:  3.90e-02 (1 std dev 1.99e-03)
 
 Nested Iter Level:  1
   optimizing 2 steps
   total params: [7322]
   train params: [7322]
 
-  Train Epoch: 1 [0/500 (0%)]     	Loss: 2.212873	Time Per Batch 0.138600
-  Train Epoch: 1 [500/500 (100%)]     	Loss: 2.154319	Time Per Batch 0.106585
+  Train Epoch: 1 [0/500 (0%)]     	Loss: 2.212873	Time Per Batch 0.088239
+  Train Epoch: 1 [500/500 (100%)]     	Loss: 2.154319	Time Per Batch 0.084695
 
   Test set: Average loss: 0.0446, Accuracy: 19/100 (19%)
 
-  Train Epoch: 2 [0/500 (0%)]     	Loss: 2.153547	Time Per Batch 0.090809
-  Train Epoch: 2 [500/500 (100%)]     	Loss: 2.033704	Time Per Batch 0.110134
+  Train Epoch: 2 [0/500 (0%)]     	Loss: 2.153547	Time Per Batch 0.084784
+  Train Epoch: 2 [500/500 (100%)]     	Loss: 2.033704	Time Per Batch 0.091530
 
   Test set: Average loss: 0.0426, Accuracy: 25/100 (25%)
 
-  Time per epoch: 1.22e+00 (1 std dev 1.89e-02)
-  Time per test:  6.45e-02 (1 std dev 6.09e-03)
+  Time per epoch: 9.81e-01 (1 std dev 5.31e-02)
+  Time per test:  5.52e-02 (1 std dev 6.84e-04)
 
 Nested Iter Level:  2
   optimizing 4 steps
   total params: [7946]
   train params: [7946]
 
-  Train Epoch: 1 [0/500 (0%)]     	Loss: 2.031405	Time Per Batch 0.341001
-  Train Epoch: 1 [500/500 (100%)]     	Loss: 1.984555	Time Per Batch 0.341798
+  Train Epoch: 1 [0/500 (0%)]     	Loss: 2.031405	Time Per Batch 0.306707
+  Train Epoch: 1 [500/500 (100%)]     	Loss: 1.984555	Time Per Batch 0.290131
 
   Test set: Average loss: 0.0417, Accuracy: 28/100 (28%)
 
-  Train Epoch: 2 [0/500 (0%)]     	Loss: 1.936058	Time Per Batch 0.292161
-  Train Epoch: 2 [500/500 (100%)]     	Loss: 1.864242	Time Per Batch 0.284554
+  Train Epoch: 2 [0/500 (0%)]     	Loss: 1.936058	Time Per Batch 0.284309
+  Train Epoch: 2 [500/500 (100%)]     	Loss: 1.864242	Time Per Batch 0.291130
 
   Test set: Average loss: 0.0397, Accuracy: 33/100 (33%)
 
-  Time per epoch: 3.25e+00 (1 std dev 4.24e-01)
-  Time per test:  1.26e-01 (1 std dev 4.95e-03)
+  Time per epoch: 3.01e+00 (1 std dev 6.11e-03)
+  Time per test:  1.26e-01 (1 std dev 4.23e-03)
 
 MG/Opt Solver
 Number of Levels:     3
@@ -67,9 +72,24 @@ Trainable Op Complexity:  2.804
 MG/Opt parameters from level 0  network: ParallelNet
     channels : 4
     local_steps : 4
-    max_levels : 3
     max_iters : 2
     print_level : 0
+    Tf : 1.0
+    max_fwd_levels : 3
+    max_bwd_levels : 3
+    max_fwd_iters : -1
+    braid_print_level : 0
+    fwd_cfactor : 2
+    bwd_cfactor : 2
+    fine_fwd_fcf : False
+    fine_bwd_fcf : False
+    fwd_nrelax : 1
+    bwd_nrelax : 1
+    skip_downcycle : True
+    fmg : False
+    relax_only_cg : 0
+    CWt : 1.0
+    fwd_finalrelax : False
 
   interp_params: tb_get_injection_interp_params
     Parameters: None
@@ -77,9 +97,24 @@ MG/Opt parameters from level 0  network: ParallelNet
 MG/Opt parameters from level 1  network: ParallelNet
     channels : 4
     local_steps : 2
-    max_levels : 3
     max_iters : 2
     print_level : 0
+    Tf : 1.0
+    max_fwd_levels : 3
+    max_bwd_levels : 3
+    max_fwd_iters : -1
+    braid_print_level : 0
+    fwd_cfactor : 2
+    bwd_cfactor : 2
+    fine_fwd_fcf : False
+    fine_bwd_fcf : False
+    fwd_nrelax : 1
+    bwd_nrelax : 1
+    skip_downcycle : True
+    fmg : False
+    relax_only_cg : 0
+    CWt : 1.0
+    fwd_finalrelax : False
 
   interp_params: tb_get_injection_interp_params
     Parameters: None
@@ -87,9 +122,24 @@ MG/Opt parameters from level 1  network: ParallelNet
 MG/Opt parameters from level 2  network: ParallelNet
     channels : 4
     local_steps : 1
-    max_levels : 3
     max_iters : 2
     print_level : 0
+    Tf : 1.0
+    max_fwd_levels : 3
+    max_bwd_levels : 3
+    max_fwd_iters : -1
+    braid_print_level : 0
+    fwd_cfactor : 2
+    bwd_cfactor : 2
+    fine_fwd_fcf : False
+    fine_bwd_fcf : False
+    fwd_nrelax : 1
+    bwd_nrelax : 1
+    skip_downcycle : True
+    fmg : False
+    relax_only_cg : 0
+    CWt : 1.0
+    fwd_finalrelax : False
 
   interp_params: tb_get_injection_interp_params
     Parameters: None
@@ -114,7 +164,7 @@ MG/Opt Iter:  0
   Post-relax loss:      1.615492582321167
 
 ------------------------------------------------------------------------------
-Train Epoch: 1 [50/500 (10%)]     	Loss: 1.615493	Time Per Batch 2.217240
+Train Epoch: 1 [50/500 (10%)]     	Loss: 1.615493	Time Per Batch 2.342049
 ------------------------------------------------------------------------------
 
 Batch:  1
@@ -271,7 +321,7 @@ MG/Opt Iter:  0
   Post-relax loss:      2.6501352787017822
 
 ------------------------------------------------------------------------------
-Train Epoch: 1 [500/500 (100%)]     	Loss: 2.650135	Time Per Batch 2.704731
+Train Epoch: 1 [500/500 (100%)]     	Loss: 2.650135	Time Per Batch 2.746104
 ------------------------------------------------------------------------------
 
   Test set: Average loss: 0.0551, Accuracy: 10/100 (10%)
@@ -282,7 +332,7 @@ Train Epoch: 1 [500/500 (100%)]     	Loss: 2.650135	Time Per Batch 2.704731
   Test accuracy information for level 1
     Test set: Average loss: 0.0460, Accuracy: 13/100 (13%)
 
-  Time per epoch: 2.71e+01 
+  Time per epoch: 2.76e+01 
   Time per test:  1.22e-01 
 
 Batch:  0
@@ -303,7 +353,7 @@ MG/Opt Iter:  0
   Post-relax loss:      2.611281633377075
 
 ------------------------------------------------------------------------------
-Train Epoch: 2 [50/500 (10%)]     	Loss: 2.611282	Time Per Batch 2.547557
+Train Epoch: 2 [50/500 (10%)]     	Loss: 2.611282	Time Per Batch 2.490744
 ------------------------------------------------------------------------------
 
 Batch:  1
@@ -460,7 +510,7 @@ MG/Opt Iter:  0
   Post-relax loss:      3.1004769802093506
 
 ------------------------------------------------------------------------------
-Train Epoch: 2 [500/500 (100%)]     	Loss: 3.100477	Time Per Batch 3.975329
+Train Epoch: 2 [500/500 (100%)]     	Loss: 3.100477	Time Per Batch 3.869265
 ------------------------------------------------------------------------------
 
   Test set: Average loss: 0.0582, Accuracy: 6/100 (6%)
@@ -471,8 +521,8 @@ Train Epoch: 2 [500/500 (100%)]     	Loss: 3.100477	Time Per Batch 3.975329
   Test accuracy information for level 1
     Test set: Average loss: 0.0460, Accuracy: 10/100 (10%)
 
-  Time per epoch: 3.35e+01 (1 std dev 8.99e+00)
-  Time per test:  1.22e-01 (1 std dev 1.62e-04)
+  Time per epoch: 3.32e+01 (1 std dev 7.94e+00)
+  Time per test:  1.68e-01 (1 std dev 6.42e-02)
 
 MG/Opt Solver
 Number of Levels:     3
@@ -486,9 +536,24 @@ Trainable Op Complexity:  2.804
 MG/Opt parameters from level 0  network: ParallelNet
     channels : 4
     local_steps : 4
-    max_levels : 3
     max_iters : 2
     print_level : 0
+    Tf : 1.0
+    max_fwd_levels : 3
+    max_bwd_levels : 3
+    max_fwd_iters : -1
+    braid_print_level : 0
+    fwd_cfactor : 2
+    bwd_cfactor : 2
+    fine_fwd_fcf : False
+    fine_bwd_fcf : False
+    fwd_nrelax : 1
+    bwd_nrelax : 1
+    skip_downcycle : True
+    fmg : False
+    relax_only_cg : 0
+    CWt : 1.0
+    fwd_finalrelax : False
 
   interp_params: tb_get_injection_interp_params
     Parameters: None
@@ -515,9 +580,24 @@ MG/Opt parameters from level 0  network: ParallelNet
 MG/Opt parameters from level 1  network: ParallelNet
     channels : 4
     local_steps : 2
-    max_levels : 3
     max_iters : 2
     print_level : 0
+    Tf : 1.0
+    max_fwd_levels : 3
+    max_bwd_levels : 3
+    max_fwd_iters : -1
+    braid_print_level : 0
+    fwd_cfactor : 2
+    bwd_cfactor : 2
+    fine_fwd_fcf : False
+    fine_bwd_fcf : False
+    fwd_nrelax : 1
+    bwd_nrelax : 1
+    skip_downcycle : True
+    fmg : False
+    relax_only_cg : 0
+    CWt : 1.0
+    fwd_finalrelax : False
 
   interp_params: tb_get_injection_interp_params
     Parameters: None
@@ -544,9 +624,24 @@ MG/Opt parameters from level 1  network: ParallelNet
 MG/Opt parameters from level 2  network: ParallelNet
     channels : 4
     local_steps : 1
-    max_levels : 3
     max_iters : 2
     print_level : 0
+    Tf : 1.0
+    max_fwd_levels : 3
+    max_bwd_levels : 3
+    max_fwd_iters : -1
+    braid_print_level : 0
+    fwd_cfactor : 2
+    bwd_cfactor : 2
+    fine_fwd_fcf : False
+    fine_bwd_fcf : False
+    fwd_nrelax : 1
+    bwd_nrelax : 1
+    skip_downcycle : True
+    fmg : False
+    relax_only_cg : 0
+    CWt : 1.0
+    fwd_finalrelax : False
 
   interp_params: tb_get_injection_interp_params
     Parameters: None
