@@ -1,0 +1,401 @@
+Output for
+$ python3 main_mgopt.py --samp-ratio 0.01 --force-lp
+with 2 level
+
+=================
+=================
+
+Training setup:  Batch size:  50  Sample ratio:  0.01  MG/Opt Epochs:  2
+
+Nested Iter Level:  0
+  optimizing 1 steps
+  total params: [7010]
+  train params: [7010]
+
+  Train Epoch: 1 [0/500 (0%)]     	Loss: 2.315328	Time Per Batch 0.063336
+  Train Epoch: 1 [500/500 (100%)]     	Loss: 2.271688	Time Per Batch 0.050896
+
+  Test set: Average loss: 0.0458, Accuracy: 13/100 (13%)
+
+  Train Epoch: 2 [0/500 (0%)]     	Loss: 2.257113	Time Per Batch 0.046937
+  Train Epoch: 2 [500/500 (100%)]     	Loss: 2.173811	Time Per Batch 0.046384
+
+  Test set: Average loss: 0.0457, Accuracy: 8/100 (8%)
+
+  Time per epoch: 5.94e-01 (1 std dev 4.30e-02)
+  Time per test:  4.12e-02 (1 std dev 1.11e-03)
+
+Nested Iter Level:  1
+  optimizing 2 steps
+  total params: [7322]
+  train params: [7322]
+
+  Train Epoch: 1 [0/500 (0%)]     	Loss: 2.212873	Time Per Batch 0.090872
+  Train Epoch: 1 [500/500 (100%)]     	Loss: 2.154319	Time Per Batch 0.094350
+
+  Test set: Average loss: 0.0446, Accuracy: 19/100 (19%)
+
+  Train Epoch: 2 [0/500 (0%)]     	Loss: 2.153547	Time Per Batch 0.105802
+  Train Epoch: 2 [500/500 (100%)]     	Loss: 2.033704	Time Per Batch 0.103304
+
+  Test set: Average loss: 0.0426, Accuracy: 25/100 (25%)
+
+  Time per epoch: 1.11e+00 (1 std dev 6.99e-02)
+  Time per test:  5.93e-02 (1 std dev 5.01e-03)
+
+Nested Iter Level:  2
+  optimizing 4 steps
+  total params: [7946]
+  train params: [7946]
+
+  Train Epoch: 1 [0/500 (0%)]     	Loss: 2.031405	Time Per Batch 0.306657
+  Train Epoch: 1 [500/500 (100%)]     	Loss: 1.984555	Time Per Batch 0.312758
+
+  Test set: Average loss: 0.0417, Accuracy: 28/100 (28%)
+
+  Train Epoch: 2 [0/500 (0%)]     	Loss: 1.936058	Time Per Batch 0.289380
+  Train Epoch: 2 [500/500 (100%)]     	Loss: 1.864242	Time Per Batch 0.288269
+
+  Test set: Average loss: 0.0397, Accuracy: 33/100 (33%)
+
+  Time per epoch: 3.12e+00 (1 std dev 1.82e-01)
+  Time per test:  1.23e-01 (1 std dev 1.83e-03)
+
+MG/Opt Solver
+Number of Levels:     3
+Total Op Complexity:  2.804
+Trainable Op Complexity:  2.804
+  level      total params       trainable params 
+    0        7946 [35.67%]        7946 [35.67%] 
+    1        7322 [32.87%]        7322 [32.87%] 
+    2        7010 [31.47%]        7010 [31.47%] 
+
+MG/Opt parameters from level 0  network: ParallelNet
+    channels : 4
+    local_steps : 4
+    max_levels : 3
+    max_iters : 2
+    print_level : 0
+
+  interp_params: tb_get_injection_interp_params
+    Parameters: None
+
+MG/Opt parameters from level 1  network: ParallelNet
+    channels : 4
+    local_steps : 2
+    max_levels : 3
+    max_iters : 2
+    print_level : 0
+
+  interp_params: tb_get_injection_interp_params
+    Parameters: None
+
+MG/Opt parameters from level 2  network: ParallelNet
+    channels : 4
+    local_steps : 1
+    max_levels : 3
+    max_iters : 2
+    print_level : 0
+
+  interp_params: tb_get_injection_interp_params
+    Parameters: None
+
+
+
+Batch:  0
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       1.8344899415969849
+  Pre-relax done loss:  1.7986587285995483
+  LS Alpha used:        1.0
+  CG Corr done loss:    1.5985232591629028
+  Post-relax loss:      1.5849567651748657
+
+------------------------------------------------------------------------------
+Train Epoch: 1 [50/500 (10%)]     	Loss: 1.584957	Time Per Batch 2.005068
+------------------------------------------------------------------------------
+
+Batch:  1
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       1.929720401763916
+  Pre-relax done loss:  1.8617357015609741
+  LS Alpha used:        2.0
+  CG Corr done loss:    1.6967475414276123
+  Post-relax loss:      1.6472125053405762
+
+Batch:  2
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.151357412338257
+  Pre-relax done loss:  2.0367050170898438
+  LS Alpha used:        2.0
+  CG Corr done loss:    1.9565668106079102
+  Post-relax loss:      1.8875868320465088
+
+Batch:  3
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.6013174057006836
+  Pre-relax done loss:  2.4462966918945312
+  LS Alpha used:        4.0
+  CG Corr done loss:    2.274146318435669
+  Post-relax loss:      2.281424045562744
+
+Batch:  4
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.270260810852051
+  Pre-relax done loss:  2.2745227813720703
+  LS Alpha used:        4.0
+  CG Corr done loss:    2.2012827396392822
+  Post-relax loss:      2.1854770183563232
+
+Batch:  5
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.3073089122772217
+  Pre-relax done loss:  2.2818684577941895
+  LS Alpha used:        8.0
+  CG Corr done loss:    2.2076995372772217
+  Post-relax loss:      2.2028796672821045
+
+Batch:  6
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.3392066955566406
+  Pre-relax done loss:  2.3231968879699707
+  LS Alpha used:        16.0
+  CG Corr done loss:    2.3006155490875244
+  Post-relax loss:      2.3004813194274902
+
+Batch:  7
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.306654214859009
+  Pre-relax done loss:  2.306506395339966
+  LS Alpha used:        32.0
+  CG Corr done loss:    2.2876386642456055
+  Post-relax loss:      2.2876787185668945
+
+Batch:  8
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.4210431575775146
+  Pre-relax done loss:  2.4208455085754395
+  LS Alpha used:        64.0
+  CG Corr done loss:    2.3855013847351074
+  Post-relax loss:      2.385357141494751
+
+Batch:  9
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.499009847640991
+  Pre-relax done loss:  2.4986047744750977
+  LS Alpha used:        64.0
+  CG Corr done loss:    2.3856699466705322
+  Post-relax loss:      2.3853437900543213
+
+------------------------------------------------------------------------------
+Train Epoch: 1 [500/500 (100%)]     	Loss: 2.385344	Time Per Batch 2.101858
+------------------------------------------------------------------------------
+
+  Test set: Average loss: 0.0500, Accuracy: 10/100 (10%)
+
+  Test accuracy information for level 0
+    Test set: Average loss: 0.0460, Accuracy: 13/100 (13%)
+
+  Test accuracy information for level 1
+    Test set: Average loss: 0.0457, Accuracy: 8/100 (8%)
+
+  Time per epoch: 2.11e+01 
+  Time per test:  1.21e-01 
+
+Batch:  0
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.4873297214508057
+  Pre-relax done loss:  2.4866628646850586
+  LS Alpha used:        64.0
+  CG Corr done loss:    2.438739776611328
+  Post-relax loss:      2.43849778175354
+
+------------------------------------------------------------------------------
+Train Epoch: 2 [50/500 (10%)]     	Loss: 2.438498	Time Per Batch 2.202235
+------------------------------------------------------------------------------
+
+Batch:  1
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.4638960361480713
+  Pre-relax done loss:  2.463111162185669
+  LS Alpha used:        64.0
+  CG Corr done loss:    2.4526822566986084
+  Post-relax loss:      2.4526283740997314
+
+Batch:  2
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.481837272644043
+  Pre-relax done loss:  2.4815635681152344
+  LS Alpha used:        16.0
+  CG Corr done loss:    2.478256940841675
+  Post-relax loss:      2.477663278579712
+
+Batch:  3
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       3.0744926929473877
+  Pre-relax done loss:  2.8113808631896973
+  LS Alpha used:        32.0
+  CG Corr done loss:    2.4908981323242188
+  Post-relax loss:      2.490290880203247
+
+Batch:  4
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.337769031524658
+  Pre-relax done loss:  2.3373663425445557
+  LS Alpha used:        32.0
+  CG Corr done loss:    2.318434238433838
+  Post-relax loss:      2.3184621334075928
+
+Batch:  5
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.7003235816955566
+  Pre-relax done loss:  2.6998095512390137
+  LS Alpha used:        64.0
+  CG Corr done loss:    2.642829656600952
+  Post-relax loss:      2.642563819885254
+
+Batch:  6
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.707580804824829
+  Pre-relax done loss:  2.7063541412353516
+  LS Alpha used:        64.0
+  CG Corr done loss:    2.6650209426879883
+  Post-relax loss:      2.6644790172576904
+
+Batch:  7
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.788970947265625
+  Pre-relax done loss:  2.786996841430664
+  LS Alpha used:        32.0
+  CG Corr done loss:    2.621488571166992
+  Post-relax loss:      2.620955228805542
+
+Batch:  8
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.546368360519409
+  Pre-relax done loss:  2.545736789703369
+  LS Alpha used:        16.0
+  CG Corr done loss:    2.5097527503967285
+  Post-relax loss:      2.5090978145599365
+
+Batch:  9
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.659933090209961
+  Pre-relax done loss:  2.6590280532836914
+  LS Alpha used:        32.0
+  CG Corr done loss:    2.5259196758270264
+  Post-relax loss:      2.5256268978118896
+
+------------------------------------------------------------------------------
+Train Epoch: 2 [500/500 (100%)]     	Loss: 2.525627	Time Per Batch 2.302698
+------------------------------------------------------------------------------
+
+  Test set: Average loss: 0.0508, Accuracy: 11/100 (11%)
+
+  Test accuracy information for level 0
+    Test set: Average loss: 0.0460, Accuracy: 13/100 (13%)
+
+  Test accuracy information for level 1
+    Test set: Average loss: 0.0457, Accuracy: 8/100 (8%)
+
+  Time per epoch: 2.21e+01 (1 std dev 1.42e+00)
+  Time per test:  1.41e-01 (1 std dev 2.83e-02)
+
+MG/Opt Solver
+Number of Levels:     3
+Total Op Complexity:  2.804
+Trainable Op Complexity:  2.804
+  level      total params       trainable params 
+    0        7946 [35.67%]        7946 [35.67%] 
+    1        7322 [32.87%]        7322 [32.87%] 
+    2        7010 [31.47%]        7010 [31.47%] 
+
+MG/Opt parameters from level 0  network: ParallelNet
+    channels : 4
+    local_steps : 4
+    max_levels : 3
+    max_iters : 2
+    print_level : 0
+
+  interp_params: tb_get_injection_interp_params
+    Parameters: None
+
+  restrict_params: tb_get_injection_restrict_params
+    grad : False
+    cf : 2
+    deep_copy : True
+
+  restrict_grads: tb_get_injection_restrict_params
+    grad : True
+    cf : 2
+    deep_copy : True
+
+  restrict_states: tb_injection_restrict_network_state
+    Parameters: None
+
+  interp_states: tb_injection_interp_network_state
+    Parameters: None
+
+  line_search: tb_simple_backtrack_ls
+    ls_params : {'n_line_search': 6, 'alpha': 64.0}
+
+MG/Opt parameters from level 1  network: ParallelNet
+    channels : 4
+    local_steps : 2
+    max_levels : 3
+    max_iters : 2
+    print_level : 0
+
+  interp_params: tb_get_injection_interp_params
+    Parameters: None
+
+MG/Opt parameters from level 2  network: ParallelNet
+    channels : 4
+    local_steps : 1
+    max_levels : 3
+    max_iters : 2
+    print_level : 0
+
+  interp_params: tb_get_injection_interp_params
+    Parameters: None
+
+

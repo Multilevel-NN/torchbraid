@@ -32,8 +32,6 @@ from mpi4py import MPI
 # Put together sample local relaxation script
 #  --> Update the parameters from yoru other main_eric
 #  --> Comment at top of main_mgopt.py to compare lcoal and non-local relax, TB vs. MG/Opt vs. MG/Opt+Local
-#
-# Put together sample regression test (store .txt)
 
 # Future Work:
 #
