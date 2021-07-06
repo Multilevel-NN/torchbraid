@@ -446,7 +446,7 @@ def tb_mgopt_cross_ent(output, target, network_parameters=None, v=None):
     return loss
 
 
-def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, old_loss, mgopt_printlevel, ls_params):
+def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
   '''
   Simple line-search: Add e_h to fine parameters.  If loss has
   diminished, stop.  Else subtract 1/2 of e_h from fine parameters, and
@@ -456,8 +456,9 @@ def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, c
   try:
     n_line_search = ls_params['n_line_search']
     alpha = ls_params['alpha']
+    c1 = ls_params['c1']
   except:
-    raise ValueError('tb_simple_backtrack_ls requires a ls_params dictionary with n_line_search and alpha as dictionary keys.')
+    raise ValueError('tb_simple_backtrack_ls requires a ls_params dictionary with n_line_search, alpha, and c_1 (Armijo condition) as dictionary keys.')
 
   # Add error update to x_h
   # alpha*e_h + x_h --> x_h
@@ -470,18 +471,20 @@ def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, c
       loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
     
     new_loss = loss.item()
-    if new_loss < 0.999*old_loss:
-      # loss is reduced by at least a fixed amount, end line search
+
+    # Check Wolfe condition (i), also called the Armijo rule
+    #  f(x + alpha p) <=  f(x) + c alpha <p, grad f(x) >
+    if new_loss < 0.999*old_loss + c1*alpha*e_dot_gradf:
       break
     elif m < (n_line_search-1): 
-      # loss is NOT reduced, continue line search
+      # loss is NOT reduced enough, continue line search
       alpha = alpha/2.0
       tensor_list_AXPY(-alpha, e_h, 1.0, x_h, inplace=True)
   ##
   # end for-loop
 
   # Double alpha, and store for next time in ls_params, before returning
-  root_print(rank, mgopt_printlevel, 2, "  LS Alpha used:        " + str(alpha) ) 
+  root_print(rank, mgopt_printlevel, 2, "  LS Alpha used:        " + str(alpha) + "  e_dot_gradf:  " + str(e_dot_gradf) + "  old_loss + c1*alpha*e_dot_gradf = " + str(old_loss + c1*alpha*e_dot_gradf))
   ls_params['alpha'] = alpha*2
 
 ####################################################################################
@@ -1021,7 +1024,7 @@ class mgopt_solver:
                         restrict_grads = ("tb_get_injection_restrict_params", {'grad' : True}), 
                         restrict_states = "tb_injection_restrict_network_state",
                         interp_states = "tb_injection_interp_network_state", 
-                        line_search = ("tb_simple_backtrack_ls", {'ls_params' : {'n_line_search' : 6, 'alpha' : 1.0}} ) 
+                        line_search = ("tb_simple_backtrack_ls", {'ls_params' : {'n_line_search' : 6, 'alpha' : 1.0, 'c1' : 0.0}} ) 
                         ):    
     """
     Use nested iteration to create a hierarchy of models
@@ -1206,7 +1209,7 @@ class mgopt_solver:
       # For printlevel 2, also test accuracy ong coarse-levels
       if(mgopt_printlevel >= 2):
         for i, level in enumerate(self.levels[1:]):
-          root_print(rank, mgopt_printlevel, 2, '  Test accuracy information for level ' + str(i))
+          root_print(rank, mgopt_printlevel, 2, '  Test accuracy information for level ' + str(i+1))
           test(rank, level.model, test_loader, criterion, criterion_kwargs, compose, mgopt_printlevel, indent='    ')
       
       ##
@@ -1278,8 +1281,9 @@ class mgopt_solver:
     # First evaluate network, forward and backward.  Return value is scalar value of the loss.
     loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
     fine_loss = loss.item()
-    # Second, note that the gradient is waiting in models[lvl], to accessed next
     root_print(rank, mgopt_printlevel, 2, "  Pre-relax done loss:  " + str(loss.item())) 
+    with torch.no_grad():
+      g_h = get_params(model, deep_copy=True, grad=True)
 
     # 3. Restrict 
     #    (i)   Network state (primal and adjoint), 
@@ -1346,8 +1350,9 @@ class mgopt_solver:
     #  x_h = x_h + alpha*e_h
     with torch.no_grad():
       x_h = get_params(model, deep_copy=False, grad=False)
+      e_dot_gradf = tensor_list_dot(e_h, g_h).item()
       # Note, that line_search can store values between runs, like alpha, by having ls_kwargs = { 'ls_params' : {'alpha' : ...}} 
-      do_line_search(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, fine_loss, mgopt_printlevel, **ls_kwargs)
+      do_line_search(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, fine_loss, e_dot_gradf, mgopt_printlevel, **ls_kwargs)
 
     # 9. post-relaxation
     for k in range(nrelax_post):
@@ -1436,6 +1441,12 @@ class mgopt_solver:
     if method == "tb_simple_backtrack_ls":
       check_has_args(ls_kwargs, ['ls_params'], method)
       line_search = tb_simple_backtrack_ls
+    elif method == "no_line_search":
+      # Do no line-search, just return x_h <--  x_h + e_h
+      def line_search(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, **ls_params):
+        try: alpha = ls_params['alpha']
+        except: alpha = 1.0
+        tensor_list_AXPY(alpha, e_h, 1.0, x_h, inplace=True)
     else:
       raise ValueError('Unsupported line search: ' + method)
     ##
