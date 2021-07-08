@@ -43,7 +43,7 @@ def buffer_size(tens):
   if isinstance(tens,torch.Tensor):
     tens = [tens]    
 
-  return sum([t.shape.numel() for t in tens])
+  return sum([t.shape.numel() for t in tens if t is not None])
 # end buffer_size 
 
 def pack_buffer(tens):
@@ -63,6 +63,8 @@ def pack_buffer(tens):
   end = 0
   buf = np.zeros(buffer_size(tens))
   for t in tens:
+    if t is None:
+      continue
     end += t.shape.numel()
     buf[beg:end] = t.view(-1)[:]
     beg = end
@@ -85,6 +87,8 @@ def unpack_buffer(tens,buf):
   beg = 0
   end = 0
   for t in tens:
+    if t is None:
+      continue
     end += t.shape.numel()
     t.view(-1).numpy()[:] = buf[beg:end]
     beg = end

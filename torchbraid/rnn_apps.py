@@ -310,7 +310,7 @@ class BackwardBraidApp(parent.BraidApp):
 
       f = self.runBraid(x)
 
-      self.grads = [p.grad.detach().clone() for p in self.RNN_models.parameters()]
+      self.grads = [p.grad.detach().clone() if p.requires_grad else None for p in self.RNN_models.parameters()]
 
       # required otherwise we will re-add the gradients
       self.RNN_models.zero_grad() 
