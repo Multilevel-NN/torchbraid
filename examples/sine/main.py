@@ -9,9 +9,6 @@ from torch.autograd import gradcheck
 import torchbraid
 import torchbraid.utils as utils
 from mpi4py import MPI
-# import torchbraid.utils
-
-# from bspline import evalBsplines
 
 def root_print(rank,s):
   if rank==0:
@@ -74,10 +71,80 @@ def runFinDiff(model, eps=1e-2):
     return maxerr
 
 
+def train(rank, model, training_generator, optimizer, epoch):
 
-# MPI Stuff
-rank  = MPI.COMM_WORLD.Get_rank()
-procs = MPI.COMM_WORLD.Get_size()
+    model.train()
+    for batch_idx, (local_batch, local_labels) in enumerate(training_generator):
+        local_batch = local_batch.reshape(len(local_batch),1)
+        local_labels= local_labels.reshape(len(local_labels),1)
+
+        # Forward pass
+        ypred = model(local_batch)
+        loss = compose(myloss, ypred, local_labels)
+
+        # Comput gradient through backpropagation
+        optimizer.zero_grad()
+        loss.backward()
+
+        # Parameter update
+        optimizer.step()
+
+        # output
+        root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+          epoch, batch_idx * len(local_batch), len(training_generator.dataset),
+          100. * batch_idx / len(training_generator), loss.item()))
+ 
+
+def test(rank, model, validation_generator):
+    model.eval()
+    test_loss = 0.0
+
+    with torch.no_grad():
+        for local_batch, local_labels in validation_generator:
+            local_batch = local_batch.reshape(len(local_batch),1)
+            local_labels= local_labels.reshape(len(local_labels),1)
+
+            output = model(local_batch)
+            test_loss += compose(myloss, output, local_labels)
+
+        test_loss /= len(validation_generator.dataset)
+
+        root_print(rank,'\nTest set: Average loss: {:.4f}\n'.format(test_loss))
+
+
+fig,axs = plt.subplots()
+def plot_validation(rank, model, validation_generator):
+
+    if rank != 0:
+        return
+
+    data_in = []
+    data_out = []
+
+    with torch.no_grad():
+        #prediction
+        for local_batch, local_labels in validation_generator:
+            local_batch = local_batch.reshape(len(local_batch),1)
+            local_labels= local_labels.reshape(len(local_labels),1)
+
+            output = model(local_batch)
+
+            data_in.append(local_batch.tolist())
+            data_out.append(output.tolist())
+
+        data_array_in  = [item for sublist in data_in for item in sublist]
+        data_array_out = [item for sublist in data_out for item in sublist]
+
+        axs.plot(data_array_in, data_array_out, 'x')
+
+        # exact solution
+        t = np.arange(-np.pi, np.pi, 0.1)
+        s = np.sin(t)
+        axs.plot(t,s)
+
+        # plt.show(block=False)
+
+
 
 class SineDataset(torch.utils.data.Dataset):
     """ Dataset for sine approximation
@@ -125,27 +192,13 @@ class ClosingLayer(torch.nn.Module):
         return x
 
 # Define the steplayer
-cnt_local = 0 # counting the number of steplayers created on this processer. Needed only for debugging
 class StepLayer(torch.nn.Module):
     def __init__(self, width):
         super(StepLayer, self).__init__()
-        global cnt_local
 
-        # Global identifier for this layer. Needed only for debugging. 
-        layerID = rank * round((nlayers) / procs) + cnt_local
-        if MPI.COMM_WORLD.Get_rank() != 0:
-            layerID += 1
-        self.ID = layerID
-        init_amp = layerID
-        cnt_local = cnt_local + 1
-        # Careful here with initialization when debugging with npt>1
-        # init_amp = cnt_local
-
-        # Create linear layer.
+        # Create a linear layer.
         # print(rank ,": Creating a stepLayer")
         self.linearlayer = torch.nn.Linear(width, width, bias=True)
-        # torch.nn.init.constant_(self.linearlayer.weight, init_amp) # make constant for debugging
-        # self.linearlayer.bias.data.fill_(0)
 
     def forward(self, x):
         x = torch.tanh(self.linearlayer(x))
@@ -196,29 +249,31 @@ class ParallelNet(torch.nn.Module):
         return x
 # end ParallelNet
 
+# MPI Stuff
+rank  = MPI.COMM_WORLD.Get_rank()
+procs = MPI.COMM_WORLD.Get_size()
+
+
 # Parse command line
 parser = argparse.ArgumentParser(description='TORCHBRAID Sine Example')
 parser.add_argument('--epochs', type=int, default=1, metavar='N', help='number of epochs to train (default: 1, i.e. only one gradient evaluation)')
-parser.add_argument('--batch-size', type=int, default=20, metavar='N', help='batch size for training (default: 20 = full batch)')
+parser.add_argument('--batch-size', type=int, default=5, metavar='N', help='batch size for training (default: 5)')
 parser.add_argument('--max-levels', type=int, default=10, metavar='N', help='maximum number of braid levels (default: 10)')
 parser.add_argument('--max-iters', type=int, default=2, metavar='N', help='maximum number of braid iteration (default: 2)')
+parser.add_argument('--nlayers', type=int, default=10, metavar='N', help='Number of Layers (i.e. time-steps) (default: 10)')
+parser.add_argument('--width', type=int, default=2, metavar='N', help='Network width (default: 2)')
 parser.add_argument('--nsplines', type=int, default=0, metavar='N', help='Number of splines for SpliNet (default: 0, i.e. do not use a SpliNet)')
 parser.add_argument('--splinedegree', type=int, default=1, metavar='N', help='Degree of splines (default: 1, hat-functions)')
 parser.add_argument('--recoverResNet', action='store_true', default=False, help='For debugging: Using a SpliNet to recover a ResNet structure.')
 args = parser.parse_args()
 
-if args.nsplines>0:
-    splinet = True
-else:
-    splinet = False
-
 # Set a seed for reproducability
 torch.manual_seed(0)
 
 # Specify network
-width = 2
-nlayers = 10 
-Tstop = 1.0
+width = args.width
+nlayers = args.nlayers
+Tstop = 10.0
 
 # spline parameters
 nsplines=args.nsplines
@@ -234,19 +289,19 @@ batch_size = args.batch_size
 max_epochs = args.epochs
 max_levels = args.max_levels
 max_iters = args.max_iters
-learning_rate = 1e-3
+learning_rate = 1e-1
 
 
 
 # Get sine data
-ntraindata = 20
-nvaldata = 20
+ntraindata = 50
+nvaldata = 50
 training_set = SineDataset("./xy_train.dat", ntraindata)
-training_generator = torch.utils.data.DataLoader(training_set, batch_size=batch_size, shuffle=False)
+training_generator = torch.utils.data.DataLoader(training_set, batch_size=batch_size, shuffle=True)
 validation_set = SineDataset("./xy_val.dat", nvaldata)
-validation_generator = torch.utils.data.DataLoader(validation_set, batch_size=batch_size, shuffle=False)
+validation_generator = torch.utils.data.DataLoader(validation_set, batch_size=batch_size, shuffle=True)
 
-torch.manual_seed(0)
+# torch.manual_seed(0)
 
 # Layer-parallel parameters
 lp_max_levels = max_levels
@@ -279,43 +334,40 @@ model = ParallelNet(Tstop=Tstop,
 
 compose = model.compose   # NOT SO SURE WHAT THAT DOES
 
-# model.parallel_nn.diagnostics(True)
-
 # Construct loss function
 myloss = torch.nn.MSELoss(reduction='sum')
 
 # Set up optimizer
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
-# Training set: Evaluate one epoch
-for i in range(args.epochs):
-
-    for local_batch, local_labels in training_generator:
-        local_batch = local_batch.reshape(len(local_batch),1)
-        local_labels= local_labels.reshape(len(local_labels),1)
-
-        # Forward pass
-        ypred = model(local_batch)
-        loss = compose(myloss, ypred, local_labels)
-
-        # Comput gradient through backpropagation
-        optimizer.zero_grad()
-        loss.backward()
-
-        optimizer.step()
-    print("---> Epoch ",i, "Loss on training data=", loss.item())
+optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
 
 
-with torch.no_grad():
-   param_vec = flatten(model.parameters())
-   grad_vec = flatten(model.parameters(), gradient=True)
+out_log = 1
+out_plot = args.epochs
+
+# Training
+for epoch in range(1, args.epochs+1):
+
+    train(rank, model, training_generator, optimizer, epoch)
+  
+    if epoch % out_log == 0:
+        test(rank, model, validation_generator)
+
+    if epoch % out_plot == 0:
+        print(epoch, "now")
+        plot_validation(rank, model, validation_generator)
+
+plt.show()
+
+# with torch.no_grad():
+#    param_vec = flatten(model.parameters())
+#    grad_vec = flatten(model.parameters(), gradient=True)
 
 # Output
-print(rank, ": Final Loss=", loss.item())
+# print(rank, ": Final Loss=", loss.item())
 # print(rank, ": parameters=", param_vec)
 # print(rank, ": gradient=", grad_vec)
 # print(rank, ": ||Grad||=", LA.norm(grad_vec))
-print("\n")
+# print("\n")
 
 
 ##### FINITE DIFFERENCE TESTING. Run on one core!! #######
