@@ -406,7 +406,7 @@ class BraidApp:
         py_bv = <object> bv.userVector
         py_bv.replaceTensor(x0)
 
-  def initializeVector(self,t,x):
+  def initializeVector(self,t,x):  
     pass
 
   def buildInit(self,t):
