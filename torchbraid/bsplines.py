@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-import matplotlib.pyplot as plt
-
 
 class BsplineBasis():
     def __init__(self, nsplines, degree, Tfinal):
@@ -65,10 +63,12 @@ def spline_test(degree, nSplines, Tfinal, deltax):
     plt.legend()
     plt.show()
 
+if __name__ == '__main__':
+  import matplotlib.pyplot as plt
 
-# # Test now:
-# degree = 2
-# nSplines = 10
-# Tfinal = 1.0
-# deltax = 0.01
-# spline_test(degree, nSplines, Tfinal, deltax)
+  # # Test now:
+  # degree = 2
+  # nSplines = 10
+  # Tfinal = 1.0
+  # deltax = 0.01
+  # spline_test(degree, nSplines, Tfinal, deltax)
