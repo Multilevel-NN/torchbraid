@@ -8,7 +8,7 @@ all: $(LIB_NAME) utils
 
 $(LIB_NAME): ${MODULE_NAME}_app.pyx ${MODULE_NAME}_callbacks.pyx
 	#XBRAID_ROOT=$(XBRAID_ROOT) CC=$(CC) $(PYTHON) setup.py install --record installed_files.txt
-	XBRAID_ROOT=$(XBRAID_ROOT) LDSHARED=$(LDSHARED) CC=$(CC) $(PYTHON) setup.py build_ext --inplace
+	XBRAID_ROOT=$(XBRAID_ROOT) CC=$(CC) $(PYTHON) setup.py build_ext --inplace
 
 utils:
 	make -C ./utils
