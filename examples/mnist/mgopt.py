@@ -29,27 +29,48 @@ from mpi4py import MPI
 
 # Future Work:
 #
-#  - Put together a fixed point test, where a solver is trained on a batch
-#    which it correctly classifies.  The coarse-grid correction should be zero. 
+#  - Do a simply regression to model a sin wave, and each CGC should reduce the 2-norm of the error
 #
 #  - Could someone look over the line-search, test it out?  It seems to be malfunctioning.
+#     Or, I could do a Ravi-style line-search, choose the minimum out of [0.25, 0.5, 0.75, 1.0], or you could do
+#     [ 0.33, 0.66, 1.0,  2.0]
 #
-#  - Should we be interpolating and restricting the state?
+#  - Compare reduced space and full space MG/Opt
+#     1) Turn off state/adjoint restriction for reduced space
+#     2) Turn on state/adjoint restriction, interpolation
+#        ==> Update tau correction along eric's line
+#        ==> Don't inject interp state and adjoint, compute error correction
+#     3) Want to get 1) and 2) be perform similarly, say for a simple regression
+#     4) Should relaxation then be over u, w, and theta -- or can we just do optimizer step?
+#        Or are we doing a block relaxation with MGRIT on u and w, and PyTorch on theta (or z)
+#
+#  - Ben says you need more overlap for relaxation solves on coarse-grids (at least for PDEs)
 #
 #  - Any multilevel debug? 
 #
 #  - Parallel
 #
-#  - Break this file up into parts?
+#  - How to structure mini-batch loops, e.g., one loop outside of MG/Opt 
+#   and/or one loop inside MG/Opt (used by each relaxation step)
 #
-#  - How to structure mini-batch loops, e.g., one loop outside of MG/Opt and/or one loop inside MG/Opt (used by each relaxation step)
 #
-#  - The data and target could be "coarsened" or sampled differently on
+#  Other
+#  -----
+#  - ? Break this file up into parts?
+#
+#  - ? The data and target could be "coarsened" or sampled differently on
 #    each level.  There are not hooks for this right now, but they would be
 #    easy to add.
 #
-#  - Coarsegrid convexity tweak from Nash's original paper 
-
+#  - ? Coarsegrid convexity tweak from Nash's original paper 
+#
+#  - ? Implement it so that NI and MGOPT both initialize a new ParNet?
+#     - MGOPT will need to take and process all parameters
+#     - Then create a new Parnet in MGOPT, and if the NI stuff is around, use it to initialize it
+#     - Do some sanity checks that it copies parameters correcty
+#     - This will let you initialize with NI using one type of Braid hierarchy (say without relax-only-cg)
+#       and then run MGOPT with another (say with relax-only-cg)
+#
 
 
 __all__ = [ 'mgopt_solver', 'parse_args' ]
@@ -1293,7 +1314,7 @@ class mgopt_solver:
     #    (iii) Gradient (g_h) to H
     # x_H^{zero} = R(x_h)   and    \tilde{g}_H = R(g_h)
     with torch.no_grad():
-      do_restrict_states(model, coarse_model, **restrict_states_kwargs)
+      #do_restrict_states(model, coarse_model, **restrict_states_kwargs)
       gtilde_H = get_restrict_grad(model, **restrict_grad_kwargs)
       x_H      = get_restrict_params(model, **restrict_params_kwargs) 
       # For x_H to take effect, these parameters must be written to the next coarser network
@@ -1346,7 +1367,7 @@ class mgopt_solver:
       # where to refine.
       write_params_inplace(coarse_model, e_H)
       e_h = get_interp_params(coarse_model, **interp_params_kwargs) 
-      do_interp_states(model, coarse_model, **interp_states_kwargs)
+      #do_interp_states(model, coarse_model, **interp_states_kwargs)
       root_print(rank, mgopt_printlevel, 2, "  Norm of error correction:       " + str(tensor_list_dot(e_h, e_h).item()) ) 
       
 
