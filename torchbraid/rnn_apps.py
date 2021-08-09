@@ -254,10 +254,11 @@ class ForwardBraidApp(parent.BraidApp):
   
       # evaluate the step
       with torch.enable_grad():
-        if level==0:
-          y = self.computeStep(level,tstart,tstop,seq_x,u,allow_ff=done!=1 and self.has_fastforward)
-        else:
-          y = self.computeStep(level,tstart,tstop,seq_x,u,allow_ff=self.has_fastforward)
+        #if level==0:
+        #  y = self.computeStep(level,tstart,tstop,seq_x,u,allow_ff=done!=1 and self.has_fastforward)
+        #else:
+        #  y = self.computeStep(level,tstart,tstop,seq_x,u,allow_ff=self.has_fastforward)
+        y = self.computeStep(level,tstart,tstop,seq_x,u,allow_ff=self.has_fastforward)
    
     return y, u
   # end getPrimalWithGrad
