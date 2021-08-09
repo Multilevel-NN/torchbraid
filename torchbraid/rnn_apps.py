@@ -43,6 +43,7 @@ import utils
 
 import sys
 
+from timeit import default_timer as timer
 from mpi4py import MPI
 
 class ForwardBraidApp(parent.BraidApp):
@@ -67,9 +68,14 @@ class ForwardBraidApp(parent.BraidApp):
     self.seq_x_reduced = dict()
 
     self.has_fastforward = hasattr(self.RNN_models,'fastForward')
+    self.fastforward_time  = 0.0
+    self.fastforward_calls = 0
     if self.has_fastforward:
       assert(hasattr(self.RNN_models,'reduceX'))
   # end __init__
+
+  def getFastForwardInfo(self):
+    return self.fastforward_time, self.fastforward_calls
 
   def computeStep(self,level,tstart,tstop,seq_x,u,allow_ff):
     """
@@ -86,8 +92,14 @@ class ForwardBraidApp(parent.BraidApp):
     if allow_ff:
       if tstart not in self.seq_x_reduced:
         # don't differentiate this
+
+        start_timer = timer()
         with torch.no_grad():
           seq_x_reduce = self.RNN_models.reduceX(seq_x)
+        stop_timer = timer()
+
+        self.fastforward_time  +=  stop_timer-start_timer
+        self.fastforward_calls += 1
 
         # store for later reuse
         self.seq_x_reduced[tstart] = seq_x_reduce
@@ -154,6 +166,8 @@ class ForwardBraidApp(parent.BraidApp):
 
     assert(x.shape[1]==self.local_num_steps)
 
+    self.fastforward_time  = 0.0 # we will measure new fastorward time
+    self.fastforward_calls = 0
     self.seq_x_reduced = dict()
 
     self.x = x
@@ -254,10 +268,6 @@ class ForwardBraidApp(parent.BraidApp):
   
       # evaluate the step
       with torch.enable_grad():
-        #if level==0:
-        #  y = self.computeStep(level,tstart,tstop,seq_x,u,allow_ff=done!=1 and self.has_fastforward)
-        #else:
-        #  y = self.computeStep(level,tstart,tstop,seq_x,u,allow_ff=self.has_fastforward)
         y = self.computeStep(level,tstart,tstop,seq_x,u,allow_ff=self.has_fastforward)
    
     return y, u
