@@ -152,8 +152,13 @@ class ForwardBraidApp(parent.BraidApp):
         # if fast forward is available do an early evaluation of the
         # sequence preemptively
         if self.has_fastforward:
+          start_timer = timer()
           with torch.no_grad():
             self.seq_x_reduced[t] = self.RNN_models.reduceX(value)
+          stop_timer = timer()
+
+          self.fastforward_time  +=  stop_timer-start_timer
+          self.fastforward_calls += 1
     except:
       print('\n**** InitializeVector: Torchbraid Internal Exception ****\n')
       sys.stdout.flush()
