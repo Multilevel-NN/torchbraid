@@ -144,6 +144,9 @@ class RNN_Parallel(nn.Module):
   def zero_grad(self):
     self.RNN_models.zero_grad()
 
+  def getFastForwardInfo(self):
+    return self.fwd_app.getFastForwardInfo()
+
   def getTimerManager(self):
     """
     Get a TimerContextManager that describes how much time is taken by what.

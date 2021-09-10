@@ -73,6 +73,7 @@ cdef int my_access(braid_App app,braid_Vector u,braid_AccessStatus status):
 cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Vector vec_u, braid_StepStatus status):
   cdef double tstart
   cdef double tstop
+  cdef int tindex
   cdef int level
   cdef int done 
   #cdef int sidx
@@ -105,14 +106,18 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
       #print("AA  %d "%sidx, (tt[0,0,0])[2], (tt[0,0,1])[2], (tt[0,1,1])[2], (tt[1,1,1])[2])
       #print("\n")
 
-
   except:
-    output_exception("my_step: rank={}, step=({},{}), level={}, sf={}".format(pyApp.getMPIComm().Get_rank(),tstart,tstop,level,u.getSendFlag()))
+    output_exception("my_step: rank={}, step=({},{}), level={}, sf={}".format(pyApp.getMPIComm().Get_rank(),
+                                                                                           tstart,
+                                                                                           tstop,
+                                                                                           level,
+                                                                                           u.getSendFlag()))
 
   return 0
 # end my_access
 
 cdef int my_init(braid_App app, double t, braid_Vector *u_ptr):
+
   try:
     pyApp = <object> app
     with pyApp.timer("init"):

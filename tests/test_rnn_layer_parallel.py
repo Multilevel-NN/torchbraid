@@ -105,6 +105,9 @@ def preprocess_distribute_input_data_parallel(rank,num_procs,num_batch,batch_siz
     torch.manual_seed(20)
     x = torch.randn(num_batch,batch_size,channels,sequence_length,input_size)
 
+    #for i in range(sequence_length):
+    #  x[:,:,:,i] = float(i)
+
     # x_block_all[total_images][total_blocks]
     x_block_all = []
     for i in range(len(x)):
@@ -134,7 +137,7 @@ def preprocess_distribute_input_data_parallel(rank,num_procs,num_batch,batch_siz
 
 class TestRNNLayerParallel(unittest.TestCase):
   def test_forward_exact(self):
-    self.forwardProp(max_levels=1,max_iters=1)
+    self.forwardProp(max_levels=1,max_iters=1,sequence_length=28)
 
   def test_forward_approx(self):
     self.forwardProp(max_levels=3,max_iters=20)
@@ -199,7 +202,6 @@ class TestRNNLayerParallel(unittest.TestCase):
         num_blocks = 2 # equivalent to the num_procs variable used for parallel implementation
         image_all, x_block_all = preprocess_input_data_serial_test(num_blocks,num_batch,batch_size,channels,sequence_length,input_size)
     
-        # for i in range(len(image_all)):
         for i in range(1):
     
           y_serial_hn = torch.zeros(num_layers, image_all[i].size(0), hidden_size)

@@ -339,6 +339,12 @@ cdef extern from "_braid.h":
 
 
 
+    ## 
+    # helper function for getting the lower and upper time step indices
+    int _braid_GetDistribution(braid_Core   core,
+                               int   *ilower_ptr,
+                               int   *iupper_ptr);
+
 # cdef object convert_carray_to_numpy(double * v, dim1, dim2=1, dim3=1):
 #     '''
 #     Helper function to cast C array v to an (dim1 x dim2 x dim3) 
