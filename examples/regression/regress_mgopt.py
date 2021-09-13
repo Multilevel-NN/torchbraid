@@ -73,8 +73,14 @@ def main():
   rank  = MPI.COMM_WORLD.Get_rank()
 
   ## 
-  # Fix the seed
-  torch.manual_seed(args.seed)
+  # Fix the seed if selected, otherwise let it be random
+  if args.seed>0:
+    torch.manual_seed(args.seed)
+  else:
+    args.seed = torch.seed()
+
+  print(f'Initial seed used = {args.seed}')
+  
   
   ##
   # Load training and testing data, while reducing the number of samples (if desired) for faster execution
