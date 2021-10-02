@@ -168,6 +168,8 @@ class BraidApp:
     else:
       braid_SetSkip(core,1)
 
+    #_braid_SetVerbosity(core,1)
+
     # store the c pointer
     py_core = PyBraid_Core()
     py_core.setCore(core)
