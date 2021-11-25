@@ -119,7 +119,7 @@ class RNN_Parallel(nn.Module):
 
   ##################################################
 
-  def __init__(self,comm,basic_block,num_steps,hidden_size,num_layers,Tf,model_compute_steps=False,max_levels=1,max_iters=10,abs_tol=1e-12):
+  def __init__(self,comm,basic_block,num_steps,hidden_size,num_layers,Tf,model_compute_steps=False,max_levels=1,max_iters=10,abs_tol=1e-9):
     super(RNN_Parallel,self).__init__()
 
     self.comm        = comm

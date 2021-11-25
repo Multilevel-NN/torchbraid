@@ -53,7 +53,7 @@ def output_exception(label):
 
 cdef int my_access(braid_App app,braid_Vector u,braid_AccessStatus status):
 
-  cdef double t
+  cdef double t, r_norm
 
   try:
     pyApp = <object> app
@@ -102,7 +102,7 @@ cdef int my_init(braid_App app, double t, braid_Vector *u_ptr):
     with pyApp.timer("init"):
       u_mem = pyApp.buildInit(t)
       Py_INCREF(u_mem) # why do we need this?
-      print(f"init made {u_mem.instance}, level: {u_mem.level_}")
+      # print(f"init made {u_mem.instance}, level: {u_mem.level_}")
 
       u_ptr[0] = <braid_Vector> u_mem
   except:
@@ -132,10 +132,10 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
     with pyApp.timer("sum"):
       bv_X = <object> x
       bv_Y = <object> y
-      print(f"my_sum x {bv_X.instance}, my_sum y {bv_Y.instance}")
+      # print(f"my_sum x {bv_X.instance}, my_sum y {bv_Y.instance}")
       for ten_X, ten_Y in zip(bv_X.tensors(),bv_Y.tensors()):
         # print(f"my_sum x {ten_X[...,0]}, my_sum y {ten_Y[...,0]}")
-        print(f"my_sum x {ten_X.shape}, my_sum y {ten_Y.shape}")
+        # print(f"my_sum x {ten_X.shape}, my_sum y {ten_Y.shape}")
         ten_Y.mul_(float(beta))
         ten_Y.add_(ten_X,alpha=float(alpha))
   except:
@@ -151,7 +151,7 @@ cdef int my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
       v_mem = ten_U.clone()
       Py_INCREF(v_mem) # why do we need this?
       v_ptr[0] = <braid_Vector> v_mem
-      print(f"clone made {ten_U.instance} --> {v_mem.instance}")
+      # print(f"clone made {ten_U.instance} --> {v_mem.instance}")
   except:
     output_exception("my_clone")
 
@@ -372,7 +372,7 @@ cdef int my_coarsen(braid_App app, braid_Vector fu, braid_Vector *cu_ptr, braid_
 
       cu_mem = pyApp.spatial_coarse(ten_fu,level)
       cu_vec = BraidVector(cu_mem,level)
-      print(f"coarsen made {(<object> fu).instance}, {ten_fu.shape} --> {cu_vec.instance}, {cu_mem.shape}, level: {cu_vec.level_}")
+      # print(f"coarsen made {(<object> fu).instance}, {ten_fu.shape} --> {cu_vec.instance}, {cu_mem.shape}, level: {cu_vec.level_}")
       cu_vec.addWeightTensors(weight)
       
 
@@ -393,11 +393,11 @@ cdef int my_refine(braid_App app, braid_Vector cu, braid_Vector *fu_ptr, braid_C
       ten_cu =  (<object> cu).tensor()
       weight = (<object> cu).weightTensors()
 
-      braid_CoarsenRefStatusGetNRefine(status,&level)
+      braid_CoarsenRefStatusGetLevel(status,&level)
 
       fu_mem = pyApp.spatial_refine(ten_cu,level)
       fu_vec = BraidVector(fu_mem,level)
-      print(f"refine made {(<object> cu).instance}, {ten_cu.shape} --> {fu_vec.instance}, {fu_mem.shape}, level: {fu_vec.level_}")
+      # print(f"refine made {(<object> cu).instance}, {ten_cu.shape} --> {fu_vec.instance}, {fu_mem.shape}, level: {fu_vec.level_}")
       fu_vec.addWeightTensors(weight)
       # print(f"This is the shape from my_refine {fu_vec.tensor().shape}")
 

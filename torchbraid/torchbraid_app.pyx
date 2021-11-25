@@ -53,7 +53,7 @@ def output_exception(label):
 class BraidApp:
 
   def __init__(self,prefix_str,comm,local_num_steps,Tf,max_levels,max_iters,
-               spatial_ref_pair=None,require_storage=False,abs_tol=1e-12):
+               spatial_ref_pair=None,require_storage=False,abs_tol=1e-9):
 
     self.prefix_str = prefix_str # prefix string for helping to debug hopefully
     self.tb_print_level = 0      # set print level internally to zero
@@ -269,7 +269,7 @@ class BraidApp:
     braid_GetRNorms(core, &niter, &resnorm);
 
     return iter_cnt,resnorm
-  # end printBraidStats
+  # end getBraidStats
 
   def printBraidStats(self):
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core

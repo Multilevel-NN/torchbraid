@@ -1,0 +1,102 @@
+
+-----------------------------------------------------------------
+-----------------------------------------------------------------
+
+  Begin simulation 
+
+
+  Braid: Begin simulation, 128 time steps
+  Braid: || r_0 || not available, wall time = 5.14e-03
+  Braid: || r_1 || = 1.592986e-01, conv factor = 1.00e+00, wall time = 1.62e-02
+  Braid: || r_2 || = 8.377133e-03, conv factor = 5.26e-02, wall time = 2.74e-02
+  Braid: || r_3 || = 1.334415e-03, conv factor = 1.59e-01, wall time = 3.84e-02
+  Braid: || r_4 || = 2.261175e-04, conv factor = 1.69e-01, wall time = 4.95e-02
+  Braid: || r_5 || = 4.762528e-05, conv factor = 2.11e-01, wall time = 6.06e-02
+  Braid: || r_6 || = 1.510681e-05, conv factor = 3.17e-01, wall time = 7.17e-02
+  Braid: || r_7 || = 6.110074e-06, conv factor = 4.04e-01, wall time = 8.28e-02
+  Braid: || r_8 || = 2.644862e-06, conv factor = 4.33e-01, wall time = 9.39e-02
+  Braid: || r_9 || = 1.169922e-06, conv factor = 4.42e-01, wall time = 1.05e-01
+  Braid: || r_10 || = 5.238623e-07, conv factor = 4.48e-01, wall time = 1.16e-01
+  Braid: || r_11 || = 2.366418e-07, conv factor = 4.52e-01, wall time = 1.27e-01
+  Braid: || r_12 || = 1.076753e-07, conv factor = 4.55e-01, wall time = 1.38e-01
+  Braid: || r_13 || = 4.927749e-08, conv factor = 4.58e-01, wall time = 1.49e-01
+  Braid: || r_14 || = 2.266669e-08, conv factor = 4.60e-01, wall time = 1.61e-01
+  Braid: || r_15 || = 1.046925e-08, conv factor = 4.62e-01, wall time = 1.72e-01
+  Braid: || r_16 || = 4.853796e-09, conv factor = 4.64e-01, wall time = 1.83e-01
+  Braid: || r_17 || = 2.257228e-09, conv factor = 4.65e-01, wall time = 1.94e-01
+  Braid: || r_18 || = 1.052748e-09, conv factor = 4.66e-01, wall time = 2.05e-01
+  Braid: || r_19 || = 4.921291e-10, conv factor = 4.67e-01, wall time = 2.16e-01
+  Braid: || r_20 || = 2.305733e-10, conv factor = 4.69e-01, wall time = 2.27e-01
+  my_Access() called, iter= 21, level= 0, calling function= 3
+
+  my_Access():  Braid iter 21,  discr. error at final time:  2.5826e-04
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.850551e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = -1
+
+  max iterations        = 100
+  iterations            = 21
+
+  residual norm         = 2.305733e-10
+  stopping tolerance    = 2.678888e-10
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 3
+  min coarse            = 3
+  number of levels      = 3
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 0
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64        2        1        1.00
+      2        32  
+
+  wall time = 0.231453
+
+  runtime: 0.23147s
+
+
+-----------------------------------------------------------------
+-----------------------------------------------------------------
+
+ Implicit time stepping solve parameters
+
+   Fine-level loose stopping tol  :  1.00e-09    (while ||r|| is large)
+   Fine-level tight stopping tol  :  1.00e-09    (while ||r|| is small)
+   Coarse-level stopping tol      :  1.00e-09    (for all ||r||) 
+ 
+   Fine-level max iter            :  50
+   Coarse-level max iter          :  50
+
+-----------------------------------------------------------------
+-----------------------------------------------------------------
+
+ Per level diagnostic information 
+
+ Scheme is either explicit or implicit.  If implicit then the table
+ entry is 'impl, %d' where the integer represents the maximum number
+ of AMG iterations used by the implicit solver on that level.  'expl'
+ stands for explicit. 
+
+ Fine level spatial problem size  : 33 x 33
+
+level   scheme         dx          dy          dt          cfl
+-----------------------------------------------------------------
+  0   |  expl       9.82e-02    9.82e-02    1.45e-03    3.00e-01
+  1   |  expl       1.96e-01    1.96e-01    2.89e-03    1.50e-01
+  2   |  expl       1.96e-01    1.96e-01    5.78e-03    3.00e-01
+

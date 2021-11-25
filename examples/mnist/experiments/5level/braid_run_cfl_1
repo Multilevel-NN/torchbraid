@@ -1,0 +1,96 @@
+
+-----------------------------------------------------------------
+-----------------------------------------------------------------
+
+  Begin simulation 
+
+
+  Braid: Begin simulation, 128 time steps
+  Braid: || r_0 || not available, wall time = 6.40e-03
+  Braid: || r_1 || = 1.934410e-01, conv factor = 1.00e+00, wall time = 1.99e-02
+  Braid: || r_2 || = 5.944720e-03, conv factor = 3.07e-02, wall time = 3.32e-02
+  Braid: || r_3 || = 4.734105e-04, conv factor = 7.96e-02, wall time = 4.64e-02
+  Braid: || r_4 || = 4.532647e-05, conv factor = 9.57e-02, wall time = 5.97e-02
+  Braid: || r_5 || = 4.968958e-06, conv factor = 1.10e-01, wall time = 7.30e-02
+  Braid: || r_6 || = 6.623430e-07, conv factor = 1.33e-01, wall time = 8.64e-02
+  Braid: || r_7 || = 1.053942e-07, conv factor = 1.59e-01, wall time = 9.96e-02
+  Braid: || r_8 || = 1.663273e-08, conv factor = 1.58e-01, wall time = 1.13e-01
+  Braid: || r_9 || = 7.123750e-10, conv factor = 4.28e-02, wall time = 1.26e-01
+  Braid: || r_10 || = 3.219645e-11, conv factor = 4.52e-02, wall time = 1.40e-01
+  my_Access() called, iter= 11, level= 0, calling function= 3
+
+  my_Access():  Braid iter 11,  discr. error at final time:  5.5070e-05
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 6.168503e-02
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = -1
+
+  max iterations        = 100
+  iterations            = 11
+
+  residual norm         = 3.219645e-11
+  stopping tolerance    = 4.639970e-10
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 5
+  min coarse            = 3
+  number of levels      = 5
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 0
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64        2        1        1.00
+      2        32        2        1        1.00
+      3        16        2        1        1.00
+      4         8  
+
+  wall time = 0.144220
+
+  runtime: 0.14424s
+
+
+-----------------------------------------------------------------
+-----------------------------------------------------------------
+
+ Implicit time stepping solve parameters
+
+   Fine-level loose stopping tol  :  1.00e-09    (while ||r|| is large)
+   Fine-level tight stopping tol  :  1.00e-09    (while ||r|| is small)
+   Coarse-level stopping tol      :  1.00e-09    (for all ||r||) 
+ 
+   Fine-level max iter            :  50
+   Coarse-level max iter          :  50
+
+-----------------------------------------------------------------
+-----------------------------------------------------------------
+
+ Per level diagnostic information 
+
+ Scheme is either explicit or implicit.  If implicit then the table
+ entry is 'impl, %d' where the integer represents the maximum number
+ of AMG iterations used by the implicit solver on that level.  'expl'
+ stands for explicit. 
+
+ Fine level spatial problem size  : 33 x 33
+
+level   scheme         dx          dy          dt          cfl
+-----------------------------------------------------------------
+  0   |  expl       9.82e-02    9.82e-02    4.82e-04    1.00e-01
+  1   |  expl       9.82e-02    9.82e-02    9.64e-04    2.00e-01
+  2   |  expl       9.82e-02    9.82e-02    1.93e-03    4.00e-01
+  3   |  expl       1.96e-01    1.96e-01    3.86e-03    2.00e-01
+  4   |  expl       1.96e-01    1.96e-01    7.71e-03    4.00e-01
+
