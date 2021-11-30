@@ -372,12 +372,13 @@ def main():
                                  
   ##
   # Specify optimization routine on each level, starting from fine to coarse
-  optims = [ ("pytorch_sgd", { 'lr':args.lr, 'momentum':0.9}) for i in range(len(ni_steps)) ]
+  #optims = [ ("pytorch_sgd", { 'lr':args.lr, 'momentum':0.9}) for i in range(len(ni_steps)) ]
+  optims = [ ("pytorch_adam", { 'lr':0.001, 'betas':(0.9, 0.999), 'eps':1e-08 }) for i in range(len(ni_steps)) ]
 
   ##
   # Initialize MG/Opt solver with nested iteration 
-  epochs = 2
-  mgopt_printlevel = 1
+  epochs = args.NIepochs
+  mgopt_printlevel = args.mgopt_printlevel
   log_interval = args.log_interval
   mgopt = mgopt_solver()
   mgopt.initialize_with_nested_iteration(ni_steps, train_loader, test_loader,
@@ -413,7 +414,7 @@ def main():
   #   Note: that we use the default restrict and interp options, but these can be modified on a per-level basis
   if( args.mgopt_iter > 0):
     epochs = args.epochs
-    line_search = ('no_line_search', {'a' : 1.0})
+    line_search = ('tb_simple_ls', {'ls_params' : {'alphas' : [0.01, 0.1, 0.5, 1.0, 2.0, 4.0]}} )
     log_interval = args.log_interval
     mgopt_printlevel = args.mgopt_printlevel
     mgopt_iter = args.mgopt_iter

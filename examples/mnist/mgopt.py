@@ -27,51 +27,6 @@ from timeit import default_timer as timer
 
 from mpi4py import MPI
 
-# Future Work:
-#
-#  - Do a simply regression to model a sin wave, and each CGC should reduce the 2-norm of the error
-#
-#  - Could someone look over the line-search, test it out?  It seems to be malfunctioning.
-#     Or, I could do a Ravi-style line-search, choose the minimum out of [0.25, 0.5, 0.75, 1.0], or you could do
-#     [ 0.33, 0.66, 1.0,  2.0]
-#
-#  - Compare reduced space and full space MG/Opt
-#     1) Turn off state/adjoint restriction for reduced space
-#     2) Turn on state/adjoint restriction, interpolation
-#        ==> Update tau correction along eric's line
-#        ==> Don't inject interp state and adjoint, compute error correction
-#     3) Want to get 1) and 2) be perform similarly, say for a simple regression
-#     4) Should relaxation then be over u, w, and theta -- or can we just do optimizer step?
-#        Or are we doing a block relaxation with MGRIT on u and w, and PyTorch on theta (or z)
-#
-#  - Ben says you need more overlap for relaxation solves on coarse-grids (at least for PDEs)
-#
-#  - Any multilevel debug? 
-#
-#  - Parallel
-#
-#  - How to structure mini-batch loops, e.g., one loop outside of MG/Opt 
-#   and/or one loop inside MG/Opt (used by each relaxation step)
-#
-#
-#  Other
-#  -----
-#  - ? Break this file up into parts?
-#
-#  - ? The data and target could be "coarsened" or sampled differently on
-#    each level.  There are not hooks for this right now, but they would be
-#    easy to add.
-#
-#  - ? Coarsegrid convexity tweak from Nash's original paper 
-#
-#  - ? Implement it so that NI and MGOPT both initialize a new ParNet?
-#     - MGOPT will need to take and process all parameters
-#     - Then create a new Parnet in MGOPT, and if the NI stuff is around, use it to initialize it
-#     - Do some sanity checks that it copies parameters correcty
-#     - This will let you initialize with NI using one type of Braid hierarchy (say without relax-only-cg)
-#       and then run MGOPT with another (say with relax-only-cg)
-#
-
 
 __all__ = [ 'mgopt_solver', 'parse_args' ]
 
@@ -230,15 +185,23 @@ def train_epoch(rank, model, train_loader, optimizer, epoch, criterion, criterio
     optimizer.step()
 
     total_time += stop_time-start_time
+
+    
+    root_print(rank, mgopt_printlevel, 2, "Batch:  " + str(batch_idx) + "    Loss = " + str(loss.item()) )
     if batch_idx % log_interval == 0:
-      root_print(rank, mgopt_printlevel, 1, '  Train Epoch: {} [{}/{} ({:.0f}%)]     \tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
+      root_print(rank, mgopt_printlevel, 2, "\n------------------------------------------------------------------------------")
+      root_print(rank, mgopt_printlevel, 1, '  Train Epoch: {} [{}/{} ({:.0f}%)]     \tLoss: {:.9f}\tTime Per Batch {:.6f}'.format(
           epoch, batch_idx * len(data), len(train_loader.dataset),
           100. * batch_idx / len(train_loader), loss.item(), total_time/(batch_idx+1.0)))
+      root_print(rank, mgopt_printlevel, 2, "------------------------------------------------------------------------------\n")
   ##
 
-  root_print(rank, mgopt_printlevel, 1, '  Train Epoch: {} [{}/{} ({:.0f}%)]     \tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
+  root_print(rank, mgopt_printlevel, 2, "\n------------------------------------------------------------------------------")
+  root_print(rank, mgopt_printlevel, 1, '  Train Epoch: {} [{}/{} ({:.0f}%)]     \tLoss: {:.9f}\tTime Per Batch {:.6f}'.format(
     epoch, (batch_idx+1) * len(data), len(train_loader.dataset),
     100. * (batch_idx+1) / len(train_loader), loss.item(), total_time/(batch_idx+1.0)))
+  root_print(rank, mgopt_printlevel, 2, "------------------------------------------------------------------------------\n")
+
 
 def test(rank, model, test_loader, criterion, criterion_kwargs, compose, mgopt_printlevel, indent=''):
   ''' Compute loss and accuracy '''
@@ -257,7 +220,7 @@ def test(rank, model, test_loader, criterion, criterion_kwargs, compose, mgopt_p
 
   test_loss /= len(test_loader.dataset)
 
-  root_print(rank, mgopt_printlevel, 1, indent + 'Test set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+  root_print(rank, mgopt_printlevel, 1, indent + 'Test set: Average loss: {:.4f}, Accuracy: {}/{} ({:2.2f}%)\n'.format(
       test_loss, correct, len(test_loader.dataset),
       100. * correct / len(test_loader.dataset)))
 
@@ -463,6 +426,50 @@ def tb_mgopt_cross_ent(output, target, network_parameters=None, v=None):
     return loss
 
 
+def tb_simple_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
+  '''
+  Simple line-search: Add e_h to fine parameters.  Test five different alpha
+  values.  Choose one that best minimizes loss.
+  '''
+  rank  = MPI.COMM_WORLD.Get_rank()
+  try:
+    alphas = ls_params['alphas']
+  except:
+    raise ValueError('tb_simple_ls requires a ls_params dictionary alphas defined (i.e., the alphas to test during the line search')
+
+
+  best_loss = 10**10
+  winner = -1
+
+  for aa, alpha in enumerate(alphas):
+    # Add error update to x_h:  alpha*e_h + x_h --> x_h
+    tensor_list_AXPY(alpha, e_h, 1.0, x_h, inplace=True)
+
+    with torch.enable_grad():
+      loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
+
+    new_loss = loss.item()
+    root_print(rank, mgopt_printlevel, 2, "  LS Alpha Test:        " + str(alpha) + "  Loss = " + str(new_loss))
+
+    # Is this a better loss?
+    if new_loss < best_loss:
+      best_loss = new_loss
+      winner = aa
+
+    # Undo error update to x_h:  -alpha*e_h + x_h --> x_h
+    tensor_list_AXPY( -alpha, e_h, 1.0, x_h, inplace=True)
+
+  ##
+  # end for-loop
+
+  # Choose the winning alpha
+  tensor_list_AXPY(alphas[winner], e_h, 1.0, x_h, inplace=True)
+
+
+  # Print alpha chosen 
+  root_print(rank, mgopt_printlevel, 2, "  LS Alpha chosen:        " + str(alphas[winner]) + "  Loss = " + str(best_loss))
+
+
 def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
   '''
   Simple line-search: Add e_h to fine parameters.  If loss has
@@ -503,6 +510,8 @@ def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, c
   # Double alpha, and store for next time in ls_params, before returning
   root_print(rank, mgopt_printlevel, 2, "  LS Alpha used:        " + str(alpha) + "  e_dot_gradf:  " + str(e_dot_gradf) + "  old_loss + c1*alpha*e_dot_gradf = " + str(old_loss + c1*alpha*e_dot_gradf))
   ls_params['alpha'] = alpha*2
+
+
 
 ####################################################################################
 ####################################################################################
@@ -549,6 +558,8 @@ def parse_args():
   # algorithmic settings (gradient descent and batching
   parser.add_argument('--batch-size', type=int, default=50, metavar='N',
                       help='input batch size for training (default: 50)')
+  parser.add_argument('--NIepochs', type=int, default=2, metavar='N',
+                      help='number of epochs per Nested Iteration (default: 2)')
   parser.add_argument('--epochs', type=int, default=2, metavar='N',
                       help='number of epochs to train (default: 2)')
   parser.add_argument('--samp-ratio', type=float, default=1.0, metavar='N',
@@ -1041,7 +1052,7 @@ class mgopt_solver:
                         restrict_grads = ("tb_get_injection_restrict_params", {'grad' : True}), 
                         restrict_states = "tb_injection_restrict_network_state",
                         interp_states = "tb_injection_interp_network_state", 
-                        line_search = ("tb_simple_backtrack_ls", {'ls_params' : {'n_line_search' : 6, 'alpha' : 1.0, 'c1' : 0.0}} ) 
+                        line_search = ('tb_simple_ls', {'alphas' : [0.001, 0.01, 0.1, 0.5, 1.0]})
                         ):    
     """
     Use nested iteration to create a hierarchy of models
@@ -1161,11 +1172,12 @@ class mgopt_solver:
     # For epoch-level accuracy measurements, select (i) criterion (objective) for level 0 and (ii) the compose function
     (criterion, compose, criterion_kwargs) = self.process_criterion(self.levels[0].criterions, self.levels[0].model)
     
-    ##
-    # Set the optimizer on each level (some optimizers preserve state between runs, so we instantiate here)
-    for k in range(mgopt_levels):
-      (optimizer, optim_kwargs) = self.process_optimizer(self.levels[k].optims, self.levels[k].model)
-      self.levels[k].optimizer = optimizer
+  ####
+  ### Use if you want to keep the optimizer around
+  ### Set the optimizer on each level (some optimizers preserve state between runs, so we instantiate here)
+  ##for k in range(mgopt_levels):
+  ##  (optimizer, optim_kwargs) = self.process_optimizer(self.levels[k].optims, self.levels[k].model)
+  ##  self.levels[k].optimizer = optimizer
 
     ##
     # Begin loop over epochs
@@ -1205,7 +1217,7 @@ class mgopt_solver:
         # Batch-level diagnostic printing
         if (batch_idx % log_interval == 0) or (batch_idx == (len(train_loader)-1) ):  
           root_print(rank, mgopt_printlevel, 2, "\n------------------------------------------------------------------------------")
-          root_print(rank, mgopt_printlevel, 1, 'Train Epoch: {} [{}/{} ({:.0f}%)]     \tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
+          root_print(rank, mgopt_printlevel, 1, 'Train Epoch: {} [{}/{} ({:.0f}%)]     \tLoss: {:.9f}\tTime Per Batch {:.6f}'.format(
               epoch, (batch_idx+1) * len(data), len(train_loader.dataset),
               100. * (batch_idx+1) / len(train_loader), losses[-1], batch_total_time/(batch_idx+1.0)))
           root_print(rank, mgopt_printlevel, 2, "------------------------------------------------------------------------------")
@@ -1257,13 +1269,21 @@ class mgopt_solver:
     See solve() for parameter description
     """
     
+    ##
+    # Grab fine and coarse models and optimizers
+    # We regenerate the optimizer each time, as some optimizers store state
     rank  = MPI.COMM_WORLD.Get_rank()
     model = self.levels[lvl].model
-    optimizer = self.levels[lvl].optimizer
+    (optimizer, optim_kwargs) = self.process_optimizer(self.levels[lvl].optims, self.levels[lvl].model)
     coarse_model = self.levels[lvl+1].model
-    coarse_optimizer = self.levels[lvl+1].optimizer
+    (coarse_optimizer, coarse_optim_kwargs) = self.process_optimizer(self.levels[lvl+1].optims, self.levels[lvl+1].model)
     root_print(rank, mgopt_printlevel, 2, "\n  Level:  " + str(lvl)) 
-    
+
+    ### Use if you want to keep the optimizer around
+    ### optimizer = self.levels[lvl].optimizer
+    ### coarse_optimizer = self.levels[lvl+1].optimizer
+
+
     ##
     # Store new options needed by MG/Opt
     self.levels[lvl].restrict_params = restrict_params[lvl]
@@ -1368,7 +1388,7 @@ class mgopt_solver:
       write_params_inplace(coarse_model, e_H)
       e_h = get_interp_params(coarse_model, **interp_params_kwargs) 
       #do_interp_states(model, coarse_model, **interp_states_kwargs)
-      root_print(rank, mgopt_printlevel, 2, "  Norm of error correction:       " + str(tensor_list_dot(e_h, e_h).item()) ) 
+      root_print(rank, mgopt_printlevel, 2, "  Norm of error correction:       " + str(np.sqrt(tensor_list_dot(e_h, e_h).item())) ) 
       
 
     # 8. apply linesearch to update x_h
@@ -1460,6 +1480,8 @@ class mgopt_solver:
     method, optim_kwargs = unpack_arg(option)
     if method == "pytorch_sgd":
       optimizer = optim.SGD(model.parameters(), **optim_kwargs)
+    elif method == "pytorch_adam":
+      optimizer = optim.Adam(model.parameters(), **optim_kwargs)
     else:
       raise ValueError('Unsupported optimizer: ' + method)
     ##
@@ -1472,12 +1494,9 @@ class mgopt_solver:
     if method == "tb_simple_backtrack_ls":
       check_has_args(ls_kwargs, ['ls_params'], method)
       line_search = tb_simple_backtrack_ls
-    elif method == "no_line_search":
-      # Do no line-search, just return x_h <--  x_h + e_h
-      def line_search(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, **ls_params):
-        try: alpha = ls_params['alpha']
-        except: alpha = 1.0
-        tensor_list_AXPY(alpha, e_h, 1.0, x_h, inplace=True)
+    if method == "tb_simple_ls":
+      check_has_args(ls_kwargs, ['ls_params'], method)
+      line_search = tb_simple_ls
     else:
       raise ValueError('Unsupported line search: ' + method)
     ##
