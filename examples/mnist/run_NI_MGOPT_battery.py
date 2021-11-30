@@ -39,7 +39,7 @@ def main():
   #        -- This yields   1./2.*(5 + 4*12) + (5 + 4*12)  =  79.5
   #           Or, we do (5 + 4*12) = 53 epochs on each NI level so that all solvers do a similar amount of "training"
   NI_run_string = ' main_mgopt.py --steps 16 --samp-ratio 0.2 --mgopt-printlevel 1 --ni-levels 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --mgopt-iter 0 --NIepochs 53'
-  NI_MGOpt_run_string = 'main_mgopt.py --steps 16 --samp-ratio 0.2 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 2 --mgopt-nrelax-post 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-iters 1  --epochs 17 --NIepochs 5 '
+  NI_MGOpt_run_string = 'main_mgopt.py --steps 16 --samp-ratio 0.2 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 2 --mgopt-nrelax-post 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-iters 1  --epochs 12 --NIepochs 5 '
   NI_MGOpt_LR_run_string = 'main_mgopt.py --steps 16 --samp-ratio 0.2 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 2 --mgopt-nrelax-post 2 --lp-fwd-cfactor 2 --lp-bwd-cfactor 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-bwd-finefcf --lp-bwd-relaxonlycg --lp-iters 1  --epochs 12 --NIepochs 5'
 
   # Test <>
@@ -54,7 +54,7 @@ def main():
 
   ##
   # Number of tests to run and file names 
-  ntests = 3
+  ntests = 12
   TB_NI_file = 'TB_NI'
   temp_TB_NI_file = 'temp_' + TB_NI_file 
   #
