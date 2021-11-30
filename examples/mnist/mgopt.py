@@ -674,7 +674,7 @@ def root_print(rank, printlevel_cutoff, importance, s):
   '''
   if rank==0:
     if importance <= printlevel_cutoff:
-      print(s)
+      print(s, flush=True)
 
 def unpack_arg(v):
   ''' Helper function for unpacking arguments '''
