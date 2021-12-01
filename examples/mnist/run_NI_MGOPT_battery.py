@@ -119,11 +119,11 @@ def main():
   if sys.argv[1].startswith('run_NI'):
     for k in range(ntests):
       full_run_string = 'python3 ' + run_string + ' --seed ' + str(k*11) + '  >  ' +\
-                         temp_file + '_' + str(k) + '.out' + ' &'
+                         temp_file + '_' + str(k) + '.out' ## + ' &'  ## add the ampersand to run everything concurrently
       os.system(full_run_string)
       
       # Debug output
-      print("\nSubmitting:\n $ " + full_run_string)
+      print("\nSubmitting job " + str(k) + " :\n $ " + full_run_string, flush=True)
 
 
 if __name__ == '__main__':
