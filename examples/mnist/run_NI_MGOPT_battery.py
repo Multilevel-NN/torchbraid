@@ -19,6 +19,9 @@ def main():
   Cat any temporary files into the global output file, and remove temporary files
   $ python3  run_NI_MGOPT_battery.py  collate_output
 
+  If you want to leave it run overnight, redirect std error and out to a file with
+  $ python3  run_NI_MGOPT_battery.py  run_NI >  temp.out  2>&1  & 
+
   '''
   
   ##
