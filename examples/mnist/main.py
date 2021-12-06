@@ -162,6 +162,18 @@ class StepLayer(nn.Module):
         ker_width = 3
         self.conv1 = nn.Conv2d(channels, channels, ker_width, padding=1, padding_mode="zeros")
         self.conv2 = nn.Conv2d(channels, channels, ker_width, padding=1, padding_mode="zeros")
+        with torch.no_grad():
+            # find and set the center of the convolutional kernel to a value centered around -1
+            weights = []
+            for conv in [self.conv1, self.conv2]: 
+                size = self.conv1.weight.size()[-2:]
+                i_1 = size[0]//2
+                i_2 = size[1]//2
+                fan_in, fan_out = nn.init._calculate_fan_in_and_fan_out(conv.weight)
+                bound = 1/np.sqrt(fan_in)
+                w = conv.weight
+                w[..., i_1, i_2] = np.random.uniform(-1-bound, -1+bound)
+                conv.weight = nn.Parameter(w)
 
         if init_conv is not None:
             # for now, set the bias to zero
@@ -181,7 +193,7 @@ class StepLayer(nn.Module):
         x = self.conv1(x)
         # x = F.relu(x)
         # x = F.sigmoid(x)
-        x = F.tanh(x)
+        # x = F.tanh(x)
         # x = self.conv2(x)
         # x = F.relu(x)
         return x
@@ -415,7 +427,7 @@ def main():
                         help='how much of the data to read in and use for training/testing')
 
     # artichtectural settings
-    parser.add_argument('--steps', type=int, default=16, metavar='N',
+    parser.add_argument('--steps', type=int, default=8, metavar='N',
                         help='Number of times steps in the resnet layer (default: 24)')
     parser.add_argument('--channels', type=int, default=1, metavar='N',
                         help='Number of channels in resnet layer (default: 4)')
@@ -423,7 +435,7 @@ def main():
                         help='Train with the MNIST digit recognition problem (default: True)')
     parser.add_argument('--serial-file', type=str, default=None,
                         help='Load the serial problem from file')
-    parser.add_argument('--tf', type=float, default=1.542126e-02,
+    parser.add_argument('--tf', type=float, default=7.710628e-03,
                         help='Final time')
 
     # algorithmic settings (gradient descent and batching
@@ -455,9 +467,9 @@ def main():
                         help='Layer parallel use downcycle on or off (default: False)')
     parser.add_argument('--lp-use-fmg', action='store_true', default=False,
                         help='Layer parallel use FMG for one cycle (default: False)')
-    parser.add_argument('--lp-sc-levels', type=int, nargs='+', default=[0], metavar='N',
+    parser.add_argument('--lp-sc-levels', type=int, nargs='+', default=[-2], metavar='N',
                         help="Layer parallel do spatial coarsenening on provided levels (-2: no sc, -1: sc all levels, default: -2)")
-    parser.add_argument('--lp-init-heat', action='store_true', default=False,
+    parser.add_argument('--lp-init-heat', action='store_true', default=True,
                         help="Layer parallel initialize convolutional kernal to the heat equation")
 
     rank = MPI.COMM_WORLD.Get_rank()

@@ -193,7 +193,7 @@ class ForwardODENetApp(BraidApp):
             dx = pi/(t_y.size()[-2] + 1)
             dy = pi/(t_y.size()[-1] + 1)
 
-            if abs(tstop - 128*dt) < 1e-5:
+            if abs(tstop - 8*dt) < 1e-5:
                 with open(f"step_tf0_l_{level}.txt", 'w') as f:
                     for val in t_y.detach().numpy()[0,0].flatten():
                         f.write(f"{val}\n")
@@ -208,7 +208,7 @@ class ForwardODENetApp(BraidApp):
             # q = dt * layer(t_x)                 # default
             t_y.add_(q)
 
-            if abs(tstop - 128*dt) < 1e-5:
+            if abs(tstop - 8*dt) < 1e-5:
                 with open(f"step_tf1_{level}.txt", 'w') as f:
                     for val in t_y.detach().numpy()[0,0].flatten():
                         f.write(f"{val}\n")
