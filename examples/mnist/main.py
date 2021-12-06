@@ -160,8 +160,10 @@ class StepLayer(nn.Module):
     def __init__(self, channels, init_conv=None):
         super(StepLayer, self).__init__()
         ker_width = 3
-        self.conv1 = nn.Conv2d(channels, channels, ker_width, padding=1, padding_mode="zeros")
-        self.conv2 = nn.Conv2d(channels, channels, ker_width, padding=1, padding_mode="zeros")
+        self.conv1 = nn.Conv2d(channels, channels, ker_width,
+                               padding=1, padding_mode="zeros")
+        self.conv2 = nn.Conv2d(channels, channels, ker_width,
+                               padding=1, padding_mode="zeros")
 
         if init_conv is not None:
             # for now, set the bias to zero
@@ -181,7 +183,7 @@ class StepLayer(nn.Module):
         x = self.conv1(x)
         # x = F.relu(x)
         # x = F.sigmoid(x)
-        x = F.tanh(x)
+        # x = F.tanh(x)
         # x = self.conv2(x)
         # x = F.relu(x)
         return x
@@ -415,7 +417,7 @@ def main():
                         help='how much of the data to read in and use for training/testing')
 
     # artichtectural settings
-    parser.add_argument('--steps', type=int, default=16, metavar='N',
+    parser.add_argument('--steps', type=int, default=128, metavar='N',
                         help='Number of times steps in the resnet layer (default: 24)')
     parser.add_argument('--channels', type=int, default=1, metavar='N',
                         help='Number of channels in resnet layer (default: 4)')
@@ -457,7 +459,7 @@ def main():
                         help='Layer parallel use FMG for one cycle (default: False)')
     parser.add_argument('--lp-sc-levels', type=int, nargs='+', default=[0], metavar='N',
                         help="Layer parallel do spatial coarsenening on provided levels (-2: no sc, -1: sc all levels, default: -2)")
-    parser.add_argument('--lp-init-heat', action='store_true', default=False,
+    parser.add_argument('--lp-init-heat', action='store_true', default=True,
                         help="Layer parallel initialize convolutional kernal to the heat equation")
 
     rank = MPI.COMM_WORLD.Get_rank()
@@ -512,12 +514,6 @@ def main():
 
     root_print(rank, 'MNIST ODENet:')
 
-    def preproject(im):
-        x = torch.clone(im)
-        x = my_restrict(x)
-        x = my_interp(x)
-        return x
-
     def heat_init(im):
         n, m = im.shape[-2:]
         x = torch.clone(im)
@@ -531,6 +527,9 @@ def main():
 
         return x
 
+    def to_double(im):
+        return im.double()
+
     # read in Digits MNIST or Fashion MNIST
     if args.digits:
         root_print(rank, '-- Using Digit MNIST')
@@ -538,7 +537,8 @@ def main():
                                         transforms.ToTensor(),
                                         transforms.Normalize(
                                             (0.1307,), (0.3081,)),
-                                        heat_init                 # comment in to initialize all images to the sine-bump
+                                        heat_init,                  # comment in to initialize all images to the sin-bump
+                                        to_double
                                         ])
         dataset = datasets.MNIST('./data', download=True, transform=transform)
     else:
@@ -619,6 +619,8 @@ def main():
     # if force_lp:
     #diagnose(rank, model, test_loader,0)
 
+    model.double()
+
     for epoch in range(1, args.epochs + 1):
         # training is turned off to test initialization of layers
         start_time = timer()
@@ -646,4 +648,5 @@ def main():
 
 
 if __name__ == '__main__':
+    torch.set_default_dtype(torch.float64)
     main()

@@ -1,0 +1,698 @@
+
+  Braid: Begin simulation, 128 time steps
+  Braid: || r_0 || not available, wall time = 1.80e-02
+  Braid: || r_1 || = 2.227665e-08, conv factor = 1.00e+00, wall time = 8.94e-02
+  Braid: || r_2 || = 4.317676e-16, conv factor = 1.94e-08, wall time = 1.60e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = 0
+
+  max iterations        = 100
+  iterations            = 3
+
+  residual norm         = 4.317676e-16
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 0
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.170356
+
+
+  Braid: Begin simulation, 128 time steps
+  Braid: || r_0 || not available, wall time = 2.70e-02
+  Braid: || r_1 || = 6.770732e-05, conv factor = 1.00e+00, wall time = 1.67e-01
+  Braid: || r_2 || = 2.097456e-07, conv factor = 3.10e-03, wall time = 3.08e-01
+  Braid: || r_3 || = 7.177619e-10, conv factor = 3.42e-03, wall time = 4.52e-01
+  Braid: || r_4 || = 2.613094e-12, conv factor = 3.64e-03, wall time = 5.93e-01
+  Braid: || r_5 || = 9.994374e-15, conv factor = 3.82e-03, wall time = 7.35e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = -1
+
+  max iterations        = 100
+  iterations            = 6
+
+  residual norm         = 9.994374e-15
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 1
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.783072
+
+  Braid: || r_0 || not available, wall time = 1.47e-02
+  Braid: || r_1 || = 2.731568e-08, conv factor = 1.00e+00, wall time = 8.45e-02
+  Braid: || r_2 || = 3.028279e-13, conv factor = 1.11e-05, wall time = 1.54e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = 0
+
+  max iterations        = 100
+  iterations            = 3
+
+  residual norm         = 3.028279e-13
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 0
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.164454
+
+  Braid: || r_0 || not available, wall time = 2.45e-02
+  Braid: || r_1 || = 4.647041e-05, conv factor = 1.00e+00, wall time = 1.64e-01
+  Braid: || r_2 || = 1.416413e-07, conv factor = 3.05e-03, wall time = 3.02e-01
+  Braid: || r_3 || = 4.808756e-10, conv factor = 3.40e-03, wall time = 4.44e-01
+  Braid: || r_4 || = 1.746702e-12, conv factor = 3.63e-03, wall time = 5.83e-01
+  Braid: || r_5 || = 6.686154e-15, conv factor = 3.83e-03, wall time = 7.17e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = -1
+
+  max iterations        = 100
+  iterations            = 6
+
+  residual norm         = 6.686154e-15
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 1
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.762937
+
+  Braid: || r_0 || not available, wall time = 1.44e-02
+  Braid: || r_1 || = 2.926066e-08, conv factor = 1.00e+00, wall time = 8.02e-02
+  Braid: || r_2 || = 5.360733e-13, conv factor = 1.83e-05, wall time = 1.45e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = 0
+
+  max iterations        = 100
+  iterations            = 3
+
+  residual norm         = 5.360733e-13
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 0
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.155094
+
+  Braid: || r_0 || not available, wall time = 2.39e-02
+  Braid: || r_1 || = 8.066998e-05, conv factor = 1.00e+00, wall time = 1.53e-01
+  Braid: || r_2 || = 2.528669e-07, conv factor = 3.13e-03, wall time = 2.85e-01
+  Braid: || r_3 || = 8.691098e-10, conv factor = 3.44e-03, wall time = 4.18e-01
+  Braid: || r_4 || = 3.167378e-12, conv factor = 3.64e-03, wall time = 5.51e-01
+  Braid: || r_5 || = 1.210234e-14, conv factor = 3.82e-03, wall time = 6.83e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = -1
+
+  max iterations        = 100
+  iterations            = 6
+
+  residual norm         = 1.210234e-14
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 1
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.726851
+
+  Braid: || r_0 || not available, wall time = 1.39e-02
+  Braid: || r_1 || = 3.247804e-08, conv factor = 1.00e+00, wall time = 7.83e-02
+  Braid: || r_2 || = 9.686901e-13, conv factor = 2.98e-05, wall time = 1.43e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = 0
+
+  max iterations        = 100
+  iterations            = 3
+
+  residual norm         = 9.686901e-13
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 0
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.152440
+
+  Braid: || r_0 || not available, wall time = 2.38e-02
+  Braid: || r_1 || = 5.396603e-05, conv factor = 1.00e+00, wall time = 1.54e-01
+  Braid: || r_2 || = 1.663197e-07, conv factor = 3.08e-03, wall time = 2.86e-01
+  Braid: || r_3 || = 5.674491e-10, conv factor = 3.41e-03, wall time = 4.15e-01
+  Braid: || r_4 || = 2.063602e-12, conv factor = 3.64e-03, wall time = 5.46e-01
+  Braid: || r_5 || = 7.889440e-15, conv factor = 3.82e-03, wall time = 6.79e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = -1
+
+  max iterations        = 100
+  iterations            = 6
+
+  residual norm         = 7.889440e-15
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 1
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.722605
+
+  Braid: || r_0 || not available, wall time = 1.41e-02
+  Braid: || r_1 || = 3.560967e-08, conv factor = 1.00e+00, wall time = 7.87e-02
+  Braid: || r_2 || = 1.176398e-12, conv factor = 3.30e-05, wall time = 1.43e-01
+  Braid: || r_3 || = 2.891210e-15, conv factor = 2.46e-03, wall time = 2.09e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = 0
+
+  max iterations        = 100
+  iterations            = 4
+
+  residual norm         = 2.891210e-15
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 0
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.218966
+
+  Braid: || r_0 || not available, wall time = 2.37e-02
+  Braid: || r_1 || = 1.184277e-04, conv factor = 1.00e+00, wall time = 1.53e-01
+  Braid: || r_2 || = 3.633203e-07, conv factor = 3.07e-03, wall time = 2.82e-01
+  Braid: || r_3 || = 1.236392e-09, conv factor = 3.40e-03, wall time = 4.12e-01
+  Braid: || r_4 || = 4.496267e-12, conv factor = 3.64e-03, wall time = 5.42e-01
+  Braid: || r_5 || = 1.723929e-14, conv factor = 3.83e-03, wall time = 6.72e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = -1
+
+  max iterations        = 100
+  iterations            = 6
+
+  residual norm         = 1.723929e-14
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 1
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.716031
+
+  Braid: || r_0 || not available, wall time = 1.40e-02
+  Braid: || r_1 || = 5.876789e-08, conv factor = 1.00e+00, wall time = 7.95e-02
+  Braid: || r_2 || = 2.954464e-12, conv factor = 5.03e-05, wall time = 1.44e-01
+  Braid: || r_3 || = 7.247489e-15, conv factor = 2.45e-03, wall time = 2.08e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = 0
+
+  max iterations        = 100
+  iterations            = 4
+
+  residual norm         = 7.247489e-15
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 0
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.217888
+
+  Braid: || r_0 || not available, wall time = 2.37e-02
+  Braid: || r_1 || = 6.586411e-05, conv factor = 1.00e+00, wall time = 1.54e-01
+  Braid: || r_2 || = 2.056372e-07, conv factor = 3.12e-03, wall time = 2.83e-01
+  Braid: || r_3 || = 7.058526e-10, conv factor = 3.43e-03, wall time = 4.11e-01
+  Braid: || r_4 || = 2.571272e-12, conv factor = 3.64e-03, wall time = 5.40e-01
+  Braid: || r_5 || = 9.823141e-15, conv factor = 3.82e-03, wall time = 6.69e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = -1
+
+  max iterations        = 100
+  iterations            = 6
+
+  residual norm         = 9.823141e-15
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 1
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.717057
+
+  Braid: || r_0 || not available, wall time = 1.39e-02
+  Braid: || r_1 || = 1.031000e-07, conv factor = 1.00e+00, wall time = 7.81e-02
+  Braid: || r_2 || = 9.547994e-12, conv factor = 9.26e-05, wall time = 1.42e-01
+  Braid: || r_3 || = 2.337250e-14, conv factor = 2.45e-03, wall time = 2.09e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = 0
+
+  max iterations        = 100
+  iterations            = 4
+
+  residual norm         = 2.337250e-14
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 0
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.219616
+
+  Braid: || r_0 || not available, wall time = 2.39e-02
+  Braid: || r_1 || = 4.098958e-05, conv factor = 1.00e+00, wall time = 1.61e-01
+  Braid: || r_2 || = 1.248566e-07, conv factor = 3.05e-03, wall time = 2.96e-01
+  Braid: || r_3 || = 4.238522e-10, conv factor = 3.39e-03, wall time = 4.33e-01
+  Braid: || r_4 || = 1.539200e-12, conv factor = 3.63e-03, wall time = 5.74e-01
+  Braid: || r_5 || = 5.887070e-15, conv factor = 3.82e-03, wall time = 7.11e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = -1
+
+  max iterations        = 100
+  iterations            = 6
+
+  residual norm         = 5.887070e-15
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 1
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.756681
+
+  Braid: || r_0 || not available, wall time = 1.41e-02
+  Braid: || r_1 || = 1.364101e-07, conv factor = 1.00e+00, wall time = 8.22e-02
+  Braid: || r_2 || = 1.359512e-11, conv factor = 9.97e-05, wall time = 1.52e-01
+  Braid: || r_3 || = 3.325317e-14, conv factor = 2.45e-03, wall time = 2.22e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = 0
+
+  max iterations        = 100
+  iterations            = 4
+
+  residual norm         = 3.325317e-14
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 0
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.232086
+
+  Braid: || r_0 || not available, wall time = 2.65e-02
+  Braid: || r_1 || = 5.521100e-05, conv factor = 1.00e+00, wall time = 1.62e-01
+  Braid: || r_2 || = 1.718181e-07, conv factor = 3.11e-03, wall time = 2.98e-01
+  Braid: || r_3 || = 5.877381e-10, conv factor = 3.42e-03, wall time = 4.35e-01
+  Braid: || r_4 || = 2.140330e-12, conv factor = 3.64e-03, wall time = 5.75e-01
+  Braid: || r_5 || = 8.202487e-15, conv factor = 3.83e-03, wall time = 7.10e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = -1
+
+  max iterations        = 100
+  iterations            = 6
+
+  residual norm         = 8.202487e-15
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 1
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.755728
+
+  Braid: || r_0 || not available, wall time = 1.51e-02
+  Braid: || r_1 || = 1.721874e-07, conv factor = 1.00e+00, wall time = 7.96e-02
+  Braid: || r_2 || = 2.130431e-11, conv factor = 1.24e-04, wall time = 1.44e-01
+  Braid: || r_3 || = 5.208038e-14, conv factor = 2.44e-03, wall time = 2.09e-01
+
+  Braid Solver Stats:
+  start time = 0.000000e+00
+  stop time  = 1.233701e-01
+  time steps = 128
+
+  use seq soln?         = 0
+  storage               = 0
+
+  max iterations        = 100
+  iterations            = 4
+
+  residual norm         = 5.208038e-14
+  stopping tolerance    = 1.000000e-12
+  use relative tol?     = 0
+                                          --> 2-norm TemporalNorm 
+
+  use fmg?              = 0
+  access_level          = 1
+  print_level           = 2
+
+  max number of levels  = 2
+  min coarse            = 2
+  number of levels      = 2
+  skip down cycle       = 1
+  periodic              = 0
+  relax_only_cg         = 0
+  finalFCRelax          = 0
+  number of refinements = 0
+
+  level   time-pts   cfactor   nrelax   Crelax Wt
+      0       128        2        1        1.00
+      1        64  
+
+  wall time = 0.219464
+
+  Braid: || r_0 || not available, wall time = 2.38e-02
+  Braid: || r_1 || = 3.394096e-05, conv fa
