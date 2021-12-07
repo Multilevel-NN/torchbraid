@@ -279,9 +279,9 @@ class BraidApp:
     #braid_TestBuf(<braid_App> self, comm.ob_mpi, stdout, 0.0,
     #              b_init, b_free, b_sum, b_norm, b_bufsize, b_bufpack, b_bufunpack) 
 
-    braid_TestCoarsenRefine(<braid_App> self, comm.ob_mpi, stdout, 0.0, 0.1, 0.2, 
-                            b_init, b_access, b_free, b_clone, b_sum, b_norm, 
-                            b_coarsen, b_refine)            
+    #braid_TestCoarsenRefine(<braid_App> self, comm.ob_mpi, stdout, 0.0, 0.1, 0.2, 
+    #                        b_init, b_access, b_free, b_clone, b_sum, b_norm, 
+    #                        b_coarsen, b_refine)            
 
     #if self.spatial_mg:
     #    braid_TestAll( <braid_App> self, comm.ob_mpi, stdout, 0.0, 0.1, 0.2, 
