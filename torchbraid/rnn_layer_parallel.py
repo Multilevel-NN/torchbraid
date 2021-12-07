@@ -171,6 +171,12 @@ class RNN_Parallel(nn.Module):
     self.fwd_app.setNumRelax(max_iters)
     self.bwd_app.setNumRelax(max_iters)
 
+  def getFwdMaxIters(self):
+    return self.fwd_app.getMaxIters()
+
+  def getBwdMaxIters(self):
+    return self.bwd_app.getMaxIters()
+
   def setFwdMaxIters(self,max_iters):
     self.fwd_app.setMaxIters(max_iters)
 

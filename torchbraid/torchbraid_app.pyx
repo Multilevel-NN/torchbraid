@@ -170,6 +170,8 @@ class BraidApp:
     else:
       braid_SetSkip(core,1)
 
+    #_braid_SetVerbosity(core,1)
+
     # store the c pointer
     py_core = PyBraid_Core()
     py_core.setCore(core)
@@ -389,6 +391,9 @@ class BraidApp:
 
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetNRelax(core,level,self.nrelax)
+
+  def getMaxIters(self):
+    return self.max_iters
 
   def setMaxIters(self,max_iters):
     self.max_iters = max_iters

@@ -345,6 +345,14 @@ cdef extern from "_braid.h":
                                int   *ilower_ptr,
                                int   *iupper_ptr);
 
+cdef extern from "util.h":
+
+    ## Switch for displaying the XBraid actions. Used for debugging only.
+    int _braid_SetVerbosity(braid_Core  core,
+                            int   verbose_adj);
+
+
+
 # cdef object convert_carray_to_numpy(double * v, dim1, dim2=1, dim3=1):
 #     '''
 #     Helper function to cast C array v to an (dim1 x dim2 x dim3) 
