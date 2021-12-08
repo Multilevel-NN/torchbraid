@@ -82,7 +82,8 @@ import numpy as np
 import torch
 from torchvision import datasets, transforms
 from mpi4py import MPI
-from mgopt import parse_args, mgopt_solver
+from utils import parse_args, ParallelNet
+from mgopt import mgopt_solver
 
 def main():
   
@@ -126,29 +127,29 @@ def main():
   # Define ParNet parameters for each nested iteration level, starting from fine to coarse
   networks = [] 
   for lsteps in local_ni_steps: 
-    networks.append( ('ParallelNet', {'channels'          : args.channels, 
-                                      'local_steps'       : lsteps,
-                                      'max_iters'         : args.lp_iters,
-                                      'print_level'       : args.lp_print,
-                                      'Tf'                : args.tf,
-                                      'max_fwd_levels'    : args.lp_fwd_levels,
-                                      'max_bwd_levels'    : args.lp_bwd_levels,
-                                      'max_fwd_iters'     : args.lp_fwd_iters,
-                                      'print_level'       : args.lp_print,
-                                      'braid_print_level' : args.lp_braid_print,
-                                      'fwd_cfactor'       : args.lp_fwd_cfactor,
-                                      'bwd_cfactor'       : args.lp_bwd_cfactor,
-                                      'fine_fwd_fcf'      : args.lp_fwd_finefcf,
-                                      'fine_bwd_fcf'      : args.lp_bwd_finefcf,
-                                      'fwd_nrelax'        : args.lp_fwd_nrelax_coarse,
-                                      'bwd_nrelax'        : args.lp_bwd_nrelax_coarse,
-                                      'skip_downcycle'    : not args.lp_use_downcycle,
-                                      'fmg'               : args.lp_use_fmg,
-                                      'fwd_relax_only_cg' : args.lp_fwd_relaxonlycg,
-                                      'bwd_relax_only_cg' : args.lp_bwd_relaxonlycg,
-                                      'CWt'               : args.lp_use_crelax_wt,
-                                      'fwd_finalrelax'    : args.lp_fwd_finalrelax
-                                      }))
+    networks.append( {'channels'          : args.channels, 
+                      'local_steps'       : lsteps,
+                      'max_iters'         : args.lp_iters,
+                      'print_level'       : args.lp_print,
+                      'Tf'                : args.tf,
+                      'max_fwd_levels'    : args.lp_fwd_levels,
+                      'max_bwd_levels'    : args.lp_bwd_levels,
+                      'max_fwd_iters'     : args.lp_fwd_iters,
+                      'print_level'       : args.lp_print,
+                      'braid_print_level' : args.lp_braid_print,
+                      'fwd_cfactor'       : args.lp_fwd_cfactor,
+                      'bwd_cfactor'       : args.lp_bwd_cfactor,
+                      'fine_fwd_fcf'      : args.lp_fwd_finefcf,
+                      'fine_bwd_fcf'      : args.lp_bwd_finefcf,
+                      'fwd_nrelax'        : args.lp_fwd_nrelax_coarse,
+                      'bwd_nrelax'        : args.lp_bwd_nrelax_coarse,
+                      'skip_downcycle'    : not args.lp_use_downcycle,
+                      'fmg'               : args.lp_use_fmg,
+                      'fwd_relax_only_cg' : args.lp_fwd_relaxonlycg,
+                      'bwd_relax_only_cg' : args.lp_bwd_relaxonlycg,
+                      'CWt'               : args.lp_use_crelax_wt,
+                      'fwd_finalrelax'    : args.lp_fwd_finalrelax
+                      })
                                  
   ##
   # Specify optimization routine on each level, starting from fine to coarse
@@ -161,7 +162,10 @@ def main():
   mgopt_printlevel = args.mgopt_printlevel
   log_interval = args.log_interval
   mgopt = mgopt_solver()
-  mgopt.initialize_with_nested_iteration(ni_steps, train_loader, test_loader,
+
+  model_factory = lambda levels,**kwargs: ParallelNet(**kwargs)
+
+  mgopt.initialize_with_nested_iteration(model_factory,ni_steps, train_loader, test_loader,
           networks, epochs=epochs, log_interval=log_interval,
           mgopt_printlevel=mgopt_printlevel, optims=optims, seed=args.seed) 
    
