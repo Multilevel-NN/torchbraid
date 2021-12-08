@@ -23,7 +23,7 @@ import torch.optim as optim
 import torchbraid
 import torchbraid.utils
 
-from mgopt import root_print, compute_levels
+from torchbraid.mgopt import root_print, compute_levels
 
 from timeit import default_timer as timer
 

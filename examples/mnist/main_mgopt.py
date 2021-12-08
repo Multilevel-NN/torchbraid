@@ -83,7 +83,7 @@ import torch
 from torchvision import datasets, transforms
 from mpi4py import MPI
 from utils import parse_args, ParallelNet
-from mgopt import mgopt_solver
+from torchbraid.mgopt import mgopt_solver
 
 def main():
   
