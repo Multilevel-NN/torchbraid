@@ -97,7 +97,14 @@ def main():
   transform = transforms.Compose([transforms.ToTensor(),
                                   transforms.Normalize((0.1307,), (0.3081,))
                                  ])
-  dataset = datasets.MNIST('./digit-data', download=False,transform=transform)
+  if args.use_fashion:
+    if rank==0:
+      print('Using fashion MNIST...')
+    dataset = datasets.FashionMNIST('./fashion-data', download=False,transform=transform)
+  else:
+    if rank==0:
+      print('Using digit MNIST...')
+    dataset = datasets.MNIST('./digit-data', download=False,transform=transform)
   train_size = int(50000*args.samp_ratio)
   test_size = int(10000*args.samp_ratio)
   #

@@ -546,6 +546,8 @@ def parse_args():
                       help='random seed (default: 1)')
   parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                       help='how many batches to wait before logging training status')
+  parser.add_argument('--use-fashion',action='store_true', default=False, 
+                      help='Enables the use of Fashion MNIST if on, and Digit MNIST otherwise')
   
   # artichtectural settings
   parser.add_argument('--steps', type=int, default=4, metavar='N',
@@ -555,7 +557,7 @@ def parse_args():
   parser.add_argument('--tf',type=float,default=1.0,
                       help='Final time')
 
-  # algorithmic settings (gradient descent and batching
+  # algorithmic settings (gradient descent and batching)
   parser.add_argument('--batch-size', type=int, default=50, metavar='N',
                       help='input batch size for training (default: 50)')
   parser.add_argument('--NIepochs', type=int, default=2, metavar='N',
