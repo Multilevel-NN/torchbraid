@@ -37,16 +37,16 @@
 # $ python3 main_mgopt.py --steps 8 --samp-ratio 0.1 --lp-fwd-cfactor 2 --lp-bwd-cfactor 2  --ni-levels 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --mgopt-iter 0
 #    ....
 #    ....
-#    Train Epoch: 2 [0/5000 (0%)]        	Loss: 0.080145	Time Per Batch 0.074357
-#    Train Epoch: 2 [500/5000 (10%)]     	Loss: 0.166830	Time Per Batch 0.073399
+#    Train Epoch: 2 [0/5000 (0%)]        Loss: 0.080145	Time Per Batch 0.074357
+#    Train Epoch: 2 [500/5000 (10%)]     Loss: 0.166830	Time Per Batch 0.073399
 #
 #
 # +++ TB+MG/Opt (Takes the above NI solver and adds 1 epoch of MG/Opt)  (no multilevel MGRIT) +++
 # $ python3 main_mgopt.py --steps 12 --samp-ratio 0.1 --epochs 2 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 2 --mgopt-nrelax-post 2 --lp-fwd-cfactor 2 --lp-bwd-cfactor 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-iters 1
 #    ....
 #    ....
-#    Train Epoch: 1 [50/5000 (1%)]     	Loss: 0.023389	Time Per Batch 0.780689
-#    Train Epoch: 1 [550/5000 (11%)]     	Loss: 0.037635	Time Per Batch 0.781935
+#    Train Epoch: 1 [50/5000 (1%)]     Loss: 0.023389	Time Per Batch 0.780689
+#    Train Epoch: 1 [550/5000 (11%)]     Loss: 0.037635	Time Per Batch 0.781935
 #
 #
 # ++++  TB+MG/Opt+Local (Takes the above NI solver and adds 2 epoch of MG/Opt with purely local relaxation on each level) +++
@@ -57,23 +57,23 @@
 # $ python3 main_mgopt.py --steps 12 --samp-ratio 0.1 --epochs 4 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 2 --mgopt-nrelax-post 2 --lp-fwd-cfactor 2 --lp-bwd-cfactor 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-bwd-finefcf --lp-bwd-relaxonlycg --lp-iters 1
 #    ....
 #    ....
-#   Train Epoch: 1 [50/5000 (1%)]     	Loss: 0.026627	Time Per Batch 1.354365
-#   Train Epoch: 1 [550/5000 (11%)]     	Loss: 0.038312	Time Per Batch 1.314453
+#   Train Epoch: 1 [50/5000 (1%)]     Loss: 0.026627	Time Per Batch 1.354365
+#   Train Epoch: 1 [550/5000 (11%)]     Loss: 0.038312	Time Per Batch 1.314453
 #
 #
 # Same as above, but turned off relaxonlycg 
 # $ python3 main_mgopt.py --steps 12 --samp-ratio 0.1 --epochs 4 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 2 --mgopt-nrelax-post 2 --lp-fwd-cfactor 2 --lp-bwd-cfactor 2 --lp-fwd-levels 1 --lp-bwd-levels 1  --lp-iters 1
 #    ....
 #    ....
-#   Train Epoch: 1 [50/5000 (1%)]     	Loss: 0.023389	Time Per Batch 0.791520
-#   Train Epoch: 1 [550/5000 (11%)]     	Loss: 0.037635	Time Per Batch 0.786753
+#   Train Epoch: 1 [50/5000 (1%)]     Loss: 0.023389	Time Per Batch 0.791520
+#   Train Epoch: 1 [550/5000 (11%)]     Loss: 0.037635	Time Per Batch 0.786753
 #
 #
 # +++ relax_onlycg used both ways +++
 #  $python3 main_mgopt.py --steps 12 --samp-ratio 0.1 --epochs 4 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 2 --mgopt-nrelax-post 2 --lp-fwd-cfactor 2 --lp-bwd-cfactor 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-bwd-finefcf --lp-bwd-relaxonlycg --lp-iters 1 --lp-fwd-relaxonlycg --lp-fwd-finefcf 
 #
-#   Train Epoch: 1 [50/5000 (1%)]     	Loss: 1.007567	Time Per Batch 1.445430
-#   Train Epoch: 1 [550/5000 (11%)]     	Loss: 1.922850	Time Per Batch 1.413595
+#   Train Epoch: 1 [50/5000 (1%)]     Loss: 1.007567	Time Per Batch 1.445430
+#   Train Epoch: 1 [550/5000 (11%)]     Loss: 1.922850	Time Per Batch 1.413595
 
 
 from __future__ import print_function
@@ -127,29 +127,29 @@ def main():
   # Define ParNet parameters for each nested iteration level, starting from fine to coarse
   networks = [] 
   for lsteps in local_ni_steps: 
-    networks.append( {'channels'          : args.channels, 
-                      'local_steps'       : lsteps,
-                      'max_iters'         : args.lp_iters,
-                      'print_level'       : args.lp_print,
-                      'Tf'                : args.tf,
-                      'max_fwd_levels'    : args.lp_fwd_levels,
-                      'max_bwd_levels'    : args.lp_bwd_levels,
-                      'max_fwd_iters'     : args.lp_fwd_iters,
-                      'print_level'       : args.lp_print,
-                      'braid_print_level' : args.lp_braid_print,
-                      'fwd_cfactor'       : args.lp_fwd_cfactor,
-                      'bwd_cfactor'       : args.lp_bwd_cfactor,
-                      'fine_fwd_fcf'      : args.lp_fwd_finefcf,
-                      'fine_bwd_fcf'      : args.lp_bwd_finefcf,
-                      'fwd_nrelax'        : args.lp_fwd_nrelax_coarse,
-                      'bwd_nrelax'        : args.lp_bwd_nrelax_coarse,
-                      'skip_downcycle'    : not args.lp_use_downcycle,
-                      'fmg'               : args.lp_use_fmg,
-                      'fwd_relax_only_cg' : args.lp_fwd_relaxonlycg,
-                      'bwd_relax_only_cg' : args.lp_bwd_relaxonlycg,
-                      'CWt'               : args.lp_use_crelax_wt,
-                      'fwd_finalrelax'    : args.lp_fwd_finalrelax
-                      })
+    networks.append(('Factory', {'channels'          : args.channels, 
+                                 'local_steps'       : lsteps,
+                                 'max_iters'         : args.lp_iters,
+                                 'print_level'       : args.lp_print,
+                                 'Tf'                : args.tf,
+                                 'max_fwd_levels'    : args.lp_fwd_levels,
+                                 'max_bwd_levels'    : args.lp_bwd_levels,
+                                 'max_fwd_iters'     : args.lp_fwd_iters,
+                                 'print_level'       : args.lp_print,
+                                 'braid_print_level' : args.lp_braid_print,
+                                 'fwd_cfactor'       : args.lp_fwd_cfactor,
+                                 'bwd_cfactor'       : args.lp_bwd_cfactor,
+                                 'fine_fwd_fcf'      : args.lp_fwd_finefcf,
+                                 'fine_bwd_fcf'      : args.lp_bwd_finefcf,
+                                 'fwd_nrelax'        : args.lp_fwd_nrelax_coarse,
+                                 'bwd_nrelax'        : args.lp_bwd_nrelax_coarse,
+                                 'skip_downcycle'    : not args.lp_use_downcycle,
+                                 'fmg'               : args.lp_use_fmg,
+                                 'fwd_relax_only_cg' : args.lp_fwd_relaxonlycg,
+                                 'bwd_relax_only_cg' : args.lp_bwd_relaxonlycg,
+                                 'CWt'               : args.lp_use_crelax_wt,
+                                 'fwd_finalrelax'    : args.lp_fwd_finalrelax
+                      }))
                                  
   ##
   # Specify optimization routine on each level, starting from fine to coarse
@@ -163,7 +163,7 @@ def main():
   log_interval = args.log_interval
   mgopt = mgopt_solver()
 
-  model_factory = lambda levels,**kwargs: ParallelNet(**kwargs)
+  model_factory = lambda level,**kwargs: ParallelNet(**kwargs)
 
   mgopt.initialize_with_nested_iteration(model_factory,ni_steps, train_loader, test_loader,
           networks, epochs=epochs, log_interval=log_interval,

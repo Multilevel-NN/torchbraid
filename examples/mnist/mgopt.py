@@ -486,7 +486,7 @@ class mgopt_solver:
 
     Attributes
     ----------
-    model           : PyTorch NN model, tested so far with TorchBraid ParallelNet model defined above
+    model           : PyTorch NN model, tested so far with only with TorchBraid ParallelNet model 
     network         : tuple describing the model setup parameters 
     interp_params   : tuple describing the option selected for interpolating network parameters 
     optims          : tuple describing the option selected for the underlying optimizationg method 
@@ -615,6 +615,11 @@ class mgopt_solver:
 
     Parameters
     ----------
+
+    model_factory : lambda (level,**model_args) -> PyTorch Module
+      A lambda to construct the model on each level of the hierarchy. The dictonary
+      aguments are to be used by the lambda for specific module options 
+
     ni_steps : array
       array of the number of time_steps at each level of nested iteration, e.g., [1, 2, 4]
       Note: the sequence of steps must be constant refinements, e.g., by a factor of 2 or 3
@@ -719,8 +724,12 @@ class mgopt_solver:
       
       ##
       # Create new model for this level
-      model = model_factory(k,**networks[k]) # user lambda that takes the arugments and builds the network
-      model.parallel_nn.setBwdStorage(0)  # Only really needed if Braid will create a single time-level.  
+      model_name, kwargs = unpack_arg(networks[k])
+      if model_name=='Factory':
+        model = model_factory(k,**kwargs) # user lambda that takes the arugments and builds the network
+        model.parallel_nn.setBwdStorage(0)  # Only really needed if Braid will create a single time-level.  
+      else:
+        raise ValueError('Unsupported model: ' + model_string)
 
       ##
       # Select Interpolate weights from coarser model to the new model
