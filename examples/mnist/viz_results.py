@@ -148,73 +148,182 @@ colors = ['k', 'm', 'b', 'c', 'r', 'g', 'y', 'k', 'm', 'b', 'c', 'r', 'g', 'y', 
 colors2 = ['-k', '-m', '-b', '-c', '-r', '-g', '-y', '-k', '-m', '-b', '-c', '-r', '-g', '-y', '-k', '-m', '-b', '-r', '-c', '-g', '-y']
 colors3 = ['--k', '--m', '--b', '--c', '--r', '--g', '--y', '--k', '--m', '--b', '--c', '--r', '--g', '--y', '--k', '--m', '--b', '--r', '--c', '--g', '--y']
 
-# test_results/simple_ls_67db6bbf/  test result for hash 67db6bbf using the defaults in that repo, nothing else, simple line-search
-losses1, train_losses1, accur1, num_correct1, MGOpt_start_val1, MGOpt_start_train1 = \
-        grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI.out')
-losses2, train_losses2, accur2, num_correct2, MGOpt_start_val2, MGOpt_start_train2 = \
-        grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI_MGOpt.out')
-#losses3, train_losses3, accur3, num_correct3,  MGOopt_start_val3, MGOpt_start_train3 = \
-#        grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI_MGOpt_LR.out')
-losses4, train_losses4, accur4, num_correct4, MGOpt_start_val4, MGOpt_start_train4 = \
-       grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI_MGOpt_damped_CGC_0_1.out')
-losses5, train_losses5, accur5, num_correct5, MGOpt_start_val5, MGOpt_start_train5 = \
-       grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI_MGOpt_damped_CGC_0_01.out')
+# Turn on the 20% MNIST plots
+if True:
 
-# Convert to nice for plotting arrays
-losses1, accur1, num_correct1, train_losses1 = \
-        convert_data_for_plotting(losses1, accur1, num_correct1, train_losses1)
-losses2, accur2, num_correct2, train_losses2 = \
-    convert_data_for_plotting(losses2, accur2, num_correct2, train_losses2)
-#losses3, accur3, num_correct3, train_losses3 = \
-#    convert_data_for_plotting(losses3, accur3, num_correct3, train_losses3)
-losses4, accur4, num_correct4, train_losses4 = \
-    convert_data_for_plotting(losses4, accur4, num_correct4, train_losses4)
-losses5, accur5, num_correct5, train_losses5 = \
-    convert_data_for_plotting(losses5, accur5, num_correct5, train_losses5)
+    # test_results/simple_ls_67db6bbf/  test result for hash 67db6bbf using the defaults in that repo, nothing else, simple line-search
+    losses1, train_losses1, accur1, num_correct1, MGOpt_start_val1, MGOpt_start_train1 = \
+            grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI.out')
+    losses2, train_losses2, accur2, num_correct2, MGOpt_start_val2, MGOpt_start_train2 = \
+            grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI_MGOpt.out')
+    #losses3, train_losses3, accur3, num_correct3,  MGOopt_start_val3, MGOpt_start_train3 = \
+    #        grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI_MGOpt_LR.out')
+    losses4, train_losses4, accur4, num_correct4, MGOpt_start_val4, MGOpt_start_train4 = \
+           grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI_MGOpt_damped_CGC_0_1.out')
+    losses5, train_losses5, accur5, num_correct5, MGOpt_start_val5, MGOpt_start_train5 = \
+           grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI_MGOpt_damped_CGC_0_01.out')
+    losses6, train_losses6, accur6, num_correct6, MGOpt_start_val6, MGOpt_start_train6 = \
+           grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI_MGOpt_damped_CGC_0_000003.out')
+    losses7, train_losses7, accur7, num_correct7, MGOpt_start_val7, MGOpt_start_train7 = \
+           grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI_MGOpt_1_fine_grid_relax.out')
+    losses8, train_losses8, accur8, num_correct8, MGOpt_start_val8, MGOpt_start_train8 = \
+           grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI_MGOpt_1_fine_and_coarse_grid_relax_damped_CGC_0_01.out')
+    losses9, train_losses9, accur9, num_correct9, MGOpt_start_val9, MGOpt_start_train9 = \
+           grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI_MGOpt_1_fine_and_coarse_grid_relax.out')
+    losses10, train_losses10, accur10, num_correct10, MGOpt_start_val10, MGOpt_start_train10 = \
+           grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI_longer_epochs.out')
 
-# Total number of validation examples
-total_val_examples = 2000
-nrelax = 4.0    # number of mg/opt relaxations per iteration
-# Compute axes Scale axes to account for cheaper cost of the NI bootstrapping in the MGOpt solvers
-#                                  each NI step "costs" 1/nrelax              +       each MGOpt step costs "1"
-mgopt_val_xaxis = array( [ (1/nrelax)*k for k in range(MGOpt_start_val2)]     + [ (MGOpt_start_val2-1.0)/nrelax + k for k in range(1, losses2.shape[1] - MGOpt_start_val2 + 1) ] )
-mgopt_train_xaxis = array( [ (1/nrelax)*k for k in range(MGOpt_start_train2)] + [ (MGOpt_start_train2-1.0)/nrelax + k for k in range(1, train_losses2.shape[1] - MGOpt_start_train2 + 1) ] )
-# Now account for fact that the training results are printed out much more frequently 
-mgopt_train_xaxis = (max(mgopt_val_xaxis) / max(mgopt_train_xaxis)) * mgopt_train_xaxis
-# Do a simple linear scaling of the NI data (not quite accurate, but good enough) 
-NI_train_xaxis = arange(train_losses1.shape[1], dtype=float)
-NI_train_xaxis = (max(mgopt_val_xaxis) / max(NI_train_xaxis)) * NI_train_xaxis
-NI_val_xaxis = arange(losses1.shape[1], dtype=float)
-NI_val_xaxis = (max(mgopt_val_xaxis) / max(NI_val_xaxis)) * NI_val_xaxis
+    # Convert to nice for plotting arrays
+    losses1, accur1, num_correct1, train_losses1 = \
+            convert_data_for_plotting(losses1, accur1, num_correct1, train_losses1)
+    losses2, accur2, num_correct2, train_losses2 = \
+        convert_data_for_plotting(losses2, accur2, num_correct2, train_losses2)
+    #losses3, accur3, num_correct3, train_losses3 = \
+    #    convert_data_for_plotting(losses3, accur3, num_correct3, train_losses3)
+    losses4, accur4, num_correct4, train_losses4 = \
+        convert_data_for_plotting(losses4, accur4, num_correct4, train_losses4)
+    losses5, accur5, num_correct5, train_losses5 = \
+        convert_data_for_plotting(losses5, accur5, num_correct5, train_losses5)
+    losses6, accur6, num_correct6, train_losses6 = \
+        convert_data_for_plotting(losses6, accur6, num_correct6, train_losses6)
+    losses7, accur7, num_correct7, train_losses7 = \
+        convert_data_for_plotting(losses7, accur7, num_correct7, train_losses7)
+    # Test set 7 does twice as many (but cheaper epochs)  So for plotting, we just take every other MGOpt epoch
+    losses7 = losses7[:, [i for i in range(10)] + [i for i in range(10,34,2)] ]
+    accur7 = accur7[:, [i for i in range(10)] + [i for i in range(10,34,2)] ]
+    num_correct7 = num_correct7[:, [i for i in range(10)] + [i for i in range(10,34,2)] ]
+    train_losses7 = train_losses7[:, [i for i in range(210)] + [i for i in range(210,714,2)] ]
+    #
+    losses8, accur8, num_correct8, train_losses8 = \
+        convert_data_for_plotting(losses8, accur8, num_correct8, train_losses8)
+    # Test set 8 does four as many (but cheaper epochs)  So for plotting, we just take every other MGOpt epoch
+    losses8 = losses8[:, [i for i in range(10)] + [i for i in range(10,58,4)] ]
+    accur8 = accur8[:, [i for i in range(10)] + [i for i in range(10,58,4)] ]
+    num_correct8 = num_correct8[:, [i for i in range(10)] + [i for i in range(10,58,4)] ]
+    train_losses8 = train_losses8[:, [i for i in range(210)] + [i for i in range(210,1218,4)] ]
+    # Test set 9 does four as many (but cheaper epochs)  So for plotting, we just take every other MGOpt epoch
+    losses9, accur9, num_correct9, train_losses9 = \
+            convert_data_for_plotting(losses9, accur9, num_correct9, train_losses9)
+    losses9 = losses9[:, [i for i in range(10)] + [i for i in range(10,58,4)] ]
+    accur9 = accur9[:, [i for i in range(10)] + [i for i in range(10,58,4)] ]
+    num_correct9 = num_correct9[:, [i for i in range(10)] + [i for i in range(10,58,4)] ]
+    train_losses9 = train_losses9[:, [i for i in range(210)] + [i for i in range(210,1218,4)] ]
+    # Test set 10 has more epochs than 1, but it's just NI, so we scale it
+    losses10, accur10, num_correct10, train_losses10 = \
+            convert_data_for_plotting(losses10, accur10, num_correct10, train_losses10)
+    losses10 = losses10[0:int(0.9*losses10.shape[0])]
+    train_losses10 = train_losses10[0:int(0.9*train_losses10.shape[0])]
+    accur10 = accur10[0:int(0.9*accur10.shape[0])]
+    num_correct10 = num_correct10[0:int(0.9*num_correct10.shape[0])]
 
-# Plot Losses
-fig1, ax1 = plt.subplots(1,1)
-# Plot NI losses, training and validation 
-#     Have to scale the x-axes because different numbers of epochs are done for Pure NI than MGOP
-plot_losses(ax1, losses1, train_losses1, NI_val_xaxis, NI_train_xaxis, colors[0], label='NI')
-# Plot NI+MGOpt losses, training and validation
-plot_losses(ax1, losses2, train_losses2, mgopt_val_xaxis, mgopt_train_xaxis, colors[1], label='NI+MGOpt')
-plot_losses(ax1, losses4, train_losses4, mgopt_val_xaxis, mgopt_train_xaxis, colors[2], label='NI+MGOpt, 0.1 Damp')
-plot_losses(ax1, losses5, train_losses5, mgopt_val_xaxis, mgopt_train_xaxis, colors[3], label='NI+MGOpt, 0.01 Damp')
-#plot_losses(ax1, losses3, train_losses3, mgopt_val_xaxis, mgopt_train_xaxis, colors[0], label='NI+MGOpt+LocalRelax')
-# Labels and such
-ax1.set_xlabel('Work Units (4 Relaxations)', fontsize='large')
-ax1.set_ylabel('Loss', fontsize='large')
-ax1.legend(loc='lower left')
-plt.savefig('compare_losses.png', pad_inches=0.12, bbox_inches='tight', dpi=230)
-#
+    # Total number of validation examples
+    total_val_examples = 2000
+    nrelax = 4.0    # number of mg/opt relaxations per iteration
+    # Compute axes Scale axes to account for cheaper cost of the NI bootstrapping in the MGOpt solvers
+    #                                  each NI step "costs" 1/nrelax              +       each MGOpt step costs "1"
+    mgopt_val_xaxis = array( [ (1/nrelax)*k for k in range(MGOpt_start_val2)]     + [ (MGOpt_start_val2-1.0)/nrelax + k for k in range(1, losses2.shape[1] - MGOpt_start_val2 + 1) ] )
+    mgopt_train_xaxis = array( [ (1/nrelax)*k for k in range(MGOpt_start_train2)] + [ (MGOpt_start_train2-1.0)/nrelax + k for k in range(1, train_losses2.shape[1] - MGOpt_start_train2 + 1) ] )
+    # Now account for fact that the training results are printed out much more frequently 
+    mgopt_train_xaxis = (max(mgopt_val_xaxis) / max(mgopt_train_xaxis)) * mgopt_train_xaxis
+    # Do a simple linear scaling of the NI data (not quite accurate, but good enough) 
+    NI_train_xaxis = arange(train_losses10.shape[1], dtype=float)
+    NI_train_xaxis = (max(mgopt_val_xaxis) / max(NI_train_xaxis)) * NI_train_xaxis
+    NI_val_xaxis = arange(losses10.shape[1], dtype=float)
+    NI_val_xaxis = (max(mgopt_val_xaxis) / max(NI_val_xaxis)) * NI_val_xaxis
 
-# Plot number of missed validation test cases
-fig2, ax2 = plt.subplots(1,1)
-plot_validation_misclassified(ax2, total_val_examples-num_correct1, NI_val_xaxis, colors[0], label='NI')
-plot_validation_misclassified(ax2, total_val_examples-num_correct2, mgopt_val_xaxis, colors[1], label='NI+MGOpt')
-plot_validation_misclassified(ax2, total_val_examples-num_correct4, mgopt_val_xaxis, colors[2], label='NI+MGOpt, 0.1 Damp')
-plot_validation_misclassified(ax2, total_val_examples-num_correct5, mgopt_val_xaxis, colors[3], label='NI+MGOpt, 0.01 Damp')
-#plot_validation_misclassified(ax2, total_val_examples-num_correct3, mgopt_val_xaxis, colors[0], label='NI+MGOpt+LocalRelax')
-# Labels and such
-ax2.set_xlabel('Work Units (4 Relaxations)', fontsize='large')
-ax2.set_ylabel('Accuracy\nNumber Incorrect Validation Examples (2000 total)', fontsize='large')
-ax2.legend(loc='upper right')
-plt.savefig('compare_accuracy.png', pad_inches=0.12, bbox_inches='tight', dpi=230)
+    # Plot Losses
+    fig1, ax1 = plt.subplots(1,1)
+    # Plot NI losses, training and validation 
+    #     Have to scale the x-axes because different numbers of epochs are done for Pure NI than MGOP
+    plot_losses(ax1, losses10, train_losses10, NI_val_xaxis, NI_train_xaxis, colors[0], label='NI')
+    # Plot NI+MGOpt losses, training and validation
+    plot_losses(ax1, losses2, train_losses2, mgopt_val_xaxis, mgopt_train_xaxis, colors[1], label='NI+MGOpt')
+    #plot_losses(ax1, losses4, train_losses4, mgopt_val_xaxis, mgopt_train_xaxis, colors[2], label='NI+MGOpt, 0.1 Damp')
+    #plot_losses(ax1, losses5, train_losses5, mgopt_val_xaxis, mgopt_train_xaxis, colors[3], label='NI+MGOpt, 0.01 Damp')
+    #plot_losses(ax1, losses6, train_losses6, mgopt_val_xaxis, mgopt_train_xaxis, colors[5], label='NI+MGOpt, 0.000003 Damp')
+    plot_losses(ax1, losses7, train_losses7, mgopt_val_xaxis, mgopt_train_xaxis, colors[2], label='NI+MGOpt, WeakRelax')
+    #plot_losses(ax1, losses8, train_losses8, mgopt_val_xaxis, mgopt_train_xaxis, colors[3], label='NI+MGOpt, Weak Relax&CGC, 0.01 Damp')
+    plot_losses(ax1, losses9, train_losses9, mgopt_val_xaxis, mgopt_train_xaxis, colors[3], label='NI+MGOpt, Weak Relax&CGC')
+    #plot_losses(ax1, losses3, train_losses3, mgopt_val_xaxis, mgopt_train_xaxis, colors[0], label='NI+MGOpt+LocalRelax')
+    # Labels and such
+    ax1.set_xlabel('Work Units (4 Relaxations)', fontsize='large')
+    ax1.set_ylabel('Loss', fontsize='large')
+    ax1.legend(loc='lower left')
+    plt.savefig('compare_losses.png', pad_inches=0.12, bbox_inches='tight', dpi=230)
+    #
+
+    # Plot number of missed validation test cases
+    fig2, ax2 = plt.subplots(1,1)
+    plot_validation_misclassified(ax2, total_val_examples-num_correct10, NI_val_xaxis, colors[0], label='NI')
+    plot_validation_misclassified(ax2, total_val_examples-num_correct2, mgopt_val_xaxis, colors[1], label='NI+MGOpt')
+    #plot_validation_misclassified(ax2, total_val_examples-num_correct4, mgopt_val_xaxis, colors[2], label='NI+MGOpt, 0.1 Damp')
+    #plot_validation_misclassified(ax2, total_val_examples-num_correct5, mgopt_val_xaxis, colors[3], label='NI+MGOpt, 0.01 Damp')
+    #plot_validation_misclassified(ax2, total_val_examples-num_correct6, mgopt_val_xaxis, colors[5], label='NI+MGOpt, 0.000003 Damp')
+    plot_validation_misclassified(ax2, total_val_examples-num_correct7, mgopt_val_xaxis, colors[2], label='NI+MGOpt, WeakRelax')
+    #plot_validation_misclassified(ax2, total_val_examples-num_correct8, mgopt_val_xaxis, colors[3], label='NI+MGOpt, Weak Relax&CGC, 0.01 Damp')
+    plot_validation_misclassified(ax2, total_val_examples-num_correct9, mgopt_val_xaxis, colors[3], label='NI+MGOpt, Weak Relax&CGC')
+    #plot_validation_misclassified(ax2, total_val_examples-num_correct3, mgopt_val_xaxis, colors[0], label='NI+MGOpt+LocalRelax')
+    # Labels and such
+    ax2.set_xlabel('Work Units (4 Relaxations)', fontsize='large')
+    ax2.set_ylabel('Accuracy\nNumber Incorrect Validation Examples (2000 total)', fontsize='large')
+    ax2.legend(loc='upper right')
+    plt.savefig('compare_accuracy.png', pad_inches=0.12, bbox_inches='tight', dpi=230)
+
+
+# Turn on the 100% MNIST plots
+if True:
+
+    # test_results/simple_ls_67db6bbf/  test result for hash 67db6bbf using the defaults in that repo, nothing else, simple line-search
+    ##losses1, train_losses1, accur1, num_correct1, MGOpt_start_val1, MGOpt_start_train1 = \
+    ##        grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI.out')
+    losses2, train_losses2, accur2, num_correct2, MGOpt_start_val2, MGOpt_start_train2 = \
+            grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_67db6bbf/TB_NI_MGOpt_full_MNIST.out')
+
+    # Convert to nice for plotting arrays
+    ##losses1, accur1, num_correct1, train_losses1 = \
+    ##        convert_data_for_plotting(losses1, accur1, num_correct1, train_losses1)
+    losses2, accur2, num_correct2, train_losses2 = \
+        convert_data_for_plotting(losses2, accur2, num_correct2, train_losses2)
+
+    # Total number of validation examples
+    total_val_examples = 10000
+    nrelax = 4.0    # number of mg/opt relaxations per iteration
+    # Compute axes Scale axes to account for cheaper cost of the NI bootstrapping in the MGOpt solvers
+    #                                  each NI step "costs" 1/nrelax              +       each MGOpt step costs "1"
+    mgopt_val_xaxis = array( [ (1/nrelax)*k for k in range(MGOpt_start_val2)]     + [ (MGOpt_start_val2-1.0)/nrelax + k for k in range(1, losses2.shape[1] - MGOpt_start_val2 + 1) ] )
+    mgopt_train_xaxis = array( [ (1/nrelax)*k for k in range(MGOpt_start_train2)] + [ (MGOpt_start_train2-1.0)/nrelax + k for k in range(1, train_losses2.shape[1] - MGOpt_start_train2 + 1) ] )
+    # Now account for fact that the training results are printed out much more frequently 
+    mgopt_train_xaxis = (max(mgopt_val_xaxis) / max(mgopt_train_xaxis)) * mgopt_train_xaxis
+    # Do a simple linear scaling of the NI data (not quite accurate, but good enough) 
+    ##NI_train_xaxis = arange(train_losses1.shape[1], dtype=float)
+    ##NI_train_xaxis = (max(mgopt_val_xaxis) / max(NI_train_xaxis)) * NI_train_xaxis
+    ##NI_val_xaxis = arange(losses1.shape[1], dtype=float)
+    ##NI_val_xaxis = (max(mgopt_val_xaxis) / max(NI_val_xaxis)) * NI_val_xaxis
+
+    # Plot Losses
+    fig1, ax1 = plt.subplots(1,1)
+    # Plot NI losses, training and validation 
+    #     Have to scale the x-axes because different numbers of epochs are done for Pure NI than MGOP
+    #plot_losses(ax1, losses1, train_losses1, NI_val_xaxis, NI_train_xaxis, colors[0], label='NI')
+    # Plot NI+MGOpt losses, training and validation
+    plot_losses(ax1, losses2, train_losses2, mgopt_val_xaxis, mgopt_train_xaxis, colors[1], label='NI+MGOpt')
+    # Labels and such
+    ax1.set_xlabel('Work Units (4 Relaxations)', fontsize='large')
+    ax1.set_ylabel('Loss', fontsize='large')
+    ax1.legend(loc='lower left')
+    plt.savefig('compare_losses2.png', pad_inches=0.12, bbox_inches='tight', dpi=230)
+    #
+
+    # Plot number of missed validation test cases
+    fig2, ax2 = plt.subplots(1,1)
+    #plot_validation_misclassified(ax2, total_val_examples-num_correct1, NI_val_xaxis, colors[0], label='NI')
+    plot_validation_misclassified(ax2, total_val_examples-num_correct2, mgopt_val_xaxis, colors[1], label='NI+MGOpt')
+    # Labels and such
+    ax2.set_xlabel('Work Units (4 Relaxations)', fontsize='large')
+    ax2.set_ylabel('Accuracy\nNumber Incorrect Validation Examples (10000 total)', fontsize='large')
+    ax2.legend(loc='upper right')
+    plt.savefig('compare_accuracy2.png', pad_inches=0.12, bbox_inches='tight', dpi=230)
+
+
 
 

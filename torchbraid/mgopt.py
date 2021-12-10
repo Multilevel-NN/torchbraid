@@ -583,8 +583,15 @@ class mgopt_solver:
 
     rank  = MPI.COMM_WORLD.Get_rank()
     output = ""
+    # Process global parameters
+    if hasattr(self, 'nrelax_pre'):    output = output + "MG/Opt global parameters\n"
+    if hasattr(self, 'nrelax_pre'):    output = output + "  nrelax_pre: " + str(self.nrelax_pre)  + '\n' 
+    if hasattr(self, 'nrelax_post'):   output = output + "  nrelax_post: " + str(self.nrelax_post) + '\n' 
+    if hasattr(self, 'nrelax_coarse'): output = output + "  nrelax_coarse: " + str(self.nrelax_coarse) + '\n\n' 
+    
+    # Process per-level parameters
     for k, lvl in enumerate(self.levels):
-      output = output + "MG/Opt parameters from level " + str(k)
+      output = output + "MG/Opt parameters from level " + str(k) + '\n'
       if hasattr(self.levels[k], 'network'): output = output + print_option(lvl.network, attr_name="network: ") + '\n' 
       if hasattr(self.levels[k], 'interp_params'): output = output + print_option(lvl.interp_params, attr_name="interp_params: ") + '\n'
       if hasattr(self.levels[k], 'optim'): output = output + print_option(lvl.optims, attr_name="optim: ") + '\n'
@@ -915,6 +922,12 @@ class mgopt_solver:
     rank  = MPI.COMM_WORLD.Get_rank()
      
     ##
+    # Store global solve parameters
+    self.nrelax_pre = nrelax_pre
+    self.nrelax_post = nrelax_post
+    self.nrelax_coarse = nrelax_coarse
+
+    ##
     # Determine number of mgopt_levels
     if mgopt_levels == None:
       mgopt_levels = len(self.levels)
@@ -963,8 +976,7 @@ class mgopt_solver:
         # Begin Cycle loop
         for it in range(mgopt_iter):
           root_print(rank, mgopt_printlevel, 2, "MG/Opt Iter:  " + str(it)) 
-          loss_item = self.__solve(lvl, data, target, v_h, nrelax_pre,
-                                   nrelax_post, nrelax_coarse, mgopt_printlevel, 
+          loss_item = self.__solve(lvl, data, target, v_h, mgopt_printlevel, 
                                    mgopt_levels, restrict_params, restrict_grads, 
                                    restrict_states, interp_states, line_search)
         ##
@@ -1021,9 +1033,9 @@ class mgopt_solver:
     return losses
 
 
-  def __solve(self, lvl, data, target, v_h, nrelax_pre, nrelax_post,
-          nrelax_coarse, mgopt_printlevel, mgopt_levels, restrict_params,
-          restrict_grads, restrict_states, interp_states, line_search):
+  def __solve(self, lvl, data, target, v_h, mgopt_printlevel, 
+          mgopt_levels, restrict_params, restrict_grads, 
+          restrict_states, interp_states, line_search):
 
     """
     Recursive solve function for carrying out one MG/Opt iteration
@@ -1076,7 +1088,7 @@ class mgopt_solver:
       root_print(rank, mgopt_printlevel, 3, "  Pre-MG/Opt solution norm:       " + str(tensor_list_dot(x_h, x_h).item()) ) 
     
     # 1. relax (carry out optimization steps)
-    for k in range(nrelax_pre):
+    for k in range(self.nrelax_pre):
       loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
       root_print(rank, mgopt_printlevel, 2, "  Pre-relax loss:       " + str(loss.item()) ) 
       optimizer.step()
@@ -1123,14 +1135,14 @@ class mgopt_solver:
     if (lvl+2) == mgopt_levels:
       # If on coarsest level, do a "solve" by carrying out a number of relaxation steps
       root_print(rank, mgopt_printlevel, 2, "\n  Level:  " + str(lvl+1))
-      for m in range(nrelax_coarse):
+      for m in range(self.nrelax_coarse):
         loss = compute_fwd_bwd_pass(lvl+1, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, v_H)
         coarse_optimizer.step()
         root_print(rank, mgopt_printlevel, 2, "  Coarsest grid solve loss: " + str(loss.item())) 
     else:
       # Recursive call
-      self.__solve(lvl+1, data, target, v_H, nrelax_pre, nrelax_post, nrelax_coarse,
-                   mgopt_printlevel, mgopt_levels, restrict_params, restrict_grads,
+      self.__solve(lvl+1, data, target, v_H, mgopt_printlevel, 
+                   mgopt_levels, restrict_params, restrict_grads,
                    restrict_states, interp_states, line_search)
     #
     root_print(rank, mgopt_printlevel, 2, "  Recursion exited\n")
@@ -1161,7 +1173,7 @@ class mgopt_solver:
       do_line_search(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, fine_loss, e_dot_gradf, mgopt_printlevel, **ls_kwargs)
 
     # 9. post-relaxation
-    for k in range(nrelax_post):
+    for k in range(self.nrelax_post):
       loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
       if (k==0):  root_print(rank, mgopt_printlevel, 2, "  CG Corr done loss:    " + str(loss.item()) ) 
       else:       root_print(rank, mgopt_printlevel, 2, "  Post-relax loss:      " + str(loss.item()) )

@@ -43,9 +43,25 @@ def main():
   #           Or, we do (5 + 4*12) = 53 epochs on each NI level so that all solvers do a similar amount of "training"
   #  - Account for extra parallelism of LocalRelax by doubling it's epoch counts
   #
-  NI_run_string = ' main_mgopt.py --steps 16 --samp-ratio 0.2 --mgopt-printlevel 1 --ni-levels 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --mgopt-iter 0 --NIepochs 53'
-  NI_MGOpt_run_string = 'main_mgopt.py --steps 16 --samp-ratio 0.2 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 2 --mgopt-nrelax-post 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-iters 1  --epochs 12 --NIepochs 5 '
-  NI_MGOpt_LR_run_string = 'main_mgopt.py --steps 16 --samp-ratio 0.2 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 2 --mgopt-nrelax-post 2 --lp-fwd-cfactor 2 --lp-bwd-cfactor 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-bwd-finefcf --lp-bwd-relaxonlycg --lp-iters 1  --epochs 24 --NIepochs 10'
+  #NI_run_string = ' main_mgopt.py --steps 16 --samp-ratio 0.2 --mgopt-printlevel 1 --ni-levels 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --mgopt-iter 0 --NIepochs 53'
+  #
+  # Variant to fully account for cost of MGOpt relaxation and CG solve, MGOpt runs do 5 NI on each level, and the equiv of 3 relax's each epoch or roughly
+  #    48*3 + 10 = 141,  because coarse-grids are a bit cheaper
+  NI_run_string = ' main_mgopt.py --steps 16 --samp-ratio 0.2 --mgopt-printlevel 1 --ni-levels 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --mgopt-iter 0 --NIepochs 154'
+  ####
+  #NI_MGOpt_run_string = 'main_mgopt.py --steps 16 --samp-ratio 0.2 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 2 --mgopt-nrelax-post 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-iters 1  --epochs 12 --NIepochs 5 '
+  #
+  # Variant of MGOpt where we do only 1 relaxation, but 2x epochs 
+  #NI_MGOpt_run_string = 'main_mgopt.py --steps 16 --samp-ratio 0.2 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 1 --mgopt-nrelax-post 1 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-iters 1  --epochs 24 --NIepochs 5 '
+  #
+  # Variant of MGOpt where we do only 1 relaxation and 1 coarse-grid relaxation, but 4x epochs 
+  NI_MGOpt_run_string = 'main_mgopt.py --steps 16 --samp-ratio 0.2 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 1 --mgopt-nrelax-post 1 --mgopt-nrelax-coarse 1 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-iters 1  --epochs 48 --NIepochs 5 '
+  ####
+  #NI_MGOpt_LR_run_string = 'main_mgopt.py --steps 16 --samp-ratio 0.2 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 2 --mgopt-nrelax-post 2 --lp-fwd-cfactor 2 --lp-bwd-cfactor 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-bwd-finefcf --lp-bwd-relaxonlycg --lp-iters 1  --epochs 24 --NIepochs 10'
+  #
+  # Variant of LR where we do only one relaxation, but more epochs and three levels (we want to fully solve the coarsest level)
+  NI_MGOpt_LR_run_string = 'main_mgopt.py --steps 16 --samp-ratio 0.2 --mgopt-printlevel 1 --ni-levels 3 --mgopt-levels 3 --mgopt-nrelax-pre 1 --mgopt-nrelax-post 1 --mgopt-nrelax-coarse 1 --lp-fwd-cfactor 2 --lp-bwd-cfactor 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-bwd-finefcf --lp-bwd-relaxonlycg --lp-iters 1  --epochs 48 --NIepochs 5'
+
 
   # Test 2: Basic two-level experiment on MNIST
   #   - Same as Test 1, only use all of MNIST  and  decrease NIepochs from 5 to 2 
