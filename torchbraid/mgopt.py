@@ -641,6 +641,8 @@ class mgopt_solver:
     networks : list
       networks[k] describes the network architecture at level k in the nested
       iteration hierarchy, starting from fine to coarse, with level k=0 the finest. 
+      Note: the architecture at level k (networks[k]) will typically state the number of layers at level k
+      Note: this number of layers at level k must be consistent with the ni_steps array
       
     epochs : int
       Number of training epochs
@@ -718,8 +720,13 @@ class mgopt_solver:
     
     ##
     # Check ni_steps that it is a constant r_factor
-    ni_rfactor = int(max(ni_steps[1:] / ni_steps[:-1]))
-    ni_rfactor_min = int(min(ni_steps[1:] / ni_steps[:-1]))
+    if nlevels > 1:
+      ni_rfactor = int(max(ni_steps[1:] / ni_steps[:-1]))
+      ni_rfactor_min = int(min(ni_steps[1:] / ni_steps[:-1]))
+    else:
+      ni_rfactor = -1
+      ni_rfactor_min = -1
+    #
     self.ni_steps = ni_steps
     self.ni_rfactor = ni_rfactor
     if( ni_rfactor != ni_rfactor_min):
