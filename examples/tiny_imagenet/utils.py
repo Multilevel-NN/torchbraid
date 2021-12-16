@@ -145,6 +145,12 @@ class ParallelNet(nn.Module):
     x = self.compose(self.close_nn,x)
 
     return x
+
+  def getFwdStats(self):
+    return self.parallel_nn.getFwdStats()
+    
+  def getBwdStats(self):
+    return self.parallel_nn.getBwdStats()
 # end ParallelNet 
 ####################################################################################
 ####################################################################################
@@ -155,7 +161,7 @@ class ParallelNet(nn.Module):
 ####################################################################################
 # Parsing functions
 
-def parse_args():
+def parse_args(mgopt_on=True):
   """
   Return back an args dictionary based on a standard parsing of the command line inputs
   """
@@ -178,15 +184,13 @@ def parse_args():
   # algorithmic settings (gradient descent and batching)
   parser.add_argument('--batch-size', type=int, default=50, metavar='N',
                       help='input batch size for training (default: 50)')
-  parser.add_argument('--NIepochs', type=int, default=2, metavar='N',
-                      help='number of epochs per Nested Iteration (default: 2)')
   parser.add_argument('--epochs', type=int, default=2, metavar='N',
                       help='number of epochs to train (default: 2)')
   parser.add_argument('--samp-ratio', type=float, default=1.0, metavar='N',
                       help='number of samples as a ratio of the total number of samples')
   parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                       help='learning rate (default: 0.01)')
-  
+
   # algorithmic settings (parallel or serial)
   parser.add_argument('--lp-fwd-levels', type=int, default=3, metavar='N',
                       help='Layer parallel levels for forward solve (default: 3)')
@@ -225,26 +229,30 @@ def parse_args():
   parser.add_argument('--lp-use-crelax-wt', type=float, default=1.0, metavar='CWt',
                       help='Layer parallel use weighted C-relaxation on backwards solve (default: 1.0).  Not used for coarsest braid level.')
 
-  # algorithmic settings (nested iteration)
-  parser.add_argument('--ni-levels', type=int, default=3, metavar='N',
-                      help='Number of nested iteration levels (default: 3)')
-  parser.add_argument('--ni-rfactor', type=int, default=2, metavar='N',
-                      help='Refinment factor for nested iteration (default: 2)')
+  if mgopt_on:
+    parser.add_argument('--NIepochs', type=int, default=2, metavar='N',
+                        help='number of epochs per Nested Iteration (default: 2)')
   
-  # algorithmic settings (MG/Opt)
-  parser.add_argument('--mgopt-printlevel', type=int, default=1, metavar='N',
-                      help='Print level for MG/Opt, 0 least, 1 some, 2 a lot') 
-  parser.add_argument('--mgopt-iter', type=int, default=1, metavar='N',
-                      help='Number of MG/Opt iterations to optimize over a batch')
-  parser.add_argument('--mgopt-levels', type=int, default=2, metavar='N',
-                      help='Number of MG/Opt levels to use')
-  parser.add_argument('--mgopt-nrelax-pre', type=int, default=1, metavar='N',
-                      help='Number of MG/Opt pre-relaxations on each level')
-  parser.add_argument('--mgopt-nrelax-post', type=int, default=1, metavar='N',
-                      help='Number of MG/Opt post-relaxations on each level')
-  parser.add_argument('--mgopt-nrelax-coarse', type=int, default=3, metavar='N',
-                      help='Number of MG/Opt relaxations to solve the coarsest grid')
-
+    # algorithmic settings (nested iteration)
+    parser.add_argument('--ni-levels', type=int, default=3, metavar='N',
+                        help='Number of nested iteration levels (default: 3)')
+    parser.add_argument('--ni-rfactor', type=int, default=2, metavar='N',
+                        help='Refinment factor for nested iteration (default: 2)')
+  
+    # algorithmic settings (MG/Opt)
+    parser.add_argument('--mgopt-printlevel', type=int, default=1, metavar='N',
+                        help='Print level for MG/Opt, 0 least, 1 some, 2 a lot') 
+    parser.add_argument('--mgopt-iter', type=int, default=1, metavar='N',
+                        help='Number of MG/Opt iterations to optimize over a batch')
+    parser.add_argument('--mgopt-levels', type=int, default=2, metavar='N',
+                        help='Number of MG/Opt levels to use')
+    parser.add_argument('--mgopt-nrelax-pre', type=int, default=1, metavar='N',
+                        help='Number of MG/Opt pre-relaxations on each level')
+    parser.add_argument('--mgopt-nrelax-post', type=int, default=1, metavar='N',
+                        help='Number of MG/Opt post-relaxations on each level')
+    parser.add_argument('--mgopt-nrelax-coarse', type=int, default=3, metavar='N',
+                        help='Number of MG/Opt relaxations to solve the coarsest grid')
+  # end mgopt_on
 
   ##
   # Do some parameter checking
@@ -264,15 +272,16 @@ def parse_args():
     root_print(rank, 1, 1, 'Steps must be an even multiple of the number of processors: %d %d' % (args.steps,procs) )
     sys.exit(0)
   
-  ni_levels = args.ni_levels
-  ni_rfactor = args.ni_rfactor
-  if args.steps % ni_rfactor**(ni_levels-1) != 0:
-    root_print(rank, 1, 1, 'Steps combined with the coarsest nested iteration level must be an even multiple: %d %d %d' % (args.steps,ni_rfactor,ni_levels-1))
-    sys.exit(0)
-  
-  if args.steps / ni_rfactor**(ni_levels-1) % procs != 0:
-    root_print(rank, 1, 1, 'Coarsest nested iteration must fit on the number of processors')
-    sys.exit(0)
+  if mgopt_on:
+    ni_levels = args.ni_levels
+    ni_rfactor = args.ni_rfactor
+    if args.steps % ni_rfactor**(ni_levels-1) != 0:
+      root_print(rank, 1, 1, 'Steps combined with the coarsest nested iteration level must be an even multiple: %d %d %d' % (args.steps,ni_rfactor,ni_levels-1))
+      sys.exit(0)
+    
+    if args.steps / ni_rfactor**(ni_levels-1) % procs != 0:
+      root_print(rank, 1, 1, 'Coarsest nested iteration must fit on the number of processors')
+      sys.exit(0)
 
   return args
 
