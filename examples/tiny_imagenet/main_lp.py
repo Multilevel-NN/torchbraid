@@ -253,7 +253,8 @@ def main():
                               'fwd_relax_only_cg' : args.lp_fwd_relaxonlycg,
                               'bwd_relax_only_cg' : args.lp_bwd_relaxonlycg,
                               'CWt'               : args.lp_use_crelax_wt,
-                              'fwd_finalrelax'    : args.lp_fwd_finalrelax
+                              'fwd_finalrelax'    : args.lp_fwd_finalrelax,
+                              'diff_scale'        : args.diff_scale
                       }
 
   ##

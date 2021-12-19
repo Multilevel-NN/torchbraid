@@ -70,18 +70,25 @@ class CloseLayer(nn.Module):
 
 class StepLayer(nn.Module):
   ''' Single ODE-net layer will be parallelized in time ''' 
-  def __init__(self,channels):
+  def __init__(self,channels,diff_scale=0.0):
     super(StepLayer, self).__init__()
     ker_width = 3
-    
-    # Old MNIST Line
-    #self.conv = nn.Conv2d(channels,channels,ker_width,padding=1)
     
     # Account for 3 RGB Channels
     self.conv = nn.Conv2d(3*channels,3*channels,ker_width,padding=1)
 
+    # build a diffiusion operator
+    diff = torch.zeros((3,3),requires_grad=False)
+    diff[1,1] = -4.
+    diff[0,1] = diff[1,0] = diff[1,2] = diff[2,1] = 1.
+
+    self.diff_conv = nn.Conv2d(3*channels,3*channels,3,padding=1,bias=False)
+    self.diff_conv.weight.requires_grad = False
+    self.diff_conv.weight[:,:] = 1e-4*diff
+
+
   def forward(self, x):
-    y = self.conv(x)
+    y = self.conv(x) + self.diff_conv(x)
     y.tanh_()
     return y 
 # end layer
@@ -92,10 +99,10 @@ class ParallelNet(nn.Module):
   def __init__(self, channels=8, local_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
                      print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
                      fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
-                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False):
+                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0):
     super(ParallelNet, self).__init__()
 
-    step_layer = lambda: StepLayer(channels)
+    step_layer = lambda: StepLayer(channels,diff_scale)
 
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_fwd_levels=max_fwd_levels,max_bwd_levels=max_bwd_levels,max_iters=max_iters)
     if max_fwd_iters>0:
@@ -180,6 +187,8 @@ def parse_args(mgopt_on=True):
                       help='Number of channels in resnet layer (default: 8)')
   parser.add_argument('--tf',type=float,default=1.0,
                       help='Final time')
+  parser.add_argument('--diff-scale',type=float,default=0.0,
+                      help='Diffusion coefficient')
 
   # algorithmic settings (gradient descent and batching)
   parser.add_argument('--batch-size', type=int, default=50, metavar='N',
