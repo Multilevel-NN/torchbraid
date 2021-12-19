@@ -70,7 +70,7 @@ class CloseLayer(nn.Module):
 
 class StepLayer(nn.Module):
   ''' Single ODE-net layer will be parallelized in time ''' 
-  def __init__(self,channels,diff_scale=0.0):
+  def __init__(self,channels,diff_scale=0.0,activation='tanh'):
     super(StepLayer, self).__init__()
     ker_width = 3
     
@@ -86,10 +86,18 @@ class StepLayer(nn.Module):
     self.diff_conv.weight.requires_grad = False
     self.diff_conv.weight[:,:] = 1e-4*diff
 
+    if activation=='tanh':
+      self.activation = nn.Tanh(inplace=True)
+    else activation=='relu':
+      self.activation = nn.ReLU(inplace=True)
+    else:
+      raise 'POO!'
+
 
   def forward(self, x):
     y = self.conv(x) + self.diff_conv(x)
-    y.tanh_()
+    #y.tanh_()
+    self.activation(y)
     return y 
 # end layer
 
