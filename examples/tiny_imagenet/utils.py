@@ -87,19 +87,18 @@ class StepLayer(nn.Module):
     self.diff_conv.weight[:,:] = 1e-4*diff
 
     if activation=='tanh':
-      self.activation = nn.Tanh(inplace=True)
-    else activation=='relu':
-      self.activation = nn.ReLU(inplace=True)
-    else activation=='leaky':
-      self.activation = nn.LeakyReLU(inplace=True)
+      self.activation = nn.Tanh()
+    elif activation=='relu':
+      self.activation = nn.ReLU()
+    elif activation=='leaky':
+      self.activation = nn.LeakyReLU()
     else:
       raise 'POO!'
 
 
   def forward(self, x):
-    y = self.conv(x) + self.diff_conv(x)
-    #y.tanh_()
-    self.activation(y)
+    y = self.conv(x) 
+    y = self.activation(y) + self.diff_conv(x)
     return y 
 # end layer
 
