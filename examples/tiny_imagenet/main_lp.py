@@ -192,8 +192,11 @@ def main():
   ##
   # Load Tiny ImageNet
   if rank==0:
-    print('Using Tiny ImageNet...')
+    print('Using Tiny ImageNet...\n')
+    print(args)
   ##
+
+
   # Load datasets
   traindir = './tiny-imagenet-200/new_train'
   valdir = './tiny-imagenet-200/new_test'
