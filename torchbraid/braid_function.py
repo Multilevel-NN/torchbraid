@@ -30,10 +30,22 @@
 #@HEADER
 
 import torch.autograd
+from torch.nn.functional import pad
 
 import torchbraid.utils as utils
 
 class BraidFunction(torch.autograd.Function):
+  @staticmethod
+  def padForBatchChange(old_batch,temp_batch,ten,batch_dim):
+    shape = ten.size()
+    assert(len(shape)>batch_dim)
+
+    padding = []
+    for i in range(len(shape)-batch_dim-1):
+      padding += [0,0]
+    padding += [0,old_batch-temp_batch]
+    return pad(ten,tuple(padding),'constant',0.0)
+
   @staticmethod
   def forward(ctx, fwd_app, bwd_app, x, *params):
     comm          = fwd_app.getMPIComm()
@@ -43,13 +55,27 @@ class BraidFunction(torch.autograd.Function):
     # copy the input to all processors (ensure consistency)
     shape = comm.bcast(x.size(),root=0)
 
+    old_shape = fwd_app.getShape()
+    adjusting = old_shape is not None and old_shape!=shape
+
     # setup context
     ctx.fwd_app = fwd_app
     ctx.bwd_app = bwd_app
+    ctx.adjusting = adjusting
     ctx.save_for_backward(None, *params)
 
-    fwd_app.setShape(shape)
-    bwd_app.setShape(shape)
+    if adjusting:
+      old_batch  = old_shape[0][0]
+      temp_batch = shape[0]
+      x = BraidFunction.padForBatchChange(old_batch,temp_batch,x,0)
+      ctx.old_batch = old_batch
+      ctx.temp_batch = temp_batch
+  
+      shape = old_shape[0]
+    else:
+      fwd_app.setShape(shape)
+      bwd_app.setShape(shape)
+
 
     if my_rank==0:
       result = fwd_app.run(x)
@@ -62,7 +88,10 @@ class BraidFunction(torch.autograd.Function):
     # broadcast the output of the last layer 
     comm.Bcast(result.numpy(),root=num_ranks-1)
 
-    return result
+    if adjusting:
+      return result[0:temp_batch,:]
+    else:
+      return result
 
   @staticmethod
   def backward(ctx, grad_output):
@@ -78,6 +107,8 @@ class BraidFunction(torch.autograd.Function):
         comm.Recv(grad_output.numpy(),source=0)
 
     if my_rank==num_ranks-1:
+      if ctx.adjusting:
+        grad_output = BraidFunction.padForBatchChange(ctx.old_batch,ctx.temp_batch,grad_output,0)
       result = ctx.bwd_app.run(grad_output)
     else:
       result = ctx.bwd_app.run(None)
