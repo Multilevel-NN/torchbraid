@@ -84,7 +84,7 @@ class StepLayer(nn.Module):
 
     self.diff_conv = nn.Conv2d(3*channels,3*channels,3,padding=1,bias=False)
     self.diff_conv.weight.requires_grad = False
-    self.diff_conv.weight[:,:] = 1e-4*diff
+    self.diff_conv.weight[:,:] = diff_scale*diff
 
     if activation=='tanh':
       self.activation = nn.Tanh()
