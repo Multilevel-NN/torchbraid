@@ -90,6 +90,8 @@ class StepLayer(nn.Module):
       self.activation = nn.Tanh(inplace=True)
     else activation=='relu':
       self.activation = nn.ReLU(inplace=True)
+    else activation=='leaky':
+      self.activation = nn.LeakyReLU(inplace=True)
     else:
       raise 'POO!'
 
@@ -107,10 +109,10 @@ class ParallelNet(nn.Module):
   def __init__(self, channels=8, local_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
                      print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
                      fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
-                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0):
+                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh'):
     super(ParallelNet, self).__init__()
 
-    step_layer = lambda: StepLayer(channels,diff_scale)
+    step_layer = lambda: StepLayer(channels,diff_scale,activation)
 
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_fwd_levels=max_fwd_levels,max_bwd_levels=max_bwd_levels,max_iters=max_iters)
     if max_fwd_iters>0:
@@ -197,6 +199,8 @@ def parse_args(mgopt_on=True):
                       help='Final time')
   parser.add_argument('--diff-scale',type=float,default=0.0,
                       help='Diffusion coefficient')
+  parser.add_argument('--activation',type=str,default='tanh',
+                      help='Activation function')
 
   # algorithmic settings (gradient descent and batching)
   parser.add_argument('--batch-size', type=int, default=50, metavar='N',
