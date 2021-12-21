@@ -29,14 +29,29 @@
 # ************************************************************************
 #@HEADER
 
-# Example run strings for comparing TB+NI vs. TB+MG/Opt vs. TB+MG/Opt+Local
 ###
 #
-# mpirun -n 8 python ./main_lp.py --samp-ratio 0.1 --steps 32 --batch-size 100 --lp-braid-print 0 --lp-fwd-iters 3 --lp-iters 1 --lp-fwd-levels -1 --lp-bwd-levels -1 --lp-braid-print 0 --log-interval 1
-#    ....
-#    ....
-#    Train Epoch: 2 [0/5000 (0%)]        Loss: 0.080145	Time Per Batch 0.074357
-#    Train Epoch: 2 [500/5000 (10%)]     Loss: 0.166830	Time Per Batch 0.073399
+# ----- Example Script -----
+
+# export FWD_ITER=3
+# export BWD_ITER=2
+# export DIFF=0.0001
+# export ACT=relu
+# 
+# mpirun -n 4 python ./main_lp.py --steps 32 --lp-fwd-cfactor 4 --lp-bwd-cfactor 4 --epochs=8 --seed 2069923971 --lp-fwd-iters ${FWD_ITER} --lp-fwd-levels -1 --lp-bwd-levels -1 --lp-iters ${BWD_ITER} --batch-size 100 --tf 5.0 --log-interval 5 --diff-scale ${DIFF} --activation ${ACT} --samp-ratio 0.1 --channels 8
+#
+# ----- Output -----
+# Using Tiny ImageNet...
+# 
+# Namespace(seed=2069923971, log_interval=5, steps=32, channels=8, tf=5.0, diff_scale=0.0001, activation='relu', batch_size=100, epochs=8, samp_ratio=0.1, lr=0.01, lp_fwd_levels=2, lp_bwd_levels=2, lp_iters=2, lp_fwd_iters=2, lp_print=0, lp_braid_print=0, lp_fwd_cfactor=4, lp_bwd_cfactor=4, lp_fwd_nrelax_coarse=1, lp_bwd_nrelax_coarse=1, lp_fwd_finefcf=False, lp_bwd_finefcf=False, lp_fwd_finalrelax=False, lp_use_downcycle=False, lp_use_fmg=False, lp_bwd_relaxonlycg=0, lp_fwd_relaxonlycg=0, lp_use_crelax_wt=1.0)
+# 
+# Training setup:  Batch size:  100  Sample ratio:  0.1  Epochs:  8
+# Train Epoch:  1 [   100/  8800]	Loss: 5.374e+00	Time Per Batch 1.002954/1.048842 - F 2/6.47e+03, B 2/2.76e-05
+# Train Epoch:  1 [   600/  8800]	Loss: 3.100e+00	Time Per Batch 0.984198/1.075165 - F 2/1.43e+03, B 2/1.18e-05
+# Train Epoch:  1 [  1100/  8800]	Loss: 2.920e+00	Time Per Batch 0.995636/1.064048 - F 2/1.25e+03, B 2/8.23e-06
+# Train Epoch:  1 [  1600/  8800]	Loss: 3.079e+00	Time Per Batch 0.997011/1.057520 - F 2/1.35e+03, B 2/1.17e-05
+
+
 
 
 from __future__ import print_function
@@ -47,6 +62,7 @@ import sys
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import statistics               as stats
 
 from torchvision import datasets, transforms
 from mpi4py import MPI
@@ -69,7 +85,7 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose):
   total_time_cm = 0.0
 
   switched = False
-  format_str = 'Train Epoch: {:2d} [{:4d}/{:4d}]\tLoss: {:.6f}\tTime Per Batch {:.6f}/{:.6f} - F{:2d}/{:.2e}, B{:2d}/{:.2e}'
+  format_str = 'Train Epoch: {:2d} [{:6d}/{:6d}]\tLoss: {:.3e}\tTime Per Batch {:.6f}/{:.6f} - F{:2d}/{:.2e}, B{:2d}/{:.2e}'
   total_data = 0
 
   cumulative_start_time = timer()
@@ -235,7 +251,7 @@ def main():
 
   ##
   # Define ParNet parameters for each nested iteration level, starting from fine to coarse
-  network = {'channels'          : 8,#args.channels, 
+  network = {                 'channels'          : args.channels, 
                               'local_steps'       : local_steps,
                               'max_iters'         : args.lp_iters,
                               'print_level'       : args.lp_print,

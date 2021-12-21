@@ -29,6 +29,9 @@ from timeit import default_timer as timer
 
 from mpi4py import MPI
 
+# Related to:
+# https://arxiv.org/pdf/2002.09779.pdf
+
 
 __all__ = [ 'parse_args', 'ParallelNet' ]
 
@@ -41,13 +44,15 @@ class OpenLayer(nn.Module):
   def __init__(self,channels):
     super(OpenLayer, self).__init__()
     self.channels = channels
+    self.pre = nn.Sequential(
+      nn.Conv2d(3, channels, kernel_size=5, padding=2, stride=2),
+      nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+      nn.BatchNorm2d(channels),
+      nn.ReLU(inplace=True)
+    )
 
   def forward(self, x):
-    # this bit of python magic simply replicates each image in the batch
-    s = len(x.shape)*[1]
-    s[1] = self.channels
-    x = x.repeat(s)
-    return x
+    return self.pre(x)
 # end layer
 
 
@@ -55,16 +60,15 @@ class CloseLayer(nn.Module):
   ''' Closing layer (not ODE-net, not parallelized in time) '''
   def __init__(self,channels):
     super(CloseLayer, self).__init__()
-    # Old MNIST line
-    #self.fc = nn.Linear(channels*28*28, 10)
-    
+
     # Account for 64x64 image and 3 RGB channels
-    self.fc = nn.Linear(3*channels*64*64, 200)
+    self.avg = nn.AvgPool2d(2)
+    self.fc = nn.Linear(8*8*channels, 200)
 
   def forward(self, x):
+    x = self.avg(x)
     x = torch.flatten(x, 1)
-    x = self.fc(x)
-    return F.log_softmax(x, dim=1)
+    return self.fc(x)
 # end layer
 
 
@@ -75,16 +79,17 @@ class StepLayer(nn.Module):
     ker_width = 3
     
     # Account for 3 RGB Channels
-    self.conv = nn.Conv2d(3*channels,3*channels,ker_width,padding=1)
+    self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1)
+    self.conv2 = nn.Conv2d(channels,channels,ker_width,padding=1)
 
     # build a diffiusion operator
     diff = torch.zeros((3,3),requires_grad=False)
     diff[1,1] = -4.
     diff[0,1] = diff[1,0] = diff[1,2] = diff[2,1] = 1.
 
-    self.diff_conv = nn.Conv2d(3*channels,3*channels,3,padding=1,bias=False)
-    self.diff_conv.weight.requires_grad = False
-    self.diff_conv.weight[:,:] = diff_scale*diff
+    self.diff_scale = diff_scale
+    self.diff = torch.empty(channels,channels,ker_width,ker_width)
+    self.diff[:,:] = diff_scale*diff
 
     if activation=='tanh':
       self.activation = nn.Tanh()
@@ -95,10 +100,13 @@ class StepLayer(nn.Module):
     else:
       raise 'POO!'
 
-
   def forward(self, x):
-    y = self.conv(x) 
-    y = self.activation(y) + self.diff_conv(x)
+    y = self.activation(x)
+    y = self.conv1(y) 
+    y = self.activation(y)
+    y = self.conv2(y) 
+    if self.diff_scale>0.0:
+      y = y + F.conv2d(x,weight=self.diff,padding=1)
     return y 
 # end layer
 
