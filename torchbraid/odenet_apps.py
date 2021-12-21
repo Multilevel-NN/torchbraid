@@ -240,9 +240,9 @@ class ForwardODENetApp(BraidApp):
     # no gradients are necessary here, so don't compute them
     dt = tstop-tstart
     with torch.no_grad():
-      k = torch.norm(t_y).item()
+      #k = torch.norm(t_y).item()
       q = dt*layer(t_y)
-      kq = torch.norm(q).item()
+      #kq = torch.norm(q).item()
       t_y.add_(q)
       del q
 
