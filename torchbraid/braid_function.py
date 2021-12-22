@@ -35,6 +35,7 @@ from torch.nn.functional import pad
 import torchbraid.utils as utils
 
 class BraidFunction(torch.autograd.Function):
+
   @staticmethod
   def padForBatchChange(old_batch,temp_batch,ten,batch_dim):
     shape = ten.size()
@@ -57,6 +58,10 @@ class BraidFunction(torch.autograd.Function):
 
     old_shape = fwd_app.getShape()
     adjusting = old_shape is not None and old_shape!=shape
+
+    # if batch size is larger (expand)
+    if old_shape is not None and shape[0] >  old_shape[0][0]:
+      adjusting = False
 
     # setup context
     ctx.fwd_app = fwd_app
