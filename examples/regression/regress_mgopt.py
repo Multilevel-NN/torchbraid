@@ -276,7 +276,7 @@ def main():
 
   ##
   # Initialize MG/Opt solver with nested iteration 
-  epochs = 2
+  epochs = args.NIepochs
   mgopt_printlevel = 1
   log_interval = args.log_interval
   mgopt = mgopt_solver()
@@ -294,6 +294,7 @@ def main():
   if( args.mgopt_iter > 0):
     epochs = args.epochs
     line_search = ('tb_simple_ls', {'ls_params' : {'alphas' : [0.01, 0.1, 0.5, 1.0, 2.0, 4.0]}} )
+    line_search = ('tb_simple_backtrack_ls', {'ls_params' : {'n_line_search' : 10, 'alpha' : 1.0, 'c1' : 1e-4}} )
     log_interval = args.log_interval
     mgopt_printlevel = args.mgopt_printlevel
     mgopt_iter = args.mgopt_iter
@@ -302,26 +303,29 @@ def main():
     nrelax_pre = args.mgopt_nrelax_pre
     nrelax_post = args.mgopt_nrelax_post
     nrelax_coarse = args.mgopt_nrelax_coarse
-    mgopt.mgopt_solve(train_loader, test_loader, epochs=epochs,
-                      log_interval=log_interval, mgopt_tol=mgopt_tol,
-                      mgopt_iter=mgopt_iter, nrelax_pre=nrelax_pre,
-                      nrelax_post=nrelax_post, nrelax_coarse=nrelax_coarse,
-                      mgopt_printlevel=mgopt_printlevel, mgopt_levels=mgopt_levels,
-                      line_search=line_search)
-   
+    loss = mgopt.mgopt_solve(train_loader, test_loader, epochs=epochs,
+                             log_interval=log_interval, mgopt_tol=mgopt_tol,
+                             mgopt_iter=mgopt_iter, nrelax_pre=nrelax_pre,
+                             nrelax_post=nrelax_post, nrelax_coarse=nrelax_coarse,
+                             mgopt_printlevel=mgopt_printlevel, mgopt_levels=mgopt_levels,
+                             line_search=line_search)
+
     print(mgopt)
     mgopt.options_used()
-  ##
-
+   
+  f,ax = plt.subplots(2,len(mgopt.levels),figsize=(12,9))
   with torch.no_grad():
-    x = torch.unsqueeze(torch.linspace(-1.0,1.0,1001),1)
-    trained_model = mgopt.levels[0].model
+    x = torch.unsqueeze(torch.linspace(-1.0,1.0,1000),1)
 
-    y = trained_model(x)
+    ax[0,0].plot(x,func(x),label='exact')
+    ax[0,0].plot(x,mgopt.levels[0].model(x),label=f'level=0')
+    ax[0,0].legend()
 
-    plt.figure()
-    plt.plot(x,trained_model(x))
-    plt.plot(x,func(x))
+  ax[0,1].plot(loss)
+
+  for l,lvl in enumerate(mgopt.levels):
+    ax[1,l].plot(lvl.out_ls_step,'.',label=f'level={l},cnt={len(lvl.out_ls_step)}')
+    ax[1,l].set_title(f'ls level {l}')
 
   plt.show()
 
