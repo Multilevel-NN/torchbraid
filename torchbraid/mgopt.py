@@ -376,6 +376,8 @@ def tb_simple_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, 
   # Print alpha chosen 
   root_print(rank, mgopt_printlevel, 2, "  LS Alpha chosen:        " + str(alphas[winner]) + "  Loss = " + str(best_loss))
 
+  return alphas[winner]
+
 
 def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
   '''
@@ -389,7 +391,13 @@ def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, c
     alpha = ls_params['alpha']
     c1 = ls_params['c1']
   except:
-    raise ValueError('tb_simple_backtrack_ls requires a ls_params dictionary with n_line_search, alpha, and c_1 (Armijo condition) as dictionary keys.')
+    raise ValueError('tb_simple_backtrack_ls requires a ls_params dictionary with n_line_search, alpha, and c1 (Armijo condition) as dictionary keys.')
+
+  # must be a descent direction
+  if e_dot_gradf>=0.0:
+    root_print(rank, mgopt_printlevel, 2, 
+               f"  LS Alpha used ({lvl}):     {0.0:.4f}  e_dot_gradf:  {e_dot_gradf:.4e} ... canceled...not a descent direction")
+    return 0.0
 
   # Add error update to x_h
   # alpha*e_h + x_h --> x_h
@@ -405,7 +413,7 @@ def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, c
 
     # Check Wolfe condition (i), also called the Armijo rule
     #  f(x + alpha p) <=  f(x) + c alpha <p, grad f(x) >
-    if new_loss < 0.999*old_loss + c1*alpha*e_dot_gradf:
+    if new_loss < old_loss + c1*alpha*e_dot_gradf:
       break
     elif m < (n_line_search-1): 
       # loss is NOT reduced enough, continue line search
@@ -415,8 +423,10 @@ def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, c
   # end for-loop
 
   # Double alpha, and store for next time in ls_params, before returning
-  root_print(rank, mgopt_printlevel, 2, "  LS Alpha used:        " + str(alpha) + "  e_dot_gradf:  " + str(e_dot_gradf) + "  old_loss + c1*alpha*e_dot_gradf = " + str(old_loss + c1*alpha*e_dot_gradf))
-  ls_params['alpha'] = alpha*2
+  root_print(rank, mgopt_printlevel, 2, 
+             f"  LS Alpha used ({lvl}):     {alpha:.4f}  e_dot_gradf:  {e_dot_gradf:.4e}  old_loss + c1*alpha*e_dot_gradf = {old_loss + c1*alpha*e_dot_gradf:.6f}")
+
+  return alpha
 
 
 
@@ -513,6 +523,7 @@ class mgopt_solver:
     interp_states   : tuple describing the option selected for interpolating network states 
     line_search     : tuple describing the option selected for doing a line-search
     optimizer       : PyTorch optimizer for smoothing at each level 
+    out_ls_step     : Output diagnostic, the size of the line search step
     """
 
     def __init__(self):
@@ -813,6 +824,7 @@ class mgopt_solver:
       self.levels[-1].interp_params = interp_params[k]
       self.levels[-1].optims = optims[k]
       self.levels[-1].criterions = criterions[k]
+      self.levels[-1].out_ls_step = []
 
       # Print epoch-level time averages
       if epochs == 1:
@@ -1012,8 +1024,11 @@ class mgopt_solver:
         ##
         # Batch-level diagnostic printing
         if (batch_idx % log_interval == 0) or (batch_idx == (len(train_loader)-1) ):  
+          if batch_idx==0:
+            root_print(rank, mgopt_printlevel, 1, '')
+
           root_print(rank, mgopt_printlevel, 2, "\n------------------------------------------------------------------------------")
-          root_print(rank, mgopt_printlevel, 1, 'Train Epoch: {} [{}/{} ({:.0f}%)]     \tLoss: {:.9f}\tTime Per Batch {:.6f}'.format(
+          root_print(rank, mgopt_printlevel, 1, '  Train Epoch: {} [{}/{} ({:.0f}%)]     \tLoss: {:.9f}\tTime Per Batch {:.6f}'.format(
               epoch, (batch_idx+1) * len(data), len(train_loader.dataset),
               100. * (batch_idx+1) / len(train_loader), losses[-1], batch_total_time/(batch_idx+1.0)))
           root_print(rank, mgopt_printlevel, 2, "------------------------------------------------------------------------------")
@@ -1193,7 +1208,9 @@ class mgopt_solver:
       x_h = get_params(model, deep_copy=False, grad=False)
       e_dot_gradf = tensor_list_dot(e_h, g_h).item()
       # Note, that line_search can store values between runs, like alpha, by having ls_kwargs = { 'ls_params' : {'alpha' : ...}} 
-      do_line_search(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, fine_loss, e_dot_gradf, mgopt_printlevel, **ls_kwargs)
+      ls_alpha = do_line_search(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, fine_loss, e_dot_gradf, mgopt_printlevel, **ls_kwargs)
+      self.levels[lvl].out_ls_step += [ls_alpha]
+
 
     # 9. post-relaxation
     for k in range(self.nrelax_post):
@@ -1293,7 +1310,7 @@ class mgopt_solver:
     if method == "tb_simple_backtrack_ls":
       check_has_args(ls_kwargs, ['ls_params'], method)
       line_search = tb_simple_backtrack_ls
-    if method == "tb_simple_ls":
+    elif method == "tb_simple_ls":
       check_has_args(ls_kwargs, ['ls_params'], method)
       line_search = tb_simple_ls
     else:
