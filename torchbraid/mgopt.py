@@ -316,6 +316,22 @@ def tb_mgopt_cross_ent(output, target, network_parameters=None, v=None):
   else:
     return loss
 
+##
+# Basic TorchBraid regression loss function extended to take MG/Opt Term
+def tb_mgopt_regression(output, target, network_parameters=None, v=None):
+  '''
+  Define cross entropy loss with optional new MG/Opt term
+  '''
+  # Use PyTorch's loss, which should be identical
+  criterion = nn.MSELoss()
+  loss = criterion(output, target)
+  
+  # Compute MGOPT term (be careful to use only PyTorch functions)
+  if (network_parameters is not None) and (v is not None): 
+    mgopt_term = tensor_list_dot(v, network_parameters)
+    return loss - mgopt_term
+  else:
+    return loss
 
 def tb_simple_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
   '''
@@ -1248,6 +1264,9 @@ class mgopt_solver:
     method, criterion_kwargs = unpack_arg(option)
     if method == "tb_mgopt_cross_ent":
       criterion = tb_mgopt_cross_ent
+      compose = model.compose
+    elif method == "tb_mgopt_regression":
+      criterion = tb_mgopt_regression
       compose = model.compose
     else:
       raise ValueError('Unsupported criterion: ' + method)  
