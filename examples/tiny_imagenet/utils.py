@@ -95,10 +95,10 @@ class StepLayer(nn.Module):
       self.activation = nn.Tanh()
     elif activation=='relu':
       self.activation = nn.ReLU()
-      torch.nn.init.kaiming_normal(self.conv1.weight,nonlinearity='relu')
-      torch.nn.init.kaiming_normal(self.conv1.bias,nonlinearity='relu')
-      torch.nn.init.kaiming_normal(self.conv2.weight,nonlinearity='relu')
-      torch.nn.init.kaiming_normal(self.conv2.bias,nonlinearity='relu')
+      #torch.nn.init.kaiming_normal(self.conv1.weight,nonlinearity='relu')
+      #torch.nn.init.kaiming_normal(self.conv1.bias,nonlinearity='relu')
+      #torch.nn.init.kaiming_normal(self.conv2.weight,nonlinearity='relu')
+      #torch.nn.init.kaiming_normal(self.conv2.bias,nonlinearity='relu')
     elif activation=='leaky':
       self.activation = nn.LeakyReLU()
       torch.nn.init.kaiming_normal(self.conv1.weight,nonlinearity='leaky_relu')
