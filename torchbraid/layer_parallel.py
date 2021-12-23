@@ -202,6 +202,12 @@ class LayerParallel(nn.Module):
   def setBwdMaxIters(self,max_iters):
     self.bwd_app.setMaxIters(max_iters)
 
+  def getFwdMaxIters(self):
+    return self.fwd_app.getMaxIters()
+
+  def getBwdMaxIters(self):
+    return self.bwd_app.getMaxIters()
+
   def setFMG(self):
     self.fwd_app.setFMG()
     self.bwd_app.setFMG()
