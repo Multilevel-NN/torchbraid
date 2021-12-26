@@ -47,6 +47,9 @@ except:
   print('\n-- Torchbraid Warning: No MPI found, using internal \'fake_mpi\'\n')
   from .fake_mpi import MPI
 
+# import mean intiial guess storage
+from .mean_initial_guess_storage import MeanInitialGuessStorage
+
 import gc
 import torch
 import traceback
