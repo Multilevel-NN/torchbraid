@@ -39,6 +39,9 @@ from .gittools import git_rev
 # import bufpackunpack tools
 from .bufpackunpack import buffer_size, pack_buffer, unpack_buffer
 
+# import mean intiial guess storage
+from .mean_initial_guess_storage import MeanInitialGuessStorage
+
 import gc
 import torch
 import traceback

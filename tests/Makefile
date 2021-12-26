@@ -25,6 +25,7 @@ tests test:
 	$(MPIRUN) -n 3 $(PYTHON) test_grad_update.py
 	$(MPIRUN) -n 3 $(PYTHON) test_rnn_layer_parallel.py
 	$(PYTHON) test_ContextTimer.py
+	$(PYTHON) test_mean_initial_guess.py
 
 tests-serial test-serial:
 	$(MPIRUN) -n 1 $(PYTHON) test_callbacks.py
@@ -34,3 +35,4 @@ tests-serial test-serial:
 	$(MPIRUN) -n 1 $(PYTHON) test_grad_update.py
 	$(MPIRUN) -n 1 $(PYTHON) test_rnn_layer_parallel.py
 	$(PYTHON) test_ContextTimer.py
+	$(PYTHON) test_mean_initial_guess.py
