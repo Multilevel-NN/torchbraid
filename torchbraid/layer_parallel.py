@@ -157,6 +157,22 @@ class LayerParallel(nn.Module):
     self.fwd_app.setPrintLevel(print_level,tb_print)
     self.bwd_app.setPrintLevel(print_level,tb_print)
 
+  def setFwdInitialGuess(self,initial_guess):
+    """
+    Add an initial guess object, that produces an 
+    initial guess for the forward state. 
+    
+    This object as the function `getState(self,time)`. 
+    The function is called every time an intial guess
+    is required. No assumption about consistency between
+    calls is made. This is particularly useful if the
+    initial guess may be different between batches.
+
+    To disable the initial guess once set, call this
+    method with intial_guess=None.
+    """
+    self.fwd_app.stateInitialGuess(initial_guess)
+
   def setFwdStorage(self, storage):
     self.fwd_app.setStorage(storage)
 
