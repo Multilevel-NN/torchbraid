@@ -168,6 +168,9 @@ class LayerParallel(nn.Module):
     calls is made. This is particularly useful if the
     initial guess may be different between batches.
 
+    Note that this is only applied to the level 2 coarse
+    grid as F-relaxation takes care of the intermediate values.
+
     To disable the initial guess once set, call this
     method with intial_guess=None.
     """
