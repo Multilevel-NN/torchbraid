@@ -90,6 +90,9 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,mig_storage):
   format_str = 'Train Epoch: {:2d} [{:6d}/{:6d}]\tLoss: {:.3e}\tTime Per Batch {:.6f}/{:.6f} - F{:2d}/{:.2e}, B{:2d}/{:.2e}'
   total_data = 0
 
+  default_fwd_iters = model.parallel_nn.getFwdMaxIters();
+  default_bwd_iters = model.parallel_nn.getBwdMaxIters();
+
   cumulative_start_time = timer()
   for batch_idx,(data,target) in enumerate(train_loader):
 
@@ -137,6 +140,14 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,mig_storage):
     cumulative_stop_time = timer()
     cumulative_time = (cumulative_stop_time-cumulative_start_time) 
 
+    if fwd_res>1e1:
+      model.parallel_nn.setFwdMaxIters(model.parallel_nn.getFwdMaxIters()+1)
+      root_print(rank,f'  updated fwd iters = {model.parallel_nn.getFwdMaxIters()}')
+    if bwd_res>1e0:
+      model.parallel_nn.setBwdMaxIters(model.parallel_nn.getBwdMaxIters()+1)
+      root_print(rank,f'  updated bwd iters = {model.parallel_nn.getBwdMaxIters()}')
+      
+
     if batch_idx % log_interval == 0:
         root_print(rank,format_str.format(
                         epoch, 
@@ -148,6 +159,9 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,mig_storage):
                         fwd_itr,fwd_res,
                         bwd_itr,bwd_res
                         ))
+
+  model.parallel_nn.setFwdMaxIters(default_fwd_iters)
+  model.parallel_nn.setBwdMaxIters(default_bwd_iters)
 
   root_print(rank,(format_str+', fp={:.6f}, cm={:.6f}, bp={:.6f}').format(
                   epoch, 
@@ -169,6 +183,10 @@ def test(rank,model,test_loader,epoch,compose,prefix=''):
   criterion = nn.CrossEntropyLoss()
   total_time = 0.0
   root_print(rank,f'EPOCH={epoch} TEST')
+
+  default_fwd_iters = model.parallel_nn.getFwdMaxIters();
+  model.parallel_nn.setFwdMaxIters(10)
+
   with torch.no_grad():
     for data,target in test_loader:
       start_time = timer()
@@ -189,6 +207,8 @@ def test(rank,model,test_loader,epoch,compose,prefix=''):
       # only accumulate the correct values on the root
       if rank==0:
         correct += pred.eq(target.view_as(pred)).sum().item()
+
+  model.parallel_nn.setFwdMaxIters(default_fwd_iters)
 
   root_print(rank,'{}Test set epoch {:2d}: Accuracy: {}/{} ({:.0f}%)\tTime Per Batch {:.6f}'.format(
       prefix,
