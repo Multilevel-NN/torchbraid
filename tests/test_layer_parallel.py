@@ -292,6 +292,11 @@ class TestTorchBraid(unittest.TestCase):
 
     wm = m(xm)
 
+    times,uvals = m.getFineTimePoints()
+
+    # check that the number of points is correct...no other checks :(
+    self.assertEqual(len(times),len(uvals),f'Processor={m.getMPIComm().Get_rank()}')
+
     if check_grad:
       wm.backward(w0)
       m_param_grad = self.copyParameterGradToRoot(m)

@@ -266,6 +266,9 @@ class LayerParallel(nn.Module):
     itr, res = self.bwd_app.getBraidStats()
     return itr,res
 
+  def getFineTimePoints(self):
+    return self.fwd_app.getTimePoints()
+
   def diagnostics(self,enable):
     """
     This method tells torchbraid, to keep track of the feature vectors

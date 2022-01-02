@@ -525,6 +525,23 @@ class BraidApp:
     _braid_GetDistribution(core, &ilower,&iupper)
     return ilower,iupper
 
+  def getTimePoints(self):
+    cdef braid_BaseVector bv 
+    cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
+
+
+    
+    times  = []
+    values = []
+    for i in range(core.grids[0].ilower,core.grids[0].iupper+1):
+      _braid_UGetVectorRef(core, 0, i, &bv)
+     
+      times  += [core.grids[0].ta[i-core.grids[0].ilower]]
+      values += [(<object> bv.userVector).clone()]
+
+    return times,values
+ 
+
   def print_network(self, filename, state=True, parameters=True):
     '''
     Print the network to filename.  Can choose to print the state and/or parameters

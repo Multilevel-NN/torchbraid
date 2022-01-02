@@ -307,6 +307,8 @@ cdef extern from "_braid.h":
         int          ncpoints      # number of C points
         int          nupoints      # number of unknown vector points
         braid_BaseVector  *ua      # unknown vectors  (C-points at least)
+        double            *ta      # time values                (all points) 
+
         braid_BaseVector   ulast   # stores vector at last time step, only set in FAccess and FCRelax if done is True 
 
     ##
