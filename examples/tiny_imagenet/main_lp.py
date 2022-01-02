@@ -69,11 +69,13 @@ from mpi4py import MPI
 from utils import parse_args, ParallelNet
 from timeit import default_timer as timer
 
+from torchbraid.utils import MeanInitialGuessStorage
+
 def root_print(rank,s):
   if rank==0:
     print(s)
 
-def train(rank,args,model,train_loader,optimizer,epoch,compose):
+def train(rank,args,model,train_loader,optimizer,epoch,compose,mig_storage):
   log_interval = args.log_interval
   torch.enable_grad()
 
@@ -94,6 +96,9 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose):
     #root_print(rank,f'EPOCH={epoch} FORWARD')
     start_time = timer()
 
+    #if epoch>1:
+    #  model.parallel_nn.setFwdInitialGuess(mig_storage.initialGuess(target))
+
     # compute forward
     optimizer.zero_grad()
     start_time_fp = timer()
@@ -101,6 +106,11 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose):
     total_time_fp += timer()-start_time_fp
 
     fwd_itr, fwd_res = model.getFwdStats()
+
+    # incorporate the average
+    times,states = model.parallel_nn.getFineTimePoints()
+    for t,state in zip(times,states):
+      mig_storage.addState(t,state.tensors(),target)
 
     # compute loss
     start_time_cm = timer()
@@ -290,9 +300,11 @@ def main():
   epoch_times = []
   test_times = []
 
+  mig_storage = MeanInitialGuessStorage(class_count=200,average_weight=0.1)
+
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
-    train(rank,args, model, train_loader, optimizer, epoch,compose)
+    train(rank,args, model, train_loader, optimizer, epoch,compose,mig_storage)
     end_time = timer()
     epoch_times += [end_time-start_time]
 
