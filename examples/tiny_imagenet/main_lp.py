@@ -93,14 +93,17 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,mig_storage):
   default_fwd_iters = model.parallel_nn.getFwdMaxIters();
   default_bwd_iters = model.parallel_nn.getBwdMaxIters();
 
+  model.parallel_nn.setFwdAbsTol(1e1)
+  model.parallel_nn.setBwdAbsTol(1e0)
+
   cumulative_start_time = timer()
   for batch_idx,(data,target) in enumerate(train_loader):
 
     #root_print(rank,f'EPOCH={epoch} FORWARD')
     start_time = timer()
 
-    if epoch>1:
-      model.parallel_nn.setFwdInitialGuess(mig_storage.initialGuess(target))
+    #if epoch>1:
+    #  model.parallel_nn.setFwdInitialGuess(mig_storage.initialGuess(target))
 
     # compute forward
     optimizer.zero_grad()
@@ -111,9 +114,9 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,mig_storage):
     fwd_itr, fwd_res = model.getFwdStats()
 
     # incorporate the average
-    times,states = model.parallel_nn.getFineTimePoints()
-    for t,state in zip(times,states):
-      mig_storage.addState(t,state.tensors(),target)
+    #times,states = model.parallel_nn.getFineTimePoints()
+    #for t,state in zip(times,states):
+    #  mig_storage.addState(t,state.tensors(),target)
 
     # compute loss
     start_time_cm = timer()
@@ -140,12 +143,12 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,mig_storage):
     cumulative_stop_time = timer()
     cumulative_time = (cumulative_stop_time-cumulative_start_time) 
 
-    if fwd_res>1e1:
-      model.parallel_nn.setFwdMaxIters(model.parallel_nn.getFwdMaxIters()+1)
-      root_print(rank,f'  updated fwd iters = {model.parallel_nn.getFwdMaxIters()}')
-    if bwd_res>1e0:
-      model.parallel_nn.setBwdMaxIters(model.parallel_nn.getBwdMaxIters()+1)
-      root_print(rank,f'  updated bwd iters = {model.parallel_nn.getBwdMaxIters()}')
+    #if fwd_res>1e1:
+    #  model.parallel_nn.setFwdMaxIters(model.parallel_nn.getFwdMaxIters()+1)
+    #  root_print(rank,f'  updated fwd iters = {model.parallel_nn.getFwdMaxIters()}')
+    #if bwd_res>1e0:
+    #  model.parallel_nn.setBwdMaxIters(model.parallel_nn.getBwdMaxIters()+1)
+    #  root_print(rank,f'  updated bwd iters = {model.parallel_nn.getBwdMaxIters()}')
       
 
     if batch_idx % log_interval == 0:
