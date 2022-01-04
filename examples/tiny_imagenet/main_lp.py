@@ -99,8 +99,8 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,mig_storage):
     #root_print(rank,f'EPOCH={epoch} FORWARD')
     start_time = timer()
 
-    #if epoch>1:
-    #  model.parallel_nn.setFwdInitialGuess(mig_storage.initialGuess(target))
+    if epoch>1:
+      model.parallel_nn.setFwdInitialGuess(mig_storage.initialGuess(target))
 
     # compute forward
     optimizer.zero_grad()
@@ -320,7 +320,7 @@ def main():
   epoch_times = []
   test_times = []
 
-  mig_storage = MeanInitialGuessStorage(class_count=200,average_weight=0.1)
+  mig_storage = MeanInitialGuessStorage(class_count=200,average_weight=0.9)
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
