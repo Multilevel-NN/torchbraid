@@ -401,6 +401,12 @@ class BraidApp:
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetMaxIter(core, self.max_iters)
 
+  def setAbsTol(self,abs_tol):
+    self.abs_tol = abs_tol
+
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetAbsTol(core,self.abs_tol)
+
   def setFMG(self):
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetFMG(core)
