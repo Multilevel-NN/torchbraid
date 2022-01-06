@@ -109,10 +109,10 @@ class StepLayer(nn.Module):
       raise 'POO!'
 
   def forward(self, x):
-    y = self.activation(x)
-    y = self.conv1(y) 
+    y = self.conv1(x) 
     y = self.activation(y)
     y = self.conv2(y) 
+    y = self.activation(y)
     if self.diff_scale>0.0:
       y = y + F.conv2d(x,weight=self.diff,padding=1)
     return y 
