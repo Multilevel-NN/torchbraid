@@ -36,9 +36,15 @@ __all__ = [ 'mgopt_solver','compute_levels','root_print' ]
 
 ##
 # Basic Linear algebra functions
-def tensor_list_dot(v, w):
+def tensor_list_dot(v, w, comm):
   ''' Compute dot product of two vectors, v and w, where each vector is a list of tensors '''
-  return sum([ torch.dot(vv.flatten(), ww.flatten()) for (vv,ww) in zip(v, w) ])
+  my_sum = sum([ torch.dot(vv.flatten(), ww.flatten()) for (vv,ww) in zip(v, w) ])
+  # TODO: The allreduce messes up the backprop on the torch.dot.  How to do backprop globally over all parameters? 
+  #    Maybe handling this parallel aspect should be done in the compute_fwd_bwd_pass or the loss fcn.
+  if comm.Get_size() > 1:
+    my_sum = comm.allreduce(my_sum, op=MPI.SUM)
+  
+  return my_sum
 
 def tensor_list_AXPY(alpha, v, beta, w, inplace=False):
   '''
@@ -96,6 +102,7 @@ def train_epoch(rank, model, train_loader, optimizer, epoch, criterion, criterio
 
 def test(rank, model, test_loader, criterion, criterion_kwargs, compose, mgopt_printlevel, indent=''):
   ''' Compute loss and accuracy '''
+  comm = model.parallel_nn.fwd_app.mpi_comm
   model.eval()
   test_loss = 0
   correct = 0
@@ -105,7 +112,7 @@ def test(rank, model, test_loader, criterion, criterion_kwargs, compose, mgopt_p
       output = model(data)
       test_loss += compose(criterion, output, target, **criterion_kwargs).item()
        
-      output = MPI.COMM_WORLD.bcast(output,root=0)
+      output = comm.bcast(output,root=0)
       pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
       correct += pred.eq(target.view_as(pred)).sum().item()
 
@@ -125,11 +132,13 @@ def compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criteri
 
   optimizer.zero_grad()
   output = model(data)
+
   if lvl == 0:
     loss = compose(criterion, output, target, **criterion_kwargs)
   else: # add the MG/Opt Term
     x_h = get_params(model, deep_copy=False, grad=False)
-    loss = compose(criterion, output, target, x_h, v_h, **criterion_kwargs)
+    mgopt_term = tensor_list_dot(v_h, x_h, model.parallel_nn.fwd_app.mpi_comm)
+    loss = compose(criterion, output, target, mgopt_term=mgopt_term, **criterion_kwargs)
   ##
   loss.backward()
   return loss
@@ -173,10 +182,28 @@ def get_params(model, deep_copy=False, grad=False):
 ####################################################################################
 # TorchBraid Interp / restrict functions
 
-def tb_get_injection_interp_params(model, cf=2, deep_copy=False, grad=False):
-  
+
+def tb_parallel_get_injection_interp_params(model_fine, model_coarse, cf=2, deep_copy=True, grad=False):
   ''' 
   Interpolate the model parameters according to coarsening-factor in time cf.
+
+  This is carried out in parallel (requires PYX Cython layer), hence call to helper function
+  
+  Return a list of the interpolated model parameters on this processor
+  If grad is True, return the network gradient instead
+  '''
+ 
+  if deep_copy == False:
+    raise ValueError('tb_parallel_get_injection_interp_params  does not support deep_copy==False')
+
+  fwd_app = model_fine.parallel_nn.fwd_app
+  interp_params = fwd_app.parallel_injection_interp_params(model_fine, model_coarse, cf=cf, grad=grad)
+  return interp_params
+
+def tb_get_injection_interp_params(model_fine, model_coarse, cf=2, deep_copy=False, grad=False):
+  
+  ''' 
+  Interpolate the model_coarse parameters according to coarsening-factor in time cf.
   Return a list of the interpolated model parameters.
 
   If deep_copy is True, return a deep copy.
@@ -196,10 +223,9 @@ def tb_get_injection_interp_params(model, cf=2, deep_copy=False, grad=False):
 
   # loop over all the children, interpolating the layer-parallel weights
   with torch.no_grad():
-    for child in model.children():
+    for child in model_coarse.children():
       # handle layer parallel modules differently 
       if isinstance(child, torchbraid.LayerParallel):
-        
         # loop over each layer-parallel layer -- this is where the "interpolation" occurs
         for (lp_child, lp_f) in duplicate(child.layer_models, cf):
           for param in lp_child.parameters():
@@ -224,9 +250,27 @@ def tb_get_injection_interp_params(model, cf=2, deep_copy=False, grad=False):
   return interp_params
 
 
-def tb_get_injection_restrict_params(model, cf=2, deep_copy=False, grad=False):
+def tb_parallel_get_injection_restrict_params(model_fine, model_coarse, cf=2, deep_copy=True, grad=False):
   ''' 
-  Restrict the model parameters according to coarsening-factor in time cf.
+  Restrict the model_fine parameters according to coarsening-factor in time cf.
+
+  This is carried out in parallel (requires PYX Cython layer), hence call to helper function
+  
+  Return a list of the restricted model parameters.
+  If grad is True, return the network gradient instead
+  '''
+ 
+  if deep_copy == False:
+    raise ValueError('tb_parallel_get_injection_restrict_params  does not support deep_copy==False')
+
+  fwd_app = model_fine.parallel_nn.fwd_app
+  restrict_params = fwd_app.parallel_injection_restrict_params(model_fine, model_coarse, cf=cf, grad=grad)
+  return restrict_params
+
+
+def tb_get_injection_restrict_params(model_fine, model_coarse, cf=2, deep_copy=False, grad=False):
+  ''' 
+  Restrict the model_fine parameters according to coarsening-factor in time cf.
   Return a list of the restricted model parameters.
 
   If deep_copy is True, return a deep copy.
@@ -236,7 +280,7 @@ def tb_get_injection_restrict_params(model, cf=2, deep_copy=False, grad=False):
   restrict_params = []
 
   # loop over all the children, restricting 
-  for child in model.children():
+  for child in model_fine.children():
     
     # handle layer parallel modules differently 
     if isinstance(child, torchbraid.LayerParallel):
@@ -295,7 +339,7 @@ def tb_injection_interp_network_state(model_fine, model_coarse, cf=2):
 
 ##
 # Basic TorchBraid cross Entropy loss function extended to take MG/Opt Term
-def tb_mgopt_cross_ent(output, target, network_parameters=None, v=None):
+def tb_mgopt_cross_ent(output, target, mgopt_term=None):
   '''
   Define cross entropy loss with optional new MG/Opt term
   '''
@@ -310,8 +354,7 @@ def tb_mgopt_cross_ent(output, target, network_parameters=None, v=None):
     loss = criterion(output, target)
   
   # Compute MGOPT term (be careful to use only PyTorch functions)
-  if (network_parameters is not None) and (v is not None): 
-    mgopt_term = tensor_list_dot(v, network_parameters)
+  if mgopt_term != None: 
     return loss - mgopt_term
   else:
     return loss
@@ -338,7 +381,7 @@ def tb_simple_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, 
   Simple line-search: Add e_h to fine parameters.  Test five different alpha
   values.  Choose one that best minimizes loss.
   '''
-  rank  = MPI.COMM_WORLD.Get_rank()
+  rank = model.parallel_nn.fwd_app.mpi_comm.Get_rank()
   try:
     alphas = ls_params['alphas']
   except:
@@ -385,7 +428,7 @@ def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, c
   diminished, stop.  Else subtract 1/2 of e_h from fine parameters, and
   continue until loss is reduced.
   '''
-  rank  = MPI.COMM_WORLD.Get_rank()
+  rank = model.parallel_nn.fwd_app.mpi_comm.Get_rank()
   try:
     n_line_search = ls_params['n_line_search']
     alpha = ls_params['alpha']
@@ -538,25 +581,48 @@ class mgopt_solver:
 
   def __repr__(self):
     """Print basic statistics about the multigrid hierarchy."""
+    model = self.levels[0].model
+    comm = model.parallel_nn.fwd_app.mpi_comm
+    my_rank = comm.Get_rank()
 
+    # All processors needed to compute op complexity
     (total_op_comp, trainable_op_comp, total_params_per_level, trainable_params_per_level) = self.operator_complexity()
 
+    # Only rank 0 prints output
+    if my_rank == 0:
+      output = '\nMG/Opt Solver\n'
+      output += 'Number of Levels:     %d\n' % len(self.levels)
+      output += 'Total Op Complexity: %6.3f\n' % total_op_comp 
+      output += 'Trainable Op Complexity: %6.3f\n' % trainable_op_comp 
+      
+      output += '  level      total params       trainable params \n'
+      for n, level in enumerate(self.levels):
+        output += '   %2d   %9d [%5.2f%%]   %9d [%5.2f%%] \n' % (n, 
+                      total_params_per_level[n], 
+                      (100 * float(total_params_per_level[n]) / float(sum(total_params_per_level))), 
+                      trainable_params_per_level[n], 
+                      (100 * float(trainable_params_per_level[n]) / float(sum(trainable_params_per_level))) )   
+      
+      return output
+    
+    else:
+      return ""
 
-    output = '\nMG/Opt Solver\n'
-    output += 'Number of Levels:     %d\n' % len(self.levels)
-    output += 'Total Op Complexity: %6.3f\n' % total_op_comp 
-    output += 'Trainable Op Complexity: %6.3f\n' % trainable_op_comp 
-
-    output += '  level      total params       trainable params \n'
-    for n, level in enumerate(self.levels):
-      output += '   %2d   %9d [%5.2f%%]   %9d [%5.2f%%] \n' % (n, 
-                    total_params_per_level[n], 
-                    (100 * float(total_params_per_level[n]) / float(sum(total_params_per_level))), 
-                    trainable_params_per_level[n], 
-                    (100 * float(trainable_params_per_level[n]) / float(sum(trainable_params_per_level))) )   
-
-    return output
-
+  def get_total_param_count(self, model):
+    """
+    Return a length 2 array containing a global count of 
+    [ total network params,  trainable network params ]
+    
+    Result only accurate on rank 0 (reduce is used, not all-reduce)
+    """
+    comm = model.parallel_nn.fwd_app.mpi_comm
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    my_param_count = np.array( (total_params, trainable_params), dtype=np.float64 )
+    total_param_count = np.zeros_like(my_param_count)
+    # Use the lower-level comm.Reduce (not comm.reduce)
+    comm.Reduce( [my_param_count, MPI.DOUBLE], [total_param_count, MPI.DOUBLE], op=MPI.SUM, root=0)
+    return total_param_count
 
   def operator_complexity(self):
     """Operator complexity of this multigrid hierarchy.
@@ -567,29 +633,33 @@ class mgopt_solver:
       - Array of the total param count on each level
       - Array of the trainable param count on each level
     """
-    
+    model = self.levels[0].model
+    comm = model.parallel_nn.fwd_app.mpi_comm
+    my_rank = comm.Get_rank()
+
     total_params_per_level = []
     trainable_params_per_level = []
 
     for lvl in self.levels:
       model = lvl.model
-      total_params = sum(p.numel() for p in model.parameters())
-      trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-      counts = MPI.COMM_WORLD.gather((total_params,trainable_params))
-      total_params_per_level.append(counts[0][0])
-      trainable_params_per_level.append(counts[0][1])
-
-    total_params_per_level = np.array(total_params_per_level) 
-    trainable_params_per_level = np.array(trainable_params_per_level) 
+      total_param_count = self.get_total_param_count(model)  # note that these numbers are only correct on rank 0
+      if my_rank == 0:
+        total_params_per_level.append(total_param_count[0])
+        trainable_params_per_level.append(total_param_count[1])
     
-    if total_params_per_level.shape[0] > 0:
-      total_op_comp =  np.sum(total_params_per_level) / total_params_per_level[0]
-      trainable_op_comp =  np.sum(trainable_params_per_level) / trainable_params_per_level[0]
+    # Have only rank 0 compute the op complexity for output
+    if my_rank == 0:
+      total_params_per_level = np.array(total_params_per_level) 
+      trainable_params_per_level = np.array(trainable_params_per_level) 
       
-      return (total_op_comp, trainable_op_comp, total_params_per_level, trainable_params_per_level)
-    
+      if total_params_per_level.shape[0] > 0:
+        total_op_comp =  np.sum(total_params_per_level) / total_params_per_level[0]
+        trainable_op_comp =  np.sum(trainable_params_per_level) / trainable_params_per_level[0]
+        
+        return (total_op_comp, trainable_op_comp, total_params_per_level, trainable_params_per_level)
+      
     else:
-      return (-1, -1)
+      return (-1, -1, -1, -1)
 
 
   def options_used(self):
@@ -607,8 +677,8 @@ class mgopt_solver:
       ##
       return output
 
-
-    rank  = MPI.COMM_WORLD.Get_rank()
+    model = self.levels[0].model
+    rank = model.parallel_nn.fwd_app.mpi_comm.Get_rank()
     output = ""
     # Process global parameters
     if hasattr(self, 'nrelax_pre'):    output = output + "MG/Opt global parameters\n"
@@ -643,7 +713,8 @@ class mgopt_solver:
                                        interp_params    = "tb_get_injection_interp_params", 
                                        optims           = ("pytorch_sgd", { 'lr':0.01, 'momentum':0.9}), 
                                        criterions       = "tb_mgopt_cross_ent", 
-                                       seed             = None):
+                                       seed             = None,
+                                       zero_init_guess  = False):
     """
     Use nested iteration to create a hierarchy of models
 
@@ -701,6 +772,10 @@ class mgopt_solver:
 
     seed : int
       seed for random number generate (e.g., when initializing weights)
+
+    zero_init_guess : int
+      If 1, then initialize nested iteration with all zero parameters on
+      initial level.  Useful for parallel reproducibility.  Default is 0,False.
   
 
     Notes
@@ -722,8 +797,7 @@ class mgopt_solver:
     """
           
     nlevels = len(ni_steps)
-    rank  = MPI.COMM_WORLD.Get_rank()
-    procs = MPI.COMM_WORLD.Get_size()
+    rank = MPI.COMM_WORLD.Get_rank()
 
     ##
     # Process arguments 
@@ -771,25 +845,17 @@ class mgopt_solver:
         model.parallel_nn.setBwdStorage(0)  # Only really needed if Braid will create a single time-level.  
       else:
         raise ValueError('Unsupported model: ' + model_string)
+      
+      ##
+      # Get rank from model
+      if k == 0: rank = model.parallel_nn.fwd_app.mpi_comm.Get_rank()
 
       ##
-      # Select Interpolate weights from coarser model to the new model
-      if len(self.levels) > 0: 
-        (get_interp_params, interp_params_kwargs) = self.process_get_interp_params(interp_params[k])
-        new_params = get_interp_params(self.levels[-1].model, **interp_params_kwargs)
-        write_params_inplace(model, new_params)
-        del new_params
-
-      ##
-      # Diagnostic printing
-      total_params = sum(p.numel() for p in model.parameters())
-      trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-      counts = MPI.COMM_WORLD.gather((total_params,trainable_params))
-      root_print(rank, mgopt_printlevel, 1, '\nNested Iter Level:  ' + str(k) )
-      root_print(rank, mgopt_printlevel, 1, '  optimizing %d steps' % steps)
-      root_print(rank, mgopt_printlevel, 1, '  total params: {}'.format([c[0] for c in counts]))
-      root_print(rank, mgopt_printlevel, 1, '  train params: {}'.format([c[1] for c in counts]))
-      root_print(rank, mgopt_printlevel, 1, '')
+      # For parallel reproducibility, set all parameters to 0
+      if zero_init_guess:
+        with torch.no_grad():
+          x_h = get_params(model, deep_copy=False, grad=False)
+          for param in x_h: param[:] = 0.0
 
       ##
       # Select Optimization method
@@ -798,6 +864,33 @@ class mgopt_solver:
       ##
       # Select Criterion (objective) and compose function
       (criterion, compose, criterion_kwargs) = self.process_criterion(criterions[k], model)
+
+      ##
+      # Select Interpolate weights from coarser model to the new model
+      if len(self.levels) > 0: 
+        # First do a "dummy" Braid iteration to initialize everything inside model
+        model.eval()
+        for (data, target) in train_loader:
+          output = model(data)
+          loss = compose(criterion, output, target, **criterion_kwargs)
+          loss.backward()
+          break
+
+        (get_interp_params, interp_params_kwargs) = self.process_get_interp_params(interp_params[k])
+        new_params = get_interp_params(model, self.levels[-1].model, **interp_params_kwargs)
+        write_params_inplace(model, new_params)
+        del new_params
+
+      ##
+      # Diagnostic printing
+      total_param_count = self.get_total_param_count(model)  # note that these numbers are only correct on rank 0
+      if rank == 0:
+        root_print(rank, mgopt_printlevel, 1, '\nNested Iter Level:  ' + str(k) )
+        root_print(rank, mgopt_printlevel, 1, '  optimizing %d steps' % steps)
+        root_print(rank, mgopt_printlevel, 1, '  total params: %d' % total_param_count[0])
+        root_print(rank, mgopt_printlevel, 1, '  train params: %d' % total_param_count[1])
+        root_print(rank, mgopt_printlevel, 1, '')
+
       
       ##
       # Begin epoch loop
@@ -940,9 +1033,9 @@ class mgopt_solver:
       interp(model_fine, model_coarse, **kwargs)
 
     In general, the get_restrict/interp parameter and gradient functions work like
-      restricted_params   = get_restrict_params(model, **kwargs)
-      restricted_grad     = get_restrict_grad(model, **kwargs)
-      interpolated_params = get_interp_params(model, **kwargs)
+      restricted_params   = get_restrict_params(model_fine, model_coarse, **kwargs)
+      restricted_grad     = get_restrict_grad(model_fine, model_coarse, **kwargs)
+      interpolated_params = get_interp_params(model_fine, model_coarse, **kwargs)
 
     
     Returns
@@ -954,8 +1047,9 @@ class mgopt_solver:
 
     """
     
-    rank  = MPI.COMM_WORLD.Get_rank()
-     
+    model = self.levels[0].model
+    rank = model.parallel_nn.fwd_app.mpi_comm.Get_rank()
+
     ##
     # Store global solve parameters
     self.nrelax_pre = nrelax_pre
@@ -1083,8 +1177,9 @@ class mgopt_solver:
     ##
     # Grab fine and coarse models and optimizers
     # We regenerate the optimizer each time, as some optimizers store state
-    rank  = MPI.COMM_WORLD.Get_rank()
     model = self.levels[lvl].model
+    comm = model.parallel_nn.fwd_app.mpi_comm
+    rank = comm.Get_rank()
     (optimizer, optim_kwargs) = self.process_optimizer(self.levels[lvl].optims, self.levels[lvl].model)
     coarse_model = self.levels[lvl+1].model
     (coarse_optimizer, coarse_optim_kwargs) = self.process_optimizer(self.levels[lvl+1].optims, self.levels[lvl+1].model)
@@ -1123,7 +1218,7 @@ class mgopt_solver:
     # Fixed-point test level output
     if mgopt_printlevel == 3:
       x_h = get_params(model, deep_copy=False, grad=False)
-      root_print(rank, mgopt_printlevel, 3, "  Pre-MG/Opt solution norm:       " + str(tensor_list_dot(x_h, x_h).item()) ) 
+      root_print(rank, mgopt_printlevel, 3, "  Pre-MG/Opt solution norm:       " + str(tensor_list_dot(x_h, x_h, comm).item()) ) 
     
     # 1. relax (carry out optimization steps)
     for k in range(self.nrelax_pre):
@@ -1146,8 +1241,8 @@ class mgopt_solver:
     # x_H^{zero} = R(x_h)   and    \tilde{g}_H = R(g_h)
     with torch.no_grad():
       #do_restrict_states(model, coarse_model, **restrict_states_kwargs)
-      gtilde_H = get_restrict_grad(model, **restrict_grad_kwargs)
-      x_H      = get_restrict_params(model, **restrict_params_kwargs) 
+      gtilde_H = get_restrict_grad(model, coarse_model, **restrict_grad_kwargs)
+      x_H      = get_restrict_params(model, coarse_model, **restrict_params_kwargs) 
       # For x_H to take effect, these parameters must be written to the next coarser network
       write_params_inplace(coarse_model, x_H)
       # Must store x_H for later error computation
@@ -1197,16 +1292,16 @@ class mgopt_solver:
       # network, so the interpolation knows the layer-parallel structure and
       # where to refine.
       write_params_inplace(coarse_model, e_H)
-      e_h = get_interp_params(coarse_model, **interp_params_kwargs) 
+      e_h = get_interp_params(model, coarse_model, **interp_params_kwargs) 
       #do_interp_states(model, coarse_model, **interp_states_kwargs)
-      root_print(rank, mgopt_printlevel, 2, "  Norm of error correction:       " + str(np.sqrt(tensor_list_dot(e_h, e_h).item())) ) 
+      root_print(rank, mgopt_printlevel, 2, "  Norm of error correction:       " + str(np.sqrt(tensor_list_dot(e_h, e_h, comm).item())) ) 
       
 
     # 8. apply linesearch to update x_h
     #  x_h = x_h + alpha*e_h
     with torch.no_grad():
       x_h = get_params(model, deep_copy=False, grad=False)
-      e_dot_gradf = tensor_list_dot(e_h, g_h).item()
+      e_dot_gradf = tensor_list_dot(e_h, g_h, comm).item()
       # Note, that line_search can store values between runs, like alpha, by having ls_kwargs = { 'ls_params' : {'alpha' : ...}} 
       ls_alpha = do_line_search(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, fine_loss, e_dot_gradf, mgopt_printlevel, **ls_kwargs)
       self.levels[lvl].out_ls_step += [ls_alpha]
@@ -1226,7 +1321,7 @@ class mgopt_solver:
     ##
     # Fixed-point test level output
     if mgopt_printlevel == 3:
-      root_print(rank, mgopt_printlevel, 3, "  Post-MG/Opt solution norm:       " + str(tensor_list_dot(x_h, x_h).item()) ) 
+      root_print(rank, mgopt_printlevel, 3, "  Post-MG/Opt solution norm:       " + str(tensor_list_dot(x_h, x_h, comm).item()) ) 
 
 
     return loss.item()   
@@ -1259,8 +1354,10 @@ class mgopt_solver:
         arg1=('something, {}), and we want these formats to all be converted to 
         per-level parameter specifications.
         """
-        if isinstance(to_levelize, tuple) or isinstance(to_levelize, str):
+        if isinstance(to_levelize, tuple):
             to_levelize = [to_levelize for i in range(max_levels)]
+        elif isinstance(to_levelize, str):
+            to_levelize = [(to_levelize, {}) for i in range(max_levels)]
         elif isinstance(to_levelize, list):
             if len(to_levelize) < max_levels:
                 mlz = max_levels - len(to_levelize)
@@ -1337,6 +1434,9 @@ class mgopt_solver:
     if method == "tb_get_injection_restrict_params":
       get_restrict_params = tb_get_injection_restrict_params
       restrict_params_kwargs.update({'cf' : self.ni_rfactor, 'deep_copy' : True, 'grad' : False})
+    elif method == "tb_parallel_get_injection_restrict_params":
+      get_restrict_params = tb_parallel_get_injection_restrict_params
+      restrict_params_kwargs.update({'cf' : self.ni_rfactor, 'deep_copy' : True, 'grad' : False})
     else:
       raise ValueError('Unsupported restrict params: ' + method)  
     ##
@@ -1349,6 +1449,9 @@ class mgopt_solver:
     if method == "tb_get_injection_restrict_params":
       get_restrict_grad = tb_get_injection_restrict_params
       restrict_grad_kwargs.update({'cf' : self.ni_rfactor, 'deep_copy' : True, 'grad' : True})
+    elif method == "tb_parallel_get_injection_restrict_params":
+      get_restrict_grad = tb_parallel_get_injection_restrict_params
+      restrict_grad_kwargs.update({'cf' : self.ni_rfactor, 'deep_copy' : True, 'grad' : True})
     else:
       raise ValueError('Unsupported restrict grad: ' + method)  
     ##
@@ -1360,6 +1463,9 @@ class mgopt_solver:
     method, interp_params_kwargs = unpack_arg(option)
     if method == "tb_get_injection_interp_params":
       get_interp_params = tb_get_injection_interp_params
+      interp_params_kwargs.update({'deep_copy' : True, 'grad' : False, 'cf' : self.ni_rfactor})
+    elif method == "tb_parallel_get_injection_interp_params":
+      get_interp_params = tb_parallel_get_injection_interp_params
       interp_params_kwargs.update({'deep_copy' : True, 'grad' : False, 'cf' : self.ni_rfactor})
     else:
       raise ValueError('Unsupported interp params: ' + method)

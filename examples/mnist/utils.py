@@ -179,6 +179,8 @@ def parse_args():
                       help='number of samples as a ratio of the total number of samples')
   parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                       help='learning rate (default: 0.01)')
+  parser.add_argument('--zero-init-guess', type=int, default=0, metavar='N',
+                      help='Zero initial guess for all parameters when starting NI (parallel reproducibility), 0:False, 1:True (default: 0)')
   
   # algorithmic settings (parallel or serial)
   parser.add_argument('--lp-fwd-levels', type=int, default=3, metavar='N',

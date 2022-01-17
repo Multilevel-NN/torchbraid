@@ -114,14 +114,16 @@ def main():
   #
   train_loader = torch.utils.data.DataLoader(train_set,batch_size=args.batch_size,shuffle=True)
   test_loader = torch.utils.data.DataLoader(test_set,batch_size=args.batch_size,shuffle=True)
-  print("\nTraining setup:  Batch size:  " + str(args.batch_size) + "  Sample ratio:  " + str(args.samp_ratio) + "  MG/Opt Epochs:  " + str(args.epochs) )
+  if rank==0:
+    print("\nTraining setup:  Batch size:  " + str(args.batch_size) + "  Sample ratio:  " + str(args.samp_ratio) + "  MG/Opt Epochs:  " + str(args.epochs) )
   
   ##
   # Compute number of nested iteration steps, going from fine to coarse
   ni_steps = np.array([int(args.steps/(args.ni_rfactor**(args.ni_levels-i-1))) for i in range(args.ni_levels)])
   ni_steps = ni_steps[ ni_steps != 0 ]
   local_ni_steps = np.flip( np.array(ni_steps / procs, dtype=int) )
-  print("\nNested iteration steps:  " + str(ni_steps))
+  if rank==0:
+    print("\nNested iteration steps:  " + str(ni_steps))
 
   ##
   # Define ParNet parameters for each nested iteration level, starting from fine to coarse
@@ -158,6 +160,8 @@ def main():
 
   ##
   # Initialize MG/Opt solver with nested iteration 
+  interp_params = "tb_parallel_get_injection_interp_params"
+  #interp_params = "tb_get_injection_interp_params"
   epochs = args.NIepochs
   mgopt_printlevel = args.mgopt_printlevel
   log_interval = args.log_interval
@@ -166,8 +170,8 @@ def main():
   model_factory = lambda level,**kwargs: ParallelNet(**kwargs)
 
   mgopt.initialize_with_nested_iteration(model_factory,ni_steps, train_loader, test_loader,
-          networks, epochs=epochs, log_interval=log_interval,
-          mgopt_printlevel=mgopt_printlevel, optims=optims, seed=args.seed) 
+          networks, interp_params=interp_params, epochs=epochs, log_interval=log_interval,
+          mgopt_printlevel=mgopt_printlevel, optims=optims, seed=args.seed, zero_init_guess=args.zero_init_guess) 
    
   print(mgopt)
   mgopt.options_used()
@@ -187,7 +191,8 @@ def main():
       output = model(data)
       loss = model.compose(criterion, output, target)
     
-    print("Doing fixed point test.  Loss on single training example should be zero: " + str(loss.item()))
+    if rank==0:
+      print("Doing fixed point test.  Loss on single training example should be zero: " + str(loss.item()))
     model.train()
 
  # Can change MGRIT options from NI to MG/Opt with the following
@@ -199,6 +204,10 @@ def main():
   if( args.mgopt_iter > 0):
     epochs = args.epochs
     line_search = ('tb_simple_ls', {'ls_params' : {'alphas' : [0.01, 0.1, 0.5, 1.0, 2.0, 4.0]}} )
+    restrict_params = "tb_parallel_get_injection_restrict_params"
+    #restrict_params = "tb_get_injection_restrict_params"
+    restrict_grads = "tb_parallel_get_injection_restrict_params"
+    #restrict_grads = "tb_get_injection_restrict_params"
     log_interval = args.log_interval
     mgopt_printlevel = args.mgopt_printlevel
     mgopt_iter = args.mgopt_iter
@@ -212,7 +221,8 @@ def main():
             mgopt_iter=mgopt_iter, nrelax_pre=nrelax_pre,
             nrelax_post=nrelax_post, nrelax_coarse=nrelax_coarse,
             mgopt_printlevel=mgopt_printlevel, mgopt_levels=mgopt_levels,
-            line_search=line_search)
+            line_search=line_search, restrict_params=restrict_params, 
+            restrict_grads=restrict_grads)
    
     print(mgopt)
     mgopt.options_used()
