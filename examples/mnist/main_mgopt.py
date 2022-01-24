@@ -112,8 +112,8 @@ def main():
   train_set = torch.utils.data.Subset(dataset,range(train_size))
   test_set  = torch.utils.data.Subset(dataset,range(train_size,train_size+test_size))
   #
-  train_loader = torch.utils.data.DataLoader(train_set,batch_size=args.batch_size,shuffle=True)
-  test_loader = torch.utils.data.DataLoader(test_set,batch_size=args.batch_size,shuffle=True)
+  train_loader = torch.utils.data.DataLoader(train_set,batch_size=args.batch_size,shuffle=False)
+  test_loader = torch.utils.data.DataLoader(test_set,batch_size=args.batch_size,shuffle=False)
   if rank==0:
     print("\nTraining setup:  Batch size:  " + str(args.batch_size) + "  Sample ratio:  " + str(args.samp_ratio) + "  MG/Opt Epochs:  " + str(args.epochs) )
   

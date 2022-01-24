@@ -127,6 +127,8 @@ def compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criteri
   Compute a backward and forward pass for the model.
   if lvl is 0, no MGOPT term is used
   if lvl > 0, incorporate MGOpt term
+
+  returns the loss as a scalar (i.e., with no tape attached)
   '''
   model.train()
 
@@ -137,11 +139,18 @@ def compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criteri
     loss = compose(criterion, output, target, **criterion_kwargs)
   else: # add the MG/Opt Term
     x_h = get_params(model, deep_copy=False, grad=False)
-    mgopt_term = tensor_list_dot(v_h, x_h, model.parallel_nn.fwd_app.mpi_comm)
+    with torch.no_grad():
+      mgopt_term = tensor_list_dot(v_h, x_h, model.parallel_nn.fwd_app.mpi_comm).item()
+
     loss = compose(criterion, output, target, mgopt_term=mgopt_term, **criterion_kwargs)
   ##
   loss.backward()
-  return loss
+
+  # Loss is only available on rank 0
+  comm = model.parallel_nn.fwd_app.mpi_comm
+  loss_scalar = comm.bcast(loss.item(), root=0)
+
+  return loss_scalar
 
 
 ##
@@ -396,9 +405,8 @@ def tb_simple_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, 
     tensor_list_AXPY(alpha, e_h, 1.0, x_h, inplace=True)
 
     with torch.enable_grad():
-      loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
+      new_loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
 
-    new_loss = loss.item()
     root_print(rank, mgopt_printlevel, 2, "  LS Alpha Test:        " + str(alpha) + "  Loss = " + str(new_loss))
 
     # Is this a better loss?
@@ -414,7 +422,6 @@ def tb_simple_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, 
 
   # Choose the winning alpha
   tensor_list_AXPY(alphas[winner], e_h, 1.0, x_h, inplace=True)
-
 
   # Print alpha chosen 
   root_print(rank, mgopt_printlevel, 2, "  LS Alpha chosen:        " + str(alphas[winner]) + "  Loss = " + str(best_loss))
@@ -450,10 +457,8 @@ def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, c
   for m in range(n_line_search):
     #print("line-search, alpha=", alpha)
     with torch.enable_grad():
-      loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
+      new_loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
     
-    new_loss = loss.item()
-
     # Check Wolfe condition (i), also called the Armijo rule
     #  f(x + alpha p) <=  f(x) + c alpha <p, grad f(x) >
     if new_loss < old_loss + c1*alpha*e_dot_gradf:
@@ -476,8 +481,6 @@ def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, c
 ####################################################################################
 ####################################################################################
             
-
-
 def compute_levels(num_steps,min_coarse_size,cfactor): 
   from math import log, floor 
   # we want to find $L$ such that ( max_L min_coarse_size*cfactor**L <= num_steps)
@@ -1222,15 +1225,14 @@ class mgopt_solver:
     
     # 1. relax (carry out optimization steps)
     for k in range(self.nrelax_pre):
-      loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
-      root_print(rank, mgopt_printlevel, 2, "  Pre-relax loss:       " + str(loss.item()) ) 
+      loss_scalar = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
+      root_print(rank, mgopt_printlevel, 2, "  Pre-relax loss:       " + str(loss_scalar) ) 
       optimizer.step()
     
     # 2. compute new gradient g_h
     # First evaluate network, forward and backward.  Return value is scalar value of the loss.
-    loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
-    fine_loss = loss.item()
-    root_print(rank, mgopt_printlevel, 2, "  Pre-relax done loss:  " + str(loss.item())) 
+    fine_loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
+    root_print(rank, mgopt_printlevel, 2, "  Pre-relax done loss:  " + str(fine_loss)) 
     with torch.no_grad():
       g_h = get_params(model, deep_copy=True, grad=True)
 
@@ -1247,14 +1249,14 @@ class mgopt_solver:
       write_params_inplace(coarse_model, x_H)
       # Must store x_H for later error computation
       x_H_zero = tensor_list_deep_copy(x_H)
-    
+
     # 4. compute gradient on coarse level, using restricted parameters
     #  g_H = grad( f_H(x_H) )
     #
     # Evaluate gradient.  For computing fwd_bwd_pass, give 0 as first
     # parameter, so that the MG/Opt term is turned-off.  We just want hte
     # gradient of f_H here.
-    loss = compute_fwd_bwd_pass(0, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, None)
+    loss_scalar = compute_fwd_bwd_pass(0, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, None)
     with torch.no_grad():
       g_H = get_params(coarse_model, deep_copy=True, grad=True)
     
@@ -1269,9 +1271,9 @@ class mgopt_solver:
       # If on coarsest level, do a "solve" by carrying out a number of relaxation steps
       root_print(rank, mgopt_printlevel, 2, "\n  Level:  " + str(lvl+1))
       for m in range(self.nrelax_coarse):
-        loss = compute_fwd_bwd_pass(lvl+1, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, v_H)
+        loss_scalar = compute_fwd_bwd_pass(lvl+1, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, v_H)
         coarse_optimizer.step()
-        root_print(rank, mgopt_printlevel, 2, "  Coarsest grid solve loss: " + str(loss.item())) 
+        root_print(rank, mgopt_printlevel, 2, "  Coarsest grid solve loss: " + str(loss_scalar)) 
     else:
       # Recursive call
       self.__solve(lvl+1, data, target, v_H, mgopt_printlevel, 
@@ -1303,20 +1305,24 @@ class mgopt_solver:
       x_h = get_params(model, deep_copy=False, grad=False)
       e_dot_gradf = tensor_list_dot(e_h, g_h, comm).item()
       # Note, that line_search can store values between runs, like alpha, by having ls_kwargs = { 'ls_params' : {'alpha' : ...}} 
+      
+      # verified that e_h is the same ...
+      #rank = model.parallel_nn.fwd_app.mpi_comm.Get_rank()
+      #[sys.stderr.write("rank before: " + str(rank) + "  layer X: " + str(k) + " =  " + str((pp.flatten()[0]).item()) + "  " + str((pp.flatten()[-1]).item()) + "\n") for k, pp in enumerate(x_h)] 
       ls_alpha = do_line_search(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, fine_loss, e_dot_gradf, mgopt_printlevel, **ls_kwargs)
       self.levels[lvl].out_ls_step += [ls_alpha]
 
 
     # 9. post-relaxation
     for k in range(self.nrelax_post):
-      loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
-      if (k==0):  root_print(rank, mgopt_printlevel, 2, "  CG Corr done loss:    " + str(loss.item()) ) 
-      else:       root_print(rank, mgopt_printlevel, 2, "  Post-relax loss:      " + str(loss.item()) )
+      loss_scalar = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
+      if (k==0):  root_print(rank, mgopt_printlevel, 2, "  CG Corr done loss:    " + str(loss_scalar) ) 
+      else:       root_print(rank, mgopt_printlevel, 2, "  Post-relax loss:      " + str(loss_scalar) )
       optimizer.step()
     ##
     if (mgopt_printlevel == 2):  
-      loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
-      root_print(rank, mgopt_printlevel, 2, "  Post-relax loss:      " + str(loss.item()) )
+      loss_scalar = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
+      root_print(rank, mgopt_printlevel, 2, "  Post-relax loss:      " + str(loss_scalar) )
   
     ##
     # Fixed-point test level output
@@ -1324,7 +1330,7 @@ class mgopt_solver:
       root_print(rank, mgopt_printlevel, 3, "  Post-MG/Opt solution norm:       " + str(tensor_list_dot(x_h, x_h, comm).item()) ) 
 
 
-    return loss.item()   
+    return loss_scalar   
         
         
 
