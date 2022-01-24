@@ -39,11 +39,14 @@ __all__ = [ 'mgopt_solver','compute_levels','root_print' ]
 def tensor_list_dot(v, w, comm):
   ''' Compute dot product of two vectors, v and w, where each vector is a list of tensors '''
   my_sum = sum([ torch.dot(vv.flatten(), ww.flatten()) for (vv,ww) in zip(v, w) ])
-  # TODO: The allreduce messes up the backprop on the torch.dot.  How to do backprop globally over all parameters? 
-  #    Maybe handling this parallel aspect should be done in the compute_fwd_bwd_pass or the loss fcn.
+  # For parallel, we just fill my_sum with the global inner-product value (without updating the autograd tape)
+  # We assume that this dot-product operation is only ever used for "linear" operations, like the <x_h, v_h> 
+  # term inside of MG/Opt, so that this little trick will work.
   if comm.Get_size() > 1:
-    my_sum = comm.allreduce(my_sum, op=MPI.SUM)
-  
+    global_sum = comm.allreduce(my_sum.item(), op=MPI.SUM)
+    with torch.no_grad(): 
+      my_sum.data.fill_(global_sum)
+
   return my_sum
 
 def tensor_list_AXPY(alpha, v, beta, w, inplace=False):
@@ -139,8 +142,8 @@ def compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criteri
     loss = compose(criterion, output, target, **criterion_kwargs)
   else: # add the MG/Opt Term
     x_h = get_params(model, deep_copy=False, grad=False)
-    with torch.no_grad():
-      mgopt_term = tensor_list_dot(v_h, x_h, model.parallel_nn.fwd_app.mpi_comm).item()
+    # TODO modify this according to solution for the <x,v> term and np>1
+    mgopt_term = tensor_list_dot(v_h, x_h, model.parallel_nn.fwd_app.mpi_comm)
 
     loss = compose(criterion, output, target, mgopt_term=mgopt_term, **criterion_kwargs)
   ##
