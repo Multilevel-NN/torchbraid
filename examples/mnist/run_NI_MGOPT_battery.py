@@ -74,25 +74,28 @@ def main():
   #     (so that NI still leaves space for MGOpt to improve), this results in one more epoch of MGOpt to keep the work about the same.
   #   - Do better job of keeping the cost the same
   #     -- Cost of MGOPT:
-  #        40 MG/Opt epochs  X  (2 total fine-grid relaxations + 1 coarse-grid relaxations)  +   2 NI epochs X 2 Levels
-  #        = 124 total relaxations / optimizations
+  #        35 MG/Opt epochs  X  (2 total fine-grid relaxations  +  1 coarse-grid relaxations  +  1 g_h  +  0.7 g_H  +  Line-search cost)  +   2 NI epochs X 2 Levels
+  #     -- Cost for simple line-search, letting the cost be about 1.3 optimizer steps is
+  #        214   = 35*(2 + 1 + 1 + 0.7 + 1.3) + 4
+  #     -- Cost using no line search is equal when doing 45 epochs
+  #        215.5 = 45*(2 + 1 + 1 + 0.7 + 0.0) + 4
   #     -- NI epochs are then
-  #        124 epochs for single level
-  #        65 epochs for two levels (do 65 instead of 60, because we won't weight coarse level fully 100% of fine)
+  #        215 epochs for single level
+  #        110 epochs for two levels (coarse grid is a tiny bit cheaper, so allow for a bit more epochs) 
   #
   # Two-level NI 
-  NI_run_string = ' main_mgopt.py --steps 16 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --mgopt-iter 0 --NIepochs 65'
+  #NI_run_string = ' main_mgopt.py --steps 16 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --mgopt-iter 0 --NIepochs 110'
   # One-level NI (plain Adam)
-  #NI_run_string = ' main_mgopt.py --steps 16 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 1 --lp-fwd-levels 1 --lp-bwd-levels 1 --mgopt-iter 0 --NIepochs 124'
+  NI_run_string = ' main_mgopt.py --steps 16 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 1 --lp-fwd-levels 1 --lp-bwd-levels 1 --mgopt-iter 0 --NIepochs 215'
   #######
   # Two-level
-  #NI_MGOpt_run_string = 'main_mgopt.py --steps 16 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 1 --mgopt-nrelax-post 1 --mgopt-nrelax-coarse 1 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-iters 1  --epochs 40 --NIepochs 2 '
+  NI_MGOpt_run_string = 'main_mgopt.py --steps 16 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 1 --mgopt-nrelax-post 1 --mgopt-nrelax-coarse 1 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-iters 1  --epochs 45 --NIepochs 2 '
   #
   # Three-level
-  NI_MGOpt_run_string = 'main_mgopt.py --steps 16 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 3 --mgopt-levels 3 --mgopt-nrelax-pre 1 --mgopt-nrelax-post 1 --mgopt-nrelax-coarse 1 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-iters 1  --epochs 40 --NIepochs 2 '
+  #NI_MGOpt_run_string = 'main_mgopt.py --steps 16 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 3 --mgopt-levels 3 --mgopt-nrelax-pre 1 --mgopt-nrelax-post 1 --mgopt-nrelax-coarse 1 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-iters 1  --epochs 45 --NIepochs 2 '
   #######
   # Keeping cost here equal is a bit tricky because of the LR, but it's roughly the same
-  NI_MGOpt_LR_run_string = 'main_mgopt.py --steps 16 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 3 --mgopt-levels 3 --mgopt-nrelax-pre 1 --mgopt-nrelax-post 1 --mgopt-nrelax-coarse 1 --lp-fwd-cfactor 2 --lp-bwd-cfactor 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-bwd-finefcf --lp-bwd-relaxonlycg --lp-iters 1  --epochs 50 --NIepochs 5'
+  NI_MGOpt_LR_run_string = 'main_mgopt.py --steps 16 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 3 --mgopt-levels 3 --mgopt-nrelax-pre 1 --mgopt-nrelax-post 1 --mgopt-nrelax-coarse 1 --lp-fwd-cfactor 2 --lp-bwd-cfactor 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-bwd-finefcf --lp-bwd-relaxonlycg --lp-iters 1  --epochs 55 --NIepochs 5'
   
   # Test <>
   # - <>

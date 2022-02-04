@@ -203,8 +203,8 @@ def main():
   #   Note: that we use the default restrict and interp options, but these can be modified on a per-level basis
   if( args.mgopt_iter > 0):
     epochs = args.epochs
-    line_search = ('tb_simple_ls', {'ls_params' : {'alphas' : [0.01, 0.1, 0.5, 1.0, 2.0, 4.0]}} )
-    #line_search = ('tb_simple_weighting', {'ls_params' : {'alpha' : 0.25}} )
+    #line_search = ('tb_simple_ls', {'ls_params' : {'alphas' : [0.01, 0.1, 0.5, 1.0, 2.0, 4.0]}} )
+    line_search = ('tb_simple_weighting', {'ls_params' : {'alpha' : 0.25}} )
     restrict_params = "tb_parallel_get_injection_restrict_params"
     #restrict_params = "tb_get_injection_restrict_params"
     restrict_grads = "tb_parallel_get_injection_restrict_params"
