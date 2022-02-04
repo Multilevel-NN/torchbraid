@@ -125,6 +125,7 @@ def test(rank, model, test_loader, criterion, criterion_kwargs, compose, mgopt_p
       test_loss, correct, len(test_loader.dataset),
       100. * correct / len(test_loader.dataset)))
 
+
 def compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h):
   '''
   Compute a backward and forward pass for the model.
@@ -142,9 +143,7 @@ def compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criteri
     loss = compose(criterion, output, target, **criterion_kwargs)
   else: # add the MG/Opt Term
     x_h = get_params(model, deep_copy=False, grad=False)
-    # TODO modify this according to solution for the <x,v> term and np>1
     mgopt_term = tensor_list_dot(v_h, x_h, model.parallel_nn.fwd_app.mpi_comm)
-
     loss = compose(criterion, output, target, mgopt_term=mgopt_term, **criterion_kwargs)
   ##
   loss.backward()
@@ -154,6 +153,33 @@ def compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criteri
   loss_scalar = comm.bcast(loss.item(), root=0)
 
   return loss_scalar
+
+
+def compute_fwd_pass(lvl, model, data, target, criterion, criterion_kwargs, compose, v_h):
+  '''
+  Compute a forward pass only to obtain a loss for the model.
+  if lvl is 0, no MGOPT term is used
+  if lvl > 0, incorporate MGOpt term
+
+  returns the loss as a scalar (i.e., with no tape attached)
+  '''
+  model.eval()
+  output = model(data)
+
+  if lvl == 0:
+    loss = compose(criterion, output, target, **criterion_kwargs)
+  else: # add the MG/Opt Term
+    x_h = get_params(model, deep_copy=False, grad=False)
+    mgopt_term = tensor_list_dot(v_h, x_h, model.parallel_nn.fwd_app.mpi_comm)
+    loss = compose(criterion, output, target, mgopt_term=mgopt_term, **criterion_kwargs)
+  ##
+
+  # Loss is only available on rank 0
+  comm = model.parallel_nn.fwd_app.mpi_comm
+  loss_scalar = comm.bcast(loss.item(), root=0)
+
+  return loss_scalar
+
 
 
 ##
@@ -388,7 +414,22 @@ def tb_mgopt_regression(output, target, network_parameters=None, v=None):
   else:
     return loss
 
-def tb_simple_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
+
+def tb_simple_weighting(lvl, e_h, x_h, v_h, model, data, target, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
+  '''
+  Do no line search (save computation) and simply use the alpha stored in
+  ls_params to weight the coarse-grid correction. 
+  '''
+  try:
+    alpha = ls_params['alpha']
+  except:
+    raise ValueError('tb_simple_weighting requires a ls_params dictionary alpha to be defined (i.e., amount to weight coarse-grid correction') 
+  ##
+  tensor_list_AXPY(alpha, e_h, 1.0, x_h, inplace=True)
+  return alpha
+
+
+def tb_simple_ls(lvl, e_h, x_h, v_h, model, data, target, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
   '''
   Simple line-search: Add e_h to fine parameters.  Test five different alpha
   values.  Choose one that best minimizes loss.
@@ -408,7 +449,7 @@ def tb_simple_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, 
     tensor_list_AXPY(alpha, e_h, 1.0, x_h, inplace=True)
 
     with torch.enable_grad():
-      new_loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
+      new_loss = compute_fwd_pass(lvl, model, data, target, criterion, criterion_kwargs, compose, v_h)
 
     root_print(rank, mgopt_printlevel, 2, "  LS Alpha Test:        " + str(alpha) + "  Loss = " + str(new_loss))
 
@@ -432,7 +473,7 @@ def tb_simple_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, 
   return alphas[winner]
 
 
-def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
+def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, data, target, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
   '''
   Simple line-search: Add e_h to fine parameters.  If loss has
   diminished, stop.  Else subtract 1/2 of e_h from fine parameters, and
@@ -460,7 +501,7 @@ def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, optimizer, data, target, c
   for m in range(n_line_search):
     #print("line-search, alpha=", alpha)
     with torch.enable_grad():
-      new_loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
+      new_loss = compute_fwd_pass(lvl, model, data, target, criterion, criterion_kwargs, compose, v_h)
     
     # Check Wolfe condition (i), also called the Armijo rule
     #  f(x + alpha p) <=  f(x) + c alpha <p, grad f(x) >
@@ -1308,11 +1349,7 @@ class mgopt_solver:
       x_h = get_params(model, deep_copy=False, grad=False)
       e_dot_gradf = tensor_list_dot(e_h, g_h, comm).item()
       # Note, that line_search can store values between runs, like alpha, by having ls_kwargs = { 'ls_params' : {'alpha' : ...}} 
-      
-      # verified that e_h is the same ...
-      #rank = model.parallel_nn.fwd_app.mpi_comm.Get_rank()
-      #[sys.stderr.write("rank before: " + str(rank) + "  layer X: " + str(k) + " =  " + str((pp.flatten()[0]).item()) + "  " + str((pp.flatten()[-1]).item()) + "\n") for k, pp in enumerate(x_h)] 
-      ls_alpha = do_line_search(lvl, e_h, x_h, v_h, model, optimizer, data, target, criterion, criterion_kwargs, compose, fine_loss, e_dot_gradf, mgopt_printlevel, **ls_kwargs)
+      ls_alpha = do_line_search(lvl, e_h, x_h, v_h, model, data, target, criterion, criterion_kwargs, compose, fine_loss, e_dot_gradf, mgopt_printlevel, **ls_kwargs)
       self.levels[lvl].out_ls_step += [ls_alpha]
 
 
@@ -1324,7 +1361,7 @@ class mgopt_solver:
       optimizer.step()
     ##
     if (mgopt_printlevel == 2):  
-      loss_scalar = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
+      loss_scalar = compute_fwd_pass(lvl, model, data, target, criterion, criterion_kwargs, compose, v_h)
       root_print(rank, mgopt_printlevel, 2, "  Post-relax loss:      " + str(loss_scalar) )
   
     ##
@@ -1419,6 +1456,9 @@ class mgopt_solver:
     elif method == "tb_simple_ls":
       check_has_args(ls_kwargs, ['ls_params'], method)
       line_search = tb_simple_ls
+    elif method == "tb_simple_weighting":
+      check_has_args(ls_kwargs, ['ls_params'], method)
+      line_search = tb_simple_weighting
     else:
       raise ValueError('Unsupported line search: ' + method)
     ##

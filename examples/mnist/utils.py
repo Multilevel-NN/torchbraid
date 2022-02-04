@@ -55,9 +55,11 @@ class CloseLayer(nn.Module):
   ''' Closing layer (not ODE-net, not parallelized in time) '''
   def __init__(self,channels):
     super(CloseLayer, self).__init__()
-    self.fc = nn.Linear(channels*28*28, 10)
+    self.avg = nn.AvgPool2d(2)
+    self.fc = nn.Linear(channels*14*14, 10)
 
   def forward(self, x):
+    x = self.avg(x)
     x = torch.flatten(x, 1)
     x = self.fc(x)
     return F.log_softmax(x, dim=1)
