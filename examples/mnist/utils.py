@@ -41,11 +41,16 @@ class OpenLayer(nn.Module):
   def __init__(self,channels):
     super(OpenLayer, self).__init__()
     self.channels = channels
+    self.pre = nn.Sequential(
+      nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+    )
+
 
   def forward(self, x):
     # this bit of python magic simply replicates each image in the batch
     s = len(x.shape)*[1]
     s[1] = self.channels
+    x = self.pre(x)
     x = x.repeat(s)
     return x
 # end layer
@@ -56,13 +61,14 @@ class CloseLayer(nn.Module):
   def __init__(self,channels):
     super(CloseLayer, self).__init__()
     self.avg = nn.AvgPool2d(2)
-    self.fc = nn.Linear(channels*14*14, 10)
+    self.fc = nn.Linear(channels*7*7, 10)  # coarsen in total by 4
 
   def forward(self, x):
     x = self.avg(x)
     x = torch.flatten(x, 1)
     x = self.fc(x)
-    return F.log_softmax(x, dim=1)
+    return x
+    #return F.log_softmax(x, dim=1)
 # end layer
 
 
