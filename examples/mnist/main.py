@@ -417,7 +417,7 @@ def main():
                         help='how much of the data to read in and use for training/testing')
 
     # artichtectural settings
-    parser.add_argument('--steps', type=int, default=128, metavar='N',
+    parser.add_argument('--steps', type=int, default=16, metavar='N',
                         help='Number of times steps in the resnet layer (default: 24)')
     parser.add_argument('--channels', type=int, default=1, metavar='N',
                         help='Number of channels in resnet layer (default: 4)')
@@ -427,6 +427,8 @@ def main():
                         help='Load the serial problem from file')
     parser.add_argument('--tf', type=float, default=1.542126e-02,
                         help='Final time')
+    parser.add_argument('--cfl', type=float, default=0.2, metavar='N',
+                        help="CFL number (assuming the heat kernel)")
 
     # algorithmic settings (gradient descent and batching
     parser.add_argument('--batch-size', type=int, default=1, metavar='N',
@@ -439,7 +441,7 @@ def main():
     # algorithmic settings (parallel or serial)
     parser.add_argument('--force-lp', action='store_true', default=True,
                         help='Use layer parallel even if there is only 1 MPI rank')
-    parser.add_argument('--lp-levels', type=int, default=2, metavar='N',
+    parser.add_argument('--lp-levels', type=int, default=1, metavar='N',
                         help='Layer parallel levels (default: 4)')
     parser.add_argument('--lp-iters', type=int, default=100, metavar='N',
                         help='Layer parallel iterations (default: 2)')
@@ -457,10 +459,10 @@ def main():
                         help='Layer parallel use downcycle on or off (default: False)')
     parser.add_argument('--lp-use-fmg', action='store_true', default=False,
                         help='Layer parallel use FMG for one cycle (default: False)')
-    parser.add_argument('--lp-sc-levels', type=int, nargs='+', default=[0], metavar='N',
+    parser.add_argument('--lp-sc-levels', type=int, nargs='+', default=[-2], metavar='N',
                         help="Layer parallel do spatial coarsenening on provided levels (-2: no sc, -1: sc all levels, default: -2)")
     parser.add_argument('--lp-init-heat', action='store_true', default=True,
-                        help="Layer parallel initialize convolutional kernal to the heat equation")
+                        help="Layer parallel initialize convolutional kernel to the heat equation")
 
     rank = MPI.COMM_WORLD.Get_rank()
     procs = MPI.COMM_WORLD.Get_size()
@@ -478,6 +480,7 @@ def main():
             [0., 0., 0.]
         ])
         init_conv = [ker1, ker2]
+
     else:
         init_conv = None
 
@@ -553,8 +556,10 @@ def main():
                '-- tf       = {}\n'
                '-- steps    = {}'.format(procs, args.channels, args.tf, args.steps))
 
-    train_size = int(50000 * args.percent_data)
-    test_size = int(10000 * args.percent_data)
+    # train_size = int(50000 * args.percent_data)
+    # test_size = int(10000 * args.percent_data)
+    train_size = 1
+    test_size = 1
     train_set = torch.utils.data.Subset(dataset, range(train_size))
     test_set = torch.utils.data.Subset(
         dataset, range(train_size, train_size+test_size))
@@ -564,6 +569,16 @@ def main():
         test_set, batch_size=args.batch_size, shuffle=False)
 
     root_print(rank, '')
+
+    if args.cfl != 0.:
+        nx = 31
+        # nx = sample_im.size[-1]
+        dx = pi/(nx + 1) # assume that the actual grid contains the zeros added
+                         # when torch pads before applying convolution
+        dt = args.cfl*dx**2 / 2
+        T_final = args.steps * dt
+    else:
+        T_final = args.tf
 
     if force_lp:
         root_print(rank, 'Using ParallelNet:')
@@ -592,7 +607,8 @@ def main():
                             cfactor=args.lp_cfactor,
                             fine_fcf=args.lp_finefcf,
                             skip_downcycle=not args.lp_use_downcycle,
-                            fmg=args.lp_use_fmg, Tf=args.tf,
+                            fmg=args.lp_use_fmg,
+                            Tf=T_final,
                             sc_levels=sc_levels,
                             init_conv=init_conv)
 
@@ -607,7 +623,7 @@ def main():
             model = torch.load(args.serial_file)
         else:
             model = SerialNet(channels=args.channels,
-                              local_steps=local_steps, Tf=args.tf)
+                              local_steps=local_steps, Tf=T_final)
         compose = lambda op, *p: op(*p)
 
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)

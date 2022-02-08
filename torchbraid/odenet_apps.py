@@ -193,11 +193,6 @@ class ForwardODENetApp(BraidApp):
             dx = pi/(t_y.size()[-2] + 1)
             dy = pi/(t_y.size()[-1] + 1)
 
-            if abs(tstop - 128*dt) < 1e-5:
-                with open(f"step_tf0_l_{level}.txt", 'w') as f:
-                    for val in t_y.detach().numpy()[0,0].flatten():
-                        f.write(f"{val}\n")
-
             # print(self.my_rank, ": FWDeval level ", level, " ", tstart, "->", tstop, " using layer ", layer.getID(), ": ", layer.linearlayer.weight[0].data)
             if t_x == None:
                 t_x = t_y
@@ -207,11 +202,6 @@ class ForwardODENetApp(BraidApp):
             q = dt/(dx*dy) * layer(t_x)           # scale by cfl number
             # q = dt * layer(t_x)                 # default
             t_y.add_(q)
-
-            if abs(tstop - 128*dt) < 1e-5:
-                with open(f"step_tf1_{level}.txt", 'w') as f:
-                    for val in t_y.detach().numpy()[0,0].flatten():
-                        f.write(f"{val}\n")
 
             del q
         # end in_place_eval
