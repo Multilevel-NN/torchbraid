@@ -416,7 +416,7 @@ def main():
     parser.add_argument('--percent-data', type=float, default=1.0, metavar='N',
                         help='how much of the data to read in and use for training/testing')
 
-    # artichtectural settings
+    # architectural settings
     parser.add_argument('--steps', type=int, default=16, metavar='N',
                         help='Number of times steps in the resnet layer (default: 24)')
     parser.add_argument('--channels', type=int, default=1, metavar='N',
@@ -430,7 +430,7 @@ def main():
     parser.add_argument('--cfl', type=float, default=0.2, metavar='N',
                         help="CFL number (assuming the heat kernel)")
 
-    # algorithmic settings (gradient descent and batching
+    # algorithmic settings (gradient descent and batching)
     parser.add_argument('--batch-size', type=int, default=1, metavar='N',
                         help='input batch size for training (default: 50)')
     parser.add_argument('--epochs', type=int, default=1, metavar='N',
@@ -441,7 +441,7 @@ def main():
     # algorithmic settings (parallel or serial)
     parser.add_argument('--force-lp', action='store_true', default=True,
                         help='Use layer parallel even if there is only 1 MPI rank')
-    parser.add_argument('--lp-levels', type=int, default=1, metavar='N',
+    parser.add_argument('--lp-levels', type=int, default=2, metavar='N',
                         help='Layer parallel levels (default: 4)')
     parser.add_argument('--lp-iters', type=int, default=100, metavar='N',
                         help='Layer parallel iterations (default: 2)')
@@ -460,7 +460,7 @@ def main():
     parser.add_argument('--lp-use-fmg', action='store_true', default=False,
                         help='Layer parallel use FMG for one cycle (default: False)')
     parser.add_argument('--lp-sc-levels', type=int, nargs='+', default=[-2], metavar='N',
-                        help="Layer parallel do spatial coarsenening on provided levels (-2: no sc, -1: sc all levels, default: -2)")
+                        help="Layer parallel do spatial coarsening on provided levels (-2: no sc, -1: sc all levels, default: -2)")
     parser.add_argument('--lp-init-heat', action='store_true', default=True,
                         help="Layer parallel initialize convolutional kernel to the heat equation")
 
