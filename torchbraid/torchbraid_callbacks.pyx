@@ -171,7 +171,7 @@ cdef int my_norm(braid_App app, braid_Vector u, double *norm_ptr):
         val = torch.norm(ten_U).item()
         norm_ptr[0] += val*val
 
-      math.sqrt(norm_ptr[0])
+      norm_ptr[0] = math.sqrt(norm_ptr[0])
   except:
     output_exception("my_norm")
 
