@@ -390,19 +390,19 @@ if True:
 
     # test_results/simple_ls_67db6bbf/  test result for hash 67db6bbf using the defaults in that repo, nothing else, simple line-search
     #losses1, train_losses1, accur1, num_correct1, MGOpt_start_val1, MGOpt_start_train1 = \
-    #        grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_de4717902b79646/TB_NI.out')
+    #        grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_452f46ed26b1/TB_NI.out')
     losses2, train_losses2, accur2, num_correct2, MGOpt_start_val2, MGOpt_start_train2 = \
-            grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_de4717902b79646/TB_NI_onelevel_adam.out')
+            grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_452f46ed26b1/TB_NI_onelevel_adam_weighting_001.out')
     losses3, train_losses3, accur3, num_correct3, MGOpt_start_val3, MGOpt_start_train3 = \
-            grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_de4717902b79646/TB_NI_MGOpt_two_level_simple_weighting_quarter.out')
+            grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_452f46ed26b1/TB_NI_MGOpt_two_level_simple_weighting_quarter.out')
     #losses4, train_losses4, accur4, num_correct4, MGOpt_start_val4, MGOpt_start_train4 = \
-    #        grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_de4717902b79646/TB_NI_MGOpt_two_level_simple_weighting_thousandth.out')
+    #        grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_452f46ed26b1/TB_NI_MGOpt_two_level_simple_weighting_thousandth.out')
     #losses5, train_losses5, accur5, num_correct5, MGOpt_start_val5, MGOpt_start_train5 = \
-    #        grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_de4717902b79646/TB_NI_MGOpt_two_level_simple_weighting_one.out')
+    #        grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_452f46ed26b1/TB_NI_MGOpt_two_level_simple_weighting_one.out')
     #losses6, train_losses6, accur6, num_correct6, MGOpt_start_val6, MGOpt_start_train6 = \
-    #        grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_de4717902b79646/TB_NI_MGOpt_two_level_simple_ls.out')
+    #        grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_452f46ed26b1/TB_NI_MGOpt_two_level_simple_ls.out')
     #losses7, train_losses7, accur7, num_correct7, MGOpt_start_val7, MGOpt_start_train7 = \
-    #        grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_de4717902b79646/TB_NI_MGOpt_Armijo.out')
+    #        grab_losses_acc_and_NI_MGOpt_transitions('test_results/simple_ls_452f46ed26b1/TB_NI_MGOpt_Armijo.out')
 
     # Convert to nice for plotting arrays
     #losses1, accur1, num_correct1, train_losses1 = \

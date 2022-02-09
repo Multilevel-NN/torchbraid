@@ -112,8 +112,8 @@ def main():
   train_set = torch.utils.data.Subset(dataset,range(train_size))
   test_set  = torch.utils.data.Subset(dataset,range(train_size,train_size+test_size))
   #
-  train_loader = torch.utils.data.DataLoader(train_set,batch_size=args.batch_size,shuffle=False)
-  test_loader = torch.utils.data.DataLoader(test_set,batch_size=args.batch_size,shuffle=False)
+  train_loader = torch.utils.data.DataLoader(train_set,batch_size=args.batch_size,shuffle=True)
+  test_loader = torch.utils.data.DataLoader(test_set,batch_size=args.batch_size,shuffle=True)
   if rank==0:
     print("\nTraining setup:  Batch size:  " + str(args.batch_size) + "  Sample ratio:  " + str(args.samp_ratio) + "  MG/Opt Epochs:  " + str(args.epochs) )
   
@@ -204,7 +204,7 @@ def main():
   if( args.mgopt_iter > 0):
     epochs = args.epochs
     #line_search = ('tb_simple_ls', {'ls_params' : {'alphas' : [0.01, 0.1, 0.5, 1.0, 2.0, 4.0]}} )
-    line_search = ('tb_simple_weighting', {'ls_params' : {'alpha' : 0.001}} )
+    line_search = ('tb_simple_weighting', {'ls_params' : {'alpha' : 1.0}} )
     restrict_params = "tb_parallel_get_injection_restrict_params"
     #restrict_params = "tb_get_injection_restrict_params"
     restrict_grads = "tb_parallel_get_injection_restrict_params"

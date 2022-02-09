@@ -84,18 +84,18 @@ def main():
   #        112 epochs for two levels (coarse grid is a little bit cheaper, so allow for a bit more epochs, this value computed based on num parameters) 
   #
   # Two-level NI 
-  #NI_run_string = ' main_mgopt.py --steps 16 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --mgopt-iter 0 --NIepochs 112'
+  #NI_run_string = ' main_mgopt.py --steps 16 --channels 4 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --mgopt-iter 0 --NIepochs 112'
   # One-level NI (plain Adam)
-  NI_run_string = ' main_mgopt.py --steps 16 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 1 --lp-fwd-levels 1 --lp-bwd-levels 1 --mgopt-iter 0 --NIepochs 200'
+  NI_run_string = ' main_mgopt.py --steps 16 --channels 4 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 1 --lp-fwd-levels 1 --lp-bwd-levels 1 --mgopt-iter 0 --NIepochs 200'
   #######
   # Two-level
-  NI_MGOpt_run_string = 'main_mgopt.py --steps 16 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 1 --mgopt-nrelax-post 1 --mgopt-nrelax-coarse 1 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-iters 1  --epochs 42 --NIepochs 2 '
+  NI_MGOpt_run_string = 'main_mgopt.py --steps 16 --channels 4 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 2 --mgopt-levels 2 --mgopt-nrelax-pre 1 --mgopt-nrelax-post 1 --mgopt-nrelax-coarse 1 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-iters 1  --epochs 42 --NIepochs 2 '
   #
   # Three-level
-  #NI_MGOpt_run_string = 'main_mgopt.py --steps 16 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 3 --mgopt-levels 3 --mgopt-nrelax-pre 1 --mgopt-nrelax-post 1 --mgopt-nrelax-coarse 1 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-iters 1  --epochs 42 --NIepochs 2 '
+  #NI_MGOpt_run_string = 'main_mgopt.py --steps 16 --channels 4 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 3 --mgopt-levels 3 --mgopt-nrelax-pre 1 --mgopt-nrelax-post 1 --mgopt-nrelax-coarse 1 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-iters 1  --epochs 42 --NIepochs 2 '
   #######
   # Keeping cost here equal is a bit tricky because of the LR, but it's roughly the same
-  NI_MGOpt_LR_run_string = 'main_mgopt.py --steps 16 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 3 --mgopt-levels 3 --mgopt-nrelax-pre 1 --mgopt-nrelax-post 1 --mgopt-nrelax-coarse 1 --lp-fwd-cfactor 2 --lp-bwd-cfactor 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-bwd-finefcf --lp-bwd-relaxonlycg --lp-iters 1  --epochs 52 --NIepochs 5'
+  NI_MGOpt_LR_run_string = 'main_mgopt.py --steps 16 --channels 4 --samp-ratio 1.0 --mgopt-printlevel 1 --ni-levels 3 --mgopt-levels 3 --mgopt-nrelax-pre 1 --mgopt-nrelax-post 1 --mgopt-nrelax-coarse 1 --lp-fwd-cfactor 2 --lp-bwd-cfactor 2 --lp-fwd-levels 1 --lp-bwd-levels 1 --lp-bwd-finefcf --lp-bwd-relaxonlycg --lp-iters 1  --epochs 52 --NIepochs 5'
   
   # Test <>
   # - <>

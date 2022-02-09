@@ -1122,12 +1122,12 @@ class mgopt_solver:
     # For epoch-level accuracy measurements, select (i) criterion (objective) for level 0 and (ii) the compose function
     (criterion, compose, criterion_kwargs) = self.process_criterion(self.levels[0].criterions, self.levels[0].model)
     
-  ####
-  ### Use if you want to keep the optimizer around
-  ### Set the optimizer on each level (some optimizers preserve state between runs, so we instantiate here)
-  ##for k in range(mgopt_levels):
-  ##  (optimizer, optim_kwargs) = self.process_optimizer(self.levels[k].optims, self.levels[k].model)
-  ##  self.levels[k].optimizer = optimizer
+    ##
+    # Comment in, if you want to keep the optimizer around
+    # Set the optimizer on each level (some optimizers preserve state between runs, so we instantiate here)
+    for k in range(mgopt_levels):
+      (optimizer, optim_kwargs) = self.process_optimizer(self.levels[k].optims, self.levels[k].model)
+      self.levels[k].optimizer = optimizer
 
     ##
     # Begin loop over epochs
@@ -1225,16 +1225,16 @@ class mgopt_solver:
     # Grab fine and coarse models and optimizers
     # We regenerate the optimizer each time, as some optimizers store state
     model = self.levels[lvl].model
+    coarse_model = self.levels[lvl+1].model
     comm = model.parallel_nn.fwd_app.mpi_comm
     rank = comm.Get_rank()
-    (optimizer, optim_kwargs) = self.process_optimizer(self.levels[lvl].optims, self.levels[lvl].model)
-    coarse_model = self.levels[lvl+1].model
-    (coarse_optimizer, coarse_optim_kwargs) = self.process_optimizer(self.levels[lvl+1].optims, self.levels[lvl+1].model)
+    #(optimizer, optim_kwargs) = self.process_optimizer(self.levels[lvl].optims, self.levels[lvl].model)
+    #(coarse_optimizer, coarse_optim_kwargs) = self.process_optimizer(self.levels[lvl+1].optims, self.levels[lvl+1].model)
     root_print(rank, mgopt_printlevel, 2, "\n  Level:  " + str(lvl)) 
 
-    ### Use if you want to keep the optimizer around
-    ### optimizer = self.levels[lvl].optimizer
-    ### coarse_optimizer = self.levels[lvl+1].optimizer
+    # Use if you want to keep the optimizer around, comment out optimizer instantiation above, and comment in below.
+    optimizer = self.levels[lvl].optimizer
+    coarse_optimizer = self.levels[lvl+1].optimizer
 
 
     ##
