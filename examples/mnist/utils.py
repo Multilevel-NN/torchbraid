@@ -50,7 +50,7 @@ class OpenLayer(nn.Module):
     # this bit of python magic simply replicates each image in the batch
     s = len(x.shape)*[1]
     s[1] = self.channels
-    x = self.pre(x)
+    #x = self.pre(x)    # Comment out to turn off open-layer pooling
     x = x.repeat(s)
     return x
 # end layer
@@ -61,14 +61,13 @@ class CloseLayer(nn.Module):
   def __init__(self,channels):
     super(CloseLayer, self).__init__()
     self.avg = nn.AvgPool2d(2)
-    self.fc = nn.Linear(channels*7*7, 10)  # coarsen in total by 4
+    self.fc = nn.Linear(channels*28*28, 10)  # coarsen in total by 2, when pooling is used
 
   def forward(self, x):
-    x = self.avg(x)
+    #x = self.avg(x)    # Comment out to turn off close-layer pooling
     x = torch.flatten(x, 1)
     x = self.fc(x)
     return x
-    #return F.log_softmax(x, dim=1)
 # end layer
 
 
