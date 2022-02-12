@@ -157,6 +157,7 @@ def main():
   # Specify optimization routine on each level, starting from fine to coarse
   #optims = [ ("pytorch_sgd", { 'lr':args.lr, 'momentum':0.9}) for i in range(len(ni_steps)) ]
   optims = [ ("pytorch_adam", { 'lr':0.001, 'betas':(0.9, 0.999), 'eps':1e-08 }) for i in range(len(ni_steps)) ]
+  preserve_optim = True
 
   ##
   # Initialize MG/Opt solver with nested iteration 
@@ -171,7 +172,8 @@ def main():
 
   mgopt.initialize_with_nested_iteration(model_factory,ni_steps, train_loader, test_loader,
           networks, interp_params=interp_params, epochs=epochs, log_interval=log_interval,
-          mgopt_printlevel=mgopt_printlevel, optims=optims, seed=args.seed, zero_init_guess=args.zero_init_guess) 
+          mgopt_printlevel=mgopt_printlevel, optims=optims, seed=args.seed, 
+          preserve_optim=preserve_optim, zero_init_guess=args.zero_init_guess) 
    
   print(mgopt)
   mgopt.options_used()
@@ -203,8 +205,9 @@ def main():
   #   Note: that we use the default restrict and interp options, but these can be modified on a per-level basis
   if( args.mgopt_iter > 0):
     epochs = args.epochs
-    #line_search = ('tb_simple_ls', {'ls_params' : {'alphas' : [0.01, 0.1, 0.5, 1.0, 2.0, 4.0]}} )
-    line_search = ('tb_simple_weighting', {'ls_params' : {'alpha' : 1.0}} )
+    preserve_optim = False
+    line_search = ('tb_simple_ls', {'ls_params' : {'alphas' : [0.01, 0.1, 0.5, 1.0, 2.0, 4.0]}} )
+    #line_search = ('tb_simple_weighting', {'ls_params' : {'alpha' : 1.0}} )
     restrict_params = "tb_parallel_get_injection_restrict_params"
     #restrict_params = "tb_get_injection_restrict_params"
     restrict_grads = "tb_parallel_get_injection_restrict_params"
@@ -223,7 +226,7 @@ def main():
             nrelax_post=nrelax_post, nrelax_coarse=nrelax_coarse,
             mgopt_printlevel=mgopt_printlevel, mgopt_levels=mgopt_levels,
             line_search=line_search, restrict_params=restrict_params, 
-            restrict_grads=restrict_grads)
+            restrict_grads=restrict_grads, preserve_optim=preserve_optim)
    
     print(mgopt)
     mgopt.options_used()

@@ -70,19 +70,30 @@ def tensor_list_deep_copy(w):
 ##
 # PyTorch train and test network functions
 def train_epoch(rank, model, train_loader, optimizer, epoch, criterion, criterion_kwargs, compose, log_interval, mgopt_printlevel):
-  ''' Carry out one complete training epoch '''
+  '''
+  Carry out one complete training epoch
+  If "optimizer" is a tuple, use it to create a new optimizer object each batch (i.e., reset the optimizer state each batch)
+  Else, just use optimizer to take steps (assume it is a PyTorch optimizer object)
+  '''
   model.train()
   
   total_time = 0.0
   for batch_idx, (data, target) in enumerate(train_loader):
     start_time = timer()
-    optimizer.zero_grad()
+    #optimizer = optim.Adam(model.parameters(), **{ 'lr':0.001, 'betas':(0.9, 0.999), 'eps':1e-08 })
+    # Allow for optimizer to be reset each batch, or not
+    if type(optimizer) == tuple:
+      (optim, optim_kwargs) = mgopt_solver().process_optimizer(optimizer, model)
+    else:
+      optim = optimizer
+    ##
+    optim.zero_grad()
     output = model(data)
 
     loss = compose(criterion, output, target, **criterion_kwargs)
     loss.backward()
     stop_time = timer()
-    optimizer.step()
+    optim.step()
 
     total_time += stop_time-start_time
 
@@ -760,6 +771,7 @@ class mgopt_solver:
                                        interp_params    = "tb_get_injection_interp_params", 
                                        optims           = ("pytorch_sgd", { 'lr':0.01, 'momentum':0.9}), 
                                        criterions       = "tb_mgopt_cross_ent", 
+                                       preserve_optim   = True,
                                        seed             = None,
                                        zero_init_guess  = False):
     """
@@ -816,6 +828,10 @@ class mgopt_solver:
       Note: If writing a new criterion, it needs to support two modes.  The
       classic criterion(output, target), and a mode that supports the
       additional MG/Opt term, criterion(output, target, x_h, v_h)
+
+    preserve_optim : boolean
+      Default True.  If True, preserve the optimizer state between batches.  If
+      False, reset optimizer state.reset optimizer state always before a step.
 
     seed : int
       seed for random number generate (e.g., when initializing weights)
@@ -905,8 +921,9 @@ class mgopt_solver:
           for param in x_h: param[:] = 0.0
 
       ##
-      # Select Optimization method
-      (optimizer, optim_kwargs) = self.process_optimizer(optims[k], model)
+      # Create optimizer, if preserving optimizer state between batches
+      if preserve_optim:
+        (optimizer, optim_kwargs) = self.process_optimizer(optims[k], model)
 
       ##
       # Select Criterion (objective) and compose function
@@ -945,8 +962,11 @@ class mgopt_solver:
       test_times = []
       for epoch in range(1, epochs + 1):
         start_time = timer()
-        # train_epoch() is designed to be general for PyTorch networks
-        train_epoch(rank, model, train_loader, optimizer, epoch, criterion, criterion_kwargs, compose, log_interval, mgopt_printlevel)
+        # call train_epoch, depending on whether the optimizer state is preserved between runs
+        if preserve_optim:
+          train_epoch(rank, model, train_loader, optimizer, epoch, criterion, criterion_kwargs, compose, log_interval, mgopt_printlevel)
+        else:
+          train_epoch(rank, model, train_loader, optims[k], epoch, criterion, criterion_kwargs, compose, log_interval, mgopt_printlevel)
         end_time = timer()
         epoch_times.append( end_time-start_time )
     
@@ -991,6 +1011,7 @@ class mgopt_solver:
                         nrelax_coarse = 5, 
                         mgopt_printlevel = 1, 
                         mgopt_levels = None,
+                        preserve_optim   = True,
                         restrict_params = ("tb_get_injection_restrict_params", {'grad' : False}), 
                         restrict_grads = ("tb_get_injection_restrict_params", {'grad' : True}), 
                         restrict_states = "tb_injection_restrict_network_state",
@@ -1039,6 +1060,10 @@ class mgopt_solver:
     mgopt_levels : int or None
       Defines number of MG/Opt levels to use.  Must be less than or equal
       to the total number of hierarchy levels.  If None, all levels are used.
+
+    preserve_optim : boolean
+      Default True.  If True, preserve the optimizer state between levels and
+      between batches.  If False, reset optimizer state always before a step.
 
     restrict_params : list|string|tuple
       restrict_params[k] describes the strategy for restricting network
@@ -1123,11 +1148,11 @@ class mgopt_solver:
     (criterion, compose, criterion_kwargs) = self.process_criterion(self.levels[0].criterions, self.levels[0].model)
     
     ##
-    # Comment in, if you want to keep the optimizer around
-    # Set the optimizer on each level (some optimizers preserve state between runs, so we instantiate here)
-    for k in range(mgopt_levels):
-      (optimizer, optim_kwargs) = self.process_optimizer(self.levels[k].optims, self.levels[k].model)
-      self.levels[k].optimizer = optimizer
+    # If preserving the optimizer state, initialize once here.
+    if preserve_optim:
+      for k in range(mgopt_levels):
+        (optimizer, optim_kwargs) = self.process_optimizer(self.levels[k].optims, self.levels[k].model)
+        self.levels[k].optimizer = optimizer
 
     ##
     # Begin loop over epochs
@@ -1154,7 +1179,8 @@ class mgopt_solver:
           root_print(rank, mgopt_printlevel, 2, "MG/Opt Iter:  " + str(it)) 
           loss_item = self.__solve(lvl, data, target, v_h, mgopt_printlevel, 
                                    mgopt_levels, restrict_params, restrict_grads, 
-                                   restrict_states, interp_states, line_search)
+                                   restrict_states, interp_states, line_search, 
+                                   preserve_optim)
         ##
         # End cycle loop
         
@@ -1214,7 +1240,8 @@ class mgopt_solver:
 
   def __solve(self, lvl, data, target, v_h, mgopt_printlevel, 
           mgopt_levels, restrict_params, restrict_grads, 
-          restrict_states, interp_states, line_search):
+          restrict_states, interp_states, line_search, 
+          preserve_optim):
 
     """
     Recursive solve function for carrying out one MG/Opt iteration
@@ -1228,13 +1255,15 @@ class mgopt_solver:
     coarse_model = self.levels[lvl+1].model
     comm = model.parallel_nn.fwd_app.mpi_comm
     rank = comm.Get_rank()
-    #(optimizer, optim_kwargs) = self.process_optimizer(self.levels[lvl].optims, self.levels[lvl].model)
-    #(coarse_optimizer, coarse_optim_kwargs) = self.process_optimizer(self.levels[lvl+1].optims, self.levels[lvl+1].model)
+    # If preserving the optimizer state, grab existing optimizer from hierarchy.  Else, generate new one.
+    if preserve_optim:
+      optimizer = self.levels[lvl].optimizer
+      coarse_optimizer = self.levels[lvl+1].optimizer
+    else:
+      (optimizer, optim_kwargs) = self.process_optimizer(self.levels[lvl].optims, self.levels[lvl].model)
+      (coarse_optimizer, coarse_optim_kwargs) = self.process_optimizer(self.levels[lvl+1].optims, self.levels[lvl+1].model)
+    ##
     root_print(rank, mgopt_printlevel, 2, "\n  Level:  " + str(lvl)) 
-
-    # Use if you want to keep the optimizer around, comment out optimizer instantiation above, and comment in below.
-    optimizer = self.levels[lvl].optimizer
-    coarse_optimizer = self.levels[lvl+1].optimizer
 
 
     ##
@@ -1322,7 +1351,8 @@ class mgopt_solver:
       # Recursive call
       self.__solve(lvl+1, data, target, v_H, mgopt_printlevel, 
                    mgopt_levels, restrict_params, restrict_grads,
-                   restrict_states, interp_states, line_search)
+                   restrict_states, interp_states, line_search,
+                   preserve_optim)
     #
     root_print(rank, mgopt_printlevel, 2, "  Recursion exited\n")
       
