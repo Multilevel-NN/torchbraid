@@ -60,8 +60,9 @@ import numpy as np
 import sys
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
+import torch.nn                 as nn
+import torch.optim              as optim
+import torch.optim.lr_scheduler as lr_scheduler
 import statistics               as stats
 
 from torchvision import datasets, transforms
@@ -325,11 +326,15 @@ def main():
 
   mig_storage = MeanInitialGuessStorage(class_count=200,average_weight=0.9)
 
+  #scheduler = lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5,verbose=(rank==0))
+
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
     train(rank,args, model, train_loader, optimizer, epoch,compose,mig_storage)
     end_time = timer()
     epoch_times += [end_time-start_time]
+
+    #scheduler.step()
 
     start_time = timer()
     test(rank,model, test_loader,epoch,compose)
