@@ -44,15 +44,19 @@ class OpenLayer(nn.Module):
   def __init__(self,channels):
     super(OpenLayer, self).__init__()
     self.channels = channels
-    self.pre = nn.Sequential(
-      nn.Conv2d(3, channels, kernel_size=5, padding=2, stride=2),
-      nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
-      nn.BatchNorm2d(channels),
-      nn.ReLU(inplace=True)
-    )
+#    self.pre = nn.Sequential(
+#      nn.Conv2d(3, channels, kernel_size=5, padding=2, stride=2),
+#      nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+#      nn.BatchNorm2d(channels),
+#      nn.ReLU(inplace=True)
+#    )
+    self.bn = nn.BatchNorm2d(3,affine=False),
 
   def forward(self, x):
-    return self.pre(x)
+    batch_size,img_ch,img_h,img_w = x.shape
+
+    x = self.bn(x)
+    return torch.cat([x,torch.zeros(batch_size,self.channels-img_ch,img_h,img_w)],dim=1)
 # end layer
 
 
@@ -62,13 +66,13 @@ class CloseLayer(nn.Module):
     super(CloseLayer, self).__init__()
 
     # Account for 64x64 image and 3 RGB channels
-    self.avg = nn.AvgPool2d(2)
-    self.fc = nn.Linear(8*8*channels, 200)
+    #self.avg = nn.AvgPool2d(4)
+    self.fc = nn.Linear(64*64*channels, 200)
 
   def forward(self, x):
-    x = self.avg(x)
-    x = torch.flatten(x, 1)
-    return self.fc(x)
+    #x = self.avg(x)
+    out = torch.flatten(x.view(x.size(0),-1), 1)
+    return self.fc(out)
 # end layer
 
 
@@ -95,16 +99,8 @@ class StepLayer(nn.Module):
       self.activation = nn.Tanh()
     elif activation=='relu':
       self.activation = nn.ReLU()
-      #torch.nn.init.kaiming_normal(self.conv1.weight,nonlinearity='relu')
-      #torch.nn.init.kaiming_normal(self.conv1.bias,nonlinearity='relu')
-      #torch.nn.init.kaiming_normal(self.conv2.weight,nonlinearity='relu')
-      #torch.nn.init.kaiming_normal(self.conv2.bias,nonlinearity='relu')
     elif activation=='leaky':
       self.activation = nn.LeakyReLU()
-      torch.nn.init.kaiming_normal(self.conv1.weight,nonlinearity='leaky_relu')
-      torch.nn.init.kaiming_normal(self.conv1.bias,nonlinearity='leaky_relu')
-      torch.nn.init.kaiming_normal(self.conv2.weight,nonlinearity='leaky_relu')
-      torch.nn.init.kaiming_normal(self.conv2.bias,nonlinearity='leaky_relu')
     else:
       raise 'POO!'
 
@@ -118,6 +114,50 @@ class StepLayer(nn.Module):
     return y 
 # end layer
 
+class StepLayerANODE(nn.Module):
+  ''' Single ODE-net layer will be parallelized in time ''' 
+  def __init__(self,channels,diff_scale=0.0,activation='tanh'):
+    super(StepLayerANODE, self).__init__()
+    ker_width = 3
+    
+    # Account for 3 RGB Channels
+    self.conv1 = nn.Conv2d(channels,64,        1,padding=0)
+    self.conv2 = nn.Conv2d(64,      64,ker_width,padding=1)
+    self.conv3 = nn.Conv2d(64,channels,        1,padding=0)
+
+    if activation=='relu':
+      self.activation = nn.ReLU(inplace=True)
+    else:
+      raise 'POO!'
+
+  def forward(self, x):
+    y = self.conv1(x) 
+    y = self.activation(y)
+    y = self.conv2(y) 
+    y = self.activation(y)
+    y = self.conv3(y) 
+    y = self.activation(y)
+    return y 
+# end layer
+
+class StepLayerParabolic(nn.Module):
+  ''' Single ODE-net layer will be parallelized in time ''' 
+  def __init__(self,channels,diff_scale=0.0,activation='tanh'):
+    super(StepLayerParabolic, self).__init__()
+    ker_width = 3
+    
+    # Account for 3 RGB Channels
+    self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1)
+
+    self.activation = nn.ReLU()
+
+  def forward(self, x):
+    y = self.conv1(x) 
+    y = self.activation(y)
+    y = F.conv_transpose2d(y, self.conv1.weight,bias=None, padding=1)
+    return y 
+# end layer
+
 
 class ParallelNet(nn.Module):
   ''' Full parallel ODE-net based on StepLayer,  will be parallelized in time ''' 
@@ -127,7 +167,9 @@ class ParallelNet(nn.Module):
                      bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh'):
     super(ParallelNet, self).__init__()
 
-    step_layer = lambda: StepLayer(channels,diff_scale,activation)
+    #step_layer = lambda: StepLayer(channels,diff_scale,activation)
+    #step_layer = lambda: StepLayerParabolic(channels,diff_scale,activation)
+    step_layer = lambda: StepLayerANODE(channels,diff_scale,activation)
 
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_fwd_levels=max_fwd_levels,max_bwd_levels=max_bwd_levels,max_iters=max_iters)
     if max_fwd_iters>0:
