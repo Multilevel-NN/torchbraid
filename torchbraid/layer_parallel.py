@@ -105,7 +105,11 @@ class LayerParallel(nn.Module):
        # so this is all a hack to get this thing to work
       return torch.zeros(1)*value
 
+<<<<<<< HEAD
   def __init__(self,comm,layer_block,num_steps,Tf,max_levels=1,max_iters=10,spatial_ref_pair=None, nsplines=0, splinedegree=1):
+=======
+  def __init__(self,comm,layer_block,num_steps,Tf,max_levels=1,max_iters=10,spatial_ref_pair=None, sc_levels=None):
+>>>>>>> ac7ac6a3283792c73a733c857a0eddbc73786098
     super(LayerParallel,self).__init__()
 
     self.comm = comm
@@ -121,10 +125,15 @@ class LayerParallel(nn.Module):
 
     self.timer_manager = ContextTimerManager()
 
+<<<<<<< HEAD
     self.fwd_app = apps.ForwardODENetApp(comm,num_steps,Tf,max_levels,max_iters,self.timer_manager,
                                          spatial_ref_pair=spatial_ref_pair, layer_block=layer_block, nsplines=nsplines, splinedegree=splinedegree)
     self.layer_models = [l for l in self.fwd_app.layer_models]
     self.local_layers = nn.Sequential(*self.layer_models)
+=======
+    self.fwd_app = apps.ForwardODENetApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.timer_manager,
+                                         spatial_ref_pair=spatial_ref_pair, layer_block=layer_block, sc_levels=sc_levels)
+>>>>>>> ac7ac6a3283792c73a733c857a0eddbc73786098
     self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager)
 
     self.enable_diagnostics = False
