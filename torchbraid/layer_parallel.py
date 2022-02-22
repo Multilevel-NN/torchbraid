@@ -116,10 +116,8 @@ class LayerParallel(nn.Module):
     global_steps = num_steps*comm.Get_size()
 
     self.dt = Tf/global_steps
-  
+
     self.layer_block = layer_block
-    self.layer_models = [layer_block() for i in range(num_steps)]
-    self.local_layers = nn.Sequential(*self.layer_models)
 
     self.timer_manager = ContextTimerManager()
 

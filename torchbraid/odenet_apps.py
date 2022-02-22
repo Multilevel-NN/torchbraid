@@ -39,6 +39,7 @@ import sys
 import traceback
 import resource
 import copy
+from bsplines import BsplineBasis
 
 from mpi4py import MPI
 

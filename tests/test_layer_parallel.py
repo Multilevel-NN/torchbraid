@@ -287,6 +287,8 @@ class TestTorchBraid(unittest.TestCase):
    
           # accumulate parameter errors for testing purposes
           param_errors += [(torch.norm(pf.grad-pm_grad)/torch.norm(pf.grad)).item()]
+
+          #print(param_errors[-1],torch.norm(pf.grad),pf.grad.shape,torch.norm(pm_grad))
    
           # check the error conditions
           self.assertTrue(torch.norm(pf.grad-pm_grad)<=test_tol)
