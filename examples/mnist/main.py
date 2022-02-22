@@ -425,7 +425,7 @@ def main():
                         help='Train with the MNIST digit recognition problem (default: True)')
     parser.add_argument('--serial-file', type=str, default=None,
                         help='Load the serial problem from file')
-    parser.add_argument('--tf', type=float, default=1.542126e-02,
+    parser.add_argument('--tf', type=float, default=7.710628e-03,
                         help='Final time')
     parser.add_argument('--cfl', type=float, default=0.4, metavar='N',
                         help="CFL number (assuming the heat kernel)")
