@@ -105,7 +105,7 @@ class LayerParallel(nn.Module):
        # so this is all a hack to get this thing to work
       return torch.zeros(1)*value
 
-  def __init__(self,comm,layer_block,num_steps,Tf,max_levels=1,max_iters=10,spatial_ref_pair=None, sc_levels=None):
+  def __init__(self,comm,layer_block,num_steps,Tf,max_levels=1,max_iters=10,spatial_ref_pair=None, nsplines=0, splinedegree=1):
     super(LayerParallel,self).__init__()
 
     self.comm = comm
@@ -116,15 +116,15 @@ class LayerParallel(nn.Module):
     global_steps = num_steps*comm.Get_size()
 
     self.dt = Tf/global_steps
-  
+
     self.layer_block = layer_block
-    self.layer_models = [layer_block() for i in range(num_steps)]
-    self.local_layers = nn.Sequential(*self.layer_models)
 
     self.timer_manager = ContextTimerManager()
 
-    self.fwd_app = apps.ForwardODENetApp(comm,self.layer_models,num_steps,Tf,max_levels,max_iters,self.timer_manager,
-                                         spatial_ref_pair=spatial_ref_pair, layer_block=layer_block, sc_levels=sc_levels)
+    self.fwd_app = apps.ForwardODENetApp(comm,num_steps,Tf,max_levels,max_iters,self.timer_manager,
+                                         spatial_ref_pair=spatial_ref_pair, layer_block=layer_block, nsplines=nsplines, splinedegree=splinedegree)
+    self.layer_models = [l for l in self.fwd_app.layer_models]
+    self.local_layers = nn.Sequential(*self.layer_models)
     self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager)
 
     self.enable_diagnostics = False

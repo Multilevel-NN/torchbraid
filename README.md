@@ -17,6 +17,14 @@ library. You might want mpi4py to use the native one on your platform).
 
 Note, the cython version is pretty important, particularly if torch layers are shipped directly by braid.
 
+### Setup for Conda (with native MPI support)
+  
+  ```
+  conda env create -f ${TORCHBRAID_DIR}/env/py37.env
+  conda activate py37
+  MPICC=path/to/mpicc pip install mpi4py
+  ```
+
 ## Build xbraid:
   1. Download from git@github.com:XBraid/xbraid.git
   1. The master branch should work fine

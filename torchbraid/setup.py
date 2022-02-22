@@ -56,5 +56,5 @@ for module_name in modules:
     setup(name=module_name,
           ext_modules=cythonize([torchbraid_ext],
                                 annotate=True,
-                                compiler_directives={'boundscheck': False}))
+                                compiler_directives={'boundscheck': False, 'language_level': '3'}))
 # end for module_name
