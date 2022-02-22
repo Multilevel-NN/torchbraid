@@ -50,6 +50,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import statistics as stats
+from math import pi
 
 import numpy as np
 import matplotlib.pyplot as pyplot
@@ -60,7 +61,6 @@ from timeit import default_timer as timer
 
 from mpi4py import MPI
 
-pi = 3.14159265358979
 
 
 def root_print(rank, s):
@@ -417,7 +417,7 @@ def main():
                         help='how much of the data to read in and use for training/testing')
 
     # architectural settings
-    parser.add_argument('--steps', type=int, default=16, metavar='N',
+    parser.add_argument('--steps', type=int, default=64, metavar='N',
                         help='Number of times steps in the resnet layer (default: 24)')
     parser.add_argument('--channels', type=int, default=1, metavar='N',
                         help='Number of channels in resnet layer (default: 4)')
@@ -427,7 +427,7 @@ def main():
                         help='Load the serial problem from file')
     parser.add_argument('--tf', type=float, default=1.542126e-02,
                         help='Final time')
-    parser.add_argument('--cfl', type=float, default=0.2, metavar='N',
+    parser.add_argument('--cfl', type=float, default=0.4, metavar='N',
                         help="CFL number (assuming the heat kernel)")
 
     # algorithmic settings (gradient descent and batching)
@@ -451,7 +451,7 @@ def main():
                         help='Layer parallel internal print level (default: 0)')
     parser.add_argument('--lp-braid-print', type=int, default=2, metavar='N',
                         help='Layer parallel braid print level (default: 0)')
-    parser.add_argument('--lp-cfactor', type=int, default=2, metavar='N',
+    parser.add_argument('--lp-cfactor', type=int, default=4, metavar='N',
                         help='Layer parallel coarsening factor (default: 2)')
     parser.add_argument('--lp-finefcf', action='store_true', default=True,
                         help='Layer parallel fine FCF on or off (default: False)')
@@ -459,7 +459,7 @@ def main():
                         help='Layer parallel use downcycle on or off (default: False)')
     parser.add_argument('--lp-use-fmg', action='store_true', default=False,
                         help='Layer parallel use FMG for one cycle (default: False)')
-    parser.add_argument('--lp-sc-levels', type=int, nargs='+', default=[-2], metavar='N',
+    parser.add_argument('--lp-sc-levels', type=int, nargs='+', default=[0], metavar='N',
                         help="Layer parallel do spatial coarsening on provided levels (-2: no sc, -1: sc all levels, default: -2)")
     parser.add_argument('--lp-init-heat', action='store_true', default=True,
                         help="Layer parallel initialize convolutional kernel to the heat equation")
@@ -540,8 +540,8 @@ def main():
                                         transforms.ToTensor(),
                                         transforms.Normalize(
                                             (0.1307,), (0.3081,)),
-                                        heat_init,                  # comment in to initialize all images to the sin-bump
-                                        to_double
+                                        to_double,
+                                        heat_init                  # comment in to initialize all images to the sin-bump
                                         ])
         dataset = datasets.MNIST('./data', download=True, transform=transform)
     else:
