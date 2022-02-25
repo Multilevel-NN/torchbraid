@@ -8,6 +8,7 @@ examples/mnist/fashion-data/
 makefile.inc
 
 .DS_Store
+.vscode
 
 tests/build/
 tests/torchbraid_test.c
