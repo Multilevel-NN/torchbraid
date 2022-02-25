@@ -739,10 +739,12 @@ class mgopt_solver:
     rank = model.parallel_nn.fwd_app.mpi_comm.Get_rank()
     output = ""
     # Process global parameters
-    if hasattr(self, 'nrelax_pre'):    output = output + "MG/Opt global parameters\n"
+    if hasattr(self, 'preserve_optim'):    output = output + "MG/Opt global parameters\n"
     if hasattr(self, 'nrelax_pre'):    output = output + "  nrelax_pre: " + str(self.nrelax_pre)  + '\n' 
     if hasattr(self, 'nrelax_post'):   output = output + "  nrelax_post: " + str(self.nrelax_post) + '\n' 
     if hasattr(self, 'nrelax_coarse'): output = output + "  nrelax_coarse: " + str(self.nrelax_coarse) + '\n\n' 
+    if hasattr(self, 'preserve_optim'): output = output + "  preserve_optim: " + str(self.preserve_optim) + '\n' 
+    if hasattr(self, 'zero_init_guess'): output = output + "  zero_init_guess: " + str(self.zero_init_guess) + '\n\n' 
     
     # Process per-level parameters
     for k, lvl in enumerate(self.levels):
@@ -831,7 +833,7 @@ class mgopt_solver:
 
     preserve_optim : boolean
       Default True.  If True, preserve the optimizer state between batches.  If
-      False, reset optimizer state.reset optimizer state always before a step.
+      False, reset optimizer state always before a step.
 
     seed : int
       seed for random number generate (e.g., when initializing weights)
@@ -895,7 +897,10 @@ class mgopt_solver:
     self.ni_rfactor = ni_rfactor
     if( ni_rfactor != ni_rfactor_min):
       raise ValueError('Nested iteration (ni_steps) should use a single constant refinement factor') 
-    
+    #  
+    self.preserve_optim = bool(preserve_optim)
+    self.zero_init_guess = bool(zero_init_guess)
+
     ##
     # Initialize self.levels with nested iteration
     for k, steps in enumerate(ni_steps):
@@ -915,14 +920,14 @@ class mgopt_solver:
 
       ##
       # For parallel reproducibility, set all parameters to 0
-      if zero_init_guess:
+      if self.zero_init_guess:
         with torch.no_grad():
           x_h = get_params(model, deep_copy=False, grad=False)
           for param in x_h: param[:] = 0.0
 
       ##
       # Create optimizer, if preserving optimizer state between batches
-      if preserve_optim:
+      if self.preserve_optim:
         (optimizer, optim_kwargs) = self.process_optimizer(optims[k], model)
 
       ##
@@ -963,7 +968,7 @@ class mgopt_solver:
       for epoch in range(1, epochs + 1):
         start_time = timer()
         # call train_epoch, depending on whether the optimizer state is preserved between runs
-        if preserve_optim:
+        if self.preserve_optim:
           train_epoch(rank, model, train_loader, optimizer, epoch, criterion, criterion_kwargs, compose, log_interval, mgopt_printlevel)
         else:
           train_epoch(rank, model, train_loader, optims[k], epoch, criterion, criterion_kwargs, compose, log_interval, mgopt_printlevel)
@@ -1149,7 +1154,8 @@ class mgopt_solver:
     
     ##
     # If preserving the optimizer state, initialize once here.
-    if preserve_optim:
+    self.preserve_optim = bool(preserve_optim)
+    if self.preserve_optim:
       for k in range(mgopt_levels):
         (optimizer, optim_kwargs) = self.process_optimizer(self.levels[k].optims, self.levels[k].model)
         self.levels[k].optimizer = optimizer
@@ -1179,8 +1185,7 @@ class mgopt_solver:
           root_print(rank, mgopt_printlevel, 2, "MG/Opt Iter:  " + str(it)) 
           loss_item = self.__solve(lvl, data, target, v_h, mgopt_printlevel, 
                                    mgopt_levels, restrict_params, restrict_grads, 
-                                   restrict_states, interp_states, line_search, 
-                                   preserve_optim)
+                                   restrict_states, interp_states, line_search)
         ##
         # End cycle loop
         
@@ -1240,8 +1245,7 @@ class mgopt_solver:
 
   def __solve(self, lvl, data, target, v_h, mgopt_printlevel, 
           mgopt_levels, restrict_params, restrict_grads, 
-          restrict_states, interp_states, line_search, 
-          preserve_optim):
+          restrict_states, interp_states, line_search):
 
     """
     Recursive solve function for carrying out one MG/Opt iteration
@@ -1256,7 +1260,7 @@ class mgopt_solver:
     comm = model.parallel_nn.fwd_app.mpi_comm
     rank = comm.Get_rank()
     # If preserving the optimizer state, grab existing optimizer from hierarchy.  Else, generate new one.
-    if preserve_optim:
+    if self.preserve_optim:
       optimizer = self.levels[lvl].optimizer
       coarse_optimizer = self.levels[lvl+1].optimizer
     else:
@@ -1351,8 +1355,7 @@ class mgopt_solver:
       # Recursive call
       self.__solve(lvl+1, data, target, v_H, mgopt_printlevel, 
                    mgopt_levels, restrict_params, restrict_grads,
-                   restrict_states, interp_states, line_search,
-                   preserve_optim)
+                   restrict_states, interp_states, line_search)
     #
     root_print(rank, mgopt_printlevel, 2, "  Recursion exited\n")
       

@@ -188,6 +188,8 @@ def parse_args():
                       help='learning rate (default: 0.01)')
   parser.add_argument('--zero-init-guess', type=int, default=0, metavar='N',
                       help='Zero initial guess for all parameters when starting NI (parallel reproducibility), 0:False, 1:True (default: 0)')
+  parser.add_argument('--preserve-optim', type=int, default=1, metavar='N',
+                      help='Preserve optimizer state between MGOpt V-cycles, 0:False, 1:True (default: 1)')
   
   # algorithmic settings (parallel or serial)
   parser.add_argument('--lp-fwd-levels', type=int, default=3, metavar='N',

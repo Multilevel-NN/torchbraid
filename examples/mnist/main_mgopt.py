@@ -157,6 +157,9 @@ def main():
   # Specify optimization routine on each level, starting from fine to coarse
   #optims = [ ("pytorch_sgd", { 'lr':args.lr, 'momentum':0.9}) for i in range(len(ni_steps)) ]
   optims = [ ("pytorch_adam", { 'lr':0.001, 'betas':(0.9, 0.999), 'eps':1e-08 }) for i in range(len(ni_steps)) ]
+  
+  ##
+  # The preserve optim command line argument controls the mgopt phase below.  Here, we have a manual flag
   preserve_optim = True
 
   ##
@@ -205,7 +208,7 @@ def main():
   #   Note: that we use the default restrict and interp options, but these can be modified on a per-level basis
   if( args.mgopt_iter > 0):
     epochs = args.epochs
-    preserve_optim = False
+    preserve_optim = args.preserve_optim
     line_search = ('tb_simple_ls', {'ls_params' : {'alphas' : [0.01, 0.1, 0.5, 1.0, 2.0, 4.0]}} )
     #line_search = ('tb_simple_weighting', {'ls_params' : {'alpha' : 1.0}} )
     restrict_params = "tb_parallel_get_injection_restrict_params"
