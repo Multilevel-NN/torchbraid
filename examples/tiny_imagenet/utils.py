@@ -39,26 +39,33 @@ __all__ = [ 'parse_args', 'ParallelNet' ]
 ####################################################################################
 # Classes and functions that define the basic network types for MG/Opt and TorchBraid.
 
+class OpenLayerANODE(nn.Module):
+  ''' Opening layer (not ODE-net, not parallelized in time) '''
+  def __init__(self,channels):
+    super(OpenLayerANODE, self).__init__()
+    self.channels = channels
+
+  def forward(self, x):
+    batch_size,img_ch,img_h,img_w = x.shape
+
+    return torch.cat([x,torch.zeros(batch_size,self.channels-img_ch,img_h,img_w)],dim=1)
+# end layer
+
 class OpenLayer(nn.Module):
   ''' Opening layer (not ODE-net, not parallelized in time) '''
   def __init__(self,channels):
     super(OpenLayer, self).__init__()
     self.channels = channels
-#    self.pre = nn.Sequential(
-#      nn.Conv2d(3, channels, kernel_size=5, padding=2, stride=2),
-#      nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
-#      nn.BatchNorm2d(channels),
-#      nn.ReLU(inplace=True)
-#    )
-    self.bn = nn.BatchNorm2d(3,affine=False),
+    self.pre = nn.Sequential(
+      nn.Conv2d(3, channels, kernel_size=5, padding=2, stride=2),
+      nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+      nn.BatchNorm2d(channels),
+      nn.ReLU(inplace=True)
+    )
 
   def forward(self, x):
-    batch_size,img_ch,img_h,img_w = x.shape
-
-    x = self.bn(x)
-    return torch.cat([x,torch.zeros(batch_size,self.channels-img_ch,img_h,img_w)],dim=1)
+    return self.pre(x)
 # end layer
-
 
 class CloseLayer(nn.Module):
   ''' Closing layer (not ODE-net, not parallelized in time) '''
@@ -66,11 +73,25 @@ class CloseLayer(nn.Module):
     super(CloseLayer, self).__init__()
 
     # Account for 64x64 image and 3 RGB channels
-    #self.avg = nn.AvgPool2d(4)
-    self.fc = nn.Linear(64*64*channels, 200)
+    self.avg = nn.AvgPool2d(2)
+    self.fc = nn.Linear(16*16*channels, 200)
 
   def forward(self, x):
     #x = self.avg(x)
+    out = torch.flatten(x.view(x.size(0),-1), 1)
+    return self.fc(out)
+# end layer
+
+
+class CloseLayerANODE(nn.Module):
+  ''' Closing layer (not ODE-net, not parallelized in time) '''
+  def __init__(self,channels):
+    super(CloseLayerANODE, self).__init__()
+
+    # Account for 64x64 image and 3 RGB channels
+    self.fc = nn.Linear(64*64*channels, 200)
+
+  def forward(self, x):
     out = torch.flatten(x.view(x.size(0),-1), 1)
     return self.fc(out)
 # end layer
@@ -207,8 +228,10 @@ class ParallelNet(nn.Module):
     
     # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels) 
     # on processors not equal to 0, these will be None (there are no parameters to train there)
-    self.open_nn = compose(OpenLayer,channels)
-    self.close_nn = compose(CloseLayer,channels)
+    #self.open_nn = compose(OpenLayer,channels)
+    #self.close_nn = compose(CloseLayer,channels)
+    self.open_nn = compose(OpenLayerANODE,channels)
+    self.close_nn = compose(CloseLayerANODE,channels)
 
   def forward(self, x):
     # by passing this through 'o' (mean composition: e.g. self.open_nn o x) 
