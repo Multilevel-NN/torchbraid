@@ -29,45 +29,18 @@
 # ************************************************************************
 #@HEADER
 
-###
-#
-# ----- Example Script -----
-
-# export FWD_ITER=3
-# export BWD_ITER=2
-# export DIFF=0.0001
-# export ACT=relu
-# 
-# mpirun -n 4 python ./main_lp.py --steps 32 --lp-fwd-cfactor 4 --lp-bwd-cfactor 4 --epochs=8 --seed 2069923971 --lp-fwd-iters ${FWD_ITER} --lp-fwd-levels -1 --lp-bwd-levels -1 --lp-iters ${BWD_ITER} --batch-size 100 --tf 5.0 --log-interval 5 --diff-scale ${DIFF} --activation ${ACT} --samp-ratio 0.1 --channels 8
-#
-# ----- Output -----
-# Using Tiny ImageNet...
-# 
-# Namespace(seed=2069923971, log_interval=5, steps=32, channels=8, tf=5.0, diff_scale=0.0001, activation='relu', batch_size=100, epochs=8, samp_ratio=0.1, lr=0.01, lp_fwd_levels=2, lp_bwd_levels=2, lp_iters=2, lp_fwd_iters=2, lp_print=0, lp_braid_print=0, lp_fwd_cfactor=4, lp_bwd_cfactor=4, lp_fwd_nrelax_coarse=1, lp_bwd_nrelax_coarse=1, lp_fwd_finefcf=False, lp_bwd_finefcf=False, lp_fwd_finalrelax=False, lp_use_downcycle=False, lp_use_fmg=False, lp_bwd_relaxonlycg=0, lp_fwd_relaxonlycg=0, lp_use_crelax_wt=1.0)
-# 
-# Training setup:  Batch size:  100  Sample ratio:  0.1  Epochs:  8
-# Train Epoch:  1 [   100/  8800]	Loss: 5.374e+00	Time Per Batch 1.002954/1.048842 - F 2/6.47e+03, B 2/2.76e-05
-# Train Epoch:  1 [   600/  8800]	Loss: 3.100e+00	Time Per Batch 0.984198/1.075165 - F 2/1.43e+03, B 2/1.18e-05
-# Train Epoch:  1 [  1100/  8800]	Loss: 2.920e+00	Time Per Batch 0.995636/1.064048 - F 2/1.25e+03, B 2/8.23e-06
-# Train Epoch:  1 [  1600/  8800]	Loss: 3.079e+00	Time Per Batch 0.997011/1.057520 - F 2/1.35e+03, B 2/1.17e-05
-
-
-
-
 from __future__ import print_function
 import numpy as np
 
 import sys
 
 import torch
-import torch.nn                 as nn
-import torch.optim              as optim
-import torch.optim.lr_scheduler as lr_scheduler
+import torch.nn as nn
+import torch.optim as optim
 import statistics               as stats
 
 from torchvision import datasets, transforms
-from mpi4py import MPI
-from utils import parse_args, ParallelNet
+from utils import parse_args, SerialNet
 from timeit import default_timer as timer
 
 from torchbraid.utils import MeanInitialGuessStorage
@@ -76,7 +49,7 @@ def root_print(rank,s):
   if rank==0:
     print(s)
 
-def train(rank,args,model,train_loader,optimizer,epoch,compose,mig_storage):
+def train(rank,args,model,train_loader,optimizer,epoch,mig_storage):
   log_interval = args.log_interval
   torch.enable_grad()
 
@@ -88,23 +61,13 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,mig_storage):
   total_time_cm = 0.0
 
   switched = False
-  format_str = 'Train Epoch: {:2d} [{:6d}/{:6d}]\tLoss: {:.3e}\tTime Per Batch {:.6f}/{:.6f} - F{:2d}/{:.2e}, B{:2d}/{:.2e}'
+  format_str = 'Train Epoch: {:2d} [{:6d}/{:6d}]\tLoss: {:.3e}\tTime Per Batch {:.6f}/{:.6f} -'
   total_data = 0
-
-  default_fwd_iters = model.parallel_nn.getFwdMaxIters();
-  default_bwd_iters = model.parallel_nn.getBwdMaxIters();
-
-  model.parallel_nn.setFwdAbsTol(1e1)
-  model.parallel_nn.setBwdAbsTol(1e0)
 
   cumulative_start_time = timer()
   for batch_idx,(data,target) in enumerate(train_loader):
 
-    #root_print(rank,f'EPOCH={epoch} FORWARD')
     start_time = timer()
-
-    #if epoch>1:
-    #  model.parallel_nn.setFwdInitialGuess(mig_storage.initialGuess(target))
 
     # compute forward
     optimizer.zero_grad()
@@ -112,27 +75,17 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,mig_storage):
     output = model(data)
     total_time_fp += timer()-start_time_fp
 
-    fwd_itr, fwd_res = model.getFwdStats()
-
-    # incorporate the average
-    #times,states = model.parallel_nn.getFineTimePoints()
-    #for t,state in zip(times,states):
-    #  mig_storage.addState(t,state.tensors(),target)
-
     # compute loss
     start_time_cm = timer()
     if len(output.shape)==1:
       output = torch.unsqueeze(output,0)
-    loss = compose(criterion,output,target)
+    loss = criterion(output,target)
     total_time_cm += timer()-start_time_cm
 
     # compute gradient
-    #root_print(rank,f'EPOCH={epoch} BACKWARD')
     start_time_bp = timer()
     loss.backward()
     total_time_bp += timer()-start_time_bp
-
-    bwd_itr, bwd_res = model.getBwdStats()
 
     # take step
     stop_time = timer()
@@ -144,14 +97,6 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,mig_storage):
     cumulative_stop_time = timer()
     cumulative_time = (cumulative_stop_time-cumulative_start_time) 
 
-    #if fwd_res>1e1:
-    #  model.parallel_nn.setFwdMaxIters(model.parallel_nn.getFwdMaxIters()+1)
-    #  root_print(rank,f'  updated fwd iters = {model.parallel_nn.getFwdMaxIters()}')
-    #if bwd_res>1e0:
-    #  model.parallel_nn.setBwdMaxIters(model.parallel_nn.getBwdMaxIters()+1)
-    #  root_print(rank,f'  updated bwd iters = {model.parallel_nn.getBwdMaxIters()}')
-      
-
     if batch_idx % log_interval == 0:
         root_print(rank,format_str.format(
                         epoch, 
@@ -160,12 +105,7 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,mig_storage):
                         loss.item(),
                         total_time/(batch_idx+1.0),
                         cumulative_time/(batch_idx+1.0),
-                        fwd_itr,fwd_res,
-                        bwd_itr,bwd_res
                         ))
-
-  model.parallel_nn.setFwdMaxIters(default_fwd_iters)
-  model.parallel_nn.setBwdMaxIters(default_bwd_iters)
 
   root_print(rank,(format_str+', fp={:.6f}, cm={:.6f}, bp={:.6f}').format(
                   epoch, 
@@ -174,22 +114,17 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,mig_storage):
                   loss.item(),
                   total_time/(batch_idx+1.0),
                   cumulative_time/(batch_idx+1.0),
-                  fwd_itr,fwd_res,
-                  bwd_itr,bwd_res,
                   total_time_fp/len(train_loader.dataset),
                   total_time_cm/len(train_loader.dataset),
                   total_time_bp/len(train_loader.dataset),
                   ))
 
-def test(rank,model,test_loader,epoch,compose,prefix=''):
+def test(rank,model,test_loader,epoch,prefix=''):
   model.eval()
   correct = 0
   criterion = nn.CrossEntropyLoss()
   total_time = 0.0
   root_print(rank,f'EPOCH={epoch} TEST')
-
-  default_fwd_iters = model.parallel_nn.getFwdMaxIters();
-  model.parallel_nn.setFwdMaxIters(10)
 
   with torch.no_grad():
     for data,target in test_loader:
@@ -203,7 +138,7 @@ def test(rank,model,test_loader,epoch,compose,prefix=''):
         output = torch.unsqueeze(output,0)
 
       # compute the number of solutions
-      pred = compose(output.argmax, dim=1, keepdim=True)
+      pred = output.argmax(dim=1, keepdim=True)
       stop_time = timer()
 
       total_time += stop_time-start_time
@@ -211,8 +146,6 @@ def test(rank,model,test_loader,epoch,compose,prefix=''):
       # only accumulate the correct values on the root
       if rank==0:
         correct += pred.eq(target.view_as(pred)).sum().item()
-
-  model.parallel_nn.setFwdMaxIters(default_fwd_iters)
 
   root_print(rank,'{}Test set epoch {:2d}: Accuracy: {}/{} ({:.0f}%)\tTime Per Batch {:.6f}'.format(
       prefix,
@@ -229,8 +162,8 @@ def main():
   ##
   # Parse command line args (function defined above)
   args = parse_args(mgopt_on=False)
-  procs = MPI.COMM_WORLD.Get_size()
-  rank  = MPI.COMM_WORLD.Get_rank()
+  procs = 1
+  rank  = 0
 
   local_steps = int(args.steps/procs)
 
@@ -316,29 +249,23 @@ def main():
   epochs = args.epochs
   log_interval = args.log_interval
 
-  model = ParallelNet(**network)
+  model = SerialNet(**network)
 
-  #optimizer = optim.Adam(model.parameters(), lr=args.lr)#, weight_decay=0.0001)
-  optimizer = optim.SGD(model.parameters(), lr=args.lr)#, weight_decay=0.0001)
-  compose = model.compose
+  optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
   epoch_times = []
   test_times = []
 
   mig_storage = MeanInitialGuessStorage(class_count=200,average_weight=0.9)
 
-  #scheduler = lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5,verbose=(rank==0))
-
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
-    train(rank,args, model, train_loader, optimizer, epoch,compose,mig_storage)
+    train(rank,args, model, train_loader, optimizer, epoch,mig_storage)
     end_time = timer()
     epoch_times += [end_time-start_time]
 
-    #scheduler.step()
-
     start_time = timer()
-    test(rank,model, test_loader,epoch,compose)
+    test(rank,model, test_loader,epoch)
     end_time = timer()
     test_times += [end_time-start_time]  
 
