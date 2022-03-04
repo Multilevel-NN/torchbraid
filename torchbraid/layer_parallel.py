@@ -105,26 +105,56 @@ class LayerParallel(nn.Module):
        # so this is all a hack to get this thing to work
       return torch.zeros(1)*value
 
-  def __init__(self,comm,layer_block,global_steps,Tf,max_levels=1,max_iters=10,spatial_ref_pair=None, nsplines=0, splinedegree=1):
+  def __init__(self,comm,layer_blocks,global_steps,Tf,max_levels=1,max_iters=10,spatial_ref_pair=None, nsplines=0, splinedegree=1):
+    """
+    This takes a number of arguments to construct a layer parallel list.
+    The big piece here is layer_block and global_steps. If layer_block is a functor then those
+    layers will be constructed as needed. In this case global_steps is an integer that says how
+    many time steps to take in an assume NODE.
+
+    If layer_block and global_steps are lists (they must be the same length). Each functor
+    in layer_block is paired with an integer number of global steps. The functor will be used
+    that number of times to create the neural network layers. If the number of global_steps for
+    a block is equal to 1, then that is treated as normal layer (not a NODE layer). For all
+    blocks with global_steps greater than 1, the layer is treated as a NODE. Note that the time
+    step used doesn't really care about this, and if you sum the global steps (say equal to N_total),
+    then dt=Tf/N_total.
+    """
     super(LayerParallel,self).__init__()
 
     self.comm = comm
 
     self.exec_helper = self.ExecLP(comm.Get_rank())
-
-    self.dt = Tf/global_steps
-
     self.timer_manager = ContextTimerManager()
 
-    layer_blocks = [(global_steps,layer_block)]
-    self.fwd_app = apps.ForwardODENetApp(comm,layer_blocks,Tf,max_levels,max_iters,self.timer_manager,
+    # this allows layers to be defined in a varied way, with different numbers of repititions 
+    global_steps = self.makeList(global_steps) # this conditional converts a single element to a list
+    layer_blocks = self.makeList(layer_blocks)
+
+    assert(len(global_steps)==len(layer_blocks)) # sanity check
+    layers = zip(global_steps,layer_blocks)
+
+    self.fwd_app = apps.ForwardODENetApp(comm,layers,Tf,max_levels,max_iters,self.timer_manager,
                                          spatial_ref_pair=spatial_ref_pair, nsplines=nsplines, splinedegree=splinedegree)
+    self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager)
+
     self.layer_models = [l for l in self.fwd_app.layer_models]
     self.local_layers = nn.Sequential(*self.layer_models)
-    self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager)
+
+    self.dt = self.fwd_app.dt
 
     self.enable_diagnostics = False
   # end __init__
+
+  def makeList(self,data):
+    """
+    Conditionally convert a single element to a list, or return a list
+
+    For instance: makeList(7) == [7], while makeList([7]) == [7]
+    """
+    if isinstance(data,list):
+      return data
+    return [data]
 
   def comp_op(self):
     """Short for compose operator, returns a functor that allows contstruction of composite neural 
