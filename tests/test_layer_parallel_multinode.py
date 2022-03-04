@@ -68,12 +68,12 @@ class TestLayerParallel_MultiNODE(unittest.TestCase):
     self.forwardBackwardProp(tolerance,Tf,max_levels,max_iters)
 
   def test_MGRIT(self):
-    tolerance = 1e-7
+    tolerance = 1e-5
     Tf = 8.0
     max_levels = 2
-    max_iters = 5
+    max_iters =  7
 
-    self.forwardBackwardProp(tolerance,Tf,max_levels,max_iters,print_level=3)
+    self.forwardBackwardProp(tolerance,Tf,max_levels,max_iters,print_level=0)
 
   def forwardBackwardProp(self,tolerance,Tf,max_levels,max_iters,print_level=0):
     rank = MPI.COMM_WORLD.Get_rank()
@@ -88,8 +88,8 @@ class TestLayerParallel_MultiNODE(unittest.TestCase):
     conv_block = lambda: ConvBlock(dim,num_ch)
     pool_block = lambda: nn.MaxPool1d(3)
 
-    basic_block = [conv_block,pool_block,conv_block]
-    num_steps   = [        4,         1,         3]
+    basic_block = [pool_block, conv_block,pool_block,conv_block]
+    num_steps   = [          1,         15,         1,         15]
 
     # this is the torchbraid class being tested 
     #######################################
@@ -119,8 +119,8 @@ class TestLayerParallel_MultiNODE(unittest.TestCase):
 
     if rank==0:
       # check error
-      forward_error = torch.norm(ys-yp_root)/torch.norm(ys)
-      root_print(rank,f'Forward Error: {forward_error}')
+      forward_error = (torch.norm(ys-yp_root)/torch.norm(ys)).item()
+      root_print(rank,f'Forward Error: {forward_error:e}')
       self.assertLessEqual(forward_error,tolerance,
                            "Relative error in the forward proppgation, serial to parallel comparison.")
 
