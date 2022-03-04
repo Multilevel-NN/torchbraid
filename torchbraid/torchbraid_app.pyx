@@ -422,7 +422,6 @@ class BraidApp:
     return self.shape0
 
   def buildInit(self,t):
-    # print(f'buildInit: {t}')
     try:
       if t>0:
         zeros = [torch.zeros(s) for s in self.getFeatureShapes(t)]

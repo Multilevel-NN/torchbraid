@@ -73,7 +73,7 @@ class TestLayerParallel_MultiNODE(unittest.TestCase):
     max_levels = 2
     max_iters = 5
 
-    self.forwardBackwardProp(tolerance,Tf,max_levels,max_iters,print_level=0)
+    self.forwardBackwardProp(tolerance,Tf,max_levels,max_iters,print_level=3)
 
   def forwardBackwardProp(self,tolerance,Tf,max_levels,max_iters,print_level=0):
     rank = MPI.COMM_WORLD.Get_rank()
@@ -86,10 +86,9 @@ class TestLayerParallel_MultiNODE(unittest.TestCase):
     num_samp = 8
 
     conv_block = lambda: ConvBlock(dim,num_ch)
-    #bn_block = lambda: nn.MaxPool1d(3)
-    bn_block = lambda: nn.BatchNorm1d(num_ch)
+    pool_block = lambda: nn.MaxPool1d(3)
 
-    basic_block = [conv_block,bn_block,conv_block]
+    basic_block = [conv_block,pool_block,conv_block]
     num_steps   = [        4,         1,         3]
 
     # this is the torchbraid class being tested 

@@ -151,6 +151,14 @@ class ForwardODENetApp(BraidApp):
   def __del__(self):
     pass
 
+  def buildShapes(self,x):
+    """Do a dry run to determine all the shapes that need to be built."""
+    shapes = [x.shape]
+    for layer in self.layer_blocks[1]:
+      x = layer()(x)
+      shapes += [x.shape]
+    return shapes
+
   def buildLayerBlocks(self,layers):
     # this block of code prepares the data for easy sorting
     [counts,layer_blocks] = list(zip(*layers))
@@ -169,6 +177,11 @@ class ForwardODENetApp(BraidApp):
       # if its just one time step, assume the user wants only a scalar
       return self.PlainBlock(layer)
     return self.ODEBlock(layer)
+
+  def getFeatureShapes(self,t):
+    i = self.getGlobalTimeIndex(t)
+    ind = bisect_right(self.layer_blocks[0],i)
+    return (self.shape0[ind],)
 
   def getTempLayer(self,t):
     """
@@ -284,9 +297,8 @@ class ForwardODENetApp(BraidApp):
     # no gradients are necessary here, so don't compute them
     dt = tstop-tstart
     with torch.no_grad():
-      k = torch.norm(t_y).item()
       ny = layer(dt,t_y)
-      y.replaceTensor(ny)
+      y.replaceTensor(ny) 
 
     # This connects weights at tstop with the vector y. For a SpliNet, the weights at tstop are evaluated using the spline basis function. 
     self.setVectorWeights(tstop,y)
