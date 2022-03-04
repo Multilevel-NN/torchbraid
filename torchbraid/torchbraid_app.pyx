@@ -208,6 +208,9 @@ class BraidApp:
   def getLayerDataSize(self):
     return 0
 
+  def buildShapes(self,x):
+    return x.size()
+
   def getTensorShapes(self):
     return self.shape0
 
@@ -415,10 +418,14 @@ class BraidApp:
   def initializeVector(self,t,x):  
     pass
 
+  def getFeatureShapes(self,t):
+    return self.shape0
+
   def buildInit(self,t):
+    # print(f'buildInit: {t}')
     try:
       if t>0:
-        zeros = [torch.zeros(s) for s in self.shape0]
+        zeros = [torch.zeros(s) for s in self.getFeatureShapes(t)]
         x = BraidVector(tuple(zeros),0)
       else:
         x = BraidVector(self.x0.tensors(),0)
