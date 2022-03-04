@@ -50,19 +50,19 @@ import numpy as np
 
 #  a python level module
 ##########################################################
-
-class ODEBlock(nn.Module):
+class FixDTBlock(nn.Module):
+  """Build a module that removes teh dt from the forward evaluation
+     this eases consistency with the PyTorch modus operandi
+  """
   def __init__(self,layer,dt):
-    super(ODEBlock, self).__init__()
+    super(FixDTBlock, self).__init__()
 
     self.dt = dt
     self.layer = layer
 
   def forward(self, x):
-    y = self.dt*self.layer(x)
-    y.add_(x)
-    return y
-# end ODEBlock
+    return self.layer(self.dt,x)
+# end FixDTBlock
 
 class LayerParallel(nn.Module):
   
@@ -261,7 +261,7 @@ class LayerParallel(nn.Module):
 
   # This method copies the layer parameters and can be used for verification
   def buildSequentialOnRoot(self):
-    ode_layers    = [ODEBlock(copy.deepcopy(l),self.dt) for l in self.layer_models]
+    ode_layers    = [FixDTBlock(copy.deepcopy(l),self.dt) for l in self.layer_models]
     remote_layers = ode_layers
     build_seq_tag = 12         # this 
     comm          = self.getMPIComm()

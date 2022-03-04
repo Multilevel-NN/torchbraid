@@ -30,6 +30,7 @@
 #@HEADER
 
 import torch
+import torch.nn as nn
 
 from braid_vector import BraidVector
 from torchbraid_app import BraidApp
@@ -46,6 +47,29 @@ from bsplines import BsplineBasis
 from mpi4py import MPI
 
 class ForwardODENetApp(BraidApp):
+  class ODEBlock(nn.Module):
+    """This is a helper class to wrap layers that should be ODE time steps."""
+    def __init__(self,layer):
+      super(ForwardODENetApp.ODEBlock, self).__init__()
+
+      self.layer = layer
+
+    def forward(self,dt, x):
+      y = dt*self.layer(x)
+      y.add_(x)
+      return y
+  # end ODEBlock
+
+  class PlainBlock(nn.Module):
+    """This is a helper class to wrap layers that are not ODE time steps."""
+    def __init__(self,layer):
+      super(ForwardODENetApp.PlainBlock, self).__init__()
+
+      self.layer = layer
+
+    def forward(self,dt, x):
+      return self.layer(x)
+  # end ODEBlock
 
   def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None, nsplines=0, splinedegree=1):
     """
@@ -133,14 +157,18 @@ class ForwardODENetApp(BraidApp):
     layer_indices = list(itertools.accumulate(counts))
 
     num_steps = layer_indices[-1]
-    return (layer_indices,layer_blocks),num_steps
+    return (layer_indices,layer_blocks,counts),num_steps
 
   def buildLayerBlock(self,i):
     """
     This function returns a block (e.g. a lambda that constructs the layer).
     """
     ind = bisect_right(self.layer_blocks[0],i)
-    return self.layer_blocks[1][ind]()
+    layer = self.layer_blocks[1][ind]()
+    if self.layer_blocks[2][ind]==1:
+      # if its just one time step, assume the user wants only a scalar
+      return self.PlainBlock(layer)
+    return self.ODEBlock(layer)
 
   def getTempLayer(self,t):
     """
@@ -257,10 +285,8 @@ class ForwardODENetApp(BraidApp):
     dt = tstop-tstart
     with torch.no_grad():
       k = torch.norm(t_y).item()
-      q = dt*layer(t_y)
-      kq = torch.norm(q).item()
-      t_y.add_(q)
-      del q
+      ny = layer(dt,t_y)
+      t_y.copy_(ny)
 
     # This connects weights at tstop with the vector y. For a SpliNet, the weights at tstop are evaluated using the spline basis function. 
     self.setVectorWeights(tstop,y)
@@ -293,7 +319,7 @@ class ForwardODENetApp(BraidApp):
     x.requires_grad = True 
     dt = tstop-tstart
     with torch.enable_grad():
-      y = x + dt * layer(x)
+      y = layer(dt,x)
     return (y, x), layer
   # end getPrimalWithGrad
 
