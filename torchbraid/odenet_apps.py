@@ -45,16 +45,17 @@ from mpi4py import MPI
 
 class ForwardODENetApp(BraidApp):
 
-  def __init__(self,comm,local_num_steps,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None, layer_block=None, nsplines=0, splinedegree=1):
+  def __init__(self,comm,layer_blocks,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None, nsplines=0, splinedegree=1):
     """
     """
-    BraidApp.__init__(self,'FWDApp',comm,comm.Get_size()*local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=True)
+    num_steps,layer_block = layer_blocks[0]
+
+    BraidApp.__init__(self,'FWDApp',comm,num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=True)
 
     comm          = self.getMPIComm()
     my_rank       = self.getMPIComm().Get_rank()
     num_ranks     = self.getMPIComm().Get_size()
     self.my_rank = my_rank
-    self.layer_block = layer_block
 
     # If this is a SpliNet, create spline basis and overwrite local self.start_layer/end_layer 
     self.splinet = False
@@ -82,7 +83,7 @@ class ForwardODENetApp(BraidApp):
       owned_layers -= 1
 
     # Now creating the trainable layers
-    self.layer_models = [self.layer_block() for _ in range(owned_layers)]
+    self.layer_models = [layer_block() for _ in range(owned_layers)]
 
     self.timer_manager = timer_manager
     self.use_deriv = False
