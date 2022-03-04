@@ -111,9 +111,10 @@ class SerialNet(nn.Module):
     super(SerialNet, self).__init__()
 
     step_layer = lambda: StepLayer(channels)
+    numprocs = MPI.COMM_WORLD.Get_size()
     
     self.open_nn = OpenLayer(channels)
-    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_levels=1,max_iters=1)
+    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps*numprocs,Tf,max_levels=1,max_iters=1)
     self.parallel_nn.setPrintLevel(0)
     
     self.serial_nn   = self.parallel_nn.buildSequentialOnRoot()
@@ -131,8 +132,9 @@ class ParallelNet(nn.Module):
     super(ParallelNet, self).__init__()
 
     step_layer = lambda: StepLayer(channels)
+    numprocs = MPI.COMM_WORLD.Get_size()
 
-    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_levels=max_levels,max_iters=max_iters)
+    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps*numprocs,Tf,max_levels=max_levels,max_iters=max_iters)
     self.parallel_nn.setPrintLevel(print_level)
     self.parallel_nn.setCFactor(4)
     self.parallel_nn.setSkipDowncycle(True)

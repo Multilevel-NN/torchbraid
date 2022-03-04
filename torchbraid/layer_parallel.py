@@ -105,21 +105,18 @@ class LayerParallel(nn.Module):
        # so this is all a hack to get this thing to work
       return torch.zeros(1)*value
 
-  def __init__(self,comm,layer_block,num_steps,Tf,max_levels=1,max_iters=10,spatial_ref_pair=None, nsplines=0, splinedegree=1):
+  def __init__(self,comm,layer_block,global_steps,Tf,max_levels=1,max_iters=10,spatial_ref_pair=None, nsplines=0, splinedegree=1):
     super(LayerParallel,self).__init__()
 
     self.comm = comm
 
     self.exec_helper = self.ExecLP(comm.Get_rank())
 
-    # optional parameters
-    global_steps = num_steps*comm.Get_size()
-
     self.dt = Tf/global_steps
 
     self.timer_manager = ContextTimerManager()
 
-    layer_blocks = [(num_steps*comm.Get_size(),layer_block)]
+    layer_blocks = [(global_steps,layer_block)]
     self.fwd_app = apps.ForwardODENetApp(comm,layer_blocks,Tf,max_levels,max_iters,self.timer_manager,
                                          spatial_ref_pair=spatial_ref_pair, nsplines=nsplines, splinedegree=splinedegree)
     self.layer_models = [l for l in self.fwd_app.layer_models]

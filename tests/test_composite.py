@@ -84,11 +84,12 @@ class ParallelNet(nn.Module):
     super(ParallelNet, self).__init__()
 
     self.rank = MPI.COMM_WORLD.Get_rank()
+    self.numprocs = MPI.COMM_WORLD.Get_size()
 
     self.channels = channels
     step_layer = lambda: StepLayer(channels)
     
-    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_levels=max_levels,max_iters=max_iters)
+    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps*self.numprocs,Tf,max_levels=max_levels,max_iters=max_iters)
     self.parallel_nn.setPrintLevel(print_level)
     self.parallel_nn.setCFactor(4)
     self.o = self.parallel_nn.comp_op() # get tool to build up composition neural networks

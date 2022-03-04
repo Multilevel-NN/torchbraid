@@ -77,13 +77,13 @@ class StepLayer(nn.Module):
 
 def main():
   comm = MPI.COMM_WORLD
-
+  numprocs = comm.Get_size()
   local_steps = 3
   levels = 2
 
   step_layer = lambda: StepLayer(channels=2)
 
-  parallel_nn = torchbraid.LayerParallel(comm,step_layer,local_steps,Tf=comm.Get_size()*local_steps,max_levels=levels,max_iters=1)
+  parallel_nn = torchbraid.LayerParallel(comm,step_layer,local_steps*numprocs,Tf=comm.Get_size()*local_steps,max_levels=levels,max_iters=1)
   parallel_nn.setPrintLevel(0)
 
   fwd_lower,fwd_upper = parallel_nn.fwd_app.getStepBounds()

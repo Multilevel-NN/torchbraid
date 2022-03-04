@@ -209,9 +209,10 @@ class ParallelNet(torch.nn.Module):
         super(ParallelNet, self).__init__()
 
         step_layer = lambda: StepLayer(width)
+        numprocs = MPI.COMM_WORLD.Get_size()
 
         # Create and store parallel net, use splinet flag to tell torchbraid to use spline parameterization
-        self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD, step_layer, local_steps, Tstop, max_levels=max_levels, max_iters=max_iters, nsplines=nsplines, splinedegree=splinedegree)
+        self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD, step_layer, local_steps*numprocs, Tstop, max_levels=max_levels, max_iters=max_iters, nsplines=nsplines, splinedegree=splinedegree)
 
         # Set options
         if fwd_max_iters > 0:
