@@ -34,21 +34,23 @@ import torch
 from braid_vector import BraidVector
 from torchbraid_app import BraidApp
 import utils 
+import itertools
 
 import sys
 import traceback
 import resource
 import copy
-from bsplines import BsplineBasis
 
+from bisect import bisect_right
+from bsplines import BsplineBasis
 from mpi4py import MPI
 
 class ForwardODENetApp(BraidApp):
 
-  def __init__(self,comm,layer_blocks,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None, nsplines=0, splinedegree=1):
+  def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None, nsplines=0, splinedegree=1):
     """
     """
-    num_steps,layer_block = layer_blocks[0]
+    self.layer_blocks,num_steps = self.buildLayerBlocks(layers)
 
     BraidApp.__init__(self,'FWDApp',comm,num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=True)
 
@@ -83,7 +85,7 @@ class ForwardODENetApp(BraidApp):
       owned_layers -= 1
 
     # Now creating the trainable layers
-    self.layer_models = [layer_block() for _ in range(owned_layers)]
+    self.layer_models = [self.buildLayerBlock(self.start_layer+i) for i in range(owned_layers)]
 
     self.timer_manager = timer_manager
     self.use_deriv = False
@@ -92,8 +94,7 @@ class ForwardODENetApp(BraidApp):
     for p in self.layer_models[0].parameters(): 
       self.parameter_shapes += [p.data.size()]
 
-    self.temp_layer = layer_block()
-    self.clearTempLayerWeights()
+    self.temp_layers = dict()
 
     # If this is a SpliNet, create communicators for shared weights
     if self.splinet:
@@ -125,6 +126,40 @@ class ForwardODENetApp(BraidApp):
 
   def __del__(self):
     pass
+
+  def buildLayerBlocks(self,layers):
+    # this block of code prepares the data for easy sorting
+    [counts,layer_blocks] = list(zip(*layers))
+    layer_indices = list(itertools.accumulate(counts))
+
+    num_steps = layer_indices[-1]
+    return (layer_indices,layer_blocks),num_steps
+
+  def buildLayerBlock(self,i):
+    """
+    This function returns a block (e.g. a lambda that constructs the layer).
+    """
+    ind = bisect_right(self.layer_blocks[0],i)
+    return self.layer_blocks[1][ind]()
+
+  def getTempLayer(self,t):
+    """
+    This function returns a pytorch layer module. A dictionary is used
+    to cache the construction and search. These will be used to make sure
+    that any parallel communication is correctly handled even if the layer
+    is of a different type.
+    """
+    i = self.getGlobalTimeIndex(t)
+    ind = bisect_right(self.layer_blocks[0],i)
+
+    # using a dictionary to cache previously built temp layers
+    if ind in self.temp_layers:
+      result = self.temp_layers[ind]
+    else:
+      result = self.buildLayerBlock(i)
+      self.temp_layers[ind] = result
+
+    return result
 
   def getTensorShapes(self):
     return list(self.shape0)+self.parameter_shapes
@@ -166,15 +201,8 @@ class ForwardODENetApp(BraidApp):
     x.addWeightTensors(weights)
   # end setVectorWeights
 
-  def clearTempLayerWeights(self):
-    layer = self.temp_layer
-
-    for dest_p in list(layer.parameters()):
-      dest_p.data = torch.empty(())
-  # end clearTempLayerWeights
-
   def setLayerWeights(self,t,tf,level,weights):
-    layer = self.temp_layer
+    layer = self.getTempLayer(t)
 
     with torch.no_grad():
       for dest_p,src_w in zip(list(layer.parameters()),weights):
@@ -221,7 +249,7 @@ class ForwardODENetApp(BraidApp):
     """
 
     self.setLayerWeights(tstart,tstop,level,y.weightTensors())
-    layer = self.temp_layer
+    layer = self.getTempLayer(tstart)
 
     t_y = y.tensor().detach()
 
@@ -250,15 +278,14 @@ class ForwardODENetApp(BraidApp):
 
     # Set the layer at tstart. For a SpliNet, get the layer weights from x at tstart, otherwise, get layer and weights from storage.
     if self.splinet:
-      self.clearTempLayerWeights()
       self.setLayerWeights(tstart,tstop,0,b_x.weightTensors())
-      layer = self.temp_layer
+      layer = self.getTempLayer(tstart)
     else:
       ts_index = self.getGlobalTimeIndex(tstart)-self.start_layer
       assert(ts_index<len(self.layer_models))
       assert(ts_index >= 0)
       layer = self.layer_models[ts_index]
-
+    
     t_x = b_x.tensor()
     x = t_x.detach()
     y = t_x.detach().clone()
