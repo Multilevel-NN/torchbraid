@@ -117,8 +117,6 @@ class LayerParallel(nn.Module):
 
     self.dt = Tf/global_steps
 
-    self.layer_block = layer_block
-
     self.timer_manager = ContextTimerManager()
 
     self.fwd_app = apps.ForwardODENetApp(comm,num_steps,Tf,max_levels,max_iters,self.timer_manager,

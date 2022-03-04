@@ -48,9 +48,7 @@ class ForwardODENetApp(BraidApp):
   def __init__(self,comm,local_num_steps,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None, layer_block=None, nsplines=0, splinedegree=1):
     """
     """
-    BraidApp.__init__(self,'FWDApp',comm,local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=True)
-
-    sys.stdout.flush()
+    BraidApp.__init__(self,'FWDApp',comm,comm.Get_size()*local_num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=True)
 
     comm          = self.getMPIComm()
     my_rank       = self.getMPIComm().Get_rank()
@@ -96,7 +94,6 @@ class ForwardODENetApp(BraidApp):
     self.temp_layer = layer_block()
     self.clearTempLayerWeights()
 
-
     # If this is a SpliNet, create communicators for shared weights
     if self.splinet:
       # For each spline basis function, create one communicator that contains all processors that store this spline.
@@ -106,9 +103,9 @@ class ForwardODENetApp(BraidApp):
         exclude = []
         for k in range(comm.Get_size()):
           # recompute start_layer and end_layer for all other processors.
-          dt = Tf/(local_num_steps*comm.Get_size())
-          t0loc = k*local_num_steps*dt  
-          tfloc = (k+1)*local_num_steps*dt
+          dt = Tf/(self.local_num_steps*comm.Get_size())
+          t0loc = k*self.local_num_steps*dt  
+          tfloc = (k+1)*self.local_num_steps*dt
           if k == 0:
             startlayer = int( t0loc / spline_dknots )
           else :
@@ -123,11 +120,6 @@ class ForwardODENetApp(BraidApp):
         thiscomm = comm.Create(newgroup) # This will be MPI.COMM_NULL on all processors that are excluded
         self.spline_comm_vec.append(thiscomm)  
       
-      # for i,commsp in enumerate(self.spline_comm_vec):
-      #   if commsp != MPI.COMM_NULL:
-      #     # print(comm.Get_rank(), ": In communicator ", i, ": I'm rank ", self.spline_comm_vec[i].Get_rank(), "out of", self.spline_comm_vec[i].Get_size())
-      #     if commsp.Get_rank() == 0:
-      #       print("comm ", i," has size ", commsp.Get_size())
   # end __init__
 
   def __del__(self):
@@ -227,10 +219,8 @@ class ForwardODENetApp(BraidApp):
     condition x. The level is defined by braid
     """
 
-    # print(self.my_rank, ": FWDeval level ", level, " ", tstart, "->", tstop)
     self.setLayerWeights(tstart,tstop,level,y.weightTensors())
     layer = self.temp_layer
-    # print(self.my_rank, ": FWDeval level ", level, " ", tstart, "->", tstop, [p.data for p in layer.parameters()])
 
     t_y = y.tensor().detach()
 
@@ -289,7 +279,7 @@ class BackwardODENetApp(BraidApp):
     # call parent constructor
     BraidApp.__init__(self,'BWDApp',
                            fwd_app.getMPIComm(),
-                           fwd_app.local_num_steps,
+                           fwd_app.getMPIComm().Get_size()*fwd_app.local_num_steps,
                            fwd_app.Tf,
                            fwd_app.max_levels,
                            fwd_app.max_iters,

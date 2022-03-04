@@ -52,7 +52,7 @@ def output_exception(label):
 
 class BraidApp:
 
-  def __init__(self,prefix_str,comm,local_num_steps,Tf,max_levels,max_iters,
+  def __init__(self,prefix_str,comm,num_steps,Tf,max_levels,max_iters,
                spatial_ref_pair=None,require_storage=False,abs_tol=1e-12):
 
     self.prefix_str = prefix_str # prefix string for helping to debug hopefully
@@ -70,12 +70,13 @@ class BraidApp:
 
     self.mpi_comm        = comm
     self.Tf              = Tf
-    self.local_num_steps = local_num_steps
-    self.num_steps       = local_num_steps*self.mpi_comm.Get_size()
+    self.num_steps       = num_steps
+    self.local_num_steps = int(num_steps/self.mpi_comm.Get_size())
+    assert(self.local_num_steps*self.mpi_comm.Get_size()==self.num_steps)
 
     self.dt       = Tf/self.num_steps
-    self.t0_local = self.mpi_comm.Get_rank()*local_num_steps*self.dt
-    self.tf_local = (self.mpi_comm.Get_rank()+1.0)*local_num_steps*self.dt
+    self.t0_local = self.mpi_comm.Get_rank()*self.local_num_steps*self.dt
+    self.tf_local = (self.mpi_comm.Get_rank()+1.0)*self.local_num_steps*self.dt
 
     self.x_final = None
     self.shape0 = None
