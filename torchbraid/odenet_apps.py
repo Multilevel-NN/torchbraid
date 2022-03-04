@@ -286,7 +286,7 @@ class ForwardODENetApp(BraidApp):
     with torch.no_grad():
       k = torch.norm(t_y).item()
       ny = layer(dt,t_y)
-      t_y.copy_(ny)
+      y.replaceTensor(ny)
 
     # This connects weights at tstop with the vector y. For a SpliNet, the weights at tstop are evaluated using the spline basis function. 
     self.setVectorWeights(tstop,y)
