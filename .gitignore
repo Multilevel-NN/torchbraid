@@ -1,6 +1,8 @@
 installed_files.txt
 braid.out.cycle
 
+.vscode
+
 __pycache__/
 examples/mnist/data/
 examples/mnist/fashion-data/
