@@ -131,9 +131,6 @@ cdef int my_free(braid_App app, braid_Vector u):
   return 0
 
 cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_Vector y):
-  # This routine cna be made faster by using the pyTorch tensor operations
-  # My initial attempt at this failed however
-
   try:
     pyApp = <object> app
     with pyApp.timer("sum"):
@@ -144,6 +141,8 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
         ten_Y.add_(ten_X,alpha=float(alpha))
   except:
     output_exception("my_sum")
+    sys.stdout.flush()
+    sys.exit(1)
 
   return 0
 
