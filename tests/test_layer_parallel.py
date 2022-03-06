@@ -215,14 +215,16 @@ class TestTorchBraid(unittest.TestCase):
       return None
   # end copyParametersToRoot
 
-  def backForwardProp(self,dim, basic_block,x0,w0,max_levels,max_iters,test_tol,prefix,ref_pair=None,check_grad=True,num_steps=4,print_level=0):
+  def backForwardProp(self,dim, basic_block,x0,w0,max_levels,max_iters,test_tol,prefix,ref_pair=None,check_grad=True,num_steps=4,print_level=0,check_initial_guess=False):
     Tf = 2.0
+    cfactor = 2 
 
     # this is the torchbraid class being tested 
     #######################################
-    m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps*MPI.COMM_WORLD.Get_size(),Tf,max_levels=max_levels,max_iters=max_iters,spatial_ref_pair=ref_pair)
+    m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps*MPI.COMM_WORLD.Get_size(),Tf,max_fwd_levels=max_levels,max_bwd_levels=max_levels,max_iters=max_iters,spatial_ref_pair=ref_pair)
     m.setPrintLevel(print_level)
     m.setSkipDowncycle(False)
+    m.setCFactor(cfactor)
 
     w0 = m.copyVectorFromRoot(w0)
 
@@ -239,6 +241,11 @@ class TestTorchBraid(unittest.TestCase):
     xm.requires_grad = check_grad
 
     wm = m(xm)
+
+    times,uvals = m.getFineTimePoints()
+
+    # check that the number of points is correct...no other checks :(
+    self.assertEqual(len(times),len(uvals),f'Processor={m.getMPIComm().Get_rank()}')
 
     if check_grad:
       wm.backward(w0)
@@ -295,7 +302,6 @@ class TestTorchBraid(unittest.TestCase):
           print('%s: p grad error (mean,stddev) = %.6e, %.6e' % (prefix,stats.mean(param_errors),stats.stdev(param_errors)))
 
       print('\n')
-        
   # forwardPropSerial
 
   import sys

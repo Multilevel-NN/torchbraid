@@ -114,7 +114,7 @@ class TestLayerParallel_MultiNODE(unittest.TestCase):
 
     # this is the torchbraid class being tested 
     #######################################
-    parallel_net = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_levels=max_levels,max_iters=max_iters)
+    parallel_net = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_fwd_levels=max_levels,max_bwd_levels=max_levels,max_iters=max_iters)
     parallel_net.setPrintLevel(print_level)
     parallel_net.setSkipDowncycle(False)
 

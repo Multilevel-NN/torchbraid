@@ -74,7 +74,7 @@ class LayerParallel(nn.Module):
     parallel execution and gradients.
 
     One naming convection is to use 'o' for a class of this type
-    signifying object compoistion.
+    signifying object composition.
     """
 
     def __init__(self,rank):
@@ -102,10 +102,13 @@ class LayerParallel(nn.Module):
         if a.requires_grad:
           value += torch.norm(a)
 
-       # so this is all a hack to get this thing to work
-      return torch.zeros(1)*value
+      # so this is all a hack to get this thing to work
+      if 'mgopt_term' in kwargs: 
+        return torch.zeros(1)*value - kwargs['mgopt_term']
+      else:
+        return torch.zeros(1)*value
 
-  def __init__(self,comm,layer_blocks,global_steps,Tf,max_levels=1,max_iters=10,spatial_ref_pair=None, nsplines=0, splinedegree=1):
+  def __init__(self,comm,layer_blocks,global_steps,Tf,max_fwd_levels=1,max_bwd_levels=1,max_iters=10,spatial_ref_pair=None, nsplines=0, splinedegree=1):
     """
     This takes a number of arguments to construct a layer parallel list.
     The big piece here is layer_block and global_steps. If layer_block is a functor then those
@@ -123,7 +126,6 @@ class LayerParallel(nn.Module):
     super(LayerParallel,self).__init__()
 
     self.comm = comm
-
     self.exec_helper = self.ExecLP(comm.Get_rank())
     self.timer_manager = ContextTimerManager()
 
@@ -134,9 +136,9 @@ class LayerParallel(nn.Module):
     assert(len(global_steps)==len(layer_blocks)) # sanity check
     layers = zip(global_steps,layer_blocks)
 
-    self.fwd_app = apps.ForwardODENetApp(comm,layers,Tf,max_levels,max_iters,self.timer_manager,
+    self.fwd_app = apps.ForwardODENetApp(comm,layers,Tf,max_fwd_levels,max_iters,self.timer_manager,
                                          spatial_ref_pair=spatial_ref_pair, nsplines=nsplines, splinedegree=splinedegree)
-    self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager)
+    self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager,max_levels=max_bwd_levels)
 
     self.layer_models = [l for l in self.fwd_app.layer_models]
     self.local_layers = nn.Sequential(*self.layer_models)
@@ -184,9 +186,28 @@ class LayerParallel(nn.Module):
     self.fwd_app.setPrintLevel(print_level,tb_print)
     self.bwd_app.setPrintLevel(print_level,tb_print)
 
-  def setNumRelax(self,relax,level=-1):
+  def setFwdStorage(self, storage):
+    self.fwd_app.setStorage(storage)
+
+  def setBwdStorage(self, storage):
+    self.bwd_app.setStorage(storage)
+
+  def setMinCoarse(self, mc):
+    self.fwd_app.setMinCoarse(mc)
+    self.bwd_app.setMinCoarse(mc)
+
+  def setFwdNumRelax(self,relax,level=-1):
     self.fwd_app.setNumRelax(relax,level=level)
+  
+  def setBwdNumRelax(self,relax,level=-1):
     self.bwd_app.setNumRelax(relax,level=level)
+
+  def setFwdAbsTol(self,abs_tol):
+    self.fwd_app.setAbsTol(abs_tol)
+
+  def setBwdAbsTol(self,abs_tol):
+    self.bwd_app.setAbsTol(abs_tol)
+
 
   def setMaxIters(self,max_iters):
     self.fwd_app.setNumRelax(max_iters)
@@ -198,12 +219,43 @@ class LayerParallel(nn.Module):
   def setBwdMaxIters(self,max_iters):
     self.bwd_app.setMaxIters(max_iters)
 
+  def getFwdMaxIters(self):
+    return self.fwd_app.getMaxIters()
+
+  def getBwdMaxIters(self):
+    return self.bwd_app.getMaxIters()
+
   def setFMG(self):
     self.fwd_app.setFMG()
     self.bwd_app.setFMG()
 
+  def setFwdFinalFCRelax(self):
+    self.fwd_app.finalRelax()
+
+  def setBwdFinalFCRelax(self):
+    self.bwd_app.finalRelax()
+
+  def setBwdRelaxOnlyCG(self, flag):
+    self.bwd_app.setRelaxOnlyCG(flag)
+  
+  def setFwdRelaxOnlyCG(self, flag):
+    self.fwd_app.setRelaxOnlyCG(flag)
+
+  def setCRelaxWt(self, CWt):
+    self.bwd_app.setCRelaxWt(CWt)
+    #
+    # Probably leave commented out for forward solve, more interested
+    # in "mixing" adjoint data.
+    #self.fwd_app.setCFactor(CWt)
+
   def setCFactor(self,cfactor):
     self.fwd_app.setCFactor(cfactor)
+    self.bwd_app.setCFactor(cfactor)
+
+  def setFwdCFactor(self,cfactor):
+    self.fwd_app.setCFactor(cfactor)
+
+  def setBwdCFactor(self,cfactor):
     self.bwd_app.setCFactor(cfactor)
 
   def setSkipDowncycle(self,skip):
@@ -228,6 +280,17 @@ class LayerParallel(nn.Module):
 
     return BraidFunction.apply(self.fwd_app,self.bwd_app,x,*params) 
   # end forward
+
+  def getFwdStats(self):
+    itr, res = self.fwd_app.getBraidStats()
+    return itr,res
+
+  def getBwdStats(self):
+    itr, res = self.bwd_app.getBraidStats()
+    return itr,res
+
+  def getFineTimePoints(self):
+    return self.fwd_app.getTimePoints()
 
   def diagnostics(self,enable):
     """

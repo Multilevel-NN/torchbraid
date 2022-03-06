@@ -199,7 +199,7 @@ class ForwardODENetApp(BraidApp):
     else:
       result = self.buildLayerBlock(i)
       self.temp_layers[ind] = result
-
+    
     return result
 
   def getTensorShapes(self):
@@ -244,7 +244,6 @@ class ForwardODENetApp(BraidApp):
 
   def setLayerWeights(self,t,tf,level,weights):
     layer = self.getTempLayer(t)
-
     with torch.no_grad():
       for dest_p,src_w in zip(list(layer.parameters()),weights):
         dest_p.data = src_w
@@ -256,6 +255,9 @@ class ForwardODENetApp(BraidApp):
   def run(self,x):
     # turn on derivative path (as requried)
     self.use_deriv = self.training
+    
+    # instead of doing runBraid, can execute tests
+    #self.testBraid(x)
 
     # run the braid solver
     with self.timer("runBraid"):
@@ -341,13 +343,15 @@ class ForwardODENetApp(BraidApp):
 
 class BackwardODENetApp(BraidApp):
 
-  def __init__(self,fwd_app,timer_manager):
+  def __init__(self,fwd_app,timer_manager,max_levels=-1):
     # call parent constructor
+    if max_levels == -1:
+        max_levels = fwd_app.max_levels
     BraidApp.__init__(self,'BWDApp',
                            fwd_app.getMPIComm(),
                            fwd_app.getMPIComm().Get_size()*fwd_app.local_num_steps,
                            fwd_app.Tf,
-                           fwd_app.max_levels,
+                           max_levels,
                            fwd_app.max_iters,
                            spatial_ref_pair=fwd_app.spatial_ref_pair)
 
@@ -375,6 +379,9 @@ class BackwardODENetApp(BraidApp):
     return self.timer_manager.timer("BckWD::"+name)
 
   def run(self,x):
+    
+    # instead of doing runBraid, can execute tests
+    #self.testBraid(x)
 
     try:
       f = self.runBraid(x)

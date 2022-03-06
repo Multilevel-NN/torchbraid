@@ -36,6 +36,7 @@ import torch
 import numpy as np
 import traceback
 
+from libc.stdio cimport FILE, stdout
 from braid_vector import BraidVector
 
 cimport mpi4py.MPI as MPI
@@ -153,7 +154,7 @@ class BraidApp:
       braid_SetSpatialCoarsen(core,b_coarsen)
       braid_SetSpatialRefine(core,b_refine)
     # end if refinement_on
-
+    
     # Set Braid options
     if self.require_storage:
       braid_SetStorage(core,0)
@@ -164,6 +165,7 @@ class BraidApp:
     braid_SetNRelax(core,0,0) # set F relax on fine grid
     braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
     braid_SetAbsTol(core,self.abs_tol)
+    #braid_SetCRelaxWt(core, -1, 1.2)   # Turn on weighted relaxation, probably want to add command line argument
     if self.skip_downcycle==0:
       braid_SetSkip(core,0)
     else:
@@ -174,7 +176,7 @@ class BraidApp:
     # store the c pointer
     py_core = PyBraid_Core()
     py_core.setCore(core)
-
+    
     return py_core
   # end initCore
 
@@ -246,9 +248,59 @@ class BraidApp:
     cdef braid_Core core = py_core.getCore()
     braid_SetFinalFCRelax(core)
 
+  def testBraid(self, x):
+    """
+    Run some Braid Diagnostics
+    """
+
+    cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
+    cdef braid_Core core = py_core.getCore()
+    cdef MPI.Comm comm = self.getMPIComm()
+    cdef braid_PtFcnStep  b_step  = <braid_PtFcnStep> my_step
+    cdef braid_PtFcnInit  b_init  = <braid_PtFcnInit> my_init
+    cdef braid_PtFcnClone b_clone = <braid_PtFcnClone> my_clone
+    cdef braid_PtFcnFree  b_free  = <braid_PtFcnFree> my_free
+    cdef braid_PtFcnSum   b_sum   = <braid_PtFcnSum> my_sum
+    cdef braid_PtFcnSpatialNorm b_norm = <braid_PtFcnSpatialNorm> my_norm
+    cdef braid_PtFcnAccess b_access = <braid_PtFcnAccess> my_access
+    cdef braid_PtFcnBufSize b_bufsize = <braid_PtFcnBufSize> my_bufsize
+    cdef braid_PtFcnBufPack b_bufpack = <braid_PtFcnBufPack> my_bufpack
+    cdef braid_PtFcnBufUnpack b_bufunpack = <braid_PtFcnBufUnpack> my_bufunpack
+    cdef braid_PtFcnSCoarsen b_coarsen = <braid_PtFcnSCoarsen> my_coarsen
+    cdef braid_PtFcnSRefine b_refine = <braid_PtFcnSRefine> my_refine
+    
+    py_core = <PyBraid_Core> self.py_core
+    core = py_core.getCore()
+
+    self.setInitial(x)
+ 
+    if not self.first:
+        self.initializeStates()
+    
+    self.first = False
+
+    # Other test functions possible.  See braid.pyx.
+    #braid_TestBuf(<braid_App> self, comm.ob_mpi, stdout, 0.0,
+    #              b_init, b_free, b_sum, b_norm, b_bufsize, b_bufpack, b_bufunpack) 
+
+    #braid_TestCoarsenRefine(<braid_App> self, comm.ob_mpi, stdout, 0.0, 0.1, 0.2, 
+    #                        b_init, b_access, b_free, b_clone, b_sum, b_norm, 
+    #                        b_coarsen, b_refine)            
+
+    #if self.spatial_mg:
+    #    braid_TestAll( <braid_App> self, comm.ob_mpi, stdout, 0.0, 0.1, 0.2, 
+    #                b_init, b_free, b_clone, b_sum, b_norm, b_bufsize, b_bufpack, b_bufunpack,
+    #                b_coarsen, b_refine, NULL, b_step)    
+    
+    #else:
+    #    braid_TestAll( <braid_App> self, comm.ob_mpi, stdout, 0.0, 0.1, 0.2, 
+    #                b_init, b_free, b_clone, b_sum, b_norm, b_bufsize, b_bufpack, b_bufunpack,
+    #                NULL,    NULL,   NULL,    b_step)    
+
   def runBraid(self,x):
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
     cdef braid_Core core = py_core.getCore()
+    
     try:
        py_core = <PyBraid_Core> self.py_core
        core = py_core.getCore()
@@ -329,6 +381,14 @@ class BraidApp:
 
       core = (<PyBraid_Core> self.py_core).getCore()
       braid_SetPrintLevel(core,self.print_level)
+  
+  def setStorage(self, storage):
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetStorage(core, storage)
+
+  def setMinCoarse(self, mc):
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetMinCoarse(core, mc)
 
   def setNumRelax(self,relax,level=-1):
     self.nrelax = relax 
@@ -345,9 +405,23 @@ class BraidApp:
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetMaxIter(core, self.max_iters)
 
+  def setAbsTol(self,abs_tol):
+    self.abs_tol = abs_tol
+
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetAbsTol(core,self.abs_tol)
+
   def setFMG(self):
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetFMG(core)
+
+  def setCRelaxWt(self, CWt):
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetCRelaxWt(core, -1, CWt)
+
+  def setRelaxOnlyCG(self, flag):
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetRelaxOnlyCG(core, flag)
 
   def setCFactor(self,cfactor):
     self.cfactor = cfactor 
@@ -462,6 +536,553 @@ class BraidApp:
     cdef int ilower
     cdef int iupper
     _braid_GetDistribution(core, &ilower,&iupper)
-
     return ilower,iupper
+
+  def getTimePoints(self):
+    cdef braid_BaseVector bv 
+    cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
+
+
+    
+    times  = []
+    values = []
+    for i in range(core.grids[0].ilower,core.grids[0].iupper+1):
+      _braid_UGetVectorRef(core, 0, i, &bv)
+     
+      times  += [core.grids[0].ta[i-core.grids[0].ilower]]
+      values += [(<object> bv.userVector).clone()]
+
+    return times,values
+ 
+
+  def print_network(self, filename, state=True, parameters=True):
+    '''
+    Print the network to filename.  Can choose to print the state and/or parameters
+    
+    Filename format is:
+      state :     fname.rank.timestep.tensor_index
+      parameters: fname.rank.parameter_index.subparameter_index
+    '''
+
+    my_rank = self.getMPIComm().Get_rank()
+    
+    # Print network state
+    with torch.no_grad():
+      if state:
+        try:
+          t = 0.0
+          for i in range(self.local_num_steps+1):
+            t = self.t0_local + i*self.dt
+            u_vec = self.getUVector(0,t) # returns a Braid uservector, which is what you want
+            for j,ten in enumerate(u_vec.tensor_data_):
+              fname = filename + ".state." + str(my_rank) + "." + "%06d"%i + "." + "%02d"%j
+              np.savetxt(fname, ten.numpy().flatten())
+        
+        except:
+          output_exception("Unable to print network state to file") 
+    
+    # Print network state
+    with torch.no_grad():
+      try:
+        if parameters:
+          for j,params in enumerate(self.parameters()): 
+            for k,pp in enumerate(params):
+              fname = filename + ".params." + str(my_rank) + "." + "%06d"%j + "." + "%06d"%k
+              np.savetxt(fname, pp.numpy().flatten())
+        
+      except:
+        output_exception("Unable to print network parameters to file") 
+
+
+  def interp_network_state(self, coarse_app, cf):
+    
+    ''' 
+    Interp the network state present in coarse_app into this app.  It is
+    assumed that this app is a regular refinement (relative to coarsening
+    factor cf) of coarse_app.  
+    '''
+    
+
+    # Get braid_Core
+    cdef braid_Core fine_core = (<PyBraid_Core> self.py_core).getCore()
+    cdef braid_Core coarse_core = (<PyBraid_Core> coarse_app.py_core).getCore()
+    
+    # Get fine and coarse grid information.  Note, braid traditionally uses
+    # values like ncpoints, clower, and cupper for these calcuations, but we
+    # don't do that here, because we want to treat the sequential Braid and
+    # MGRIT Braid modes the same.
+    cdef fine_ilower = fine_core.grids[0].ilower    
+    cdef fine_iupper = fine_core.grids[0].iupper    
+    cdef coarse_ilower = coarse_core.grids[0].ilower    
+    cdef coarse_iupper = coarse_core.grids[0].iupper    
+    #print(fine_ilower, fine_iupper, coarse_ilower, coarse_iupper)
+
+    cdef braid_BaseVector fine_bv, coarse_bv
+
+    # The number of C points in fine app (self) must match the number of points in the coarse_app
+    fine_indices = np.arange(fine_ilower, fine_iupper+1)
+    fine_indices = fine_indices[ (fine_indices % cf) == 0 ] # picks off the Cpts 
+    coarse_indices = np.arange(coarse_ilower, coarse_iupper+1)
+    #print(fine_indices, coarse_indices)
+    assert( fine_indices.shape[0] == coarse_indices.shape[0])
+
+    ##
+    # Note, this is only designed to work in serial.  When moving to parallel,
+    # we'll have to send messages and use GetProc
+    ## 
+
+    with torch.no_grad():
+      for fine_pt, coarse_pt in zip(fine_indices, coarse_indices):
+        
+        # Get the coarse vector
+        _braid_UGetVectorRef(coarse_core, 0, coarse_pt, &coarse_bv)
+        assert(<unsigned int>(coarse_bv)!=0)
+        py_coarse_bv = <object> coarse_bv.userVector
+      
+        # Do piece-wise constant to fill in fine-grid, F- and C-points
+        for k in range(0,cf):
+
+          # Get the fine vector, but if C-point make sure that pointer is non-Null
+          _braid_UGetVectorRef(fine_core, 0, fine_pt+k, &fine_bv)
+          if k == 0:
+            assert(<unsigned int>(fine_bv)!=0) 
+          
+          # Copy coarse to fine at C-pt
+          # F-points may or may not be stored.  Only copy if stored
+          if (<unsigned int>(fine_bv) != 0):
+            py_fine_bv = <object> fine_bv.userVector
+            py_coarse_bv_clone = py_coarse_bv.clone() 
+            py_fine_bv.replaceTensor(py_coarse_bv_clone.tensors())
+            ##tensor_clone = tuple( [ ten.detach().clone() for ten in py_coarse_bv.tensor_data_])
+            ##py_fine_bv.replaceTensor(tensor_clone)
+        
+
+  def inject_network_state(self, fine_app, cf):
+    
+    ''' 
+    Inject the network state present in fine_app into this app.  It is
+    assumed that fine_app is a regular refinement (relative to coarsening factor cf) 
+    of this app.  
+    '''
+    
+
+    # Get braid_Core
+    cdef braid_Core fine_core = (<PyBraid_Core> fine_app.py_core).getCore()
+    cdef braid_Core coarse_core = (<PyBraid_Core> self.py_core).getCore()
+    
+    # Get fine and coarse grid information.  Note, braid traditionally uses
+    # values like ncpoints, clower, and cupper for these calcuations, but we
+    # don't do that here, because we want to treat the sequential Braid and
+    # MGRIT Braid modes the same.
+    cdef fine_ilower = fine_core.grids[0].ilower    
+    cdef fine_iupper = fine_core.grids[0].iupper    
+    cdef coarse_ilower = coarse_core.grids[0].ilower    
+    cdef coarse_iupper = coarse_core.grids[0].iupper    
+    #print(fine_ilower, fine_iupper, coarse_ilower, coarse_iupper)
+
+    cdef braid_BaseVector fine_bv, coarse_bv
+
+    
+    #cdef braid_BaseVector u0 = fine_core.grids[0].ua[0]
+    #cdef braid_BaseVector u1 = fine_core.grids[0].ua[1]
+    #cdef braid_BaseVector u2 = fine_core.grids[0].ua[2]
+    #cdef braid_BaseVector uLast = fine_core.grids[0].ulast
+    #print("EE 0:  " + str( <unsigned int>(u0) ))
+    #print("EE 1:  " + str( <unsigned int>(u1) ))
+    #print("EE 2:  " + str( <unsigned int>(u2) ))
+    #print("EE L:  " + str( <unsigned int>(uLast) ))
+
+
+    # The number of C points in fine_app must match the number of points in the coarse app (self)
+    fine_indices = np.arange(fine_ilower, fine_iupper+1)
+    fine_indices = fine_indices[ (fine_indices % cf) == 0 ] # picks off the Cpts 
+    coarse_indices = np.arange(coarse_ilower, coarse_iupper+1)
+    #print(fine_indices, coarse_indices)
+    assert( fine_indices.shape[0] == coarse_indices.shape[0])
+
+    with torch.no_grad():
+      for fine_pt, coarse_pt in zip(fine_indices, coarse_indices):
+        
+        # Get the fine vector
+        _braid_UGetVectorRef(fine_core, 0, fine_pt, &fine_bv)
+        assert(<unsigned int>(fine_bv)!=0)
+      
+        # Get the coarse vector
+        _braid_UGetVectorRef(coarse_core, 0, coarse_pt, &coarse_bv)
+        assert(<unsigned int>(coarse_bv)!=0)
+      
+        # Copy fine to coarse  
+        py_coarse_bv = <object> coarse_bv.userVector
+        py_fine_bv = <object> fine_bv.userVector
+        py_fine_bv_clone = py_fine_bv.clone() 
+        py_coarse_bv.replaceTensor(py_fine_bv_clone.tensors())
+        ##tensor_clone = tuple( [ ten.detach().clone() for ten in py_fine_bv.tensor_data_])
+        ##py_coarse_bv.replaceTensor(tensor_clone)
+
+
+  def GetProc(self, app, idx):
+    ''' Helper function that returns the processor that owns time-point idx '''
+    cdef int proc
+    cdef braid_Core core = (<PyBraid_Core> app.py_core).getCore()
+    _braid_GetProc(core, 0, idx, &proc)
+    return proc
+
+  def get_my_Cpoints(self, fine_ilower, fine_iupper, cf):
+    ''' Helper function to returns the Cpoints present in this range of points '''
+    clower = np.ceil(fine_ilower / cf) * cf
+    cupper = int(fine_iupper / cf) * cf
+    return np.arange(clower, cupper + 1, cf, dtype=int)
+
+
+  def parallel_injection_interp_params(self, model_fine, model_coarse, cf=2, grad=False):
+    
+    ''' 
+    Interpolate the model parameters according to coarsening-factor in time cf.
+
+    Do this in parallel, assuming that the parameters are layed out in parallel
+    the same way that the Braid layers are distributed
+    
+    Return a list of the interpolated model parameters.  Always do a deep copy.
+
+    If grad is True, return the network gradient instead
+    
+    Note: The placement of this function is a bit odd.  We interpolate MGOpt
+    solver parameters by calling a function that resides inside the forward
+    (backward) BraidApp inside of MGOpt object. This was done because
+    - This function must be on the .pyx level to access _braid functionality
+    - This function will eventually (hopefully) also interpolate Braid state
+      vectors, and then it will make sense to use the same function and MPI
+      messages to do that.
+
+    '''
+    # See
+    # https://stackoverflow.com/questions/383565/how-to-iterate-over-a-list-repeating-each-element-in-python
+    def duplicate(iterable,n):
+      """A generator that repeats each entry n times"""
+      for item in iterable:
+        first = True
+        for _ in range(n):
+          yield item,first
+          first = False
+    
+    ##
+    # Get foward apps 
+    fine_fwd_app = model_fine.parallel_nn.fwd_app
+    coarse_fwd_app = model_coarse.parallel_nn.fwd_app
+    
+    ##
+    # Set up comm and return value interp_params
+    comm = fine_fwd_app.mpi_comm
+    my_rank = comm.Get_rank()
+    num_ranks = comm.Get_size()
+    open_params = None
+    close_params = None
+    send_requests = []
+    recv_requests = []
+    
+    ##
+    # Get braid_Core's, and ilower and iupper points on local time-grid indices
+    cdef braid_Core fine_fwd_core = (<PyBraid_Core> fine_fwd_app.py_core).getCore()
+    cdef braid_Core coarse_fwd_core = (<PyBraid_Core> coarse_fwd_app.py_core).getCore()
+    cdef coarse_ilower = coarse_fwd_core.grids[0].ilower    # index of lowest layers owned by proc
+    cdef coarse_iupper = coarse_fwd_core.grids[0].iupper    # index of highest layers owned by proc (inclusive)
+    cdef coarse_gupper = coarse_fwd_core.grids[0].gupper    # global upper index of layers
+    cdef fine_ilower = fine_fwd_core.grids[0].ilower
+    cdef fine_iupper = fine_fwd_core.grids[0].iupper
+    cdef fine_gupper = fine_fwd_core.grids[0].gupper
+    cdef int tag
+
+    ##
+    # Check that your layer parallel torchbraid model is the same length as expected by Braid
+    num_layer_parallel = 0
+    with torch.no_grad():
+      for child in model_coarse.children():
+        name = str(type(child))
+        name = name[ name.rfind('.')+1 : name.rfind('\'') ]
+        if name == 'LayerParallel':
+          for lp_child in child.layer_models:
+            num_layer_parallel = num_layer_parallel + 1
+    ##
+    # On last _active_ processor, num_layer_parallel is one less than the number of layers
+    if my_rank == self.GetProc(coarse_fwd_app, coarse_gupper): 
+      num_layer_parallel = num_layer_parallel + 1
+    if (num_layer_parallel != (coarse_iupper - coarse_ilower + 1) ):
+      output_exception("parallel_injection_interp_params:  number of LayerParallel layers " + str(num_layer_parallel) +\
+                       " not what was expected based on ilower and iupper, " + str(coarse_iupper - coarse_ilower + 1) )
+    
+    ##
+    # Loop 1: loop over all children, MPI sending the interpolated layer-parallel weights 
+    with torch.no_grad():
+      for child in model_coarse.children():
+        name = str(type(child))
+        name = name[ name.rfind('.')+1 : name.rfind('\'') ]
+        
+        # handle layer parallel modules differently 
+        if name == 'LayerParallel':
+
+          fidx = 0
+          # loop over each layer-parallel layer
+          # note, that duplicate does the piece-wise interpolation
+          for (lp_child, lp_f) in duplicate(child.layer_models, cf):
+            lp_params = []
+            for param in lp_child.parameters():
+              if grad: lp_params.append(param.grad.clone().detach())
+              else:    lp_params.append(param.clone().detach())
+            # end for param loop
+            
+            # MPI tag is the LayerParallel index (on fine grid) of this time point
+            tag = coarse_ilower*cf + fidx
+            proc = self.GetProc(fine_fwd_app, tag)
+            req = comm.isend(lp_params, dest=proc, tag=tag)  
+            send_requests.append( req )
+            
+            fidx = fidx + 1
+          # end for lp_child loop
+                 
+        else:
+          
+          # Do simple injection for the opening and closing layers.  
+          lp_params=[]
+          for param in child.parameters():
+            if grad: lp_params.append(param.grad.clone().detach())    # Note the clone, i.e., deep copy
+            else:    lp_params.append(param.clone().detach())
+          
+          if name == 'CloseLayer':
+            close_params = lp_params
+          elif name == 'OpenLayer':
+            open_params = lp_params
+          else:
+            output_exception('Layer type needs to be OpenLayer, CloseLayer, or LayerParallel')
+
+      # end for child loop
+    
+      ##
+      # Begin construction of output.
+      # Rank 0:    parameter order is LayerParallel, OpenLayer, CloseLayer
+      # Rank k>0:  owns a chunk of LayerParallel
+      interp_params = []
+      
+      ##
+      # Loop over fine model, receiving all of your weights at every layer (F and C)
+      # ==> Note that the global last time-point doesn't have a corresponding layer to receive 
+      last_point = fine_iupper + 1
+      if (fine_iupper == fine_gupper):
+        last_point = fine_iupper
+      for point in np.arange(fine_ilower, last_point):
+      
+        # Processor to receive from (owns Cpt to the left of "point")
+        proc = self.GetProc(coarse_fwd_app, int(point/cf))
+        # Receive params (rely on pickle to convert data types (list and torch.nn.Parameter)
+        req = comm.irecv(source=proc, tag=point)
+        recv_requests.append( req )
+
+      for req in recv_requests:
+        # Store params in order from layer 0 to layer gupper
+        lp_params = req.wait()
+        interp_params = interp_params + lp_params
+      
+      ##
+      # If processor 0, interpolate OpenLayer and CloseLayer
+      # Note: interpolation is just a "deep" copy of open_params
+      if my_rank == 0:
+        if open_params == None:
+          output_exception('OpenLayer not found on rank 0')
+        #
+        interp_params = interp_params + open_params
+        
+        if close_params == None:
+          output_exception('CloseLayer not found on rank 0')
+        #
+        interp_params = interp_params + close_params
+      
+      ##
+      # Finish all sends
+      for req in send_requests:
+        req.wait()
+
+    ##
+    # If spatial coarsening is ever desired, an interpolation function could be
+    # applied here to interp_params
+    #
+    # If/when we incorporate state interpolation here, we could write the
+    # state and params directly into model_fine 
+    
+    return interp_params
+  
+  
+
+  def parallel_injection_restrict_params(self, model_fine, model_coarse, cf=2, grad=False):
+    
+    ''' 
+    Restrict the model parameters according to coarsening-factor in time cf.
+
+    Do this in parallel, assuming that the parameters are layed out in parallel
+    the same way that the Braid layers are distributed
+    
+    Return a list of the restricted model parameters.  Always do a deep copy.
+
+    If grad is True, return the network gradient instead
+    
+    Note: The placement of this function is a bit odd.  See above discussion at
+    start of parallel_injection_interp_params.  
+    '''
+    # See
+    # https://stackoverflow.com/questions/383565/how-to-iterate-over-a-list-repeating-each-element-in-python
+    def duplicate(iterable,n):
+      """A generator that repeats each entry n times"""
+      for item in iterable:
+        first = True
+        for _ in range(n):
+          yield item,first
+          first = False
+    
+    ##
+    # Get foward apps 
+    fine_fwd_app = model_fine.parallel_nn.fwd_app
+    coarse_fwd_app = model_coarse.parallel_nn.fwd_app
+    
+    ##
+    # Set up comm and return value interp_params
+    comm = fine_fwd_app.mpi_comm
+    my_rank = comm.Get_rank()
+    num_ranks = comm.Get_size()
+    open_params = None
+    close_params = None
+    send_requests = []
+    recv_requests = []
+    
+    ##
+    # Get braid_Core's, and ilower and iupper points on local time-grid indices
+    cdef braid_Core fine_fwd_core = (<PyBraid_Core> fine_fwd_app.py_core).getCore()
+    cdef braid_Core coarse_fwd_core = (<PyBraid_Core> coarse_fwd_app.py_core).getCore()
+    cdef coarse_ilower = coarse_fwd_core.grids[0].ilower    # index of lowest layers owned by proc
+    cdef coarse_iupper = coarse_fwd_core.grids[0].iupper    # index of highest layers owned by proc (inclusive)
+    cdef coarse_gupper = coarse_fwd_core.grids[0].gupper    # global upper index of layers
+    cdef fine_ilower = fine_fwd_core.grids[0].ilower
+    cdef fine_iupper = fine_fwd_core.grids[0].iupper
+    cdef fine_gupper = fine_fwd_core.grids[0].gupper
+    cdef int tag
+
+    ##
+    # Check that your layer parallel torchbraid model is the same length as expected by Braid
+    num_layer_parallel = 0
+    with torch.no_grad():
+      for child in model_fine.children():
+        name = str(type(child))
+        name = name[ name.rfind('.')+1 : name.rfind('\'') ]
+        if name == 'LayerParallel':
+          for lp_child in child.layer_models:
+            num_layer_parallel = num_layer_parallel + 1
+    ##
+    # On last _active_ processor, num_layer_parallel is one less than the number of layers
+    if my_rank == self.GetProc(fine_fwd_app, fine_gupper): 
+      num_layer_parallel = num_layer_parallel + 1
+    if (num_layer_parallel != (fine_iupper - fine_ilower + 1) ):
+      output_exception("parallel_injection_restrict_params: number of LayerParallel layers " + str(num_layer_parallel) + " not what was expected based on ilower and iupper, " + str(fine_iupper - fine_ilower + 1) )
+    
+    ##
+    # Loop 1: loop over all children, MPI sending the restricted layer-parallel weights 
+    with torch.no_grad():
+      for child in model_fine.children():
+        name = str(type(child))
+        name = name[ name.rfind('.')+1 : name.rfind('\'') ]
+        
+        # handle layer parallel modules differently 
+        if name == 'LayerParallel':
+
+          fidx = -1
+          # loop over each layer-parallel layer
+          for lp_child in child.layer_models: 
+            # Only do restriction if C-point
+            fidx = fidx + 1
+            if ((fine_ilower + fidx) % cf) == 0:
+              lp_params = []
+              for param in lp_child.parameters():
+                if grad: lp_params.append(param.grad.clone().detach())
+                else:    lp_params.append(param.clone().detach())
+              # end for param loop
+              
+              #MPI tag is the LayerParallel index (on coarse grid) of this time point
+              tag = int( (fine_ilower + fidx) / cf )
+              proc = self.GetProc(coarse_fwd_app, tag)
+              req = comm.isend(lp_params, dest=proc, tag=tag)  
+              send_requests.append( req )
+            
+          # end for lp_child loop
+                 
+        else:
+          
+          # Do simple injection for the opening and closing layers.  
+          lp_params=[]
+          for param in child.parameters():
+            if grad: lp_params.append(param.grad.clone().detach())    # Note the clone, i.e., deep copy
+            else:    lp_params.append(param.clone().detach())
+          
+          if name == 'CloseLayer':
+            close_params = lp_params
+          elif name == 'OpenLayer':
+            open_params = lp_params
+          else:
+            output_exception('Layer type needs to be OpenLayer, CloseLayer, or LayerParallel')
+
+      # end for child loop
+    
+      ##
+      # Begin construction of output.
+      # Rank 0:    parameter order is LayerParallel, OpenLayer, CloseLayer
+      # Rank k>0:  owns a chunk of LayerParallel
+      restrict_params = []
+      
+      ##
+      # Loop over coarse model, receiving all of your weights at every layer (F and C)
+      # ==> Note that the global last time-point doesn't have a corresponding layer to receive 
+      last_point = coarse_iupper + 1
+      if (coarse_iupper == coarse_gupper):
+        last_point = coarse_iupper
+      for point in np.arange(coarse_ilower, last_point):
+        # Processor to receive from
+        proc = self.GetProc(fine_fwd_app, int(point*cf))
+        # Receive params (rely on pickle to convert data types (list and torch.nn.Parameter)
+        req = comm.irecv(source=proc, tag=point)
+        recv_requests.append( req )
+
+      for req in recv_requests:
+        # Store params in order from layer 0 to layer gupper
+        lp_params = req.wait()
+        restrict_params = restrict_params + lp_params
+      
+      ##
+      # If processor 0, interpolate OpenLayer and CloseLayer
+      # Note: interpolation is just a "deep" copy of open_params
+      if my_rank == 0:
+        if open_params == None:
+          output_exception('OpenLayer not found on rank 0')
+        #
+        restrict_params = restrict_params + open_params
+        
+        if close_params == None:
+          output_exception('CloseLayer not found on rank 0')
+        #
+        restrict_params = restrict_params + close_params
+      
+      ##
+      # Finish all sends
+      for req in send_requests:
+        req.wait()
+      
+    ##
+    # If spatial coarsening is ever desired, an interpolation function could be
+    # applied here to restrict_params
+    #
+    # If/when we incorporate state interpolation, we could write the
+    # state and params directly into model_fine instead of returning
+    
+    return restrict_params
+  
+  
+# end BraidApp
+
+
+  
+  
 # end BraidApp

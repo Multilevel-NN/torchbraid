@@ -36,3 +36,5 @@ from .rnn_layer_parallel import RNN_Parallel, RNN_Serial
 from .braid_vector import BraidVector
 
 from . import utils
+
+import mgopt

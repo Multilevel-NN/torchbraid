@@ -76,22 +76,35 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
   cdef int tindex
   cdef int level
   cdef int done 
+  #cdef int sidx
 
   try:
     pyApp = <object> app
     with pyApp.timer("step"):
-
+      
+      #sidx = -1
       tstart = 0.0
       tstop = 5.0
       level = -1
       braid_StepStatusGetTstartTstop(status, &tstart, &tstop)
       braid_StepStatusGetLevel(status, &level)
       braid_StepStatusGetDone(status, &done)
-      braid_StepStatusGetDone(status, &done)
+      #braid_StepStatusGetTIndex(status, &sidx)
+      #print(" Step called,  Level: " + str(level) + "   Step: " + str(sidx))
+       
+      # Debug printing to verify that the Braid solution state is keep from one Braid solve to next
+      #uu = <object> vec_u
+      #tt = uu.tensor()
+      #print("BB  %d "%sidx, (tt[0,0,0])[2], (tt[0,0,1])[2], (tt[0,1,1])[2], (tt[1,1,1])[2])
 
       # modify the state vector in place
       u =  <object> vec_u
       pyApp.eval(u,tstart,tstop,level,done)
+      
+      #uu = <object> vec_u
+      #tt = uu.tensor()
+      #print("AA  %d "%sidx, (tt[0,0,0])[2], (tt[0,0,1])[2], (tt[0,1,1])[2], (tt[1,1,1])[2])
+      #print("\n")
 
   except:
     output_exception("my_step: rank={}, step=({},{}), level={}, sf={}".format(pyApp.getMPIComm().Get_rank(),
