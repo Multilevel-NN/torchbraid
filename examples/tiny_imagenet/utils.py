@@ -309,7 +309,7 @@ def parse_args(mgopt_on=True):
                       help='Final time')
   parser.add_argument('--diff-scale',type=float,default=0.0,
                       help='Diffusion coefficient')
-  parser.add_argument('--activation',type=str,default='tanh',
+  parser.add_argument('--activation',type=str,default='relu',
                       help='Activation function')
 
   # algorithmic settings (gradient descent and batching)
