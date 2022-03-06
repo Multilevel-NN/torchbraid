@@ -221,7 +221,7 @@ def main():
   procs = MPI.COMM_WORLD.Get_size()
   rank  = MPI.COMM_WORLD.Get_rank()
 
-  local_steps = int(args.steps/procs)
+  global_steps = args.steps
 
   ##
   # Load training and testing data, while reducing the number of samples (if desired) for faster execution
@@ -275,7 +275,7 @@ def main():
   ##
   # Define ParNet parameters for each nested iteration level, starting from fine to coarse
   network = {                 'channels'          : args.channels, 
-                              'local_steps'       : local_steps,
+                              'global_steps'      : global_steps,
                               'max_iters'         : args.lp_iters,
                               'print_level'       : args.lp_print,
                               'Tf'                : args.tf,

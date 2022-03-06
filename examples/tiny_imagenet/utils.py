@@ -1,12 +1,3 @@
-"""
-This file contains:
-  - Generic multilevel solver.
-    Based on PyAMG multilevel solver, https://github.com/pyamg/pyamg
-    PyAMG is released under the MIT license.
-  - MG/Opt implementations of the multilevel solver
-"""
-
-
 from __future__ import print_function
 
 import numpy as np
@@ -38,19 +29,6 @@ __all__ = [ 'parse_args', 'ParallelNet' ]
 ####################################################################################
 ####################################################################################
 # Classes and functions that define the basic network types for MG/Opt and TorchBraid.
-
-class OpenLayerANODE(nn.Module):
-  ''' Opening layer (not ODE-net, not parallelized in time) '''
-  def __init__(self,channels):
-    super(OpenLayerANODE, self).__init__()
-    self.channels = channels
-
-  def forward(self, x):
-    batch_size,img_ch,img_h,img_w = x.shape
-
-    return torch.cat([x,torch.zeros(batch_size,self.channels-img_ch,img_h,img_w)],dim=1)
-# end layer
-
 class OpenLayer(nn.Module):
   ''' Opening layer (not ODE-net, not parallelized in time) '''
   def __init__(self,channels):
@@ -58,7 +36,6 @@ class OpenLayer(nn.Module):
     self.channels = channels
     self.pre = nn.Sequential(
       nn.Conv2d(3, channels, kernel_size=5, padding=2, stride=2),
-      nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
       nn.BatchNorm2d(channels),
       nn.ReLU(inplace=True)
     )
@@ -83,38 +60,32 @@ class CloseLayer(nn.Module):
 # end layer
 
 
-class CloseLayerANODE(nn.Module):
+class TransitionLayer(nn.Module):
   ''' Closing layer (not ODE-net, not parallelized in time) '''
   def __init__(self,channels):
-    super(CloseLayerANODE, self).__init__()
+    super(TransitionLayer, self).__init__()
 
     # Account for 64x64 image and 3 RGB channels
-    self.fc = nn.Linear(64*64*channels, 200)
+    self.pre = nn.Sequential(
+      nn.AvgPool2d(2),
+      nn.Conv2d(channels, 2*channels, kernel_size=3, padding=1),
+      nn.BatchNorm2d(2*channels),
+      nn.ReLU()
+    )
 
   def forward(self, x):
-    out = torch.flatten(x.view(x.size(0),-1), 1)
-    return self.fc(out)
+    return self.pre(x)
 # end layer
-
 
 class StepLayer(nn.Module):
   ''' Single ODE-net layer will be parallelized in time ''' 
-  def __init__(self,channels,diff_scale=0.0,activation='tanh'):
+  def __init__(self,channels,activation='tanh'):
     super(StepLayer, self).__init__()
     ker_width = 3
     
     # Account for 3 RGB Channels
     self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1)
     self.conv2 = nn.Conv2d(channels,channels,ker_width,padding=1)
-
-    # build a diffiusion operator
-    diff = torch.zeros((3,3),requires_grad=False)
-    diff[1,1] = -4.
-    diff[0,1] = diff[1,0] = diff[1,2] = diff[2,1] = 1.
-
-    self.diff_scale = diff_scale
-    self.diff = torch.empty(channels,channels,ker_width,ker_width)
-    self.diff[:,:] = diff_scale*diff
 
     if activation=='tanh':
       self.activation = nn.Tanh()
@@ -130,103 +101,31 @@ class StepLayer(nn.Module):
     y = self.activation(y)
     y = self.conv2(y) 
     y = self.activation(y)
-    if self.diff_scale>0.0:
-      y = y + F.conv2d(x,weight=self.diff,padding=1)
     return y 
 # end layer
-
-class StepLayerANODE(nn.Module):
-  ''' Single ODE-net layer will be parallelized in time ''' 
-  def __init__(self,channels,diff_scale=0.0,activation='tanh'):
-    super(StepLayerANODE, self).__init__()
-    ker_width = 3
-    
-    # Account for 3 RGB Channels
-    self.conv1 = nn.Conv2d(channels,64,        1,padding=0)
-    self.conv2 = nn.Conv2d(64,      64,ker_width,padding=1)
-    self.conv3 = nn.Conv2d(64,channels,        1,padding=0)
-
-    if activation=='relu':
-      self.activation = nn.ReLU(inplace=True)
-    else:
-      raise 'POO!'
-
-  def forward(self, x):
-    y = self.conv1(x) 
-    y = self.activation(y)
-    y = self.conv2(y) 
-    y = self.activation(y)
-    y = self.conv3(y) 
-    y = self.activation(y)
-    return y 
-# end layer
-
-class StepLayerParabolic(nn.Module):
-  ''' Single ODE-net layer will be parallelized in time ''' 
-  def __init__(self,channels,diff_scale=0.0,activation='tanh'):
-    super(StepLayerParabolic, self).__init__()
-    ker_width = 3
-    
-    # Account for 3 RGB Channels
-    self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1)
-
-    self.activation = nn.ReLU()
-
-  def forward(self, x):
-    y = self.conv1(x) 
-    y = self.activation(y)
-    y = F.conv_transpose2d(y, self.conv1.weight,bias=None, padding=1)
-    return y 
-# end layer
-
-class SerialNet(nn.Module):
-  ''' Full parallel ODE-net based on StepLayer,  will be parallelized in time ''' 
-  def __init__(self, channels=8, local_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
-                     print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
-                     fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
-                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh'):
-    super(SerialNet, self).__init__()
-
-    step_layer = lambda: StepLayerANODE(channels,diff_scale,activation)
-
-    parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_fwd_levels=max_fwd_levels,max_bwd_levels=max_bwd_levels,max_iters=max_iters)
-    self.serial_nn = parallel_nn.buildSequentialOnRoot()
-
-    # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels) 
-    # on processors not equal to 0, these will be None (there are no parameters to train there)
-    self.open_nn = OpenLayerANODE(channels)
-    self.close_nn = CloseLayerANODE(channels)
-
-  def forward(self, x):
-    # by passing this through 'o' (mean composition: e.g. self.open_nn o x) 
-    # this makes sure this is run on only processor 0
-
-    x = self.open_nn(x)
-    x = self.serial_nn(x)
-    x = self.close_nn(x)
-
-    return x
-
-# end SerialNet 
-####################################################################################
-####################################################################################
 class ParallelNet(nn.Module):
   ''' Full parallel ODE-net based on StepLayer,  will be parallelized in time ''' 
-  def __init__(self, channels=8, local_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
+  def __init__(self, channels=8, global_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
                      print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
                      fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
                      bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh'):
     super(ParallelNet, self).__init__()
 
-    #step_layer = lambda: StepLayer(channels,diff_scale,activation)
-    #step_layer = lambda: StepLayerParabolic(channels,diff_scale,activation)
-    step_layer = lambda: StepLayerANODE(channels,diff_scale,activation)
+    step_layer_1 = lambda: StepLayer(channels,diff_scale,activation)
+    step_layer_2 = lambda: StepLayer(2*channels,diff_scale,activation)
+    step_layer_3 = lambda: StepLayer(4*channels,diff_scale,activation)
 
-    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps,Tf,max_fwd_levels=max_fwd_levels,max_bwd_levels=max_bwd_levels,max_iters=max_iters)
+    open_layer = lambda: OpenLayer(channels)
+    trans_layer_1 = lambda: TransitionLayer(channels)
+    trans_layer_2 = lambda: TransitionLayer(2*channels)
+
+    layers    = [open_layer,    step_layer_1, trans_layer_1,    step_layer_2,  trans_layer_2,step_layer_3]
+    num_steps = [         1,  global_steps-1,             1,   global_steps-1, 1, global_steps-1]
+
+    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,layers,num_steps,Tf,max_fwd_levels=max_fwd_levels,max_bwd_levels=max_bwd_levels,max_iters=max_iters)
     if max_fwd_iters>0:
       self.parallel_nn.setFwdMaxIters(max_fwd_iters)
     self.parallel_nn.setPrintLevel(print_level,True)
-    #self.parallel_nn.setPrintLevel(2,False)
     self.parallel_nn.setPrintLevel(braid_print_level,False)
     self.parallel_nn.setFwdCFactor(fwd_cfactor)
     self.parallel_nn.setBwdCFactor(bwd_cfactor)
@@ -258,16 +157,12 @@ class ParallelNet(nn.Module):
     
     # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels) 
     # on processors not equal to 0, these will be None (there are no parameters to train there)
-    #self.open_nn = compose(OpenLayer,channels)
-    #self.close_nn = compose(CloseLayer,channels)
-    self.open_nn = compose(OpenLayerANODE,channels)
-    self.close_nn = compose(CloseLayerANODE,channels)
+    self.close_nn = compose(CloseLayer,channels)
 
   def forward(self, x):
     # by passing this through 'o' (mean composition: e.g. self.open_nn o x) 
     # this makes sure this is run on only processor 0
 
-    x = self.compose(self.open_nn,x)
     x = self.parallel_nn(x)
     x = self.compose(self.close_nn,x)
 
@@ -281,7 +176,6 @@ class ParallelNet(nn.Module):
 # end ParallelNet 
 ####################################################################################
 ####################################################################################
-
 
 
 ####################################################################################
