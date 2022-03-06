@@ -202,16 +202,19 @@ class LayerParallel(nn.Module):
   def setBwdNumRelax(self,relax,level=-1):
     self.bwd_app.setNumRelax(relax,level=level)
 
+  def setNumRelax(self,max_iters,level=-1):
+    self.fwd_app.setNumRelax(max_iters,level)
+    self.bwd_app.setNumRelax(max_iters,level)
+
   def setFwdAbsTol(self,abs_tol):
     self.fwd_app.setAbsTol(abs_tol)
 
   def setBwdAbsTol(self,abs_tol):
     self.bwd_app.setAbsTol(abs_tol)
 
-
   def setMaxIters(self,max_iters):
-    self.fwd_app.setNumRelax(max_iters)
-    self.bwd_app.setNumRelax(max_iters)
+    self.fwd_app.setMaxIters(max_iters)
+    self.bwd_app.setMaxIters(max_iters)
 
   def setFwdMaxIters(self,max_iters):
     self.fwd_app.setMaxIters(max_iters)
