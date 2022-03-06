@@ -111,9 +111,9 @@ class ParallelNet(nn.Module):
                      bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh'):
     super(ParallelNet, self).__init__()
 
-    step_layer_1 = lambda: StepLayer(channels,diff_scale,activation)
-    step_layer_2 = lambda: StepLayer(2*channels,diff_scale,activation)
-    step_layer_3 = lambda: StepLayer(4*channels,diff_scale,activation)
+    step_layer_1 = lambda: StepLayer(channels,activation)
+    step_layer_2 = lambda: StepLayer(2*channels,activation)
+    step_layer_3 = lambda: StepLayer(4*channels,activation)
 
     open_layer = lambda: OpenLayer(channels)
     trans_layer_1 = lambda: TransitionLayer(channels)
