@@ -427,6 +427,9 @@ class BackwardODENetApp(BraidApp):
     return f
   # end forward
 
+  def getFeatureShapes(self,t):
+    return self.fwd_app.getFeatureShapes(self.Tf-t)
+
   def eval(self,w,tstart,tstop,level,done):
     """
     Evaluate the adjoint problem for a single time step. Here 'w' is the
@@ -490,7 +493,7 @@ class BackwardODENetApp(BraidApp):
         # this little bit of pytorch magic ensures the gradient isn't
         # stored too long in this calculation (in particulcar setting
         # the grad to None after saving it and returning it to braid)
-        t_w.copy_(t_x.grad.detach()) 
+        w.replaceTensor(t_x.grad.detach().clone()) 
 
         for p,s in zip(layer.parameters(),required_grad_state):
           p.requires_grad = s
