@@ -67,13 +67,34 @@ class TestLayerParallel_MultiNODE(unittest.TestCase):
 
     self.forwardBackwardProp(tolerance,Tf,max_levels,max_iters)
 
-  def atest_MGRIT(self):
-    tolerance = 1e-5
-    Tf = 8.0
-    max_levels = 2
-    max_iters =  7
+  def test_MGRIT(self):
+    tolerance = 1e-7
+    Tf = 1.0
+    max_levels = 3
+    max_iters = 6 
 
-    self.forwardBackwardProp(tolerance,Tf,max_levels,max_iters,print_level=0)
+    self.forwardBackwardProp(tolerance,Tf,max_levels,max_iters)
+
+  def copyParameterGradToRoot(self,m):
+    comm     = m.getMPIComm()
+    my_rank  = m.getMPIComm().Get_rank()
+    num_proc = m.getMPIComm().Get_size()
+ 
+    params = [p.grad for p in list(m.parameters())]
+
+    if len(params)==0:
+      return params
+
+    if my_rank==0:
+      for i in range(1,num_proc):
+        remote_p = comm.recv(source=i,tag=77)
+        params.extend(remote_p)
+
+      return params
+    else:
+      comm.send(params,dest=0,tag=77)
+      return None
+  # end copyParametersToRoot
 
   def forwardBackwardProp(self,tolerance,Tf,max_levels,max_iters,check_grad=True,print_level=0):
     rank = MPI.COMM_WORLD.Get_rank()
@@ -88,8 +109,8 @@ class TestLayerParallel_MultiNODE(unittest.TestCase):
     conv_block = lambda: ConvBlock(dim,num_ch)
     pool_block = lambda: nn.MaxPool1d(3)
 
-    basic_block = [pool_block, conv_block,pool_block,conv_block]
-    num_steps   = [          1,         15,         1,         15]
+    basic_block = [pool_block, conv_block,pool_block,conv_block, conv_block]
+    num_steps   = [          1,         15,         1,         15,       16]
 
     # this is the torchbraid class being tested 
     #######################################
@@ -128,24 +149,44 @@ class TestLayerParallel_MultiNODE(unittest.TestCase):
       wp = parallel_net.copyVectorFromRoot(ws)
 
       yp.backward(wp)
-      adj_para = xp.grad
       adj_para_root = xp.grad
+      param_grad_para = self.copyParameterGradToRoot(parallel_net)
 
     if rank==0:
       # check error
       forward_error = (torch.norm(ys-yp_root)/torch.norm(ys)).item()
       root_print(rank,f'Forward Error: {forward_error:e}')
       self.assertLessEqual(forward_error,tolerance,
-                           "Relative error in the forward proppgation, serial to parallel comparison.")
+                           "Relative error in the forward propgation, serial to parallel comparison.")
 
       if check_grad:
         # check adjoint
         backward_error = (torch.norm(adj_serial-adj_para_root)/torch.norm(adj_serial)).item()
         root_print(rank,f'Backward Error: {backward_error:e}')
         self.assertLessEqual(backward_error,tolerance,
-                             "Relative error in the backward proppgation, serial to parallel comparison.")
+                             "Relative error in the backward propgation, serial to parallel comparison.")
 
-  # forwardPropSerial
+        param_errors = []
+        param_norms = []
+        param_grad_serial = [p.grad for p in serial_net.parameters()]
+        for serial_pgrad,para_pgrad in zip(param_grad_serial,param_grad_para):
+          self.assertTrue(not para_pgrad is None)
+   
+          # accumulate parameter errors for testing purposes
+          pgrad_error = (torch.norm(serial_pgrad-para_pgrad)).item()
+          param_errors += [pgrad_error]
+          param_norms += [torch.norm(serial_pgrad).item()]
+
+          #print(param_errors[-1],torch.norm(pf.grad),pf.grad.shape,torch.norm(pm_grad))
+   
+          # check the error conditions
+          self.assertLessEqual(pgrad_error,tolerance,
+                             "Relative error in the parameter gradient, serial to parallel comparison.")
+   
+        if len(param_errors)>0:
+          print('p grad error (mean,stddev) = %.6e, %.6e' % (stats.mean(param_errors),stats.stdev(param_errors)))
+          self.assertTrue(max(param_norms)>0.0)
+# forwardBackwardProp 
 
 if __name__ == '__main__':
   unittest.main()
