@@ -93,6 +93,8 @@ def main():
   procs = MPI.COMM_WORLD.Get_size()
   rank  = MPI.COMM_WORLD.Get_rank()
   
+  #torch.set_num_threads(6)
+
   ##
   # Load training and testing data, while reducing the number of samples (if desired) for faster execution
   transform = transforms.Compose([transforms.ToTensor(),
@@ -209,8 +211,10 @@ def main():
   if( args.mgopt_iter > 0):
     epochs = args.epochs
     preserve_optim = args.preserve_optim
-    line_search = ('tb_simple_ls', {'ls_params' : {'alphas' : [0.01, 0.1, 0.5, 1.0, 2.0, 4.0]}} )
-    #line_search = ('tb_simple_weighting', {'ls_params' : {'alpha' : 1.0}} )
+    #line_search = ('tb_adam_no_ls', {'ls_params' : {}})
+    line_search = ('tb_simple_backtrack_ls', {'ls_params' : {'n_line_search':6, 'alpha':1.0, 'c1':0.0001}} )
+    #line_search = ('tb_simple_ls', {'ls_params' : {'alphas' : [0.01, 0.1, 0.5, 1.0, 2.0, 4.0]}} )
+    #line_search = ('tb_simple_weighting', {'ls_params' : {'alpha' : 0.001}} )
     restrict_params = "tb_parallel_get_injection_restrict_params"
     #restrict_params = "tb_get_injection_restrict_params"
     restrict_grads = "tb_parallel_get_injection_restrict_params"

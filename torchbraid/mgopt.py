@@ -195,7 +195,7 @@ def compute_fwd_pass(lvl, model, data, target, criterion, criterion_kwargs, comp
 
 ##
 # PyTorch get and write params functions
-def write_params_inplace(model, new_params):
+def write_params_inplace(model, new_params, grad=False):
   '''
   Write the parameters of model in-place, overwriting with new_params
   '''
@@ -206,7 +206,8 @@ def write_params_inplace(model, new_params):
     assert(len(old_params) == len(new_params)) 
     
     for (op, np) in zip(old_params, new_params):
-      op[:] = np[:]
+      if grad: op.grad[:] = np[:]
+      else:    op[:] = np[:]
 
 def get_params(model, deep_copy=False, grad=False):
   '''
@@ -426,7 +427,21 @@ def tb_mgopt_regression(output, target, network_parameters=None, v=None):
     return loss
 
 
-def tb_simple_weighting(lvl, e_h, x_h, v_h, model, data, target, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
+def tb_adam_no_ls(lvl, e_h, x_h, v_h, model, data, target, optimizer, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
+  '''
+  Do no line search (save computation) and simply incorporate the coarse-grid
+  correction as a fine-level optimizer (Adam, SGD, ...) update.  This requires
+  simply overwriting the gradient with the coarse-grid correction direction,
+  -e_h.  Note, the standard coarse-grid update adds e_h to the parameters, so
+  e_h already represents a "negative" gradient direction. 
+  '''
+
+  optimizer.zero_grad()
+  e_h = [ -ee for ee in e_h]
+  write_params_inplace(model, e_h, grad=True)
+  optimizer.step()
+
+def tb_simple_weighting(lvl, e_h, x_h, v_h, model, data, target, optimizer, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
   '''
   Do no line search (save computation) and simply use the alpha stored in
   ls_params to weight the coarse-grid correction. 
@@ -440,7 +455,7 @@ def tb_simple_weighting(lvl, e_h, x_h, v_h, model, data, target, criterion, crit
   return alpha
 
 
-def tb_simple_ls(lvl, e_h, x_h, v_h, model, data, target, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
+def tb_simple_ls(lvl, e_h, x_h, v_h, model, data, target, optimizer, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
   '''
   Simple line-search: Add e_h to fine parameters.  Test five different alpha
   values.  Choose one that best minimizes loss.
@@ -484,7 +499,7 @@ def tb_simple_ls(lvl, e_h, x_h, v_h, model, data, target, criterion, criterion_k
   return alphas[winner]
 
 
-def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, data, target, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
+def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, data, target, optimizer, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
   '''
   Simple line-search: Add e_h to fine parameters.  If loss has
   diminished, stop.  Else subtract 1/2 of e_h from fine parameters, and
@@ -935,9 +950,10 @@ class mgopt_solver:
       (criterion, compose, criterion_kwargs) = self.process_criterion(criterions[k], model)
 
       ##
-      # Select Interpolate weights from coarser model to the new model
-      if len(self.levels) > 0: 
-        # First do a "dummy" Braid iteration to initialize everything inside model
+      # First, we must allocate everything in Braid with a dummy iteration
+      # - For interpolation if on a refined level (levels > 0), or 
+      # - On every level, if doing epochs=0, here NI is only allocating the hierarchy 
+      if (len(self.levels) > 0) or (epochs == 0): 
         model.eval()
         for (data, target) in train_loader:
           output = model(data)
@@ -945,6 +961,9 @@ class mgopt_solver:
           loss.backward()
           break
 
+      ##
+      # Select Interpolate weights from coarser model to the new model
+      if (len(self.levels) > 0):
         (get_interp_params, interp_params_kwargs) = self.process_get_interp_params(interp_params[k])
         new_params = get_interp_params(model, self.levels[-1].model, **interp_params_kwargs)
         write_params_inplace(model, new_params)
@@ -992,7 +1011,9 @@ class mgopt_solver:
       self.levels[-1].out_ls_step = []
 
       # Print epoch-level time averages
-      if epochs == 1:
+      if epochs == 0:
+        root_print(rank, mgopt_printlevel, 1, '  Zero Nested Iteration Epochs -- Only Initializing Hierarchy ')
+      elif epochs == 1:
         root_print(rank, mgopt_printlevel, 1, '  Time per epoch: %.2e ' % (stats.mean(epoch_times)) ) 
         root_print(rank, mgopt_printlevel, 1, '  Time per test:  %.2e ' % (stats.mean(test_times)) )
       else:
@@ -1382,7 +1403,7 @@ class mgopt_solver:
       x_h = get_params(model, deep_copy=False, grad=False)
       e_dot_gradf = tensor_list_dot(e_h, g_h, comm).item()
       # Note, that line_search can store values between runs, like alpha, by having ls_kwargs = { 'ls_params' : {'alpha' : ...}} 
-      ls_alpha = do_line_search(lvl, e_h, x_h, v_h, model, data, target, criterion, criterion_kwargs, compose, fine_loss, e_dot_gradf, mgopt_printlevel, **ls_kwargs)
+      ls_alpha = do_line_search(lvl, e_h, x_h, v_h, model, data, target, optimizer, criterion, criterion_kwargs, compose, fine_loss, e_dot_gradf, mgopt_printlevel, **ls_kwargs)
       self.levels[lvl].out_ls_step += [ls_alpha]
 
 
@@ -1492,6 +1513,9 @@ class mgopt_solver:
     elif method == "tb_simple_weighting":
       check_has_args(ls_kwargs, ['ls_params'], method)
       line_search = tb_simple_weighting
+    elif method == "tb_adam_no_ls":
+      check_has_args(ls_kwargs, ['ls_params'], method)
+      line_search = tb_adam_no_ls
     else:
       raise ValueError('Unsupported line search: ' + method)
     ##

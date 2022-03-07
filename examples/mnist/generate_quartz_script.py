@@ -36,7 +36,7 @@ def main():
   ##
   # Global parameters
   ntests = 12           # number of individual training runs to do
-  nnodes = int(ntests / 2)   # can efficiently run 2 tests per Quartz node
+  nnodes = int(ntests)  # can run only one python script per node, unfortunately
   queue = 'pdebug'
   time = "00:05:00"
 
@@ -82,7 +82,7 @@ def main():
   Header = "#!/bin/bash\n" +\
            "#SBATCH -p " + queue + "\n" +\
            "#SBATCH -N "+str(nnodes) + "\n" +\
-           "#SBATCH -c 18\n" +\
+           "#SBATCH -c 36\n" +\
            "#SBATCH -A paratime\n" +\
            "#SBATCH -t " + time + "\n" +\
            "#SBATCH -o test_out\n" +\
