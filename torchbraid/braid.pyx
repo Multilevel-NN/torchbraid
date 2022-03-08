@@ -227,20 +227,20 @@ cdef extern from "braid.h":
     ##
     # Braid Test Routines
     int braid_TestInitAccess(braid_App app, libmpi.MPI_Comm comm_x, FILE *fp, double t, 
-                        braid_PtFcnInit init, braid_PtFcnAccess access, braid_PtFcnFree free);
+                        braid_PtFcnInit init, braid_PtFcnAccess access, braid_PtFcnFree free)
     int braid_TestClone(braid_App app, libmpi.MPI_Comm comm_x, FILE *fp, double t,
                         braid_PtFcnInit init, braid_PtFcnAccess access, 
-                        braid_PtFcnFree free, braid_PtFcnClone clone);
+                        braid_PtFcnFree free, braid_PtFcnClone clone)
     int braid_TestSum(braid_App app, libmpi.MPI_Comm comm_x, FILE *fp, double t,
                         braid_PtFcnInit  init, braid_PtFcnAccess access, braid_PtFcnFree free, 
-                        braid_PtFcnClone clone, braid_PtFcnSum sum);
+                        braid_PtFcnClone clone, braid_PtFcnSum sum)
     int braid_TestSpatialNorm( braid_App app, libmpi.MPI_Comm comm_x, FILE *fp, double t,
                         braid_PtFcnInit init, braid_PtFcnFree free, braid_PtFcnClone clone, 
-                        braid_PtFcnSum sum, braid_PtFcnSpatialNorm spatialnorm);
+                        braid_PtFcnSum sum, braid_PtFcnSpatialNorm spatialnorm)
     int braid_TestBuf(braid_App app, libmpi.MPI_Comm comm_x, FILE  *fp, double t,
                         braid_PtFcnInit init, braid_PtFcnFree free, braid_PtFcnSum sum, 
                         braid_PtFcnSpatialNorm spatialnorm, braid_PtFcnBufSize bufsize, 
-                        braid_PtFcnBufPack bufpack, braid_PtFcnBufUnpack bufunpack);
+                        braid_PtFcnBufPack bufpack, braid_PtFcnBufUnpack bufunpack)
     int braid_TestCoarsenRefine(braid_App app, libmpi.MPI_Comm comm_x, FILE *fp, double t, double fdt, double cdt,  
                         braid_PtFcnInit init, braid_PtFcnAccess access, braid_PtFcnFree free,
                         braid_PtFcnClone clone, braid_PtFcnSum sum, braid_PtFcnSpatialNorm spatialnorm,
@@ -248,12 +248,12 @@ cdef extern from "braid.h":
     int braid_TestResidual( braid_App app, libmpi.MPI_Comm comm_x, FILE *fp, double t, double dt, 
                         braid_PtFcnInit myinit, braid_PtFcnAccess myaccess, braid_PtFcnFree myfree,
                         braid_PtFcnClone clone, braid_PtFcnSum sum, braid_PtFcnSpatialNorm spatialnorm,
-                        braid_PtFcnResidual residual, braid_PtFcnStep step);
+                        braid_PtFcnResidual residual, braid_PtFcnStep step)
     int braid_TestAll( braid_App app, libmpi.MPI_Comm comm_x, FILE *fp, double t, double fdt, double cdt, 
                         braid_PtFcnInit init, braid_PtFcnFree free, braid_PtFcnClone clone, braid_PtFcnSum sum, 
                         braid_PtFcnSpatialNorm spatialnorm, braid_PtFcnBufSize bufsize, braid_PtFcnBufPack bufpack, 
                         braid_PtFcnBufUnpack bufunpack, braid_PtFcnSCoarsen coarsen,
-                        braid_PtFcnSRefine refine, braid_PtFcnResidual residual, braid_PtFcnStep step); 
+                        braid_PtFcnSRefine refine, braid_PtFcnResidual residual, braid_PtFcnStep step)
 
 
 
@@ -314,21 +314,21 @@ cdef extern from "_braid.h":
     ##
     # helper function for initializing coarse vectors
     int _braid_InitGuess(braid_Core  core,
-                         int   level);
+                         int   level)
 
     ## 
     # helper function for accessing primal vectors, returns a reference
     int _braid_UGetVectorRef(braid_Core  core,
                              int         level,
                              int         index,
-                             braid_BaseVector *u_ptr);
+                             braid_BaseVector *u_ptr)
     
     ## 
     # helper function for accessing primal vectors, returns a copy 
     int _braid_UGetVector(braid_Core  core,
                           int         level,
                           int         index,
-                          braid_BaseVector *u_ptr);
+                          braid_BaseVector *u_ptr)
     ##
     # helper function to get F and C index information for "interval_index"
     # each processor has ncpoints total intervals
@@ -337,26 +337,26 @@ cdef extern from "_braid.h":
                            int          interval_index,
                            int         *flo_ptr,
                            int         *fhi_ptr,
-                           int         *ci_ptr);
+                           int         *ci_ptr)
 
     ## 
     # helper function for getting the lower and upper time step indices
     int _braid_GetDistribution(braid_Core   core,
                                int   *ilower_ptr,
-                               int   *iupper_ptr);
+                               int   *iupper_ptr)
     
     ##
     # helper function to get the processor number that time step index resides on
     int _braid_GetProc(braid_Core   core,
                        int          level,
                        int          index,
-                       int         *proc_ptr);
+                       int         *proc_ptr)
 
 cdef extern from "util.h":
 
     ## Switch for displaying the XBraid actions. Used for debugging only.
     int _braid_SetVerbosity(braid_Core  core,
-                            int   verbose_adj);
+                            int   verbose_adj)
 
 
 

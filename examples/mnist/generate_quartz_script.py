@@ -37,8 +37,8 @@ def main():
   # Global parameters
   ntests = 12           # number of individual training runs to do
   nnodes = int(ntests)  # can run only one python script per node, unfortunately
-  queue = 'pdebug'
-  time = "00:05:00"
+  queue = 'pbatch'
+  time = "23:55:00"
 
   ##
   # Run string parameters
