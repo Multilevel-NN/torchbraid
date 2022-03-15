@@ -422,6 +422,22 @@ class ParallelNet(nn.Module):
     self.hidden_size = hidden_size
     self.num_layers = num_layers 
 
+  def setFwdAbsTol(self,tol):
+    """
+    Set the forward absolute tolerance to be used as a stopping   
+    critieria for the parallel-in-time algorithm.
+    """
+
+    self.parallel_rnn.setFwdAbsTol(tol)
+
+  def setBwdAbsTol(self,tol):
+    """
+    Set the forward absolute tolerance to be used as a stopping   
+    critieria for the parallel-in-time algorithm.
+    """
+
+    self.parallel_rnn.setBwdAbsTol(tol)
+
   def setFwdNumRelax(self,sweeps,level=None):
     """
     Set the number of relaxation sweeps. If sweeps is

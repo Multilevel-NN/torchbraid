@@ -186,12 +186,16 @@ def buildParallelNet(config,
                   '-- cfactor    = {}\n'
                   '-- fwd0 relax = {}\n'
                   '-- fwd relax  = {}\n'
+                  '-- fwd tol    = {}\n'
+                  '-- bwd tol    = {}\n'
                   '-- skip down  = {}\n'.format(config['lp_levels'],
                                                 config['lp_iters'],
                                                 config['lp_fwd_iters'],
                                                 config['lp_cfactor'],
                                                 config['lp_fwd_finerelax'],
                                                 config['lp_fwd_relax'],
+                                                config['lp_fwd_tol'],
+                                                config['lp_fwd_tol'],
                                                 not config['lp_use_downcycle']))
   # ATTENTION: Modified a ParallelNet for RNN
   model = ParallelNet(input_size=input_size,
@@ -211,6 +215,8 @@ def buildParallelNet(config,
                       Tf=config['tf'])
 
   # set forward relaxation
+  model.setFwdAbsTol(config['lp_fwd_tol'])
+  model.setBwdAbsTol(config['lp_bwd_tol'])
   model.setFwdNumRelax(config['lp_fwd_relax'])
   model.setFwdNumRelax(config['lp_fwd_finerelax'],level=0) # specialize on fine relaxation
 
@@ -287,6 +293,10 @@ def main():
                       help='Forward fine relaxation (default: 1, F-relax)')
   parser.add_argument('--lp-fwd-relax', type=int, default=3, metavar='N',
                       help='Forward relaxation (default: 3, FCF-relax)')
+  parser.add_argument('--lp-fwd-tol', type=float, default=1e-16, metavar='N',
+                      help='Forward parallel-in-time absolute tolerance (default: 1e-16, rely on iteration counts)')
+  parser.add_argument('--lp-bwd-tol', type=float, default=1e-16, metavar='N',
+                      help='Backward parallel-in-time absolute tolerance (default: 1e-16, rely on iteration counts)')
 
   args = parser.parse_args()
 
