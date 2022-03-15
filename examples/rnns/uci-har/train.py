@@ -207,7 +207,6 @@ def buildParallelNet(config,
                       max_iters=config['lp_iters'],
                       fwd_max_iters=config['lp_fwd_iters'],
                       print_level=config['lp_print'],
-                      braid_print_level=config['lp_braid_print'],
                       cfactor=config['lp_cfactor'],
                       skip_downcycle=not config['lp_use_downcycle'],
                       fmg=False,
@@ -282,9 +281,7 @@ def main():
   parser.add_argument('--lp-fwd-iters', type=int, default=4, metavar='N',
                       help='Layer parallel (forward) iterations (default: 4, value of -1 implies uses --lp-iters)')
   parser.add_argument('--lp-print', type=int, default=0, metavar='N',
-                      help='Layer parallel internal print level (default: 0)')
-  parser.add_argument('--lp-braid-print', type=int, default=0, metavar='N',
-                      help='Layer parallel braid print level (default: 0)')
+                      help='Layer parallel print level (default: 0, 3 means a lot)')
   parser.add_argument('--lp-cfactor', type=int, default=4, metavar='N',
                       help='Layer parallel coarsening factor (default: 4)')
   parser.add_argument('--lp-use-downcycle',action='store_true', default=False, 

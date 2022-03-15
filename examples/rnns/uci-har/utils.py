@@ -376,7 +376,7 @@ class ImplicitSerialNet(nn.Module):
 class ParallelNet(nn.Module):
   def __init__(self,input_size=9,hidden_size=20,num_layers=2,num_classes=6,
                num_steps=8,max_levels=1,max_iters=1,fwd_max_iters=0,
-               print_level=0,braid_print_level=0,cfactor=4,
+               print_level=0,cfactor=4,
                skip_downcycle=True,fmg=False,
                seed=20,
                Tf=None):
