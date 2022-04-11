@@ -151,6 +151,15 @@ class LayerParallel(nn.Module):
   def extra_repr(self):
     return f'parallel rank = {self.getMPIComm().Get_rank()} of {self.getMPIComm().Get_size()}'
 
+  def repr_helper(self,parent):
+    # call representation function in parallel
+    repr = nn.Module.__repr__(parent)
+
+    if self.getMPIComm().Get_rank()==0:
+      return repr # only return representation on processor zero
+    else:
+      return '--empty (module print)--' # this will print garbage on a line (how to fix this?)
+
   def __repr__(self):
     main_str = nn.Module.__repr__(self)
 

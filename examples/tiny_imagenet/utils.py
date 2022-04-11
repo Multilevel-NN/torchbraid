@@ -153,11 +153,14 @@ class ParallelNet(nn.Module):
       self.parallel_nn.setBwdNumRelax(1,level=0) # FCF-Relaxation on the fine grid for backward solve
 
     # this object ensures that only the LayerParallel code runs on ranks!=0
-    compose = self.compose = self.parallel_nn.comp_op()
-    
+    self.compose = self.parallel_nn.comp_op()
+
     # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels) 
     # on processors not equal to 0, these will be None (there are no parameters to train there)
-    self.close_nn = compose(CloseLayer,channels)
+    self.close_nn = self.compose(CloseLayer,channels)
+
+  def __repr__(self):
+    return self.parallel_nn.repr_helper(self)
 
   def forward(self, x):
     # by passing this through 'o' (mean composition: e.g. self.open_nn o x) 
