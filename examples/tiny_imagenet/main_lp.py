@@ -307,6 +307,8 @@ def main():
 
   model = ParallelNet(**network)
 
+  print(model)
+
   #optimizer = optim.Adam(model.parameters(), lr=args.lr)#, weight_decay=0.0001)
   optimizer = optim.SGD(model.parameters(), lr=args.lr)#, weight_decay=0.0001)
   compose = model.compose

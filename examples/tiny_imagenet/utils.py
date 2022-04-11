@@ -120,7 +120,7 @@ class ParallelNet(nn.Module):
     trans_layer_2 = lambda: TransitionLayer(2*channels)
 
     layers    = [open_layer,    step_layer_1, trans_layer_1,    step_layer_2,  trans_layer_2,step_layer_3]
-    num_steps = [         1,  global_steps-1,             1,   global_steps-1, 1, global_steps-1]
+    num_steps = [         1,  global_steps-1,             1,   global_steps-1, 1,            global_steps-1]
 
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,layers,num_steps,Tf,max_fwd_levels=max_fwd_levels,max_bwd_levels=max_bwd_levels,max_iters=max_iters)
     if max_fwd_iters>0:

@@ -148,6 +148,19 @@ class LayerParallel(nn.Module):
     self.enable_diagnostics = False
   # end __init__
 
+  def extra_repr(self):
+    return f'parallel rank = {self.getMPIComm().Get_rank()} of {self.getMPIComm().Get_size()}'
+
+  def __repr__(self):
+    main_str = nn.Module.__repr__(self)
+
+    comm      = self.getMPIComm() 
+    all_str = comm.gather(main_str,root=0)
+    if comm.Get_rank()==0:
+      return '\n<...> '.join(all_str)
+    else:
+      return '--ignore parallel print out--'
+
   def makeList(self,data):
     """
     Conditionally convert a single element to a list, or return a list
@@ -438,5 +451,6 @@ class LayerParallel(nn.Module):
 
     return result
   # end getTimersString
+
 
 # end LayerParallel
