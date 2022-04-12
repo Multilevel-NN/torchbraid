@@ -123,16 +123,15 @@ def main():
   # Compute number of nested iteration steps, going from fine to coarse
   ni_steps = np.array([int(args.steps/(args.ni_rfactor**(args.ni_levels-i-1))) for i in range(args.ni_levels)])
   ni_steps = ni_steps[ ni_steps != 0 ]
-  local_ni_steps = np.flip( np.array(ni_steps / procs, dtype=int) )
   if rank==0:
     print("\nNested iteration steps:  " + str(ni_steps))
 
   ##
-  # Define ParNet parameters for each nested iteration level, starting from fine to coarse
+  # Define ParNet parameters for each nested iteration level, starting from fine to coarse (flip ni_steps)
   networks = [] 
-  for lsteps in local_ni_steps: 
+  for nsteps in np.flip(ni_steps): 
     networks.append(('Factory', {'channels'          : args.channels, 
-                                 'local_steps'       : lsteps,
+                                 'global_steps'      : nsteps,
                                  'max_iters'         : args.lp_iters,
                                  'print_level'       : args.lp_print,
                                  'Tf'                : args.tf,

@@ -75,7 +75,7 @@ class BraidFunction(torch.autograd.Function):
 
     if adjusting:
       old_batch  = old_shape[0][0]
-      temp_batch = shape[0]
+      temp_batch = shape[0][0]
       x = BraidFunction.padForBatchChange(old_batch,temp_batch,x,0)
       ctx.old_batch = old_batch
       ctx.temp_batch = temp_batch
