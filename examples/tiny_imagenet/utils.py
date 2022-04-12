@@ -215,6 +215,8 @@ def parse_args(mgopt_on=True):
                       help='number of samples as a ratio of the total number of samples')
   parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                       help='learning rate (default: 0.01)')
+  parser.add_argument('--opt', type=str, default='SGD',
+                      help='Optimizer, SGD or Adam')
 
   # algorithmic settings (parallel or serial)
   parser.add_argument('--lp-fwd-levels', type=int, default=3, metavar='N',

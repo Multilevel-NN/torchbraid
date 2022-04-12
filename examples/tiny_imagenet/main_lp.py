@@ -307,16 +307,24 @@ def main():
 
   model = ParallelNet(**network)
 
+  if rank==0:
+    print('===============MODEL=============\n')
   print(model)
 
-  #optimizer = optim.Adam(model.parameters(), lr=args.lr)#, weight_decay=0.0001)
-  optimizer = optim.SGD(model.parameters(), lr=args.lr)#, weight_decay=0.0001)
+  if args.opt=='SGD':
+    optimizer = optim.SGD(model.parameters(), lr=args.lr)#, weight_decay=0.0001)
+  else:
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)#, weight_decay=0.0001)
   compose = model.compose
+
+  if rank==0:
+    print('===============OPTIMIZER=============\n')
+    print(optimizer)
 
   epoch_times = []
   test_times = []
 
-  #scheduler = lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5,verbose=(rank==0))
+  scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10,30], gamma=0.1,verbose=(rank==0))
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
