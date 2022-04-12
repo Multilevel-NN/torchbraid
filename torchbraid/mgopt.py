@@ -223,6 +223,21 @@ def get_params(model, deep_copy=False, grad=False):
 
   return pp
 
+
+def get_adam_momentum(model, optimizer):
+  '''
+  Get the momentum term out of an Adam optimizer
+  '''
+  momentum = []
+  for pp in model.parameters():
+    if pp.grad is not None:
+      # Grab the momentum for this parameter
+      momentum.append( torch.clone( optimizer.state[pp]['exp_avg'] ))
+      #momentum.append( torch.clone( optimizer.state[pp]['exp_avg'] / (np.sqrt(optimizer.state[pp]['exp_avg_sq']) + 1e-8)   ))
+  ##
+  return momentum
+ 
+
 ####################################################################################
 ####################################################################################
 
@@ -386,6 +401,123 @@ def tb_injection_interp_network_state(model_fine, model_coarse, cf=2):
   model_fine.parallel_nn.fwd_app.interp_network_state(  model_coarse.parallel_nn.fwd_app, cf )  
   model_fine.parallel_nn.bwd_app.interp_network_state(  model_coarse.parallel_nn.bwd_app, cf )  
 
+def tb_injection_restrict_adam_state(model_fine, model_coarse, opt_fine, opt_coarse, cf=2):
+  '''
+  Restrict the Adam optimizer state from fine-grid optimizer (opt_fine) to
+  coarse-grid optimizer (opt_coarse)
+  '''
+  
+  ##
+  # The parameters themselves serve as the "dictionary" keys into the Adam
+  # optimizer state.  Thus, we need structured lists of these parameters "indices"
+  #
+  # Opening layer lists for model_fine and model_coarse
+  ol_fine = []
+  ol_coarse = []
+  # Closing layer
+  cl_fine = []
+  cl_coarse = []
+  # Layer parallel
+  lp_fine = []
+  lp_coarse = []
+  
+  ##
+  # Loop over all coarse layers
+  with torch.no_grad():
+    for child in model_coarse.children():
+      
+      # Store as opening, closing, or LP layer
+      name = str(type(child))
+      name = name[ name.rfind('.')+1 : name.rfind('\'') ]
+      if name == 'LayerParallel':
+
+        for layer in child.layer_models: 
+          # Grab this layer's parameters
+          this_layer = [] 
+          for param in layer.parameters():
+            this_layer.append(param)
+          ##
+          lp_coarse.append(this_layer)
+
+      else:
+
+        # Grab this layer's parameters
+        this_layer = [] 
+        for param in child.parameters():
+          this_layer.append(param)
+
+        if name == 'CloseLayer':
+          cl_coarse = this_layer
+        elif name == 'OpenLayer':
+          ol_coarse = this_layer
+        else:
+          output_exception('Layer type needs to be OpenLayer, CloseLayer, or LayerParallel')
+
+  ##
+  # Loop over all fine layers
+  with torch.no_grad():
+    for child in model_fine.children():
+      
+      # Store as opening, closing, or LP layer
+      name = str(type(child))
+      name = name[ name.rfind('.')+1 : name.rfind('\'') ]
+      if name == 'LayerParallel':
+
+        for layer in child.layer_models: 
+          # Grab this layer's parameters
+          this_layer = [] 
+          for param in layer.parameters():
+            this_layer.append(param)
+          ##
+          lp_fine.append(this_layer)
+
+      else:
+
+        # Grab this layer's parameters
+        this_layer = [] 
+        for param in child.parameters():
+          this_layer.append(param)
+
+        if name == 'CloseLayer':
+          cl_fine = this_layer
+        elif name == 'OpenLayer':
+          ol_fine = this_layer
+        else:
+          output_exception('Layer type needs to be OpenLayer, CloseLayer, or LayerParallel')
+
+  ##
+  # Sanity check on network sizes
+  if( len(cl_fine) != len(cl_coarse)):
+      raise ValueError('Fine and coarse closing layer not compatible in size')
+  if( len(ol_fine) != len(ol_coarse)):
+      raise ValueError('Fine and coarse opening layer not compatible in size')
+  if( len(lp_fine)/cf != len(lp_coarse)):
+      raise ValueError('Fine and coarse ODE layer parallel not compatible in size')
+  
+  ##       
+  # Copy opening and closing layers
+  for pfine, pcoarse in zip(cl_fine, cl_coarse):
+    (opt_coarse.state[pcoarse])['exp_avg'][:] = (opt_fine.state[pfine])['exp_avg'][:]
+    (opt_coarse.state[pcoarse])['exp_avg_sq'][:] = (opt_fine.state[pfine])['exp_avg_sq'][:]
+    (opt_coarse.state[pcoarse])['step'] = (opt_fine.state[pfine])['step']
+  
+  for pfine, pcoarse in zip(ol_fine, ol_coarse):
+    (opt_coarse.state[pcoarse])['exp_avg'][:] = (opt_fine.state[pfine])['exp_avg'][:]
+    (opt_coarse.state[pcoarse])['exp_avg_sq'][:] = (opt_fine.state[pfine])['exp_avg_sq'][:]
+    (opt_coarse.state[pcoarse])['step'] = (opt_fine.state[pfine])['step']
+  
+  ##
+  # Copy over the coarsened ODE layer parallel
+  for layer_fine, layer_coarse in zip(lp_fine[::cf], lp_coarse):
+    for pfine, pcoarse in zip(layer_fine, layer_coarse):
+      (opt_coarse.state[pcoarse])['exp_avg'][:] = (opt_fine.state[pfine])['exp_avg'][:]
+      (opt_coarse.state[pcoarse])['exp_avg_sq'][:] = (opt_fine.state[pfine])['exp_avg_sq'][:]
+      (opt_coarse.state[pcoarse])['step'] = (opt_fine.state[pfine])['step']
+
+
+
+
+
 
 ##
 # Basic TorchBraid cross Entropy loss function extended to take MG/Opt Term
@@ -435,11 +567,33 @@ def tb_adam_no_ls(lvl, e_h, x_h, v_h, model, data, target, optimizer, criterion,
   -e_h.  Note, the standard coarse-grid update adds e_h to the parameters, so
   e_h already represents a "negative" gradient direction. 
   '''
+  
+  ##
+  # Not clear how to use Adam as our mediator for the coarse-grid correction.
+  # Thus, we have some commented out possibilities regarding changing the beta
+  # values and preserving the Adam momentum state (i.e., do not allow the
+  # coarse-grid correction to change the Adam momentum state.
 
+  ##set beta1 to 0.9725
+  #for pg in optimizer.param_groups:
+  #  pg['betas'] = (0.9725, 0.999)
+ 
+  ## Grab Adam state, and clone it
+  #import copy
+  #state_dict = copy.deepcopy(optimizer.state_dict())
+  
   optimizer.zero_grad()
   e_h = [ -ee for ee in e_h]
   write_params_inplace(model, e_h, grad=True)
   optimizer.step()
+  
+  ## Reload Adam state
+  #optimizer.load_state_dict(state_dict)
+ 
+  ##reset beta1 to 0.9
+  #for pg in optimizer.param_groups:
+  #  pg['betas'] = (0.9, 0.999)
+
 
 def tb_simple_weighting(lvl, e_h, x_h, v_h, model, data, target, optimizer, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
   '''
@@ -522,8 +676,9 @@ def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, data, target, optimizer, c
   # Add error update to x_h
   # alpha*e_h + x_h --> x_h
   tensor_list_AXPY(alpha, e_h, 1.0, x_h, inplace=True)
-  
-  # Start Line search 
+
+  # Start Line search
+  satisfied = False
   for m in range(n_line_search):
     #print("line-search, alpha=", alpha)
     with torch.enable_grad():
@@ -532,6 +687,7 @@ def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, data, target, optimizer, c
     # Check Wolfe condition (i), also called the Armijo rule
     #  f(x + alpha p) <=  f(x) + c alpha <p, grad f(x) >
     if new_loss < old_loss + c1*alpha*e_dot_gradf:
+      satisfied = True
       break
     elif m < (n_line_search-1): 
       # loss is NOT reduced enough, continue line search
@@ -539,6 +695,12 @@ def tb_simple_backtrack_ls(lvl, e_h, x_h, v_h, model, data, target, optimizer, c
       tensor_list_AXPY(-alpha, e_h, 1.0, x_h, inplace=True)
   ##
   # end for-loop
+
+  # If Wolfe condition (i) never satisfied, subtract off the rest of e_h from x_h, 
+  # i.e., change x_h back to what you started with
+  if not satisfied:
+    tensor_list_AXPY(-alpha, e_h, 1.0, x_h, inplace=True)
+    alpha = 0.0
 
   # Double alpha, and store for next time in ls_params, before returning
   root_print(rank, mgopt_printlevel, 2, 
@@ -1009,6 +1171,8 @@ class mgopt_solver:
       self.levels[-1].optims = optims[k]
       self.levels[-1].criterions = criterions[k]
       self.levels[-1].out_ls_step = []
+      if self.preserve_optim:
+        self.levels[-1].optimizer = optimizer
 
       # Print epoch-level time averages
       if epochs == 0:
@@ -1024,6 +1188,7 @@ class mgopt_solver:
     ##
     # Reverse order, so finest level is level 0 
     self.levels.reverse()
+    
 
 
   def mgopt_solve(self, train_loader, 
@@ -1174,12 +1339,14 @@ class mgopt_solver:
     (criterion, compose, criterion_kwargs) = self.process_criterion(self.levels[0].criterions, self.levels[0].model)
     
     ##
-    # If preserving the optimizer state, initialize once here.
+    # If preserving the optimizer state, initialize once here (unless NI has already initialized it).
     self.preserve_optim = bool(preserve_optim)
     if self.preserve_optim:
       for k in range(mgopt_levels):
-        (optimizer, optim_kwargs) = self.process_optimizer(self.levels[k].optims, self.levels[k].model)
-        self.levels[k].optimizer = optimizer
+        # Only generate a new optimizer, if one isn't already stored
+        if not hasattr(self.levels[k], 'optimizer'):
+          (optimizer, optim_kwargs) = self.process_optimizer(self.levels[k].optims, self.levels[k].model)
+          self.levels[k].optimizer = optimizer
 
     ##
     # Begin loop over epochs
@@ -1283,7 +1450,7 @@ class mgopt_solver:
     # If preserving the optimizer state, grab existing optimizer from hierarchy.  Else, generate new one.
     if self.preserve_optim:
       optimizer = self.levels[lvl].optimizer
-      coarse_optimizer = self.levels[lvl+1].optimizer
+      coarse_optimizer = self.levels[lvl+1].optimizer # If a clean coarse-grid correction with no momentum is desired, comment this out
     else:
       (optimizer, optim_kwargs) = self.process_optimizer(self.levels[lvl].optims, self.levels[lvl].model)
       (coarse_optimizer, coarse_optim_kwargs) = self.process_optimizer(self.levels[lvl+1].optims, self.levels[lvl+1].model)
@@ -1326,13 +1493,23 @@ class mgopt_solver:
       loss_scalar = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
       root_print(rank, mgopt_printlevel, 2, "  Pre-relax loss:       " + str(loss_scalar) ) 
       optimizer.step()
-    
+
     # 2. compute new gradient g_h
     # First evaluate network, forward and backward.  Return value is scalar value of the loss.
     fine_loss = compute_fwd_bwd_pass(lvl, optimizer, model, data, target, criterion, criterion_kwargs, compose, v_h)
     root_print(rank, mgopt_printlevel, 2, "  Pre-relax done loss:  " + str(fine_loss)) 
     with torch.no_grad():
       g_h = get_params(model, deep_copy=True, grad=True)
+      
+    ## 
+    # We do not understand the stocasticity yet...but when we do, could use
+    # momentum as g_h.
+    ##if len(optimizer.state) > 0:
+    ##  g_h = get_adam_momentum(model, optimizer)
+    ##  # Write g_h inplace here to model, for restriction in step 3 
+    ##  write_params_inplace(model, g_h, grad=True)
+    ##else:
+    ##  g_h = get_params(model, deep_copy=True, grad=True)
 
     # 3. Restrict 
     #    (i)   Network state (primal and adjoint), 
@@ -1348,6 +1525,13 @@ class mgopt_solver:
       # Must store x_H for later error computation
       x_H_zero = tensor_list_deep_copy(x_H)
 
+
+    ## 
+    # We do not understand the stocasticity yet...but when we do, could consider
+    # restricting Adam state to coarse levels
+    ##tb_injection_restrict_adam_state(model, coarse_model, optimizer, coarse_optimizer, 2)
+
+
     # 4. compute gradient on coarse level, using restricted parameters
     #  g_H = grad( f_H(x_H) )
     #
@@ -1357,7 +1541,15 @@ class mgopt_solver:
     loss_scalar = compute_fwd_bwd_pass(0, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, None)
     with torch.no_grad():
       g_H = get_params(coarse_model, deep_copy=True, grad=True)
-    
+      
+      ##
+      # We do not understand the stocasticity yet...but when we do, could
+      # consider using a coarse-grid expected gradient for g_H
+      ##if len(coarse_optimizer.state) > 0:
+      ##  g_H = get_adam_momentum(coarse_model, coarse_optimizer)
+      ##else:
+      ##  g_H = get_params(coarse_model, deep_copy=True, grad=True)
+
     # 5. compute coupling term
     #  v = g_H - \tilde{g}_H
     with torch.no_grad():
@@ -1369,9 +1561,9 @@ class mgopt_solver:
       # If on coarsest level, do a "solve" by carrying out a number of relaxation steps
       root_print(rank, mgopt_printlevel, 2, "\n  Level:  " + str(lvl+1))
       for m in range(self.nrelax_coarse):
-        loss_scalar = compute_fwd_bwd_pass(lvl+1, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, v_H)
+        loss_scalar_coarse = compute_fwd_bwd_pass(lvl+1, coarse_optimizer, coarse_model, data, target, coarse_criterion, coarse_criterion_kwargs, coarse_compose, v_H)
         coarse_optimizer.step()
-        root_print(rank, mgopt_printlevel, 2, "  Coarsest grid solve loss: " + str(loss_scalar)) 
+        root_print(rank, mgopt_printlevel, 2, "  Coarsest grid solve loss: " + str(loss_scalar_coarse)) 
     else:
       # Recursive call
       self.__solve(lvl+1, data, target, v_H, mgopt_printlevel, 
