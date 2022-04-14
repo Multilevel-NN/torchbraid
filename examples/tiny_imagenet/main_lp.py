@@ -324,7 +324,10 @@ def main():
   epoch_times = []
   test_times = []
 
-  scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10,30], gamma=0.1,verbose=(rank==0))
+  scheduler = None
+
+  if args.lr_scheduler:
+    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10,30], gamma=0.1,verbose=(rank==0))
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
@@ -332,7 +335,8 @@ def main():
     end_time = timer()
     epoch_times += [end_time-start_time]
 
-    #scheduler.step()
+    if scheduler is not None:
+      scheduler.step()
 
     start_time = timer()
     test(rank,model, test_loader,epoch,compose)
