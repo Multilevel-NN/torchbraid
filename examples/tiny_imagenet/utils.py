@@ -35,9 +35,10 @@ class OpenLayer(nn.Module):
     super(OpenLayer, self).__init__()
     self.channels = channels
     self.pre = nn.Sequential(
-      nn.Conv2d(3, channels, kernel_size=5, padding=2, stride=2),
+      nn.Conv2d(3, channels, kernel_size=7, padding=2, stride=2),
       nn.BatchNorm2d(channels),
-      nn.ReLU(inplace=True)
+      nn.ReLU(inplace=True),
+      nn.MaxPool2d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
     )
 
   def forward(self, x):
@@ -50,7 +51,7 @@ class CloseLayer(nn.Module):
     super(CloseLayer, self).__init__()
 
     # Account for 64x64 image and 3 RGB channels
-    self.avg = nn.AvgPool2d(2)
+    self.avg = nn.AdaptiveAveragePool2d((1,1))
     self.fc = nn.Linear(16*16*channels, 200)
 
   def forward(self, x):

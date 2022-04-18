@@ -51,9 +51,6 @@
 # Train Epoch:  1 [  1100/  8800]	Loss: 2.920e+00	Time Per Batch 0.995636/1.064048 - F 2/1.25e+03, B 2/8.23e-06
 # Train Epoch:  1 [  1600/  8800]	Loss: 3.079e+00	Time Per Batch 0.997011/1.057520 - F 2/1.35e+03, B 2/1.17e-05
 
-
-
-
 from __future__ import print_function
 import numpy as np
 
@@ -327,7 +324,8 @@ def main():
   scheduler = None
 
   if args.lr_scheduler:
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10,30], gamma=0.1,verbose=(rank==0))
+    # scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10,30], gamma=0.1,verbose=(rank==0))
+    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min',factor=0.1,patience=2)
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
@@ -335,13 +333,14 @@ def main():
     end_time = timer()
     epoch_times += [end_time-start_time]
 
-    if scheduler is not None:
-      scheduler.step()
-
     start_time = timer()
-    test(rank,model, test_loader,epoch,compose)
+    test_result = test(rank,model, test_loader,epoch,compose)
     end_time = timer()
     test_times += [end_time-start_time]  
+
+    if scheduler is not None:
+      scheduler.step(test_result)
+
 
   root_print(rank,'TIME PER EPOCH: %.2e (1 std dev %.2e)' % (stats.mean(epoch_times),stats.stdev(epoch_times)))
   root_print(rank,'TIME PER TEST:  %.2e (1 std dev %.2e)' % (stats.mean(test_times), stats.stdev(test_times)))
