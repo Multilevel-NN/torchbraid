@@ -39,6 +39,14 @@ from .gittools import git_rev
 # import bufpackunpack tools
 from .bufpackunpack import buffer_size, pack_buffer, unpack_buffer
 
+try:
+  # use the global one
+  from mpi4py import MPI
+except:
+  # default to the local dummy
+  print('\n-- Torchbraid Warning: No MPI found, using internal \'fake_mpi\'\n')
+  from .fake_mpi import MPI
+
 import gc
 import torch
 import traceback
