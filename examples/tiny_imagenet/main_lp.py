@@ -63,8 +63,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 import statistics               as stats
 
 from torchvision import datasets, transforms
-from mpi4py import MPI
-from utils import parse_args, ParallelNet
+from utils import parse_args, buildNet, ParallelNet, getComm
 from timeit import default_timer as timer
 
 def root_print(rank,s):
@@ -85,12 +84,6 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose):
   switched = False
   format_str = 'Train Epoch: {:2d} [{:6d}/{:6d}]\tLoss: {:.3e}\tTime Per Batch {:.6f}/{:.6f} - F{:2d}/{:.2e}, B{:2d}/{:.2e}'
   total_data = 0
-
-  default_fwd_iters = model.parallel_nn.getFwdMaxIters();
-  default_bwd_iters = model.parallel_nn.getBwdMaxIters();
-
-  model.parallel_nn.setFwdAbsTol(1e1)
-  model.parallel_nn.setBwdAbsTol(1e0)
 
   cumulative_start_time = timer()
   for batch_idx,(data,target) in enumerate(train_loader):
@@ -113,7 +106,6 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose):
     total_time_cm += timer()-start_time_cm
 
     # compute gradient
-    #root_print(rank,f'EPOCH={epoch} BACKWARD')
     start_time_bp = timer()
     loss.backward()
     total_time_bp += timer()-start_time_bp
@@ -130,14 +122,6 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose):
     cumulative_stop_time = timer()
     cumulative_time = (cumulative_stop_time-cumulative_start_time) 
 
-    #if fwd_res>1e1:
-    #  model.parallel_nn.setFwdMaxIters(model.parallel_nn.getFwdMaxIters()+1)
-    #  root_print(rank,f'  updated fwd iters = {model.parallel_nn.getFwdMaxIters()}')
-    #if bwd_res>1e0:
-    #  model.parallel_nn.setBwdMaxIters(model.parallel_nn.getBwdMaxIters()+1)
-    #  root_print(rank,f'  updated bwd iters = {model.parallel_nn.getBwdMaxIters()}')
-      
-
     if batch_idx % log_interval == 0:
         root_print(rank,format_str.format(
                         epoch, 
@@ -149,9 +133,6 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose):
                         fwd_itr,fwd_res,
                         bwd_itr,bwd_res
                         ))
-
-  model.parallel_nn.setFwdMaxIters(default_fwd_iters)
-  model.parallel_nn.setBwdMaxIters(default_bwd_iters)
 
   root_print(rank,(format_str+', fp={:.6f}, cm={:.6f}, bp={:.6f}').format(
                   epoch, 
@@ -174,9 +155,6 @@ def test(rank,model,test_loader,epoch,compose,prefix=''):
   total_time = 0.0
   root_print(rank,f'EPOCH={epoch} TEST')
 
-  default_fwd_iters = model.parallel_nn.getFwdMaxIters();
-  model.parallel_nn.setFwdMaxIters(10)
-
   with torch.no_grad():
     for data,target in test_loader:
       start_time = timer()
@@ -189,7 +167,7 @@ def test(rank,model,test_loader,epoch,compose,prefix=''):
         output = torch.unsqueeze(output,0)
 
       # compute the number of solutions
-      pred = compose(output.argmax, dim=1, keepdim=True)
+      pred = compose(torch.argmax,output, dim=1, keepdim=True)
       stop_time = timer()
 
       total_time += stop_time-start_time
@@ -197,8 +175,6 @@ def test(rank,model,test_loader,epoch,compose,prefix=''):
       # only accumulate the correct values on the root
       if rank==0:
         correct += pred.eq(target.view_as(pred)).sum().item()
-
-  model.parallel_nn.setFwdMaxIters(default_fwd_iters)
 
   root_print(rank,'{}Test set epoch {:2d}: Accuracy: {}/{} ({:.0f}%)\tTime Per Batch {:.6f}'.format(
       prefix,
@@ -215,8 +191,9 @@ def main():
   ##
   # Parse command line args (function defined above)
   args = parse_args(mgopt_on=False)
-  procs = MPI.COMM_WORLD.Get_size()
-  rank  = MPI.COMM_WORLD.Get_rank()
+  comm = getComm()
+  procs = comm.Get_size()
+  rank  = comm.Get_rank()
 
   global_steps = args.steps
 
@@ -302,7 +279,8 @@ def main():
   epochs = args.epochs
   log_interval = args.log_interval
 
-  model = ParallelNet(**network)
+  #model = ParallelNet(**network)
+  model = buildNet(False,**network)
 
   if rank==0:
     print('===============MODEL=============\n')
@@ -324,8 +302,7 @@ def main():
   scheduler = None
 
   if args.lr_scheduler:
-    # scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10,30], gamma=0.1,verbose=(rank==0))
-    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min',factor=0.1,patience=2)
+    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10,30], gamma=0.1,verbose=(rank==0))
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
@@ -339,8 +316,7 @@ def main():
     test_times += [end_time-start_time]  
 
     if scheduler is not None:
-      scheduler.step(test_result)
-
+      scheduler.step()
 
   root_print(rank,'TIME PER EPOCH: %.2e (1 std dev %.2e)' % (stats.mean(epoch_times),stats.stdev(epoch_times)))
   root_print(rank,'TIME PER TEST:  %.2e (1 std dev %.2e)' % (stats.mean(test_times), stats.stdev(test_times)))

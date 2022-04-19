@@ -18,13 +18,16 @@ from torchbraid.mgopt import root_print, compute_levels
 
 from timeit import default_timer as timer
 
-from mpi4py import MPI
+from torchbraid.utils import MPI
+
+__all__ = [ 'parse_args', 'ParallelNet' ]
+
+def getComm():
+  return MPI.COMM_WORLD
 
 # Related to:
 # https://arxiv.org/pdf/2002.09779.pdf
 
-
-__all__ = [ 'parse_args', 'ParallelNet' ]
 
 ####################################################################################
 ####################################################################################
@@ -35,7 +38,7 @@ class OpenLayer(nn.Module):
     super(OpenLayer, self).__init__()
     self.channels = channels
     self.pre = nn.Sequential(
-      nn.Conv2d(3, channels, kernel_size=7, padding=2, stride=2),
+      nn.Conv2d(3, channels, kernel_size=7, padding=3, stride=2,bias=False),
       nn.BatchNorm2d(channels),
       nn.ReLU(inplace=True),
       nn.MaxPool2d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
@@ -50,9 +53,8 @@ class CloseLayer(nn.Module):
   def __init__(self,channels):
     super(CloseLayer, self).__init__()
 
-    # Account for 64x64 image and 3 RGB channels
-    self.avg = nn.AdaptiveAveragePool2d((1,1))
-    self.fc = nn.Linear(16*16*channels, 200)
+    self.avg = nn.AdaptiveAvgPool2d((1,1))
+    self.fc = nn.Linear(8*16*16, 200)
 
   def forward(self, x):
     #x = self.avg(x)
@@ -68,8 +70,7 @@ class TransitionLayer(nn.Module):
 
     # Account for 64x64 image and 3 RGB channels
     self.pre = nn.Sequential(
-      nn.AvgPool2d(2),
-      nn.Conv2d(channels, 2*channels, kernel_size=3, padding=1),
+      nn.Conv2d(channels, 2*channels, kernel_size=3, stride=2, padding=1,bias=False),
       nn.BatchNorm2d(2*channels),
       nn.ReLU()
     )
@@ -85,8 +86,8 @@ class StepLayer(nn.Module):
     ker_width = 3
     
     # Account for 3 RGB Channels
-    self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1)
-    self.conv2 = nn.Conv2d(channels,channels,ker_width,padding=1)
+    self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1,bias=False)
+    self.conv2 = nn.Conv2d(channels,channels,ker_width,padding=1,bias=False)
 
     if activation=='tanh':
       self.activation = nn.Tanh()
@@ -104,6 +105,77 @@ class StepLayer(nn.Module):
     y = self.activation(y)
     return y 
 # end layer
+
+def buildNet(parallel,**network):
+  if parallel:
+    return ParallelNet(**network)
+  else:
+    return SerialNet(**network)
+# end buildNet
+    
+
+class SerialNet(nn.Module):
+  class ODEBlock(nn.Module):
+    """This is a helper class to wrap layers that should be ODE time steps."""
+    def __init__(self,dt,layer):
+      super(SerialNet.ODEBlock, self).__init__()
+
+      self.layer = layer
+      self.dt = dt
+
+    def forward(self, x):
+      y = self.dt*self.layer(x)
+      y.add_(x)
+      return y
+  # end ODEBlock
+
+  def __init__(self, channels=8, global_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
+                     print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
+                     fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
+                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh'):
+    super(SerialNet, self).__init__()
+
+    step_layer_1 = lambda: StepLayer(channels,activation)
+    step_layer_2 = lambda: StepLayer(2*channels,activation)
+    step_layer_3 = lambda: StepLayer(4*channels,activation)
+    step_layer_4 = lambda: StepLayer(8*channels,activation)
+
+    open_layer    = lambda: OpenLayer(channels)
+    trans_layer_1 = lambda: TransitionLayer(channels)
+    trans_layer_2 = lambda: TransitionLayer(2*channels)
+    trans_layer_3 = lambda: TransitionLayer(4*channels)
+
+    layers_temp = [open_layer,    step_layer_1, trans_layer_1,    step_layer_2,  trans_layer_2,step_layer_3, trans_layer_3, step_layer_4]
+    num_steps   = [         1,  global_steps-1,             1,   global_steps-1, 1,            global_steps-1,           1, global_steps-1]
+
+    layers = []
+    dt = Tf/sum(num_steps)
+    for l,n in zip(layers_temp,num_steps):
+      if n>1:
+        layers += [SerialNet.ODEBlock(dt,l()) for i in range(n)]
+      else:
+        layers+= [l()]
+    layers += [CloseLayer(channels)]
+
+    self.serial_nn = nn.Sequential(*layers)
+
+    # this object ensures that only the LayerParallel code runs on ranks!=0
+    self.compose = lambda op,*p,**k: op(*p,**k)
+
+  def forward(self, x):
+    # by passing this through 'o' (mean composition: e.g. self.open_nn o x) 
+    # this makes sure this is run on only processor 0
+
+    x = self.serial_nn(x)
+
+    return x
+
+  def getFwdStats(self):
+    return 1,0.0
+    
+  def getBwdStats(self):
+    return 1,0.0
+
 class ParallelNet(nn.Module):
   ''' Full parallel ODE-net based on StepLayer,  will be parallelized in time ''' 
   def __init__(self, channels=8, global_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
@@ -115,13 +187,15 @@ class ParallelNet(nn.Module):
     step_layer_1 = lambda: StepLayer(channels,activation)
     step_layer_2 = lambda: StepLayer(2*channels,activation)
     step_layer_3 = lambda: StepLayer(4*channels,activation)
+    step_layer_4 = lambda: StepLayer(8*channels,activation)
 
     open_layer = lambda: OpenLayer(channels)
     trans_layer_1 = lambda: TransitionLayer(channels)
     trans_layer_2 = lambda: TransitionLayer(2*channels)
+    trans_layer_3 = lambda: TransitionLayer(4*channels)
 
-    layers    = [open_layer,    step_layer_1, trans_layer_1,    step_layer_2,  trans_layer_2,step_layer_3]
-    num_steps = [         1,  global_steps-1,             1,   global_steps-1, 1,            global_steps-1]
+    layers    = [open_layer,    step_layer_1, trans_layer_1,    step_layer_2,  trans_layer_2,step_layer_3, trans_layer_3, step_layer_4]
+    num_steps = [         1,  global_steps-1,             1,   global_steps-1, 1,            global_steps-1,           1, global_steps-1]
 
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,layers,num_steps,Tf,max_fwd_levels=max_fwd_levels,max_bwd_levels=max_bwd_levels,max_iters=max_iters)
     if max_fwd_iters>0:
