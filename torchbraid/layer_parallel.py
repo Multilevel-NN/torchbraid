@@ -409,10 +409,11 @@ class LayerParallel(nn.Module):
     # send the output of the last layer to the root
     if my_rank==0:
       remote_final = comm.recv(source=num_ranks-1,tag=build_seq_tag)
+      remote_final = remote_final.to(vec.device)
       return remote_final
     elif my_rank==num_ranks-1:
       final = vec
-      comm.send(final,dest=0,tag=build_seq_tag)
+      comm.send(final.cpu(),dest=0,tag=build_seq_tag)
 
     return None
 
@@ -429,10 +430,12 @@ class LayerParallel(nn.Module):
     # send the output of the last layer to the root
     if my_rank==0:
       for dest in range(1,num_ranks):
-        comm.send(vec,dest,tag=build_seq_tag)
+        comm.send(vec.cpu(),dest,tag=build_seq_tag)
       return vec
     else:
       result = comm.recv(source=0,tag=build_seq_tag)
+      if hasattr(vec,'device'):
+        result = result.to(vec.device)
       return result
 
   def getTimersString(self):

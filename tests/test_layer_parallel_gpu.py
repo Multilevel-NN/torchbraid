@@ -194,7 +194,7 @@ class TestTorchBraid(unittest.TestCase):
     MPI.COMM_WORLD.barrier()
   # end test_reLUNet_Approx
 
-  def copyParameterGradToRoot(self,m):
+  def copyParameterGradToRoot(self,m,device):
     comm     = m.getMPIComm()
     my_rank  = m.getMPIComm().Get_rank()
     num_proc = m.getMPIComm().Get_size()
@@ -207,10 +207,12 @@ class TestTorchBraid(unittest.TestCase):
     if my_rank==0:
       for i in range(1,num_proc):
         remote_p = comm.recv(source=i,tag=77)
+        remote_p = [p.to(device) for p in remote_p]
         params.extend(remote_p)
 
       return params
     else:
+      params_cpu = [p.cpu() for p in params]
       comm.send(params,dest=0,tag=77)
       return None
   # end copyParametersToRoot
@@ -239,6 +241,8 @@ class TestTorchBraid(unittest.TestCase):
     #######################################
     dt = Tf/num_steps
     f = m.buildSequentialOnRoot()
+    if f is not None: # handle the cuda case
+      f = f.to(my_device)
 
     # run forward/backward propgation
 
@@ -256,7 +260,7 @@ class TestTorchBraid(unittest.TestCase):
 
     if check_grad:
       wm.backward(w0)
-      m_param_grad = self.copyParameterGradToRoot(m)
+      m_param_grad = self.copyParameterGradToRoot(m,my_device)
 
     wm = m.getFinalOnRoot(wm)
 
