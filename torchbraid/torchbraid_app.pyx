@@ -112,6 +112,8 @@ class BraidApp:
 
     self.first = True
     self.reverted = False
+
+    self.device = None
   # end __init__
 
   def initCore(self):
@@ -191,6 +193,9 @@ class BraidApp:
 
       self.py_core = None
     # end core
+
+  def setDevice(self,device):
+    self.device = device
 
   def getNumSteps(self):
     """
@@ -300,7 +305,7 @@ class BraidApp:
   def runBraid(self,x):
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
     cdef braid_Core core = py_core.getCore()
-    
+
     try:
        py_core = <PyBraid_Core> self.py_core
        core = py_core.getCore()
@@ -498,7 +503,7 @@ class BraidApp:
   def buildInit(self,t):
     try:
       if t>0:
-        zeros = [torch.zeros(s) for s in self.getFeatureShapes(t)]
+        zeros = [torch.zeros(s,device=self.device) for s in self.getFeatureShapes(t)]
         x = BraidVector(tuple(zeros),0)
       else:
         x = BraidVector(self.x0.tensors(),0)
