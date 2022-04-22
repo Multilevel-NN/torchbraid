@@ -44,6 +44,23 @@ faulthandler.enable()
 
 from mpi4py import MPI
 
+def getDevice(comm):
+  my_host    = torch.device('cpu')
+  if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
+    if comm.Get_rank()==0:
+      print('Using GPU Device')
+    my_device  = torch.device(f'cuda:{comm.Get_rank()}')
+  elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
+    if comm.Get_rank()==0:
+      print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
+    my_device = my_host
+  else:
+    if comm.Get_rank()==0:
+      print('No GPUs to be used, CPU only')
+    my_device = my_host
+  return my_device,my_host
+# end getDevice
+
 class LinearBlock(nn.Module):
   def __init__(self,dim=10):
     super(LinearBlock, self).__init__()
@@ -221,19 +238,8 @@ class TestTorchBraid(unittest.TestCase):
     Tf = 2.0
     cfactor = 2 
 
-    my_host    = torch.device('cpu')
-    if torch.cuda.is_available() and torch.cuda.device_count()>=MPI.COMM_WORLD.Get_size():
-      if MPI.COMM_WORLD.Get_rank()==0:
-        print('Using GPU Device')
-      my_device  = torch.device(f'cuda:{MPI.COMM_WORLD.Get_rank()}')
-    elif torch.cuda.is_available() and torch.cuda.device_count()<MPI.COMM_WORLD.Get_size():
-      if MPI.COMM_WORLD.Get_rank()==0:
-        print('CUDA is not used, because MPI ranks are more than the device count, using CPU')
-      my_device = my_host
-    else:
-      if MPI.COMM_WORLD.Get_rank()==0:
-        print('No GPUs to be used, CPU only')
-      my_device = my_host
+    # figure out the whole GPU situation
+    my_device,my_host = getDevice(MPI.COMM_WORLD) 
 
     x0 = x0.to(my_device)
     w0 = w0.to(my_device)
