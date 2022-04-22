@@ -95,18 +95,27 @@ class LayerParallel(nn.Module):
       if inspect.isclass(op):
         return None
 
+      # determine the parallel device
+      device = None
+      for a in args:
+        if hasattr(a,'device'):
+          device = a.device
+          break
+      # take the first device
+
+
       # blindly assume that all the arguments are torch
       # tensors, and propagate this through
-      value = torch.zeros(1)
+      value = torch.zeros(1,device=device)
       for a in args:
         if a.requires_grad:
           value += torch.norm(a)
 
       # so this is all a hack to get this thing to work
       if 'mgopt_term' in kwargs: 
-        return torch.zeros(1)*value - kwargs['mgopt_term']
+        return torch.zeros(1,device=device)*value - kwargs['mgopt_term']
       else:
-        return torch.zeros(1)*value
+        return torch.zeros(1,device=device)*value
 
   def __init__(self,comm,layer_blocks,global_steps,Tf,max_fwd_levels=1,max_bwd_levels=1,max_iters=10,spatial_ref_pair=None, nsplines=0, splinedegree=1):
     """
