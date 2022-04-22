@@ -52,6 +52,38 @@ class LinearBlock(nn.Module):
     return x
 # end layer
 
+class ReLUBlock(nn.Module):
+  def __init__(self,dim=10):
+    super(ReLUBlock, self).__init__()
+    self.lin = nn.Linear(dim, dim,bias=True)
+
+    w = torch.randn(dim,dim)
+    w = 2.3*torch.ones(dim,dim)
+    self.lin.weight = torch.nn.Parameter(w)
+
+    b = torch.randn(dim)
+    b = -1.22*torch.ones(dim)
+    self.lin.bias = torch.nn.Parameter(b)
+
+  def forward(self, x):
+    return F.relu(self.lin(x))
+# end layer
+
+class ConvBlock(nn.Module):
+  def __init__(self,dim,num_ch):
+    super(ConvBlock, self).__init__()
+    self.lin = nn.Conv1d(num_ch,num_ch,kernel_size=3,padding=1,bias=False)
+
+    # this is basically setup to be a laplacian
+    self.lin.weight[...,0] = -1.0
+    self.lin.weight[...,1] =  2.0
+    self.lin.weight[...,2] = -1.0
+
+  def forward(self, x):
+    #return F.relu(self.lin(x))
+    return self.lin(x)
+# end layer
+
 class TestTorchBraid(unittest.TestCase):
   def test_linearNet_Exact(self):
     dim = 2
@@ -79,6 +111,89 @@ class TestTorchBraid(unittest.TestCase):
     MPI.COMM_WORLD.barrier()
   # end test_linearNet_Approx
 
+  def test_reLUNet_Exact(self):
+    dim = 2
+    basic_block = lambda: ReLUBlock(dim)
+
+    x0 = 12.0*torch.ones(5,dim) # forward initial cond
+    w0 = 3.0*torch.ones(5,dim) # adjoint initial cond
+    max_levels = 1
+    max_iters = 1
+
+    # this catch block, augments the 
+    rank = MPI.COMM_WORLD.Get_rank()
+    try:
+      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-16,prefix='reLUNet_Exact')
+    except RuntimeError as err:
+      raise RuntimeError("proc=%d) reLUNet_Exact..failure" % rank) from err
+
+    MPI.COMM_WORLD.barrier()
+  # end test_reLUNet_Exact
+
+  def test_convNet_Approx_coarse_ref(self):
+    dim = 128
+    num_ch = 1
+    num_samp = 1
+    basic_block = lambda: ConvBlock(dim,num_ch)
+
+    u = torch.linspace(0.0,1.0,dim)
+    x0 = torch.zeros(num_samp,num_ch,dim) # forward initial cond
+    w0 = torch.zeros(num_samp,num_ch,dim) # adjoint initial cond
+    for ch in range(num_ch):
+      for samp in range(num_samp):
+        x0[samp,ch,:] = torch.sin(2.0*np.pi*0.5*(ch+1.0)*(u-1.0/(samp+1.0)))
+        w0[samp,ch,:] = torch.cos(2.0*np.pi*0.5*(ch+1.0)*(u-1.0/(samp+1.0))) 
+    # build a relatively smooth initial guess
+
+    max_levels = 2
+    max_iters = 12
+
+    def coarsen(x,level):
+      return 0.5*(x[...,0::2]+x[...,1::2]).clone()
+      # return x.clone()
+
+    def refine(x,level):
+      # this little bit of torch magic simply does injection (I'm not sure I can explain it)
+      # I looked up "interleave" and pytorch and eventually came to this
+      shape = list(x.shape)
+      shape[-1] *= 2
+      return torch.stack((x,x),dim=-1).view(shape).contiguous()
+      # return x.clone()
+
+    c = coarsen(x0,0)
+    xi = refine(c,0)
+    xc = coarsen(xi,0)
+    self.assertTrue(torch.norm(xc-c)<1.0e-15) # sanity check
+
+    # this catch block, augments the 
+    rank = MPI.COMM_WORLD.Get_rank()
+    try:
+      #self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx_coarse_ref',ref_pair=(coarsen,refine),check_grad=False,num_steps=12,print_level=3)
+      pass
+    except RuntimeError as err:
+      raise RuntimeError("proc=%d) reLUNet_Exact..failure" % rank) from err
+
+    MPI.COMM_WORLD.barrier()
+  # end test_reLUNet_Exact
+
+  def test_reLUNet_Approx(self):
+    dim = 2
+    basic_block = lambda: ReLUBlock(dim)
+
+    x0 = 12.0*torch.ones(5,dim) # forward initial cond
+    w0 = 3.0*torch.ones(5,dim) # adjoint initial cond
+    max_levels = 3
+    max_iters = 8
+    # this catch block, augments the 
+    rank = MPI.COMM_WORLD.Get_rank()
+    try:
+      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx')
+    except RuntimeError as err:
+      raise RuntimeError("proc=%d) reLUNet_Approx..failure" % rank) from err
+
+    MPI.COMM_WORLD.barrier()
+  # end test_reLUNet_Approx
+
   def copyParameterGradToRoot(self,m):
     comm     = m.getMPIComm()
     my_rank  = m.getMPIComm().Get_rank()
@@ -100,7 +215,6 @@ class TestTorchBraid(unittest.TestCase):
       return None
   # end copyParametersToRoot
 
-
   def backForwardProp(self,dim, basic_block,x0,w0,max_levels,max_iters,test_tol,prefix,ref_pair=None,check_grad=True,num_steps=4,print_level=0,check_initial_guess=False):
     Tf = 2.0
     cfactor = 2 
@@ -114,10 +228,10 @@ class TestTorchBraid(unittest.TestCase):
     # this is the torchbraid class being tested 
     #######################################
     m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps*MPI.COMM_WORLD.Get_size(),Tf,max_fwd_levels=max_levels,max_bwd_levels=max_levels,max_iters=max_iters,spatial_ref_pair=ref_pair)
+    m = m.to(my_device)
     m.setPrintLevel(print_level)
     m.setSkipDowncycle(False)
     m.setCFactor(cfactor)
-    m = m.to(my_device)
 
     w0 = m.copyVectorFromRoot(w0)
 
@@ -196,6 +310,8 @@ class TestTorchBraid(unittest.TestCase):
 
       print('\n')
   # forwardPropSerial
+
+  import sys
 
 def trace(frame, event, arg):
     print("%s, %s:%d" % (event, frame.f_code.co_filename, frame.f_lineno))

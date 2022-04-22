@@ -154,8 +154,10 @@ class ForwardODENetApp(BraidApp):
   def buildShapes(self,x):
     """Do a dry run to determine all the shapes that need to be built."""
     shapes = [x.shape]
-    for layer in self.layer_blocks[1]:
-      x = layer()(x)
+    for layer_constr in self.layer_blocks[1]:
+      # build the layer on the proper device
+      layer = layer_constr().to(self.device) 
+      x = layer(x)
       shapes += [x.shape]
     return shapes
 
