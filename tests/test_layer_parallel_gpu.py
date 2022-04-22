@@ -222,7 +222,18 @@ class TestTorchBraid(unittest.TestCase):
     cfactor = 2 
 
     my_host    = torch.device('cpu')
-    my_device  = torch.device(f'cuda:{MPI.COMM_WORLD.Get_rank()}')
+    if torch.cuda.is_available() and torch.cuda.device_count()>=MPI.COMM_WORLD.Get_size():
+      if MPI.COMM_WORLD.Get_rank()==0:
+        print('Using GPU Device')
+      my_device  = torch.device(f'cuda:{MPI.COMM_WORLD.Get_rank()}')
+    elif torch.cuda.is_available() and torch.cuda.device_count()<MPI.COMM_WORLD.Get_size():
+      if MPI.COMM_WORLD.Get_rank()==0:
+        print('CUDA is not used, because MPI ranks are more than the device count, using CPU')
+      my_device = my_host
+    else:
+      if MPI.COMM_WORLD.Get_rank()==0:
+        print('No GPUs to be used, CPU only')
+      my_device = my_host
 
     x0 = x0.to(my_device)
     w0 = w0.to(my_device)
