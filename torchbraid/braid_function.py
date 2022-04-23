@@ -98,8 +98,9 @@ class BraidFunction(torch.autograd.Function):
       result = torch.zeros(shape[-1],device=x.device)
 
     # broadcast the output of the last layer 
-    comm.Bcast(result.cpu().numpy(),root=num_ranks-1)
-    result = result.to(x.device) # put back on the device
+    result_cpu = result.cpu()
+    comm.Bcast(result_cpu.numpy(),root=num_ranks-1)
+    result = result_cpu.to(x.device) # put back on the device
 
     if adjusting:
       return result[0:temp_batch,:]

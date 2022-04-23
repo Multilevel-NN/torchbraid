@@ -223,19 +223,22 @@ class TestTorchBraid(unittest.TestCase):
     my_device,my_host = getDevice(MPI.COMM_WORLD)
 
     criterion = nn.MSELoss()
+    criterion = criterion.to(my_device)
 
     images   =  2
     channels = 1
     image_size = image_width
-    data = torch.randn(images,3,image_size,image_size) 
-    target = torch.randn(images,target_size)
+    data = torch.randn(images,3,image_size,image_size,device=my_device) 
+    target = torch.randn(images,target_size,device=my_device)
 
     parallel_net = ParallelNet(channels=channels)
+    parallel_net = parallel_net.to(my_device)
 
     # build and run the serial verson
     serial_layers = parallel_net.parallel_nn.buildSequentialOnRoot()
     if my_rank==0:
       serial_net   = SerialNet(serial_layers,parallel_net.open_nn,parallel_net.close_nn)
+      serial_net = serial_net.to(my_device)
       serial_net.train()
       serial_net.zero_grad()
 
@@ -262,7 +265,7 @@ class TestTorchBraid(unittest.TestCase):
 
     MPI.COMM_WORLD.Barrier()
 
-    p_grads = parallel_net.copyParameterGradToRoot(my_host)
+    p_grads = parallel_net.copyParameterGradToRoot(my_device)
     if my_rank==0:
       s_grads = [p.grad for p in list(serial_net.parameters())]
 
@@ -271,7 +274,7 @@ class TestTorchBraid(unittest.TestCase):
       print('loss error: {} ?= {} (rel diff = {})'.format(p_loss,s_loss,(p_loss-s_loss)/s_loss))
 
       for s_grad,p_grad in zip(s_grads,p_grads):
-        val = torch.norm(s_grad-p_grad)
+        val = torch.norm(s_grad-p_grad).item()
         # check the error conditions for the gradient of the parameters
         print('GRAD ******** error grad in {}'.format(val))
         sys.stdout.flush()
