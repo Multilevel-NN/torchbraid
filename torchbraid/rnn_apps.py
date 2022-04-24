@@ -183,7 +183,7 @@ class ForwardBraidApp(parent.BraidApp):
     self.fastforward_calls = 0
     self.seq_x_reduced = dict()
 
-    self.x = x
+    self.x = x.cpu()
     self.seq_shapes = [x[:,0,:].shape]
 
     with self.timer("run:precomm"):
@@ -206,6 +206,8 @@ class ForwardBraidApp(parent.BraidApp):
         send_request.Wait()
     # end wit htimer
 
+    self.x = self.x.to(x.device)
+
     with self.timer("run:run"):
       y = self.runBraid(h_c)
 
@@ -225,16 +227,16 @@ class ForwardBraidApp(parent.BraidApp):
 
     with self.timer("eval"):
   
-      seq_x = g0.weightTensors()[0]
+      seq_x = g0.weightTensors()[0].to(self.x.device)
 
       # don't need derivatives or anything, just compute
       if not done or level>0:
-        u = g0.tensors()
+        u = [g.to(self.x.device) for g in g0.tensors()]
         with torch.no_grad():
           y = self.computeStep(level,tstart,tstop,seq_x,u,self.has_fastforward)
       else:
         # setup the solution vector for derivatives
-        u = tuple([t.detach() for t in g0.tensors()])
+        u = tuple([t.detach().to(self.x.device) for t in g0.tensors()])
         for t in u:
           t.requires_grad = True
 
