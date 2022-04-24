@@ -61,8 +61,8 @@ class RNN_Serial(nn.Module):
 
   def forward(self,x,h_c=None):
     if h_c is None:
-      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
-      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size, x.device)
+      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size, x.device)
       h_c = (h,c)
     elif isinstance(h_c,torch.Tensor):
       h_c = (h_c,)
@@ -106,15 +106,23 @@ class RNN_Parallel(nn.Module):
       if inspect.isclass(op):
         return None
 
+      # determine the parallel device
+      device = None
+      for a in args:
+        if hasattr(a,'device'):
+          device = a.device
+          break
+      # take the first device
+
       # blindly assume that all the arguments are torch
       # tensors, and propagate this through
-      value = torch.zeros(1)
+      value = torch.zeros(1,device=device)
       for a in args:
         if a.requires_grad:
           value += torch.norm(a)
 
        # so this is all a hack to get this thing to work
-      return torch.zeros(1)*value
+      return torch.zeros(1,device=device)*value
   # end ExecLP
 
   ##################################################
@@ -206,8 +214,8 @@ class RNN_Parallel(nn.Module):
     # with the torch.autograd.function
 
     if h_c is None:
-      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
-      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size,device=x.device)
+      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size,device=x.device)
       h_c = (h,c)
 
     params = list(self.parameters())
