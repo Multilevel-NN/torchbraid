@@ -268,8 +268,8 @@ class TestRNNLayerParallel(unittest.TestCase):
           parallel_hn = comm.recv(source=comm.Get_size()-1)
           parallel_cn = comm.recv(source=comm.Get_size()-1)
         else:
-          parallel_hn = y_parallel_hn
-          parallel_cn = y_parallel_cn
+          parallel_hn = y_parallel_hn.cpu()
+          parallel_cn = y_parallel_cn.cpu()
 
         print('cn values = ',torch.norm(y_serial_cn-parallel_cn).item()/torch.norm(y_serial_cn).item())
         print('hn values = ',torch.norm(y_serial_hn-parallel_hn).item()/torch.norm(y_serial_hn).item())

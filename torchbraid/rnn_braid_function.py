@@ -53,6 +53,9 @@ class BraidFunction(torch.autograd.Function):
   @staticmethod
   def forward(ctx, fwd_app, bwd_app, num_input_tensors, x, *input_and_param_tensors):
 
+    fwd_app.setDevice(x.device)
+    bwd_app.setDevice(x.device)
+
     # copy the input to all processors (ensure consistency)
     comm = fwd_app.getMPIComm()
     with fwd_app.timer("func:precomm"):
