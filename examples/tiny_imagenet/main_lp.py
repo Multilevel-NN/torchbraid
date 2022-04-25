@@ -66,11 +66,28 @@ from torchvision import datasets, transforms
 from utils import parse_args, buildNet, ParallelNet, getComm
 from timeit import default_timer as timer
 
+def getDevice(comm):
+  my_host    = torch.device('cpu')
+  if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
+    if comm.Get_rank()==0:
+      print('Using GPU Device')
+    my_device  = torch.device(f'cuda:{comm.Get_rank()}')
+  elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
+    if comm.Get_rank()==0:
+      print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
+    my_device = my_host
+  else:
+    if comm.Get_rank()==0:
+      print('No GPUs to be used, CPU only')
+    my_device = my_host
+  return my_device,my_host
+# end getDevice
+
 def root_print(rank,s):
   if rank==0:
     print(s)
 
-def train(rank,args,model,train_loader,optimizer,epoch,compose):
+def train(rank,args,model,train_loader,optimizer,epoch,compose,device):
   log_interval = args.log_interval
   torch.enable_grad()
 
@@ -87,6 +104,9 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose):
 
   cumulative_start_time = timer()
   for batch_idx,(data,target) in enumerate(train_loader):
+    data = data.to(device)
+    target = target.long()
+    target = target.to(device)
 
     start_time = timer()
 
@@ -148,7 +168,7 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose):
                   total_time_bp/len(train_loader.dataset),
                   ))
 
-def test(rank,model,test_loader,epoch,compose,prefix=''):
+def test(rank,model,test_loader,epoch,compose,device,prefix=''):
   model.eval()
   correct = 0
   criterion = nn.CrossEntropyLoss()
@@ -158,7 +178,9 @@ def test(rank,model,test_loader,epoch,compose,prefix=''):
   with torch.no_grad():
     for data,target in test_loader:
       start_time = timer()
-
+      data = data.to(device)
+      target = target.long()
+      target = target.to(device)
 
       # evaluate inference
       output = model(data)
@@ -194,6 +216,8 @@ def main():
   comm = getComm()
   procs = comm.Get_size()
   rank  = comm.Get_rank()
+
+  my_device,my_host = getDevice(comm)
 
   global_steps = args.steps
 
@@ -280,7 +304,8 @@ def main():
   log_interval = args.log_interval
 
   #model = ParallelNet(**network)
-  model = buildNet(False,**network)
+  model = buildNet(not args.use_serial,**network)
+  model = model.to(my_device)
 
   if rank==0:
     print('===============MODEL=============\n')
@@ -306,17 +331,22 @@ def main():
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
-    train(rank,args, model, train_loader, optimizer, epoch,compose)
+    train(rank,args, model, train_loader, optimizer, epoch,compose,my_device)
     end_time = timer()
     epoch_times += [end_time-start_time]
 
     start_time = timer()
-    test_result = test(rank,model, test_loader,epoch,compose)
+    test_result = test(rank,model, test_loader,epoch,compose,my_device)
     end_time = timer()
     test_times += [end_time-start_time]  
 
     if scheduler is not None:
       scheduler.step()
+
+  if not args.use_serial:
+    timer_str = model.parallel_nn.getTimersString()
+    root_print(rank,timer_str)
+
 
   root_print(rank,'TIME PER EPOCH: %.2e (1 std dev %.2e)' % (stats.mean(epoch_times),stats.stdev(epoch_times)))
   root_print(rank,'TIME PER TEST:  %.2e (1 std dev %.2e)' % (stats.mean(test_times), stats.stdev(test_times)))
