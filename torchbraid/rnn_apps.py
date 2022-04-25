@@ -211,7 +211,11 @@ class ForwardBraidApp(parent.BraidApp):
       y = self.runBraid(h_c)
 
     with self.timer("run:postcomm"):
-      y = comm.bcast(y,root=num_ranks-1)
+      y_cpu = None
+      if y!=None:
+        y_cpu = [s.cpu() for s in y]
+      y = comm.bcast(y_cpu,root=num_ranks-1)
+      y = tuple([s.to(self.device) for s in y])
 
     # y is a tuple with the final h,c components
     return y
@@ -283,6 +287,8 @@ class ForwardBraidApp(parent.BraidApp):
       # evaluate the step
       with torch.enable_grad():
         y = self.computeStep(level,tstart,tstop,seq_x,u,allow_ff=self.has_fastforward)
+
+    sys.stdout.flush()
    
     return y, u
   # end getPrimalWithGrad
@@ -333,6 +339,7 @@ class BackwardBraidApp(parent.BraidApp):
 
   def run(self,x):
 
+    sys.stdout.flush()
     try:
       self.RNN_models = self.fwd_app.RNN_models
 
