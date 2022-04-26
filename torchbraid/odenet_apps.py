@@ -386,7 +386,10 @@ class BackwardODENetApp(BraidApp):
     #self.testBraid(x)
 
     try:
-      f = self.runBraid(x)
+
+      with self.timer("runBraid"):
+        f = self.runBraid(x)
+
       if f is not None:
         f = f[0]
 
@@ -401,11 +404,10 @@ class BackwardODENetApp(BraidApp):
             buf = utils.pack_buffer([p.grad for p in splinelayer.parameters()])
             req=splinecomm.Iallreduce(MPI.IN_PLACE, buf, MPI.SUM)
 
-        # Finish up communication. TODO: Queue all requests.
-        # for i, splinecomm in enumerate(self.fwd_app.spline_comm_vec):
-          # if splinecomm != MPI.COMM_NULL:
+            # Finish up communication. TODO: Queue all requests.
             MPI.Request.Wait(req)
             utils.unpack_buffer([p.grad for p in splinelayer.parameters()], buf)
+      # end splinet
 
       self.grads = []
 

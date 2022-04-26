@@ -95,10 +95,11 @@ class BraidFunction(torch.autograd.Function):
       result = fwd_app.run(None)
 
     if my_rank!=num_ranks-1:
-      result = torch.zeros(shape[-1],device=x.device)
+      result_cpu = torch.zeros(shape[-1])
+    else:
+      result_cpu = result.cpu()
 
     # broadcast the output of the last layer 
-    result_cpu = result.cpu()
     comm.Bcast(result_cpu.numpy(),root=num_ranks-1)
     result = result_cpu.to(x.device) # put back on the device
 
@@ -116,10 +117,12 @@ class BraidFunction(torch.autograd.Function):
     # copy the input to the final processor (where iter time integration begins)
     if num_ranks>1:
       if my_rank==0:
-        comm.Send(grad_output.cpu().numpy(),dest=num_ranks-1)
-      elif my_rank==num_ranks-1: 
         grad_output_cpu = grad_output.cpu()
-        comm.Recv(grad_output_cpu.numpy(),source=0)
+        comm.Isend(grad_output_cpu.numpy(),dest=num_ranks-1)
+      elif my_rank==num_ranks-1: 
+        grad_output_cpu = torch.zeros(grad_output.shape)
+        req = comm.Irecv(grad_output_cpu.numpy(),source=0)
+        req.Wait()
         grad_output = grad_output_cpu.to(grad_output.device)
 
     if my_rank==num_ranks-1:
