@@ -83,7 +83,8 @@ import torch
 from torchvision import datasets, transforms
 from mpi4py import MPI
 from utils import parse_args, ParallelNet
-from torchbraid.mgopt import mgopt_solver
+from torchbraid.mgopt import mgopt_solver, root_print
+import torchbraid
 
 def main():
   
@@ -92,6 +93,7 @@ def main():
   args = parse_args()
   procs = MPI.COMM_WORLD.Get_size()
   rank  = MPI.COMM_WORLD.Get_rank()
+  root_print(rank, 1, 1, 'TORCHBRAID REV: %s\n' % torchbraid.utils.git_rev())
   
   #torch.set_num_threads(6)
 
