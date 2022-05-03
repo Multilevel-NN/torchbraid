@@ -217,6 +217,8 @@ def main():
   procs = comm.Get_size()
   rank  = comm.Get_rank()
 
+  root_print(rank,'TORCHBRAID REV: %s' % torchbraid.utils.git_rev())
+
   my_device,my_host = getDevice(comm)
 
   global_steps = args.steps
@@ -328,6 +330,12 @@ def main():
 
   if args.lr_scheduler:
     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10,30], gamma=0.1,verbose=(rank==0))
+
+  epoch = 0
+  start_time = timer()
+  test_result = test(rank,model, test_loader,epoch,compose,my_device)
+  end_time = timer()
+  test_times += [end_time-start_time]  
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
