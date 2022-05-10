@@ -164,7 +164,14 @@ cdef int my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
     pyApp = <object> app
     with pyApp.timer("clone"):
       ten_U = <object> u 
-      v_mem = ten_U.clone()
+      #v_mem = ten_U.clone()
+      
+      tensors = [t.detach().clone() for t in ten_U.tensor_data_]
+      cl = BraidVector(tensors,ten_U.level_,ten_U.layer_data_,ten_U.send_flag_)
+      if len(ten_U.weight_tensor_data_)>0:
+        cl.weight_tensor_data_ = [t.detach() for t in ten_U.weight_tensor_data_]
+
+      v_mem = cl
       Py_INCREF(v_mem) # why do we need this?
       v_ptr[0] = <braid_Vector> v_mem
   except:
