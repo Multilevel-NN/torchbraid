@@ -241,7 +241,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   cdef int offset
   cdef int foffset
   cdef int sz
-  cdef char[:]  cbuf_mv
+  cdef view.array my_buf
   cdef float[:] fbuf_mv
   cdef float[:] np_U_mv 
 
@@ -260,8 +260,6 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
 
       device = torch.device('cpu')
 
-      cpu_tens = [ten_U.to(device,non_blocking=True) for ten_U in bv_u.allTensors()]
-    
       # pack up layers
       pbuf_src = None
       if bv_u.getLayerData() is not None: 
@@ -269,7 +267,6 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
     
         assert(layer_data_size>=len(pbuf_src))
       # end if bv_u.getLayerData
-    
     
       ibuffer[0] = level
       ibuffer[1] = num_tensors
@@ -289,16 +286,14 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
       # copy the data
       foffset = 0
       fbuffer = <float *>(buffer+offset*sizeof(int)) 
-      for ten_U in cpu_tens:
-        np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
-        sz = len(np_U)
+      for ten_U in bv_u.allTensors():
+        ten_U_flat = ten_U.flatten() 
+
+        sz = ten_U_flat.shape[0]
+
+        ten_U_cpu = torch.from_numpy(np.asarray(<float[:sz]> fbuffer))
+        ten_U_cpu.copy_(ten_U_flat)
   
-        fbuf_mv = <float[:sz]> fbuffer
-        np_U_mv = np_U
-    
-        # copy the tensor into the buffer
-        fbuf_mv[...] = np_U_mv
-    
         # update the float buffer pointer
         fbuffer = <float*> (fbuffer+sz)
         foffset += sz
@@ -306,8 +301,8 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
       if pbuf_src is not None:
         cbuffer = <char *>(buffer+offset*sizeof(int)+foffset*sizeof(float)) 
     
-        cbuf_mv = <char[:len(pbuf_src)]> cbuffer
-        cbuf_mv[...] = pbuf_src
+        my_buf = <char[:len(pbuf_src)]> cbuffer
+        my_buf[:] = pbuf_src
       # end if layer_data_size
 
   except:
