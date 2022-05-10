@@ -63,15 +63,17 @@ import torch.optim.lr_scheduler as lr_scheduler
 import statistics               as stats
 
 from torchvision import datasets, transforms
-from utils import parse_args, buildNet, ParallelNet, getComm
 from timeit import default_timer as timer
+
+from utils import parse_args, buildNet, ParallelNet, getComm, git_rev
+
 
 def getDevice(comm):
   my_host    = torch.device('cpu')
   if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
     if comm.Get_rank()==0:
       print('Using GPU Device')
-    my_device  = torch.device(f'cuda:{comm.Get_rank()}')
+    my_device  = torch.device(f'cuda:{comm.Get_rank()+4}')
   elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
     if comm.Get_rank()==0:
       print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
@@ -217,7 +219,8 @@ def main():
   procs = comm.Get_size()
   rank  = comm.Get_rank()
 
-  root_print(rank,'TORCHBRAID REV: %s' % torchbraid.utils.git_rev())
+  root_print(rank,'TORCHBRAID REV: %s' % git_rev())
+
 
   my_device,my_host = getDevice(comm)
 

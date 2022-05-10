@@ -18,12 +18,15 @@ from torchbraid.mgopt import root_print, compute_levels
 
 from timeit import default_timer as timer
 
-from torchbraid.utils import MPI
+from torchbraid.utils import MPI, git_rev
 
 __all__ = [ 'parse_args', 'ParallelNet' ]
 
 def getComm():
   return MPI.COMM_WORLD
+
+def get_rev():
+  return torchbraid.utils.git_rev()
 
 # Related to:
 # https://arxiv.org/pdf/2002.09779.pdf
