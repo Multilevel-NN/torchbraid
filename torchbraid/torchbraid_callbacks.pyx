@@ -257,6 +257,10 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
       num_tensors        = len(bv_u.allTensors())
       num_weight_tensors = len(bv_u.weightTensors())
       layer_data_size    = pyApp.getLayerDataSize()
+
+      device = torch.device('cpu')
+
+      cpu_tens = [ten_U.to(device,non_blocking=True) for ten_U in bv_u.allTensors()]
     
       # pack up layers
       pbuf_src = None
@@ -285,8 +289,8 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
       # copy the data
       foffset = 0
       fbuffer = <float *>(buffer+offset*sizeof(int)) 
-      for ten_U in bv_u.allTensors():
-        np_U  = ten_U.cpu().numpy().ravel() # ravel provides a flatten accessor to the array
+      for ten_U in cpu_tens:
+        np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
         sz = len(np_U)
   
         fbuf_mv = <float[:sz]> fbuffer
@@ -344,11 +348,12 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
         offset += len(size)+1
     
       # build up the braid vector
-      tens = [torch.zeros(s) for s in sizes]
+      tens = [] #torch.zeros(s) for s in sizes]
     
       # copy from the buffer into the braid vector
       fbuffer = <float *>(buffer+(offset)*sizeof(int)) # level, rank, sizes
-      for ten_U in tens:
+      for s in sizes:
+        ten_U = torch.zeros(s)
         np_U = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
       
         # copy the buffer into the tensor
@@ -358,30 +363,28 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
         
         # update the float buffer pointer
         fbuffer = <float*> (fbuffer+sz)
-
-      # conditionally move it to the device
-      if hasattr(pyApp,'device'):
-        tens = [t.to(pyApp.device) for t in tens] # transfer result to device
+        if hasattr(pyApp,'device'):
+          ten_U = ten_U.to(pyApp.device,non_blocking=True)
+        tens += [ten_U]
+      # end for s
 
       # build an vector object and set the tensors to land in the correct places
       vector_tensors = tens[0:num_tensors-num_weight_tensors]
       weight_tensors = tens[num_tensors-num_weight_tensors:]
 
-      u_obj = BraidVector(tuple(vector_tensors),level)
-      Py_INCREF(u_obj) 
-      u_obj.addWeightTensors(weight_tensors)
-    
+      layer_data = None
       if layer_data_size>0:
-    
         # this is to make sure I can use the vbuffer
         vbuffer = fbuffer
     
         my_buf = <char[:layer_data_size]> vbuffer
         layer_data = pickle.loads(my_buf)
-        u_obj.setLayerData(layer_data)
       # end if layer_data_size
-    
-      u_obj.setSendFlag(True)
+
+      u_obj = BraidVector(vector_tensors,level,layer_data,send_flag=True)
+      #u_obj.addWeightTensors(weight_tensors)
+      u_obj.weight_tensor_data_ = weight_tensors
+      Py_INCREF(u_obj) 
     
       # set the pointer for output
       u_ptr[0] = <braid_Vector> u_obj 
