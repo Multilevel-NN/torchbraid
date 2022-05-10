@@ -292,7 +292,8 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
         sz = ten_U_flat.shape[0]
 
         ten_U_cpu = torch.from_numpy(np.asarray(<float[:sz]> fbuffer))
-        ten_U_cpu.copy_(ten_U_flat)
+        with pyApp.timer("bufpack-copy"):
+          ten_U_cpu.copy_(ten_U_flat,non_blocking=False)
   
         # update the float buffer pointer
         fbuffer = <float*> (fbuffer+sz)
@@ -307,6 +308,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
 
   except:
     output_exception("my_bufpack")
+
 
   return 0
 
@@ -359,7 +361,7 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
         # update the float buffer pointer
         fbuffer = <float*> (fbuffer+sz)
         if hasattr(pyApp,'device'):
-          ten_U = ten_U.to(pyApp.device,non_blocking=True)
+          ten_U = ten_U.to(pyApp.device,non_blocking=False)
         tens += [ten_U]
       # end for s
 
