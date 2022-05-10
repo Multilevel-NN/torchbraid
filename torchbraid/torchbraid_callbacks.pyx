@@ -234,7 +234,9 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   cdef int offset
   cdef int foffset
   cdef int sz
-  cdef view.array my_buf 
+  cdef char[:]  cbuf_mv
+  cdef float[:] fbuf_mv
+  cdef float[:] np_U_mv 
 
   try:
     pyApp = <object> app
@@ -278,11 +280,13 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
       fbuffer = <float *>(buffer+offset*sizeof(int)) 
       for ten_U in bv_u.allTensors():
         np_U  = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
+        sz = len(np_U)
+  
+        fbuf_mv = <float[:sz]> fbuffer
+        np_U_mv = np_U
     
         # copy the tensor into the buffer
-        sz = len(np_U)
-        my_buf = <float[:sz]> (fbuffer)
-        my_buf[:] = np_U
+        fbuf_mv[...] = np_U_mv
     
         # update the float buffer pointer
         fbuffer = <float*> (fbuffer+sz)
@@ -291,8 +295,8 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
       if pbuf_src is not None:
         cbuffer = <char *>(buffer+offset*sizeof(int)+foffset*sizeof(float)) 
     
-        my_buf = <char[:len(pbuf_src)]> cbuffer
-        my_buf[:] = pbuf_src
+        cbuf_mv = <char[:len(pbuf_src)]> cbuffer
+        cbuf_mv[...] = pbuf_src
       # end if layer_data_size
 
   except:
