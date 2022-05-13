@@ -167,6 +167,7 @@ class BraidApp:
     braid_SetNRelax(core,0,0) # set F relax on fine grid
     braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
     braid_SetAbsTol(core,self.abs_tol)
+    braid_SetAccessLevel(core,0)
     #braid_SetCRelaxWt(core, -1, 1.2)   # Turn on weighted relaxation, probably want to add command line argument
     if self.skip_downcycle==0:
       braid_SetSkip(core,0)

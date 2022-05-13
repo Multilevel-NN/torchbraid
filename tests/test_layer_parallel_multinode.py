@@ -68,7 +68,7 @@ class TestLayerParallel_MultiNODE(unittest.TestCase):
     self.forwardBackwardProp(tolerance,Tf,max_levels,max_iters)
 
   def test_MGRIT(self):
-    tolerance = 1e-7
+    tolerance = 5e-7
     Tf = 1.0
     max_levels = 3
     max_iters = 6 
