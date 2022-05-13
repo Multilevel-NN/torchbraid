@@ -207,8 +207,9 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   
       # Note size_ptr is an integer array of size 1, and we index in at location [0]
   
-      # there are mulitple fields in a packed buffer, in orderr
-      size_ptr[0] = ( sizeof(int)              # level
+      # there are mulitple fields in a packed buffer, in order
+      size_ptr[0] = ( sizeof(int)              # number of floats
+                    + sizeof(int)              # level
                     + sizeof(int)              # num tensors
                     + sizeof(int)              # num weight tensors
                     + sizeof(int)              # other layer information (size in bytes)
@@ -231,7 +232,8 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   cdef np.ndarray[float,ndim=1] np_U
   cdef int offset
   cdef int foffset
-  cdef int sz
+  cdef int final_offset
+  cdef int float_cnt 
   cdef view.array my_buf
   cdef float[:] fbuf_mv
   cdef float[:] np_U_mv 
@@ -240,32 +242,50 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
     pyApp = <object> app
     with pyApp.timer("bufpack"):
       bv_u = <object> u
-    
+
+      all_tensors = bv_u.allTensors()
+      flat_tensor = torch.cat([t.flatten() for t in all_tensors])
+      float_cnt = flat_tensor.shape[0]
+
+      # get the data copy started
+      offset = 5 # this is accomdating space for the header integers
+      fbuffer = <float *>(buffer+offset*sizeof(int)) 
+
+      flat_tensor_cpu = torch.from_numpy(np.asarray(<float[:float_cnt]> fbuffer)) # allocated on host
+      with pyApp.timer("bufpack-copy"): 
+        flat_tensor_cpu.copy_(flat_tensor,non_blocking=True)                      # copied to host
+
       ibuffer = <int *> buffer
     
       # write out the buffer meta data
       level              = bv_u.level()
-      num_tensors        = len(bv_u.allTensors())
+      num_tensors        = len(all_tensors)
       num_weight_tensors = len(bv_u.weightTensors())
       layer_data_size    = pyApp.getLayerDataSize()
 
-      device = torch.device('cpu')
-
-      # pack up layers
-      pbuf_src = None
-      if bv_u.getLayerData() is not None: 
-        pbuf_src = pickle.dumps(bv_u.getLayerData()) 
-    
-        assert(layer_data_size>=len(pbuf_src))
-      # end if bv_u.getLayerData
-    
       ibuffer[0] = level
       ibuffer[1] = num_tensors
       ibuffer[2] = num_weight_tensors
-      ibuffer[3] = layer_data_size
+      ibuffer[3] = float_cnt
+      ibuffer[4] = layer_data_size
     
-      offset = 4 # this is accomdating space for the four integers
-      for t in bv_u.allTensors():
+      if bv_u.getLayerData() is not None: 
+        pbuf_src = pickle.dumps(bv_u.getLayerData()) 
+        assert(layer_data_size>=len(pbuf_src))
+    
+        cbuffer = <char *>(buffer+offset*sizeof(int)+float_cnt*sizeof(float)) 
+    
+        my_buf = <char[:len(pbuf_src)]> cbuffer
+        my_buf[:] = pbuf_src
+
+        final_offset = offset*sizeof(int)+float_cnt*sizeof(float)+layer_data_size*sizeof(char)
+      else:
+        final_offset = offset*sizeof(int)+float_cnt*sizeof(float)
+      # end if layer_data_size
+
+      ibuffer = <int *> (buffer+final_offset)
+      offset = 0
+      for t in all_tensors:
         size = t.size() 
         ibuffer[offset] = len(size)
         for i,s in enumerate(size):
@@ -273,29 +293,6 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
             
         offset += len(size)+1
       # end for a: creating space for the number tensors
-    
-      # copy the data
-      foffset = 0
-      fbuffer = <float *>(buffer+offset*sizeof(int)) 
-      for ten_U in bv_u.allTensors():
-        ten_U_flat = ten_U.flatten() 
-
-        sz = ten_U_flat.shape[0]
-
-        ten_U_cpu = torch.from_numpy(np.asarray(<float[:sz]> fbuffer))
-        with pyApp.timer("bufpack-copy"):
-          ten_U_cpu.copy_(ten_U_flat,non_blocking=False)
-  
-        # update the float buffer pointer
-        fbuffer = <float*> (fbuffer+sz)
-        foffset += sz
-    
-      if pbuf_src is not None:
-        cbuffer = <char *>(buffer+offset*sizeof(int)+foffset*sizeof(float)) 
-    
-        my_buf = <char[:len(pbuf_src)]> cbuffer
-        my_buf[:] = pbuf_src
-      # end if layer_data_size
 
   except:
     output_exception("my_bufpack")
@@ -309,7 +306,9 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   cdef void * vbuffer 
   cdef np.ndarray[float,ndim=1] np_U
   cdef int offset
+  cdef int float_cnt
   cdef int sz
+  cdef int layer_data_size
   cdef view.array my_buf 
 
   try:
@@ -322,10 +321,16 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
       level              = ibuffer[0]
       num_tensors        = ibuffer[1]
       num_weight_tensors = ibuffer[2]
-      layer_data_size    = ibuffer[3]
+      float_cnt          = ibuffer[3]
+      layer_data_size    = ibuffer[4]
     
-      offset = 4
+      offset = 5
+      # copy from the buffer into the braid vector
+      fbuffer = <float *>(buffer+(offset)*sizeof(int)) # level, rank, sizes
+
       sizes = []
+      ibuffer = <int *> (buffer+offset*sizeof(int)+float_cnt*sizeof(float)+layer_data_size*sizeof(char))
+      offset = 0
       for t in range(num_tensors):
         rank = ibuffer[offset]
         size = rank*[0]
@@ -334,12 +339,10 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
             
         sizes += [size]
         offset += len(size)+1
-    
+
       # build up the braid vector
       tens = [] #torch.zeros(s) for s in sizes]
     
-      # copy from the buffer into the braid vector
-      fbuffer = <float *>(buffer+(offset)*sizeof(int)) # level, rank, sizes
       for s in sizes:
         ten_U = torch.zeros(s)
         np_U = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
@@ -370,7 +373,6 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
       # end if layer_data_size
 
       u_obj = BraidVector(vector_tensors,level,layer_data,send_flag=True)
-      #u_obj.addWeightTensors(weight_tensors)
       u_obj.weight_tensor_data_ = weight_tensors
       Py_INCREF(u_obj) 
     
