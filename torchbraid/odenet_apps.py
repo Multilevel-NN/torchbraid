@@ -78,6 +78,8 @@ class ForwardODENetApp(BraidApp):
 
     BraidApp.__init__(self,'FWDApp',comm,num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=True)
 
+    self.finalRelax()
+
     comm          = self.getMPIComm()
     my_rank       = self.getMPIComm().Get_rank()
     num_ranks     = self.getMPIComm().Get_size()
@@ -262,6 +264,7 @@ class ForwardODENetApp(BraidApp):
     #self.testBraid(x)
 
     # run the braid solver
+    self.getMPIComm().Barrier()
     with self.timer("runBraid"):
 
       y = self.runBraid(x)
