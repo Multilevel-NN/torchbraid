@@ -230,14 +230,11 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   cdef int * ibuffer
   cdef float * fbuffer
   cdef char * cbuffer 
-  cdef np.ndarray[float,ndim=1] np_U
   cdef int offset
   cdef int foffset
   cdef int final_offset
   cdef int float_cnt 
   cdef view.array my_buf
-  cdef float[:] fbuf_mv
-  cdef float[:] np_U_mv 
 
   try:
     pyApp = <object> app
@@ -316,7 +313,6 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   cdef int * ibuffer 
   cdef float * fbuffer 
   cdef void * vbuffer 
-  cdef np.ndarray[float,ndim=1] np_U
   cdef int offset
   cdef int float_cnt
   cdef int sz
@@ -360,12 +356,12 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
         for s in sizes:
           # copy the buffer into the tensor
           sz = s.numel()
-          ten_U = torch.from_numpy(np.asarray(<float[:sz]> fbuffer)).reshape(s)
+          ten_U_cpu = torch.from_numpy(np.asarray(<float[:sz]> fbuffer)).reshape(s)
           if pyApp.use_cuda:
-            ten_U = ten_U.pin_memory() # allocated on host
-
-          if hasattr(pyApp,'device'):
-            ten_U = ten_U.to(pyApp.device,non_blocking=True)
+            ten_U_cpu = ten_U_cpu.pin_memory() # allocated on host
+            ten_U = ten_U_cpu.to(pyApp.device,non_blocking=True)
+          else:
+            ten_U = ten_U_cpu.clone()
 
           fbuffer = <float*> (fbuffer+sz)
 
