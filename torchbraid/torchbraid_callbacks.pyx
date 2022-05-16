@@ -244,55 +244,63 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
       bv_u = <object> u
 
       all_tensors = bv_u.allTensors()
-      flat_tensor = torch.cat([t.flatten() for t in all_tensors])
+      with pyApp.timer("bufpack-flatten"): 
+        flat_tensor = torch.cat([t.flatten() for t in all_tensors])
       float_cnt = flat_tensor.shape[0]
 
       # get the data copy started
       offset = 5 # this is accomdating space for the header integers
       fbuffer = <float *>(buffer+offset*sizeof(int)) 
 
-      flat_tensor_cpu = torch.from_numpy(np.asarray(<float[:float_cnt]> fbuffer)) # allocated on host
+      flat_tensor_cpu = torch.from_numpy(np.asarray(<float[:float_cnt]> fbuffer)).pin_memory() # allocated on host
       with pyApp.timer("bufpack-copy"): 
         flat_tensor_cpu.copy_(flat_tensor,non_blocking=True)                      # copied to host
 
-      ibuffer = <int *> buffer
     
       # write out the buffer meta data
-      level              = bv_u.level()
-      num_tensors        = len(all_tensors)
-      num_weight_tensors = len(bv_u.weightTensors())
-      layer_data_size    = pyApp.getLayerDataSize()
+      with pyApp.timer("bufpack-crap"): 
+        ibuffer = <int *> buffer
+  
+        level              = bv_u.level()
+        num_tensors        = len(all_tensors)
+        num_weight_tensors = len(bv_u.weightTensors())
+        layer_data_size    = pyApp.getLayerDataSize()
+  
+        ibuffer[0] = level
+        ibuffer[1] = num_tensors
+        ibuffer[2] = num_weight_tensors
+        ibuffer[3] = float_cnt
+        ibuffer[4] = layer_data_size
+      
+      with pyApp.timer("bufpack-pickle"): 
+        if bv_u.getLayerData() is not None: 
+          pbuf_src = pickle.dumps(bv_u.getLayerData()) 
+          assert(layer_data_size>=len(pbuf_src))
+      
+          cbuffer = <char *>(buffer+offset*sizeof(int)+float_cnt*sizeof(float)) 
+      
+          my_buf = <char[:len(pbuf_src)]> cbuffer
+          my_buf[:] = pbuf_src
+  
+          final_offset = offset*sizeof(int)+float_cnt*sizeof(float)+layer_data_size*sizeof(char)
+        else:
+          final_offset = offset*sizeof(int)+float_cnt*sizeof(float)
+        # end if layer_data_size
+  
+      with pyApp.timer("bufpack-sizes"): 
+        ibuffer = <int *> (buffer+final_offset)
+        offset = 0
+        for t in all_tensors:
+          size = t.size() 
+          ibuffer[offset] = len(size)
+          for i,s in enumerate(size):
+            ibuffer[i+offset+1] = s
+              
+          offset += len(size)+1
+        # end for a: creating space for the number tensors
 
-      ibuffer[0] = level
-      ibuffer[1] = num_tensors
-      ibuffer[2] = num_weight_tensors
-      ibuffer[3] = float_cnt
-      ibuffer[4] = layer_data_size
-    
-      if bv_u.getLayerData() is not None: 
-        pbuf_src = pickle.dumps(bv_u.getLayerData()) 
-        assert(layer_data_size>=len(pbuf_src))
-    
-        cbuffer = <char *>(buffer+offset*sizeof(int)+float_cnt*sizeof(float)) 
-    
-        my_buf = <char[:len(pbuf_src)]> cbuffer
-        my_buf[:] = pbuf_src
-
-        final_offset = offset*sizeof(int)+float_cnt*sizeof(float)+layer_data_size*sizeof(char)
-      else:
-        final_offset = offset*sizeof(int)+float_cnt*sizeof(float)
-      # end if layer_data_size
-
-      ibuffer = <int *> (buffer+final_offset)
-      offset = 0
-      for t in all_tensors:
-        size = t.size() 
-        ibuffer[offset] = len(size)
-        for i,s in enumerate(size):
-          ibuffer[i+offset+1] = s
-            
-        offset += len(size)+1
-      # end for a: creating space for the number tensors
+      with pyApp.timer("bufpack-synch"): 
+        torch.cuda.synchronize() 
 
   except:
     output_exception("my_bufpack")
