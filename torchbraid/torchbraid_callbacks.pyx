@@ -255,7 +255,6 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
       flat_tensor_cpu = torch.from_numpy(np.asarray(<float[:float_cnt]> fbuffer)).pin_memory() # allocated on host
       with pyApp.timer("bufpack-copy"): 
         flat_tensor_cpu.copy_(flat_tensor,non_blocking=True)                      # copied to host
-
     
       # write out the buffer meta data
       with pyApp.timer("bufpack-crap"): 
@@ -345,7 +344,7 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
         for i in range(rank):
           size[i] = ibuffer[i+offset+1]
             
-        sizes += [size]
+        sizes += [torch.Size(size)]
         offset += len(size)+1
 
       # build up the braid vector
@@ -354,16 +353,22 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
       for s in sizes:
         ten_U = torch.zeros(s)
         np_U = ten_U.numpy().ravel() # ravel provides a flatten accessor to the array
-      
+
         # copy the buffer into the tensor
-        sz = len(np_U)
-        my_buf = <float[:sz]> (fbuffer)
-        np_U[:] = my_buf
-        
-        # update the float buffer pointer
-        fbuffer = <float*> (fbuffer+sz)
+        sz = s.numel()
+        ten_U = torch.from_numpy(np.asarray(<float[:sz]> fbuffer)).reshape(s).pin_memory() # allocated on host
         if hasattr(pyApp,'device'):
-          ten_U = ten_U.to(pyApp.device,non_blocking=False)
+          ten_U = ten_U.to(pyApp.device,non_blocking=True)
+      
+        #sz = len(np_U)
+        #my_buf = <float[:sz]> (fbuffer)
+        #np_U[:] = my_buf
+       # 
+       # # update the float buffer pointer
+       # fbuffer = <float*> (fbuffer+sz)
+       # if hasattr(pyApp,'device'):
+       #   ten_U = ten_U.to(pyApp.device,non_blocking=False)
+
         tens += [ten_U]
       # end for s
 
@@ -386,6 +391,9 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
     
       # set the pointer for output
       u_ptr[0] = <braid_Vector> u_obj 
+
+      with pyApp.timer("bufunpack-synch"): 
+        torch.cuda.synchronize() 
   except:
     output_exception("my_bufunpack")
 

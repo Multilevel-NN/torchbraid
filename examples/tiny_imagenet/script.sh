@@ -1,4 +1,4 @@
-export FWD_ITER=1
+export FWD_ITER=2
 export BWD_ITER=1
 export DIFF=0.0001
 export ACT=relu
