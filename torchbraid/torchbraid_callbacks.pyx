@@ -253,7 +253,10 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
       offset = 5 # this is accomdating space for the header integers
       fbuffer = <float *>(buffer+offset*sizeof(int)) 
 
-      flat_tensor_cpu = torch.from_numpy(np.asarray(<float[:float_cnt]> fbuffer)).pin_memory() # allocated on host
+      flat_tensor_cpu = torch.from_numpy(np.asarray(<float[:float_cnt]> fbuffer))
+      if pyApp.use_cuda:
+        flat_tensor_cpu = flat_tensor_cpu.pin_memory() # allocated on host
+
       with pyApp.timer("bufpack-copy"): 
         flat_tensor_cpu.copy_(flat_tensor,non_blocking=True)                      # copied to host
     
@@ -300,7 +303,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
         # end for a: creating space for the number tensors
 
       with pyApp.timer("bufpack-synch"): 
-        if hasattr(pyApp,'device'):
+        if pyApp.use_cuda:
           torch.cuda.synchronize() 
 
   except:
@@ -357,7 +360,10 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
         for s in sizes:
           # copy the buffer into the tensor
           sz = s.numel()
-          ten_U = torch.from_numpy(np.asarray(<float[:sz]> fbuffer)).reshape(s).pin_memory() # allocated on host
+          ten_U = torch.from_numpy(np.asarray(<float[:sz]> fbuffer)).reshape(s)
+          if pyApp.use_cuda:
+            ten_U = ten_U.pin_memory() # allocated on host
+
           if hasattr(pyApp,'device'):
             ten_U = ten_U.to(pyApp.device,non_blocking=True)
 
@@ -389,7 +395,7 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
         u_ptr[0] = <braid_Vector> u_obj 
 
       with pyApp.timer("bufunpack-synch"): 
-        if hasattr(pyApp,'device'):
+        if pyApp.use_cuda:
           torch.cuda.synchronize() 
   except:
     output_exception("my_bufunpack")

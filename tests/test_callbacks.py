@@ -39,11 +39,14 @@ import torchbraid.utils as tbutils
 
 import test_cbs as cbs
 
+use_cuda = False
+
 class DummyApp:
-  def __init__(self,dtype,layer_data_size):
+  def __init__(self,dtype,layer_data_size,use_cuda):
     self.dtype = dtype
     self.layer_data_size = layer_data_size
     self.timer_manager = tbutils.ContextTimerManager()
+    self.use_cuda = use_cuda
 
 
   def buildInit(self,t):
@@ -71,7 +74,7 @@ class TestLayerData:
 
 class TestTorchBraid(unittest.TestCase):
   def test_clone_init(self):
-    app = DummyApp(float,0)
+    app = DummyApp(float,0,use_cuda)
 
     clone_vec = cbs.cloneInitVector(app)
     clone = clone_vec.tensor()
@@ -83,7 +86,7 @@ class TestTorchBraid(unittest.TestCase):
     self.assertEqual(torch.norm(clone).item(),np.sqrt(4.0*5.0))
 
   def test_clone_vector(self):
-    app = DummyApp(float,0)
+    app = DummyApp(float,0,use_cuda)
 
     vec = app.buildInit(0.0)
     ten = vec.tensor() 
@@ -104,7 +107,7 @@ class TestTorchBraid(unittest.TestCase):
     sizeof_int   = cbs.sizeof_int()
     layer_data_size = 27
 
-    app = DummyApp(float,layer_data_size)
+    app = DummyApp(float,layer_data_size,use_cuda)
     shapes = app.getTensorShapes()
 
     self.assertEqual(layer_data_size,app.getLayerDataSize())
@@ -148,7 +151,7 @@ class TestTorchBraid(unittest.TestCase):
     layer_data = TestLayerData()
     pickle_sz = tbutils.pickle_size(layer_data)
 
-    app = DummyApp(torch.float,pickle_sz)
+    app = DummyApp(torch.float,pickle_sz,use_cuda)
     shapes = app.getTensorShapes()
 
     a = torch.ones(shapes[0])

@@ -114,6 +114,7 @@ class BraidApp:
     self.reverted = False
 
     self.device = None
+    self.use_cuda = False
   # end __init__
 
   def initCore(self):
@@ -197,6 +198,10 @@ class BraidApp:
 
   def setDevice(self,device):
     self.device = device
+
+    self.use_cuda = False
+    if torch.cuda.is_available():
+      self.use_cuda = self.device.type=='cuda'
 
   def getNumSteps(self):
     """
