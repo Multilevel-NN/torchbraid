@@ -73,7 +73,7 @@ def getDevice(comm):
   if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
     if comm.Get_rank()==0:
       print('Using GPU Device')
-    my_device  = torch.device(f'cuda:{comm.Get_rank()+3}')
+    my_device  = torch.device(f'cuda:{comm.Get_rank()}')
   elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
     if comm.Get_rank()==0:
       print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
@@ -131,15 +131,14 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,device):
 
     # compute gradient
     start_time_bp = timer()
-    #loss.backward()
+    loss.backward()
     total_time_bp += timer()-start_time_bp
 
-    #bwd_itr, bwd_res = model.getBwdStats()
-    bwd_itr, bwd_res = 0,0.0
+    bwd_itr, bwd_res = model.getBwdStats()
 
     # take step
     stop_time = timer()
-    #optimizer.step()
+    optimizer.step()
 
     total_data    += len(data)
     total_time    += stop_time-start_time
@@ -311,7 +310,6 @@ def main():
   epochs = args.epochs
   log_interval = args.log_interval
 
-  #model = ParallelNet(**network)
   model = buildNet(not args.use_serial,**network)
   model = model.to(my_device)
 
@@ -339,7 +337,7 @@ def main():
 
   epoch = 0
   start_time = timer()
-  #test_result = test(rank,model, test_loader,epoch,compose,my_device)
+  test_result = test(rank,model, test_loader,epoch,compose,my_device)
   end_time = timer()
   test_times += [end_time-start_time]  
 
@@ -350,7 +348,7 @@ def main():
     epoch_times += [end_time-start_time]
 
     start_time = timer()
-    #test_result = test(rank,model, test_loader,epoch,compose,my_device)
+    test_result = test(rank,model, test_loader,epoch,compose,my_device)
     end_time = timer()
     test_times += [end_time-start_time]  
 
