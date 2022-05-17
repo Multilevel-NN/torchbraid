@@ -399,9 +399,15 @@ class LayerParallel(nn.Module):
     if my_rank==0:
       for i in range(1,self.getMPIComm().Get_size()):
         remote_layers += comm.recv(source=i,tag=build_seq_tag)
-      return nn.Sequential(*remote_layers)
+      remote_layers = nn.Sequential(*remote_layers)
+
+      if hasattr(self,'device'):
+        return remote_layers.to(self.device)
+      else:
+        return remote_layers
     else:
-      comm.send(ode_layers,dest=0,tag=build_seq_tag)
+      ode_layers_cpu = [o.cpu() for o in ode_layers]
+      comm.send(ode_layers_cpu,dest=0,tag=build_seq_tag)
       return None
   # end buildSequentialOnRoot
 

@@ -51,6 +51,7 @@ def getDevice(comm):
     if comm.Get_rank()==0:
       print('Using GPU Device')
     my_device  = torch.device(f'cuda:{comm.Get_rank()}')
+    torch.cuda.set_device(my_device)
   elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
     if comm.Get_rank()==0:
       print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
@@ -137,7 +138,7 @@ class TestGradUpdate(unittest.TestCase):
       return params
     else:
       params_cpu = [p.cpu() for p in params]
-      comm.send(params,dest=0,tag=77)
+      comm.send(params_cpu,dest=0,tag=77)
       return None
   # end copyParametersToRoot
 

@@ -50,6 +50,7 @@ def getDevice(comm):
     if comm.Get_rank()==0:
       print('Using GPU Device')
     my_device  = torch.device(f'cuda:{comm.Get_rank()}')
+    torch.cuda.set_device(my_device)
   elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
     if comm.Get_rank()==0:
       print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
@@ -180,11 +181,13 @@ class TestRNNLayerParallel(unittest.TestCase):
     if my_rank==0:
       for i in range(1,num_proc):
         remote_p = comm.recv(source=i,tag=77)
+        remote_p = [p.to(device) for p in remote_p]
         params.extend(remote_p)
 
       return params
     else:
-      comm.send(params,dest=0,tag=77)
+      params_cpu = [p.cpu() for p in params]
+      comm.send(params_cpu,dest=0,tag=77)
       return None
   # end copyParametersToRoot
 
@@ -409,6 +412,7 @@ class TestRNNLayerParallel(unittest.TestCase):
       self.assertTrue(torch.norm(c_0.grad.cpu()-y_serial_cn_0.grad.cpu()).item()<tol)
 
       root_grads = [p.grad for p in serial_rnn.parameters()]
+      root_grads = [r.cpu() for r in root_grads]
     else:
       root_grads = None
 
