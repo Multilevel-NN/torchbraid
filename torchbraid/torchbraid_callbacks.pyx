@@ -230,7 +230,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   cdef int * ibuffer
   cdef float * fbuffer
   cdef char * cbuffer 
-  cdef int offset
+  cdef int head_offset # header offset
   cdef int foffset
   cdef int final_offset
   cdef int float_cnt 
@@ -247,18 +247,15 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
       float_cnt = flat_tensor.shape[0]
 
       # get the data copy started
-      offset = 5 # this is accomdating space for the header integers
-      fbuffer = <float *>(buffer+offset*sizeof(int)) 
-
-      flat_tensor_cpu = torch.from_numpy(np.asarray(<float[:float_cnt]> fbuffer))
-      if pyApp.use_cuda:
-        flat_tensor_cpu = flat_tensor_cpu.pin_memory() # allocated on host
-
       with pyApp.timer("bufpack-copy"): 
-        flat_tensor_cpu.copy_(flat_tensor,non_blocking=True)                      # copied to host
+        if pyApp.use_cuda:
+          flat_tensor_cpu = flat_tensor.to(torch.device('cpu'),non_blocking=True) # copied to host
+        else:
+          flat_tensor_cpu = flat_tensor
     
-      # write out the buffer meta data
-      with pyApp.timer("bufpack-crap"): 
+      # write out the buffer header data
+      head_offset = 5 # this is accomdating space for the header integers
+      with pyApp.timer("bufpack-header"): 
         ibuffer = <int *> buffer
   
         level              = bv_u.level()
@@ -277,14 +274,14 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
           pbuf_src = pickle.dumps(bv_u.getLayerData()) 
           assert(layer_data_size>=len(pbuf_src))
       
-          cbuffer = <char *>(buffer+offset*sizeof(int)+float_cnt*sizeof(float)) 
+          cbuffer = <char *>(buffer+head_offset*sizeof(int)+float_cnt*sizeof(float)) 
       
           my_buf = <char[:len(pbuf_src)]> cbuffer
           my_buf[:] = pbuf_src
   
-          final_offset = offset*sizeof(int)+float_cnt*sizeof(float)+layer_data_size*sizeof(char)
+          final_offset = head_offset*sizeof(int)+float_cnt*sizeof(float)+layer_data_size*sizeof(char)
         else:
-          final_offset = offset*sizeof(int)+float_cnt*sizeof(float)
+          final_offset = head_offset*sizeof(int)+float_cnt*sizeof(float)
         # end if layer_data_size
   
       with pyApp.timer("bufpack-sizes"): 
@@ -303,6 +300,12 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
         if pyApp.use_cuda:
           torch.cuda.synchronize() 
 
+      with pyApp.timer("bufpack-tonumpy"): 
+        fbuffer = <float *>(buffer+head_offset*sizeof(int)) 
+
+        flat_tensor_numpy = torch.from_numpy(np.asarray(<float[:float_cnt]> fbuffer))
+        flat_tensor_numpy.copy_(flat_tensor_cpu)
+
   except:
     output_exception("my_bufpack")
 
@@ -313,7 +316,7 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   cdef int * ibuffer 
   cdef float * fbuffer 
   cdef void * vbuffer 
-  cdef int offset
+  cdef int head_offset
   cdef int float_cnt
   cdef int sz
   cdef int layer_data_size
@@ -332,13 +335,13 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
       float_cnt          = ibuffer[3]
       layer_data_size    = ibuffer[4]
     
-      offset = 5
+      head_offset = 5
       # copy from the buffer into the braid vector
-      fbuffer = <float *>(buffer+(offset)*sizeof(int)) # level, rank, sizes
+      fbuffer = <float *>(buffer+(head_offset)*sizeof(int)) # level, rank, sizes
 
       with pyApp.timer("bufunpack-sizes"):
         sizes = []
-        ibuffer = <int *> (buffer+offset*sizeof(int)+float_cnt*sizeof(float)+layer_data_size*sizeof(char))
+        ibuffer = <int *> (buffer+head_offset*sizeof(int)+float_cnt*sizeof(float)+layer_data_size*sizeof(char))
         offset = 0
         for t in range(num_tensors):
           rank = ibuffer[offset]
