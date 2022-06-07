@@ -207,10 +207,11 @@ class TestTorchBraid(unittest.TestCase):
       self.assertTrue(torch.norm(i-2.0*o).item()<5.0e-16)
 
     out_layer_data = bv_out.getLayerData()
-    in_layer_data = bv_out.getLayerData()
+    in_layer_data  = bv_in.getLayerData()
 
     self.assertEqual(out_layer_data.s,in_layer_data.s)
-    self.assertEqual(out_layer_data.linear,in_layer_data.linear)
+    self.assertEqual(torch.norm(out_layer_data.linear.weight-in_layer_data.linear.weight),0.0)
+    self.assertEqual(torch.norm(out_layer_data.linear.bias-in_layer_data.linear.bias),0.0)
     
 if __name__ == '__main__':
   device,_,use_cuda = getDevice(MPI.COMM_WORLD)
