@@ -74,6 +74,7 @@ def getDevice(comm):
     if comm.Get_rank()==0:
       print('Using GPU Device')
     my_device  = torch.device(f'cuda:{comm.Get_rank()}')
+    torch.cuda.set_device(my_device)
   elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
     if comm.Get_rank()==0:
       print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
@@ -83,7 +84,6 @@ def getDevice(comm):
       print('No GPUs to be used, CPU only')
     my_device = my_host
 
-  torch.cuda.set_device(my_device)
   return my_device,my_host
 # end getDevice
 
@@ -108,9 +108,10 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,device):
 
   cumulative_start_time = timer()
   for batch_idx,(data,target) in enumerate(train_loader):
-    data = data.to(device)
-    target = target.long()
-    target = target.to(device)
+    if rank==0:
+      data = data.to(device)
+      target = target.long()
+      target = target.to(device)
 
     start_time = timer()
 
@@ -182,9 +183,10 @@ def test(rank,model,test_loader,epoch,compose,device,prefix=''):
   with torch.no_grad():
     for data,target in test_loader:
       start_time = timer()
-      data = data.to(device)
-      target = target.long()
-      target = target.to(device)
+      if rank==0:
+        data = data.to(device)
+        target = target.long()
+        target = target.to(device)
 
       # evaluate inference
       output = model(data)
@@ -211,6 +213,39 @@ def test(rank,model,test_loader,epoch,compose,device,prefix=''):
 
 
   return 100. * correct / len(test_loader.dataset)
+
+class FakeIter:
+  def __init__(self,cnt,elmt): 
+    self.cnt = cnt
+    self.elmt = elmt
+
+  def __iter__(self):
+    return self
+
+  def __next__(self):
+    if self.cnt>0:
+      self.cnt -= 1
+      return self.elmt
+    else:
+      raise StopIteration
+
+class FakeLoader:
+  def __init__(self,cnt,device):
+    self.cnt = cnt
+
+    elmt = torch.tensor((),device=device)
+    self.elmt = (elmt,elmt)
+
+    self.dataset = cnt*[None]
+
+  def __iter__(self):
+    return FakeIter(self.cnt,self.elmt)
+
+def parallel_loader(rank,loader,device):  
+  if rank==0:
+    return loader
+  batches = len(loader)
+  return FakeLoader(batches,device)
 
 def main():
   
@@ -271,9 +306,11 @@ def main():
   train_loader = torch.utils.data.DataLoader(train_dataset,
           batch_size=args.batch_size, shuffle=True,
           pin_memory=True)
+  train_loader = parallel_loader(rank,train_loader,my_device)
   test_loader = torch.utils.data.DataLoader(test_dataset,
           batch_size=args.batch_size, shuffle=False,
           pin_memory=True)
+  test_loader = parallel_loader(rank,test_loader,my_device)
   if rank==0:
     print("\nTraining setup:  Batch size:  " + str(args.batch_size) + "  Sample ratio:  " + str(args.samp_ratio) + "  Epochs:  " + str(args.epochs) )
 
