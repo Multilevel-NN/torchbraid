@@ -343,7 +343,9 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
         ten_cpu = torch.from_numpy(np.asarray(<float[:float_cnt]> fbuffer))
         if pyApp.use_cuda:
           ten_cpu = ten_cpu.pin_memory()
-        ten_gpu = ten_cpu.to(pyApp.device,non_blocking=True)
+          ten_gpu = ten_cpu.to(pyApp.device,non_blocking=True)
+        else:
+          ten_cpu = ten_cpu.detach().clone()
 
       with pyApp.timer("bufunpack-sizes"):
         sizes = []
@@ -377,7 +379,10 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
         i0 = 0
         for s in sizes:
           i1 = i0+s.numel()
-          tens += [ten_gpu[i0:i1].reshape(s)]
+          if pyApp.use_cuda:
+            tens += [ten_gpu[i0:i1].reshape(s)]
+          else:
+            tens += [ten_cpu[i0:i1].reshape(s)]
           i0 = i1
 
       # build an vector object and set the tensors to land in the correct places
