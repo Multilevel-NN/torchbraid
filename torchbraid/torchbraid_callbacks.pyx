@@ -243,7 +243,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
 
       all_tensors = bv_u.allTensors()
       with pyApp.timer("bufpack-flatten"): 
-        flat_tensor = torch.cat([t.flatten() for t in all_tensors])
+        flat_tensor = torch.cat([t.detach().flatten() for t in all_tensors])
       float_cnt = flat_tensor.shape[0]
 
       # get the data copy started
@@ -342,7 +342,7 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
       with pyApp.timer("bufunpack-move"):
         ten_cpu = torch.from_numpy(np.asarray(<float[:float_cnt]> fbuffer))
         if pyApp.use_cuda:
-          ten_cpu = ten_cpu.pin_memory()
+          ten_cpu = ten_cpu.detach().pin_memory()
           ten_gpu = ten_cpu.to(pyApp.device,non_blocking=True)
         else:
           ten_cpu = ten_cpu.detach().clone()

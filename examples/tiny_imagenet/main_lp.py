@@ -108,10 +108,9 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,device):
 
   cumulative_start_time = timer()
   for batch_idx,(data,target) in enumerate(train_loader):
-    if rank==0:
-      data = data.to(device)
-      target = target.long()
-      target = target.to(device)
+    data = data.to(device)
+    target = target.long()
+    target = target.to(device)
 
     start_time = timer()
 
@@ -183,10 +182,9 @@ def test(rank,model,test_loader,epoch,compose,device,prefix=''):
   with torch.no_grad():
     for data,target in test_loader:
       start_time = timer()
-      if rank==0:
-        data = data.to(device)
-        target = target.long()
-        target = target.to(device)
+      data = data.to(device)
+      target = target.long()
+      target = target.to(device)
 
       # evaluate inference
       output = model(data)
