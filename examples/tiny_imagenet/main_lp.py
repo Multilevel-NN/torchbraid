@@ -90,6 +90,7 @@ def getDevice(comm):
 def root_print(rank,s):
   if rank==0:
     print(s)
+    sys.stdout.flush()
 
 def train(rank,args,model,train_loader,optimizer,epoch,compose,device):
   log_interval = args.log_interval

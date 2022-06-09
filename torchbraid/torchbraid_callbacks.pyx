@@ -40,6 +40,8 @@ import sys
 import pickle
 cimport numpy as np
 
+from torch.cuda import Stream
+
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
 from cython cimport view
@@ -89,9 +91,13 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
       braid_StepStatusGetTstartTstop(status, &tstart, &tstop)
       braid_StepStatusGetLevel(status, &level)
       braid_StepStatusGetDone(status, &done)
+
+      u =  <object> vec_u
+      if u.hasStream():
+        with pyApp.timer("step-sync"):
+          u.syncStream()
        
       # modify the state vector in place
-      u =  <object> vec_u
       pyApp.eval(u,tstart,tstop,level,done)
       
       # store final step
@@ -141,6 +147,12 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
     with pyApp.timer("sum"):
       bv_X = <object> x
       bv_Y = <object> y
+
+      if bv_X.hasStream() or bv_Y.hasStream():
+        with pyApp.timer("mysum-sync"):
+          bv_X.syncStream()
+          bv_Y.syncStream()
+
       for ten_X,ten_Y in zip(bv_X.tensors(),bv_Y.tensors()):
         ten_Y.mul_(float(beta))
         ten_Y.add_(ten_X,alpha=float(alpha))
@@ -337,65 +349,71 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
     
       head_offset = 5
 
+      stream = Stream(pyApp.device)
+
       # copy from the buffer into the braid vector
-      fbuffer = <float *>(buffer+(head_offset)*sizeof(int)) # level, rank, sizes
-      with pyApp.timer("bufunpack-move"):
-        ten_cpu = torch.from_numpy(np.asarray(<float[:float_cnt]> fbuffer))
-        if pyApp.use_cuda:
-          ten_cpu = ten_cpu.detach().pin_memory()
-          ten_gpu = ten_cpu.to(pyApp.device,non_blocking=True)
-        else:
-          ten_cpu = ten_cpu.detach().clone()
 
-      with pyApp.timer("bufunpack-sizes"):
-        sizes = []
-        ibuffer = <int *> (buffer+head_offset*sizeof(int)+float_cnt*sizeof(float)+layer_data_size*sizeof(char))
-        offset = 0
-        for t in range(num_tensors):
-          rank = ibuffer[offset]
-          size = rank*[0]
-          for i in range(rank):
-            size[i] = ibuffer[i+offset+1]
-            
-          sizes += [torch.Size(size)]
-          offset += len(size)+1
-
-      with pyApp.timer("bufunpack-pickle"):
-        layer_data = None
-        if layer_data_size>0:
-          # this is to make sure I can use the vbuffer
-          vbuffer = <char *>(buffer+head_offset*sizeof(int)+float_cnt*sizeof(float)) 
-      
-          my_buf = <char[:layer_data_size]> vbuffer
-          layer_data = pickle.loads(my_buf)
-        # end if layer_data_size
-
-      with pyApp.timer("bufunpack-synch"): 
-        if pyApp.use_cuda:
-          torch.cuda.synchronize() 
-
-      with pyApp.timer("bufunpack-movearound"): 
-        tens = [] 
-        i0 = 0
-        for s in sizes:
-          i1 = i0+s.numel()
+      with torch.cuda.stream(stream):
+        fbuffer = <float *>(buffer+(head_offset)*sizeof(int)) # level, rank, sizes
+        with pyApp.timer("bufunpack-move"):
+          ten_cpu = torch.from_numpy(np.asarray(<float[:float_cnt]> fbuffer))
           if pyApp.use_cuda:
-            tens += [ten_gpu[i0:i1].reshape(s)]
+            ten_cpu = ten_cpu.detach().pin_memory()
+            ten_gpu = ten_cpu.to(pyApp.device)
           else:
-            tens += [ten_cpu[i0:i1].reshape(s)]
-          i0 = i1
+            ten_cpu = ten_cpu.detach().clone()
+  
+        with pyApp.timer("bufunpack-sizes"):
+          sizes = []
+          ibuffer = <int *> (buffer+head_offset*sizeof(int)+float_cnt*sizeof(float)+layer_data_size*sizeof(char))
+          offset = 0
+          for t in range(num_tensors):
+            rank = ibuffer[offset]
+            size = rank*[0]
+            for i in range(rank):
+              size[i] = ibuffer[i+offset+1]
+              
+            sizes += [torch.Size(size)]
+            offset += len(size)+1
+  
+        with pyApp.timer("bufunpack-pickle"):
+          layer_data = None
+          if layer_data_size>0:
+            # this is to make sure I can use the vbuffer
+            vbuffer = <char *>(buffer+head_offset*sizeof(int)+float_cnt*sizeof(float)) 
+        
+            my_buf = <char[:layer_data_size]> vbuffer
+            layer_data = pickle.loads(my_buf)
+          # end if layer_data_size
+  
+        with pyApp.timer("bufunpack-movearound"): 
+          tens = [] 
+          i0 = 0
+          for s in sizes:
+            i1 = i0+s.numel()
+            if pyApp.use_cuda:
+              tens += [ten_gpu[i0:i1].reshape(s)]
+            else:
+              tens += [ten_cpu[i0:i1].reshape(s)]
+            i0 = i1
+  
+        # build an vector object and set the tensors to land in the correct places
+        with pyApp.timer("bufunpack-wrap"):
+          vector_tensors = tens[0:num_tensors-num_weight_tensors]
+          weight_tensors = tens[num_tensors-num_weight_tensors:]
+  
+          u_obj = BraidVector(vector_tensors,level,layer_data,send_flag=True)
+          u_obj.weight_tensor_data_ = weight_tensors
+          Py_INCREF(u_obj) 
+        
+          # set the pointer for output
+          u_ptr[0] = <braid_Vector> u_obj 
+  
+        #with pyApp.timer("bufunpack-synch"): 
+        #  if pyApp.use_cuda:
+        #    torch.cuda.synchronize() 
 
-      # build an vector object and set the tensors to land in the correct places
-      with pyApp.timer("bufunpack-wrap"):
-        vector_tensors = tens[0:num_tensors-num_weight_tensors]
-        weight_tensors = tens[num_tensors-num_weight_tensors:]
-
-        u_obj = BraidVector(vector_tensors,level,layer_data,send_flag=True)
-        u_obj.weight_tensor_data_ = weight_tensors
-        Py_INCREF(u_obj) 
-      
-        # set the pointer for output
-        u_ptr[0] = <braid_Vector> u_obj 
+      u_obj.setStream(stream)
 
   except:
     output_exception("my_bufunpack")

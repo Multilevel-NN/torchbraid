@@ -46,6 +46,8 @@ class BraidVector:
     self.layer_data_ = layer_data
     self.send_flag_ = send_flag;
 
+    self.stream = None
+
     if isinstance(tensor,torch.Tensor):
       self.tensor_data_ = (tensor,)
     elif isinstance(tensor,Iterable):
@@ -59,6 +61,17 @@ class BraidVector:
   def __del__(self):
     self.tensor_data_ = None
     self.weight_tensor_data_ = None
+
+  def setStream(self,s):
+    self.stream = s
+
+  def hasStream(self):
+    return self.stream is not None
+
+  def syncStream(self):
+    if self.hasStream():
+      self.stream.synchronize()
+      self.stream = None
 
   def setLayerData(self,layer_data):
     self.layer_data_ = layer_data
