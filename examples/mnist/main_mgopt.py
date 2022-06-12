@@ -97,7 +97,6 @@ def main():
   root_print(rank, 1, 1, 'TORCHBRAID REV: %s\n' % torchbraid.utils.git_rev())
 
   my_device,my_host = getDevice(MPI.COMM_WORLD)
-  my_device = my_host
   
   #torch.set_num_threads(6)
 
