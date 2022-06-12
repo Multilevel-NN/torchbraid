@@ -18,12 +18,15 @@ from torchbraid.mgopt import root_print, compute_levels
 
 from timeit import default_timer as timer
 
-from torchbraid.utils import MPI
+from torchbraid.utils import MPI, git_rev
 
 __all__ = [ 'parse_args', 'ParallelNet' ]
 
 def getComm():
   return MPI.COMM_WORLD
+
+def get_rev():
+  return torchbraid.utils.git_rev()
 
 # Related to:
 # https://arxiv.org/pdf/2002.09779.pdf
@@ -39,7 +42,7 @@ class OpenLayer(nn.Module):
     self.channels = channels
     self.pre = nn.Sequential(
       nn.Conv2d(3, channels, kernel_size=7, padding=3, stride=2,bias=False),
-      nn.BatchNorm2d(channels),
+      nn.BatchNorm2d(channels,track_running_stats=False),
       nn.ReLU(inplace=True),
       nn.MaxPool2d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
     )
@@ -71,7 +74,7 @@ class TransitionLayer(nn.Module):
     # Account for 64x64 image and 3 RGB channels
     self.pre = nn.Sequential(
       nn.Conv2d(channels, 2*channels, kernel_size=3, stride=2, padding=1,bias=False),
-      nn.BatchNorm2d(2*channels),
+      nn.BatchNorm2d(2*channels,track_running_stats=False),
       nn.ReLU()
     )
 
@@ -271,6 +274,8 @@ def parse_args(mgopt_on=True):
                       help='random seed (default: 1)')
   parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                       help='how many batches to wait before logging training status')
+  parser.add_argument('--use-serial',action='store_true', default=False, 
+                      help='Turn on serial run (default: False)')
   
   # artichtectural settings
   parser.add_argument('--steps', type=int, default=4, metavar='N',

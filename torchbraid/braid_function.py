@@ -53,6 +53,9 @@ class BraidFunction(torch.autograd.Function):
     my_rank       = fwd_app.getMPIComm().Get_rank()
     num_ranks     = fwd_app.getMPIComm().Get_size()
 
+    fwd_app.setDevice(x.device)
+    bwd_app.setDevice(x.device)
+
     # copy the input to all processors (ensure consistency)
     if my_rank==0:
       shape = fwd_app.buildShapes(x)
@@ -92,10 +95,13 @@ class BraidFunction(torch.autograd.Function):
       result = fwd_app.run(None)
 
     if my_rank!=num_ranks-1:
-      result = torch.zeros(shape[-1])
+      result_cpu = torch.zeros(shape[-1])
+    else:
+      result_cpu = result.cpu()
 
     # broadcast the output of the last layer 
-    comm.Bcast(result.numpy(),root=num_ranks-1)
+    comm.Bcast(result_cpu.numpy(),root=num_ranks-1)
+    result = result_cpu.to(x.device) # put back on the device
 
     if adjusting:
       return result[0:temp_batch,:]
@@ -111,9 +117,13 @@ class BraidFunction(torch.autograd.Function):
     # copy the input to the final processor (where iter time integration begins)
     if num_ranks>1:
       if my_rank==0:
-        comm.Send(grad_output.numpy(),dest=num_ranks-1)
+        grad_output_cpu = grad_output.cpu()
+        comm.Isend(grad_output_cpu.numpy(),dest=num_ranks-1)
       elif my_rank==num_ranks-1: 
-        comm.Recv(grad_output.numpy(),source=0)
+        grad_output_cpu = torch.zeros(grad_output.shape)
+        req = comm.Irecv(grad_output_cpu.numpy(),source=0)
+        req.Wait()
+        grad_output = grad_output_cpu.to(grad_output.device)
 
     if my_rank==num_ranks-1:
       if ctx.adjusting:

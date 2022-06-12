@@ -49,6 +49,24 @@ image_width = 5
 ker_width = 3
 target_size = 1
 
+def getDevice(comm):
+  my_host    = torch.device('cpu')
+  if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
+    if comm.Get_rank()==0:
+      print('Using GPU Device')
+    my_device  = torch.device(f'cuda:{comm.Get_rank()}')
+    torch.cuda.set_device(my_device)
+  elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
+    if comm.Get_rank()==0:
+      print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
+    my_device = my_host
+  else:
+    if comm.Get_rank()==0:
+      print('No GPUs to be used, CPU only')
+    my_device = my_host
+  return my_device,my_host
+# end getDevice
+
 class OpenLayer(nn.Module):
   def __init__(self,channels):
     super(OpenLayer, self).__init__()
@@ -88,6 +106,8 @@ class ParallelNet(nn.Module):
 
     self.channels = channels
     step_layer = lambda: StepLayer(channels)
+
+    m,h=getDevice(MPI.COMM_WORLD)
     
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps*self.numprocs,Tf,max_fwd_levels=max_levels,max_bwd_levels=max_levels,max_iters=max_iters)
     self.parallel_nn.setPrintLevel(print_level)
@@ -109,7 +129,7 @@ class ParallelNet(nn.Module):
 
     return x
 
-  def copyParameterGradToRoot(self):
+  def copyParameterGradToRoot(self,device):
     # this will copy in a way consistent with the SerialNet
     comm     = self.parallel_nn.getMPIComm()
     my_rank  = self.parallel_nn.getMPIComm().Get_rank()
@@ -123,12 +143,14 @@ class ParallelNet(nn.Module):
     if my_rank==0:
       for i in range(1,num_proc):
         remote_p = comm.recv(source=i,tag=77)
+        remote_p = [p.to(device) for p in remote_p]
         params.extend(remote_p)
 
       return params + [p.grad for p in list(self.open_nn.parameters())] \
                     + [p.grad for p in list(self.close_nn.parameters())]
     else:
-      comm.send(params,dest=0,tag=77)
+      params_cpu = [p.cpu() for p in params]
+      comm.send(params_cpu,dest=0,tag=77)
       return None
   # end copyParametersToRoot
 # end ParallelNet
@@ -155,18 +177,22 @@ class TestTorchBraid(unittest.TestCase):
     my_rank = MPI.COMM_WORLD.Get_rank()
     procs = MPI.COMM_WORLD.Get_size()
 
+    my_device,my_host = getDevice(MPI.COMM_WORLD)
+
     images   =  2
     channels = 1
     image_size = image_width
-    data = torch.randn(images,3,image_size,image_size) 
-    target = torch.randn(images,target_size)
+    data = torch.randn(images,3,image_size,image_size,device=my_device) 
+    target = torch.randn(images,target_size,device=my_device)
 
     parallel_net = ParallelNet(channels=channels)
+    parallel_net = parallel_net.to(my_device)
 
     # build and run the serial verson
     serial_layers = parallel_net.parallel_nn.buildSequentialOnRoot()
     if my_rank==0:
       serial_net = SerialNet(serial_layers,parallel_net.open_nn,parallel_net.close_nn)
+      serial_net = serial_net.to(my_device)
 
       s_output = serial_net(data)
       s_loss = l2_reg(serial_net)
@@ -195,20 +221,25 @@ class TestTorchBraid(unittest.TestCase):
     my_rank = MPI.COMM_WORLD.Get_rank()
     procs = MPI.COMM_WORLD.Get_size()
 
+    my_device,my_host = getDevice(MPI.COMM_WORLD)
+
     criterion = nn.MSELoss()
+    criterion = criterion.to(my_device)
 
     images   =  2
     channels = 1
     image_size = image_width
-    data = torch.randn(images,3,image_size,image_size) 
-    target = torch.randn(images,target_size)
+    data = torch.randn(images,3,image_size,image_size,device=my_device) 
+    target = torch.randn(images,target_size,device=my_device)
 
     parallel_net = ParallelNet(channels=channels)
+    parallel_net = parallel_net.to(my_device)
 
     # build and run the serial verson
     serial_layers = parallel_net.parallel_nn.buildSequentialOnRoot()
     if my_rank==0:
       serial_net   = SerialNet(serial_layers,parallel_net.open_nn,parallel_net.close_nn)
+      serial_net = serial_net.to(my_device)
       serial_net.train()
       serial_net.zero_grad()
 
@@ -235,7 +266,7 @@ class TestTorchBraid(unittest.TestCase):
 
     MPI.COMM_WORLD.Barrier()
 
-    p_grads = parallel_net.copyParameterGradToRoot()
+    p_grads = parallel_net.copyParameterGradToRoot(my_device)
     if my_rank==0:
       s_grads = [p.grad for p in list(serial_net.parameters())]
 
@@ -244,7 +275,7 @@ class TestTorchBraid(unittest.TestCase):
       print('loss error: {} ?= {} (rel diff = {})'.format(p_loss,s_loss,(p_loss-s_loss)/s_loss))
 
       for s_grad,p_grad in zip(s_grads,p_grads):
-        val = torch.norm(s_grad-p_grad)
+        val = torch.norm(s_grad-p_grad).item()
         # check the error conditions for the gradient of the parameters
         print('GRAD ******** error grad in {}'.format(val))
         sys.stdout.flush()

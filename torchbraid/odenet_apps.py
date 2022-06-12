@@ -78,6 +78,8 @@ class ForwardODENetApp(BraidApp):
 
     BraidApp.__init__(self,'FWDApp',comm,num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=True)
 
+    self.finalRelax()
+
     comm          = self.getMPIComm()
     my_rank       = self.getMPIComm().Get_rank()
     num_ranks     = self.getMPIComm().Get_size()
@@ -154,8 +156,10 @@ class ForwardODENetApp(BraidApp):
   def buildShapes(self,x):
     """Do a dry run to determine all the shapes that need to be built."""
     shapes = [x.shape]
-    for layer in self.layer_blocks[1]:
-      x = layer()(x)
+    for layer_constr in self.layer_blocks[1]:
+      # build the layer on the proper device
+      layer = layer_constr().to(self.device) 
+      x = layer(x)
       shapes += [x.shape]
     return shapes
 
@@ -260,6 +264,7 @@ class ForwardODENetApp(BraidApp):
     #self.testBraid(x)
 
     # run the braid solver
+    self.getMPIComm().Barrier()
     with self.timer("runBraid"):
 
       y = self.runBraid(x)
@@ -384,7 +389,10 @@ class BackwardODENetApp(BraidApp):
     #self.testBraid(x)
 
     try:
-      f = self.runBraid(x)
+
+      with self.timer("runBraid"):
+        f = self.runBraid(x)
+
       if f is not None:
         f = f[0]
 
@@ -399,11 +407,10 @@ class BackwardODENetApp(BraidApp):
             buf = utils.pack_buffer([p.grad for p in splinelayer.parameters()])
             req=splinecomm.Iallreduce(MPI.IN_PLACE, buf, MPI.SUM)
 
-        # Finish up communication. TODO: Queue all requests.
-        # for i, splinecomm in enumerate(self.fwd_app.spline_comm_vec):
-          # if splinecomm != MPI.COMM_NULL:
+            # Finish up communication. TODO: Queue all requests.
             MPI.Request.Wait(req)
             utils.unpack_buffer([p.grad for p in splinelayer.parameters()], buf)
+      # end splinet
 
       self.grads = []
 

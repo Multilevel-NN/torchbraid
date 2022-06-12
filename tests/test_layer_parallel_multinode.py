@@ -57,10 +57,34 @@ class ConvBlock(nn.Module):
     return F.relu(self.lin(x))
 # end layer
 
+def useCuda(comm):
+  if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
+    return True
+  return False
+
+def getDevice(comm):
+  my_host    = torch.device('cpu')
+  if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
+    if comm.Get_rank()==0:
+      print('Using GPU Device')
+    my_device  = torch.device(f'cuda:{comm.Get_rank()}')
+    torch.cuda.set_device(my_device)
+  elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
+    if comm.Get_rank()==0:
+      print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
+    my_device = my_host
+  else:
+    if comm.Get_rank()==0:
+      print('No GPUs to be used, CPU only')
+    my_device = my_host
+  return my_device,my_host
+# end getDevice
+
+
 class TestLayerParallel_MultiNODE(unittest.TestCase):
 
   def test_NoMGRIT(self):
-    tolerance = 1e-15
+    tolerance = 5e-7
     Tf = 4.0
     max_levels = 1
     max_iters = 1
@@ -68,14 +92,17 @@ class TestLayerParallel_MultiNODE(unittest.TestCase):
     self.forwardBackwardProp(tolerance,Tf,max_levels,max_iters)
 
   def test_MGRIT(self):
-    tolerance = 1e-7
+    if useCuda(MPI.COMM_WORLD):
+      return 
+
+    tolerance = 5e-7
     Tf = 1.0
     max_levels = 3
     max_iters = 6 
 
     self.forwardBackwardProp(tolerance,Tf,max_levels,max_iters)
 
-  def copyParameterGradToRoot(self,m):
+  def copyParameterGradToRoot(self,m,device):
     comm     = m.getMPIComm()
     my_rank  = m.getMPIComm().Get_rank()
     num_proc = m.getMPIComm().Get_size()
@@ -88,16 +115,20 @@ class TestLayerParallel_MultiNODE(unittest.TestCase):
     if my_rank==0:
       for i in range(1,num_proc):
         remote_p = comm.recv(source=i,tag=77)
+        remote_p = [p.to(device) for p in remote_p]
         params.extend(remote_p)
 
       return params
     else:
-      comm.send(params,dest=0,tag=77)
+      params_cpu = [p.cpu() for p in params]
+      comm.send(params_cpu,dest=0,tag=77)
       return None
   # end copyParametersToRoot
 
   def forwardBackwardProp(self,tolerance,Tf,max_levels,max_iters,check_grad=True,print_level=0):
     rank = MPI.COMM_WORLD.Get_rank()
+
+    my_device,my_host = getDevice(MPI.COMM_WORLD) 
 
     root_print(rank,'\n')
     root_print(rank,self.id())
@@ -115,15 +146,18 @@ class TestLayerParallel_MultiNODE(unittest.TestCase):
     # this is the torchbraid class being tested 
     #######################################
     parallel_net = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_fwd_levels=max_levels,max_bwd_levels=max_levels,max_iters=max_iters)
+    parallel_net = parallel_net.to(my_device)
     parallel_net.setPrintLevel(print_level)
     parallel_net.setSkipDowncycle(False)
 
     # this is the reference torch "solution"
     #######################################
     serial_net = parallel_net.buildSequentialOnRoot()
+    if serial_net is not None: # handle the cuda case
+      serial_net = serial_net.to(my_device)
 
     # run forward/backward propgation
-    xs = torch.rand(num_samp,num_ch,dim) # forward initial cond
+    xs = torch.rand(num_samp,num_ch,dim,device=my_device) # forward initial cond
     xs.requires_grad = check_grad
 
     ws = None
@@ -131,7 +165,7 @@ class TestLayerParallel_MultiNODE(unittest.TestCase):
       ys = serial_net(xs)
 
       if check_grad:
-        ws = torch.rand(ys.size()) # bacwards solution
+        ws = torch.rand(ys.size(),device=my_device) # bacwards solution
 
         ys.backward(ws)
         adj_serial = xs.grad
@@ -147,10 +181,11 @@ class TestLayerParallel_MultiNODE(unittest.TestCase):
 
     if check_grad:
       wp = parallel_net.copyVectorFromRoot(ws)
+      wp = wp.to(device=my_device)
 
       yp.backward(wp)
       adj_para_root = xp.grad
-      param_grad_para = self.copyParameterGradToRoot(parallel_net)
+      param_grad_para = self.copyParameterGradToRoot(parallel_net,my_device)
 
     if rank==0:
       # check error

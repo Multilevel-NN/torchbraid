@@ -95,18 +95,27 @@ class LayerParallel(nn.Module):
       if inspect.isclass(op):
         return None
 
+      # determine the parallel device
+      device = None
+      for a in args:
+        if hasattr(a,'device'):
+          device = a.device
+          break
+      # take the first device
+
+
       # blindly assume that all the arguments are torch
       # tensors, and propagate this through
-      value = torch.zeros(1)
+      value = torch.zeros(1,device=device)
       for a in args:
         if a.requires_grad:
           value += torch.norm(a)
 
       # so this is all a hack to get this thing to work
       if 'mgopt_term' in kwargs: 
-        return torch.zeros(1)*value - kwargs['mgopt_term']
+        return torch.zeros(1,device=device)*value - kwargs['mgopt_term']
       else:
-        return torch.zeros(1)*value
+        return torch.zeros(1,device=device)*value
 
   def __init__(self,comm,layer_blocks,global_steps,Tf,max_fwd_levels=1,max_bwd_levels=1,max_iters=10,spatial_ref_pair=None, nsplines=0, splinedegree=1):
     """
@@ -390,9 +399,15 @@ class LayerParallel(nn.Module):
     if my_rank==0:
       for i in range(1,self.getMPIComm().Get_size()):
         remote_layers += comm.recv(source=i,tag=build_seq_tag)
-      return nn.Sequential(*remote_layers)
+      remote_layers = nn.Sequential(*remote_layers)
+
+      if hasattr(self,'device'):
+        return remote_layers.to(self.device)
+      else:
+        return remote_layers
     else:
-      comm.send(ode_layers,dest=0,tag=build_seq_tag)
+      ode_layers_cpu = [o.cpu() for o in ode_layers]
+      comm.send(ode_layers_cpu,dest=0,tag=build_seq_tag)
       return None
   # end buildSequentialOnRoot
 
@@ -409,10 +424,11 @@ class LayerParallel(nn.Module):
     # send the output of the last layer to the root
     if my_rank==0:
       remote_final = comm.recv(source=num_ranks-1,tag=build_seq_tag)
+      remote_final = remote_final.to(vec.device)
       return remote_final
     elif my_rank==num_ranks-1:
       final = vec
-      comm.send(final,dest=0,tag=build_seq_tag)
+      comm.send(final.cpu(),dest=0,tag=build_seq_tag)
 
     return None
 
@@ -429,10 +445,12 @@ class LayerParallel(nn.Module):
     # send the output of the last layer to the root
     if my_rank==0:
       for dest in range(1,num_ranks):
-        comm.send(vec,dest,tag=build_seq_tag)
+        comm.send(vec.cpu(),dest,tag=build_seq_tag)
       return vec
     else:
       result = comm.recv(source=0,tag=build_seq_tag)
+      if hasattr(vec,'device'):
+        result = result.to(vec.device)
       return result
 
   def getTimersString(self):

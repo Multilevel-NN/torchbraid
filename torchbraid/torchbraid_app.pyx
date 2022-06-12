@@ -112,6 +112,9 @@ class BraidApp:
 
     self.first = True
     self.reverted = False
+
+    self.device = None
+    self.use_cuda = False
   # end __init__
 
   def initCore(self):
@@ -165,6 +168,7 @@ class BraidApp:
     braid_SetNRelax(core,0,0) # set F relax on fine grid
     braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
     braid_SetAbsTol(core,self.abs_tol)
+    braid_SetAccessLevel(core,0)
     #braid_SetCRelaxWt(core, -1, 1.2)   # Turn on weighted relaxation, probably want to add command line argument
     if self.skip_downcycle==0:
       braid_SetSkip(core,0)
@@ -191,6 +195,13 @@ class BraidApp:
 
       self.py_core = None
     # end core
+
+  def setDevice(self,device):
+    self.device = device
+
+    self.use_cuda = False
+    if torch.cuda.is_available():
+      self.use_cuda = self.device.type=='cuda'
 
   def getNumSteps(self):
     """
@@ -300,7 +311,7 @@ class BraidApp:
   def runBraid(self,x):
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
     cdef braid_Core core = py_core.getCore()
-    
+
     try:
        py_core = <PyBraid_Core> self.py_core
        core = py_core.getCore()
@@ -498,7 +509,7 @@ class BraidApp:
   def buildInit(self,t):
     try:
       if t>0:
-        zeros = [torch.zeros(s) for s in self.getFeatureShapes(t)]
+        zeros = [torch.zeros(s,device=self.device) for s in self.getFeatureShapes(t)]
         x = BraidVector(tuple(zeros),0)
       else:
         x = BraidVector(self.x0.tensors(),0)

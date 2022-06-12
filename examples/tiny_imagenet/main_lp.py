@@ -63,14 +63,36 @@ import torch.optim.lr_scheduler as lr_scheduler
 import statistics               as stats
 
 from torchvision import datasets, transforms
-from utils import parse_args, buildNet, ParallelNet, getComm
 from timeit import default_timer as timer
+
+from utils import parse_args, buildNet, ParallelNet, getComm, git_rev
+
+
+def getDevice(comm):
+  my_host    = torch.device('cpu')
+  if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
+    if comm.Get_rank()==0:
+      print('Using GPU Device')
+    my_device  = torch.device(f'cuda:{comm.Get_rank()}')
+    torch.cuda.set_device(my_device)
+  elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
+    if comm.Get_rank()==0:
+      print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
+    my_device = my_host
+  else:
+    if comm.Get_rank()==0:
+      print('No GPUs to be used, CPU only')
+    my_device = my_host
+
+  return my_device,my_host
+# end getDevice
 
 def root_print(rank,s):
   if rank==0:
     print(s)
+    sys.stdout.flush()
 
-def train(rank,args,model,train_loader,optimizer,epoch,compose):
+def train(rank,args,model,train_loader,optimizer,epoch,compose,device):
   log_interval = args.log_interval
   torch.enable_grad()
 
@@ -87,6 +109,9 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose):
 
   cumulative_start_time = timer()
   for batch_idx,(data,target) in enumerate(train_loader):
+    data = data.to(device)
+    target = target.long()
+    target = target.to(device)
 
     start_time = timer()
 
@@ -148,7 +173,7 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose):
                   total_time_bp/len(train_loader.dataset),
                   ))
 
-def test(rank,model,test_loader,epoch,compose,prefix=''):
+def test(rank,model,test_loader,epoch,compose,device,prefix=''):
   model.eval()
   correct = 0
   criterion = nn.CrossEntropyLoss()
@@ -158,7 +183,9 @@ def test(rank,model,test_loader,epoch,compose,prefix=''):
   with torch.no_grad():
     for data,target in test_loader:
       start_time = timer()
-
+      data = data.to(device)
+      target = target.long()
+      target = target.to(device)
 
       # evaluate inference
       output = model(data)
@@ -186,6 +213,39 @@ def test(rank,model,test_loader,epoch,compose,prefix=''):
 
   return 100. * correct / len(test_loader.dataset)
 
+class FakeIter:
+  def __init__(self,cnt,elmt): 
+    self.cnt = cnt
+    self.elmt = elmt
+
+  def __iter__(self):
+    return self
+
+  def __next__(self):
+    if self.cnt>0:
+      self.cnt -= 1
+      return self.elmt
+    else:
+      raise StopIteration
+
+class FakeLoader:
+  def __init__(self,cnt,device):
+    self.cnt = cnt
+
+    elmt = torch.tensor((),device=device)
+    self.elmt = (elmt,elmt)
+
+    self.dataset = cnt*[None]
+
+  def __iter__(self):
+    return FakeIter(self.cnt,self.elmt)
+
+def parallel_loader(rank,loader,device):  
+  if rank==0:
+    return loader
+  batches = len(loader)
+  return FakeLoader(batches,device)
+
 def main():
   
   ##
@@ -194,6 +254,11 @@ def main():
   comm = getComm()
   procs = comm.Get_size()
   rank  = comm.Get_rank()
+
+  root_print(rank,'TORCHBRAID REV: %s' % git_rev())
+
+
+  my_device,my_host = getDevice(comm)
 
   global_steps = args.steps
 
@@ -240,9 +305,11 @@ def main():
   train_loader = torch.utils.data.DataLoader(train_dataset,
           batch_size=args.batch_size, shuffle=True,
           pin_memory=True)
+  train_loader = parallel_loader(rank,train_loader,my_device)
   test_loader = torch.utils.data.DataLoader(test_dataset,
           batch_size=args.batch_size, shuffle=False,
           pin_memory=True)
+  test_loader = parallel_loader(rank,test_loader,my_device)
   if rank==0:
     print("\nTraining setup:  Batch size:  " + str(args.batch_size) + "  Sample ratio:  " + str(args.samp_ratio) + "  Epochs:  " + str(args.epochs) )
 
@@ -279,8 +346,8 @@ def main():
   epochs = args.epochs
   log_interval = args.log_interval
 
-  #model = ParallelNet(**network)
-  model = buildNet(False,**network)
+  model = buildNet(not args.use_serial,**network)
+  model = model.to(my_device)
 
   if rank==0:
     print('===============MODEL=============\n')
@@ -304,19 +371,30 @@ def main():
   if args.lr_scheduler:
     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10,30], gamma=0.1,verbose=(rank==0))
 
+  epoch = 0
+  start_time = timer()
+  test_result = test(rank,model, test_loader,epoch,compose,my_device)
+  end_time = timer()
+  test_times += [end_time-start_time]  
+
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
-    train(rank,args, model, train_loader, optimizer, epoch,compose)
+    train(rank,args, model, train_loader, optimizer, epoch,compose,my_device)
     end_time = timer()
     epoch_times += [end_time-start_time]
 
     start_time = timer()
-    test_result = test(rank,model, test_loader,epoch,compose)
+    test_result = test(rank,model, test_loader,epoch,compose,my_device)
     end_time = timer()
     test_times += [end_time-start_time]  
 
     if scheduler is not None:
       scheduler.step()
+
+  if not args.use_serial:
+    timer_str = model.parallel_nn.getTimersString()
+    root_print(rank,timer_str)
+
 
   root_print(rank,'TIME PER EPOCH: %.2e (1 std dev %.2e)' % (stats.mean(epoch_times),stats.stdev(epoch_times)))
   root_print(rank,'TIME PER TEST:  %.2e (1 std dev %.2e)' % (stats.mean(test_times), stats.stdev(test_times)))

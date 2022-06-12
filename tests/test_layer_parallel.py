@@ -44,6 +44,24 @@ faulthandler.enable()
 
 from mpi4py import MPI
 
+def getDevice(comm):
+  my_host    = torch.device('cpu')
+  if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
+    if comm.Get_rank()==0:
+      print('Using GPU Device')
+    my_device  = torch.device(f'cuda:{comm.Get_rank()}')
+    torch.cuda.set_device(my_device)
+  elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
+    if comm.Get_rank()==0:
+      print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
+    my_device = my_host
+  else:
+    if comm.Get_rank()==0:
+      print('No GPUs to be used, CPU only')
+    my_device = my_host
+  return my_device,my_host
+# end getDevice
+
 class LinearBlock(nn.Module):
   def __init__(self,dim=10):
     super(LinearBlock, self).__init__()
@@ -194,7 +212,7 @@ class TestTorchBraid(unittest.TestCase):
     MPI.COMM_WORLD.barrier()
   # end test_reLUNet_Approx
 
-  def copyParameterGradToRoot(self,m):
+  def copyParameterGradToRoot(self,m,device):
     comm     = m.getMPIComm()
     my_rank  = m.getMPIComm().Get_rank()
     num_proc = m.getMPIComm().Get_size()
@@ -207,11 +225,13 @@ class TestTorchBraid(unittest.TestCase):
     if my_rank==0:
       for i in range(1,num_proc):
         remote_p = comm.recv(source=i,tag=77)
+        remote_p = [p.to(device) for p in remote_p]
         params.extend(remote_p)
 
       return params
     else:
-      comm.send(params,dest=0,tag=77)
+      params_cpu = [p.cpu() for p in params]
+      comm.send(params_cpu,dest=0,tag=77)
       return None
   # end copyParametersToRoot
 
@@ -219,9 +239,16 @@ class TestTorchBraid(unittest.TestCase):
     Tf = 2.0
     cfactor = 2 
 
+    # figure out the whole GPU situation
+    my_device,my_host = getDevice(MPI.COMM_WORLD) 
+
+    x0 = x0.to(my_device)
+    w0 = w0.to(my_device)
+
     # this is the torchbraid class being tested 
     #######################################
     m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps*MPI.COMM_WORLD.Get_size(),Tf,max_fwd_levels=max_levels,max_bwd_levels=max_levels,max_iters=max_iters,spatial_ref_pair=ref_pair)
+    m = m.to(my_device)
     m.setPrintLevel(print_level)
     m.setSkipDowncycle(False)
     m.setCFactor(cfactor)
@@ -232,6 +259,8 @@ class TestTorchBraid(unittest.TestCase):
     #######################################
     dt = Tf/num_steps
     f = m.buildSequentialOnRoot()
+    if f is not None: # handle the cuda case
+      f = f.to(my_device)
 
     # run forward/backward propgation
 
@@ -249,7 +278,7 @@ class TestTorchBraid(unittest.TestCase):
 
     if check_grad:
       wm.backward(w0)
-      m_param_grad = self.copyParameterGradToRoot(m)
+      m_param_grad = self.copyParameterGradToRoot(m,my_device)
 
     wm = m.getFinalOnRoot(wm)
 
