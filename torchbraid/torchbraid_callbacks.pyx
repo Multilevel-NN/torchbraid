@@ -184,12 +184,9 @@ cdef int my_norm(braid_App app, braid_Vector u, double *norm_ptr):
     with pyApp.timer("norm"):
       # Compute norm 
       tensors_U = (<object> u).tensors()
-      norm_ptr[0] = 0.0
-      for ten_U in tensors_U:
-        val = torch.norm(ten_U).item()
-        norm_ptr[0] += val*val
+      norms = torch.stack([torch.square(ten_U).sum() for ten_U in tensors_U])
 
-      norm_ptr[0] = math.sqrt(norm_ptr[0])
+      norm_ptr[0] = math.sqrt(norms.sum().item())
   except:
     output_exception("my_norm")
 
