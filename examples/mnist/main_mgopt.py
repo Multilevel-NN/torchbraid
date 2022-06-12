@@ -84,6 +84,7 @@ from torchvision import datasets, transforms
 from mpi4py import MPI
 from utils import parse_args, ParallelNet
 from torchbraid.mgopt import mgopt_solver, root_print
+from torchbraid.utils import getDevice
 import torchbraid
 
 def main():
@@ -94,6 +95,9 @@ def main():
   procs = MPI.COMM_WORLD.Get_size()
   rank  = MPI.COMM_WORLD.Get_rank()
   root_print(rank, 1, 1, 'TORCHBRAID REV: %s\n' % torchbraid.utils.git_rev())
+
+  my_device,my_host = getDevice(MPI.COMM_WORLD)
+  my_device = my_host
   
   #torch.set_num_threads(6)
 
@@ -172,7 +176,7 @@ def main():
   epochs = args.NIepochs
   mgopt_printlevel = args.mgopt_printlevel
   log_interval = args.log_interval
-  mgopt = mgopt_solver()
+  mgopt = mgopt_solver(device=my_device)
 
   model_factory = lambda level,**kwargs: ParallelNet(**kwargs)
 
@@ -181,7 +185,6 @@ def main():
           mgopt_printlevel=mgopt_printlevel, optims=optims, seed=args.seed, 
           preserve_optim=preserve_optim, zero_init_guess=args.zero_init_guess) 
    
-  print(mgopt)
   mgopt.options_used()
   
   ##
@@ -228,6 +231,7 @@ def main():
     nrelax_pre = args.mgopt_nrelax_pre
     nrelax_post = args.mgopt_nrelax_post
     nrelax_coarse = args.mgopt_nrelax_coarse
+    print("MGOPT SOLVE STARTS")
     mgopt.mgopt_solve(train_loader, test_loader, epochs=epochs,
             log_interval=log_interval, mgopt_tol=mgopt_tol,
             mgopt_iter=mgopt_iter, nrelax_pre=nrelax_pre,

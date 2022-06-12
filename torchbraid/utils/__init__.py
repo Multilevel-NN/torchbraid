@@ -116,6 +116,30 @@ def pickle_size(obj):
   """
   return len(pickle.dumps(obj))
 
+def getDevice(comm):
+  """
+  Returns the host and serial device for this processor.
+
+  Only works on a single node at the moment (easy to change, use modulo arithmetic).
+  """
+  my_host    = torch.device('cpu')
+  if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
+    if comm.Get_rank()==0:
+      print('Using GPU Device')
+    my_device  = torch.device(f'cuda:{comm.Get_rank()}')
+    torch.cuda.set_device(my_device)
+  elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
+    if comm.Get_rank()==0:
+      print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
+    my_device = my_host
+  else:
+    if comm.Get_rank()==0:
+      print('No GPUs to be used, CPU only')
+    my_device = my_host
+
+  return my_device,my_host
+# end getDevice
+
 # def getMaxMemory(comm,message):
 #   usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
 # 

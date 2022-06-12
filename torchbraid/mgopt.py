@@ -69,7 +69,7 @@ def tensor_list_deep_copy(w):
 
 ##
 # PyTorch train and test network functions
-def train_epoch(rank, model, train_loader, optimizer, epoch, criterion, criterion_kwargs, compose, log_interval, mgopt_printlevel):
+def train_epoch(rank, model, train_loader, optimizer, epoch, criterion, criterion_kwargs, compose, log_interval, device, mgopt_printlevel):
   '''
   Carry out one complete training epoch
   If "optimizer" is a tuple, use it to create a new optimizer object each batch (i.e., reset the optimizer state each batch)
@@ -79,6 +79,9 @@ def train_epoch(rank, model, train_loader, optimizer, epoch, criterion, criterio
   
   total_time = 0.0
   for batch_idx, (data, target) in enumerate(train_loader):
+    data = data.to(device)
+    target = target.to(device)
+
     start_time = timer()
     #optimizer = optim.Adam(model.parameters(), **{ 'lr':0.001, 'betas':(0.9, 0.999), 'eps':1e-08 })
     # Allow for optimizer to be reset each batch, or not
@@ -114,7 +117,7 @@ def train_epoch(rank, model, train_loader, optimizer, epoch, criterion, criterio
   root_print(rank, mgopt_printlevel, 2, "------------------------------------------------------------------------------\n")
 
 
-def test(rank, model, test_loader, criterion, criterion_kwargs, compose, mgopt_printlevel, indent=''):
+def test(rank, model, test_loader, criterion, criterion_kwargs, compose, device, mgopt_printlevel, indent=''):
   ''' Compute loss and accuracy '''
   comm = model.parallel_nn.fwd_app.mpi_comm
   model.eval()
@@ -122,7 +125,7 @@ def test(rank, model, test_loader, criterion, criterion_kwargs, compose, mgopt_p
   correct = 0
   with torch.no_grad():
     for data, target in test_loader:
-      data, target = data, target
+      data, target = data.to(device), target.to(device)
       output = model(data)
       test_loss += compose(criterion, output, target, **criterion_kwargs).item()
        
@@ -809,10 +812,13 @@ class mgopt_solver:
       pass
 
 
-  def __init__(self):
+  def __init__(self,device=None):
     """ MG/Oopt constructor """
     self.levels = []
 
+    self.device = device
+    if self.device==None:
+      self.device = torch.device('cpu')
 
   def __repr__(self):
     """Print basic statistics about the multigrid hierarchy."""
@@ -826,6 +832,7 @@ class mgopt_solver:
     # Only rank 0 prints output
     if my_rank == 0:
       output = '\nMG/Opt Solver\n'
+      output +=f'Device: {self.device}\n'
       output += 'Number of Levels:     %d\n' % len(self.levels)
       output += 'Total Op Complexity: %6.3f\n' % total_op_comp 
       output += 'Trainable Op Complexity: %6.3f\n' % trainable_op_comp 
@@ -1087,6 +1094,7 @@ class mgopt_solver:
       model_name, kwargs = unpack_arg(networks[k])
       if model_name=='Factory':
         model = model_factory(k,**kwargs) # user lambda that takes the arugments and builds the network
+        model = model.to(self.device)
         model.parallel_nn.setBwdStorage(0)  # Only really needed if Braid will create a single time-level.  
       else:
         raise ValueError('Unsupported model: ' + model_string)
@@ -1115,9 +1123,12 @@ class mgopt_solver:
       # First, we must allocate everything in Braid with a dummy iteration
       # - For interpolation if on a refined level (levels > 0), or 
       # - On every level, if doing epochs=0, here NI is only allocating the hierarchy 
+      sys.stdout.flush()
       if (len(self.levels) > 0) or (epochs == 0): 
         model.eval()
         for (data, target) in train_loader:
+          data = data.to(self.device)
+          target = target.to(self.device)
           output = model(data)
           loss = compose(criterion, output, target, **criterion_kwargs)
           loss.backward()
@@ -1150,15 +1161,15 @@ class mgopt_solver:
         start_time = timer()
         # call train_epoch, depending on whether the optimizer state is preserved between runs
         if self.preserve_optim:
-          train_epoch(rank, model, train_loader, optimizer, epoch, criterion, criterion_kwargs, compose, log_interval, mgopt_printlevel)
+          train_epoch(rank, model, train_loader, optimizer, epoch, criterion, criterion_kwargs, compose, log_interval, self.device, mgopt_printlevel)
         else:
-          train_epoch(rank, model, train_loader, optims[k], epoch, criterion, criterion_kwargs, compose, log_interval, mgopt_printlevel)
+          train_epoch(rank, model, train_loader, optims[k], epoch, criterion, criterion_kwargs, compose, log_interval, self.device, mgopt_printlevel)
         end_time = timer()
         epoch_times.append( end_time-start_time )
     
         # test() is designed to be general for PyTorch networks
         start_time = timer()
-        test(rank, model, test_loader, criterion, criterion_kwargs, compose, mgopt_printlevel, indent='\n  ')
+        test(rank, model, test_loader, criterion, criterion_kwargs, compose, self.device, mgopt_printlevel, indent='\n  ')
         end_time = timer()
         test_times.append( end_time-start_time )
       
@@ -1360,6 +1371,8 @@ class mgopt_solver:
       # Begin loop over batches
       batch_total_time = 0.0
       for batch_idx, (data, target) in enumerate(train_loader):
+        data = data.to(self.device)
+        target = target.to(self.device)
         ##
         # Initiate recursive MG/Opt solve
         lvl = 0      
@@ -1401,7 +1414,7 @@ class mgopt_solver:
       ##
       # Measure training accuracy
       start = timer()
-      test(rank, self.levels[0].model, test_loader, criterion, criterion_kwargs, compose, mgopt_printlevel, indent='\n  ')
+      test(rank, self.levels[0].model, test_loader, criterion, criterion_kwargs, compose, self.device, mgopt_printlevel, indent='\n  ')
       end = timer()
       test_times.append( end -start )
       
@@ -1410,7 +1423,7 @@ class mgopt_solver:
       if(mgopt_printlevel >= 2):
         for i, level in enumerate(self.levels[1:]):
           root_print(rank, mgopt_printlevel, 2, '  Test accuracy information for level ' + str(i+1))
-          test(rank, level.model, test_loader, criterion, criterion_kwargs, compose, mgopt_printlevel, indent='    ')
+          test(rank, level.model, test_loader, criterion, criterion_kwargs, compose, self.device, mgopt_printlevel, indent='    ')
       
       ##
       # Print epoch-level time averages
