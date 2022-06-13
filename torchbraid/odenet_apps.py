@@ -35,7 +35,7 @@ import torch.nn as nn
 from math import pi
 from braid_vector import BraidVector
 from torchbraid_app import BraidApp
-import utils 
+import utils
 import itertools
 
 import sys
@@ -47,474 +47,509 @@ from bisect import bisect_right
 from bsplines import BsplineBasis
 from mpi4py import MPI
 
+
 class ForwardODENetApp(BraidApp):
-  class ODEBlock(nn.Module):
-    """This is a helper class to wrap layers that should be ODE time steps."""
-    def __init__(self,layer):
-      super(ForwardODENetApp.ODEBlock, self).__init__()
+    class ODEBlock(nn.Module):
+        """This is a helper class to wrap layers that should be ODE time steps."""
 
-      self.layer = layer
+        def __init__(self, layer):
+            super(ForwardODENetApp.ODEBlock, self).__init__()
 
-    def forward(self,dt, x):
-      y = dt*self.layer(x)
-      y.add_(x)
-      return y
-  # end ODEBlock
+            self.layer = layer
 
-  class PlainBlock(nn.Module):
-    """This is a helper class to wrap layers that are not ODE time steps."""
-    def __init__(self,layer):
-      super(ForwardODENetApp.PlainBlock, self).__init__()
+        def forward(self, dt, x):
+            y = dt*self.layer(x)
+            y.add_(x)
+            return y
+    # end ODEBlock
 
-      self.layer = layer
+    class PlainBlock(nn.Module):
+        """This is a helper class to wrap layers that are not ODE time steps."""
 
-    def forward(self,dt, x):
-      return self.layer(x)
-  # end ODEBlock
+        def __init__(self, layer):
+            super(ForwardODENetApp.PlainBlock, self).__init__()
 
-  def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None, nsplines=0, splinedegree=1):
-    """
-    """
-    self.layer_blocks,num_steps = self.buildLayerBlocks(layers)
+            self.layer = layer
 
-    BraidApp.__init__(self,'FWDApp',comm,num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=True)
+        def forward(self, dt, x):
+            return self.layer(x)
+    # end ODEBlock
 
-    self.finalRelax()
+    def __init__(self, comm, layers, Tf, max_levels, max_iters, timer_manager, spatial_ref_pair=None, spatial_ref_levels=None, nsplines=0, splinedegree=1):
+        """
+        """
+        self.layer_blocks, num_steps = self.buildLayerBlocks(layers)
 
-    comm          = self.getMPIComm()
-    my_rank       = self.getMPIComm().Get_rank()
-    num_ranks     = self.getMPIComm().Get_size()
-    self.my_rank = my_rank
+        BraidApp.__init__(self, 'FWDApp', comm, num_steps, Tf, max_levels,
+                          max_iters, spatial_ref_pair=spatial_ref_pair, require_storage=True)
 
-    # If this is a SpliNet, create spline basis and overwrite local self.start_layer/end_layer 
-    self.splinet = False
-    if nsplines>0:
-      self.splinet = True
-      if comm.Get_rank() == 0:
-        print("Torchbraid will create a SpliNet with ", nsplines, " spline basis functions of degree", splinedegree)
+        self.finalRelax()
 
-      self.splinebasis = BsplineBasis(nsplines, splinedegree, Tf)
-      spline_dknots = Tf / (nsplines - splinedegree) # spacing of spline knots
-      if comm.Get_rank() == 0: # First processor's time-interval includes t0_local=0.0. Others exclude t0_local, owning only (t0_local, tf_local]!
-        self.start_layer = int( (self.t0_local ) / spline_dknots )
-      else:
-        self.start_layer = int( (self.t0_local + self.dt) / spline_dknots )
-      if comm.Get_rank() == num_ranks-1: # Last processor's time-interval excludes tf_local because no step is being done from there.
-        self.end_layer = int( (self.tf_local - self.dt ) / spline_dknots ) + splinedegree
-      else:
-        self.end_layer = int( (self.tf_local ) / spline_dknots ) + splinedegree
+        comm = self.getMPIComm()
+        my_rank = self.getMPIComm().Get_rank()
+        num_ranks = self.getMPIComm().Get_size()
+        self.my_rank = my_rank
 
-    # Number of locally stored layers
-    owned_layers = self.end_layer-self.start_layer+1
-    if my_rank==num_ranks-1 and not self.splinet:
-      # the last time step should not create a layer, there is no step being
-      # taken on that final step
-      owned_layers -= 1
+        # need access to this in order to coarsen state vectors up from the fine grid
+        # for getPrimalWithGrad
+        if spatial_ref_pair is not None:
+            self.spatial_coarsen = spatial_ref_pair[0]
+            self.sc_levels = spatial_ref_levels
+        else:
+            self.spatial_coarsen = None
+            self.sc_levels = None
 
-    # Now creating the trainable layers
-    self.layer_models = [self.buildLayerBlock(self.start_layer+i) for i in range(owned_layers)]
+        # If this is a SpliNet, create spline basis and overwrite local self.start_layer/end_layer
+        self.splinet = False
+        if nsplines > 0:
+            self.splinet = True
+            if comm.Get_rank() == 0:
+                print("Torchbraid will create a SpliNet with ", nsplines,
+                      " spline basis functions of degree", splinedegree)
 
-    self.timer_manager = timer_manager
-    self.use_deriv = False
+            self.splinebasis = BsplineBasis(nsplines, splinedegree, Tf)
+            # spacing of spline knots
+            spline_dknots = Tf / (nsplines - splinedegree)
+            if comm.Get_rank() == 0:  # First processor's time-interval includes t0_local=0.0. Others exclude t0_local, owning only (t0_local, tf_local]!
+                self.start_layer = int((self.t0_local) / spline_dknots)
+            else:
+                self.start_layer = int(
+                    (self.t0_local + self.dt) / spline_dknots)
+            # Last processor's time-interval excludes tf_local because no step is being done from there.
+            if comm.Get_rank() == num_ranks-1:
+                self.end_layer = int(
+                    (self.tf_local - self.dt) / spline_dknots) + splinedegree
+            else:
+                self.end_layer = int(
+                    (self.tf_local) / spline_dknots) + splinedegree
 
-    self.parameter_shapes = []
-    for p in self.layer_models[0].parameters(): 
-      self.parameter_shapes += [p.data.size()]
+        # Number of locally stored layers
+        owned_layers = self.end_layer-self.start_layer+1
+        if my_rank == num_ranks-1 and not self.splinet:
+            # the last time step should not create a layer, there is no step being
+            # taken on that final step
+            owned_layers -= 1
 
-    self.temp_layers = dict()
+        # Now creating the trainable layers
+        self.layer_models = [self.buildLayerBlock(
+            self.start_layer+i) for i in range(owned_layers)]
 
-    # If this is a SpliNet, create communicators for shared weights
-    if self.splinet:
-      # For each spline basis function, create one communicator that contains all processors that store this spline.
-      self.spline_comm_vec = []
-      for i in range(nsplines):
-        group = comm.Get_group()  # all processors, then exclude those who don't store i
-        exclude = []
-        for k in range(comm.Get_size()):
-          # recompute start_layer and end_layer for all other processors.
-          dt = Tf/(self.local_num_steps*comm.Get_size())
-          t0loc = k*self.local_num_steps*dt  
-          tfloc = (k+1)*self.local_num_steps*dt
-          if k == 0:
-            startlayer = int( t0loc / spline_dknots )
-          else :
-            startlayer = int( (t0loc+self.dt) / spline_dknots )
-          endlayer = int( tfloc / spline_dknots ) + splinedegree
-          if k == comm.Get_size()-1:
-            endlayer = endlayer-1
-          if i < startlayer or i > endlayer:
-            exclude.append(k)
-        newgroup = group.Excl(exclude)
-        # Finally create the communicator and store it. 
-        thiscomm = comm.Create(newgroup) # This will be MPI.COMM_NULL on all processors that are excluded
-        self.spline_comm_vec.append(thiscomm)  
-      
-  # end __init__
+        self.timer_manager = timer_manager
+        self.use_deriv = False
 
-  def __del__(self):
-    pass
+        self.parameter_shapes = []
+        for p in self.layer_models[0].parameters():
+            self.parameter_shapes += [p.data.size()]
 
-  def buildShapes(self,x):
-    """Do a dry run to determine all the shapes that need to be built."""
-    shapes = [x.shape]
-    for layer_constr in self.layer_blocks[1]:
-      # build the layer on the proper device
-      layer = layer_constr().to(self.device) 
-      x = layer(x)
-      shapes += [x.shape]
-    return shapes
+        self.temp_layers = dict()
 
-  def buildLayerBlocks(self,layers):
-    # this block of code prepares the data for easy sorting
-    [counts,layer_blocks] = list(zip(*layers))
-    layer_indices = list(itertools.accumulate(counts))
+        # If this is a SpliNet, create communicators for shared weights
+        if self.splinet:
+            # For each spline basis function, create one communicator that contains all processors that store this spline.
+            self.spline_comm_vec = []
+            for i in range(nsplines):
+                group = comm.Get_group()  # all processors, then exclude those who don't store i
+                exclude = []
+                for k in range(comm.Get_size()):
+                    # recompute start_layer and end_layer for all other processors.
+                    dt = Tf/(self.local_num_steps*comm.Get_size())
+                    t0loc = k*self.local_num_steps*dt
+                    tfloc = (k+1)*self.local_num_steps*dt
+                    if k == 0:
+                        startlayer = int(t0loc / spline_dknots)
+                    else:
+                        startlayer = int((t0loc+self.dt) / spline_dknots)
+                    endlayer = int(tfloc / spline_dknots) + splinedegree
+                    if k == comm.Get_size()-1:
+                        endlayer = endlayer-1
+                    if i < startlayer or i > endlayer:
+                        exclude.append(k)
+                newgroup = group.Excl(exclude)
+                # Finally create the communicator and store it.
+                # This will be MPI.COMM_NULL on all processors that are excluded
+                thiscomm = comm.Create(newgroup)
+                self.spline_comm_vec.append(thiscomm)
 
-    num_steps = layer_indices[-1]
-    return (layer_indices,layer_blocks,counts),num_steps
+    # end __init__
 
-  def buildLayerBlock(self,i):
-    """
-    This function returns a block (e.g. a lambda that constructs the layer).
-    """
-    ind = bisect_right(self.layer_blocks[0],i)
-    layer = self.layer_blocks[1][ind]()
-    if self.layer_blocks[2][ind]==1:
-      # if its just one time step, assume the user wants only a scalar
-      return self.PlainBlock(layer)
-    return self.ODEBlock(layer)
+    def __del__(self):
+        pass
 
-  def getFeatureShapes(self,t):
-    i = self.getGlobalTimeIndex(t)
-    ind = bisect_right(self.layer_blocks[0],i)
-    return (self.shape0[ind],)
+    def buildShapes(self, x):
+        """Do a dry run to determine all the shapes that need to be built."""
+        shapes = [x.shape]
+        for layer_constr in self.layer_blocks[1]:
+            # build the layer on the proper device
+            layer = layer_constr().to(self.device)
+            x = layer(x)
+            shapes += [x.shape]
+        return shapes
 
-  def getTempLayer(self,t):
-    """
-    This function returns a pytorch layer module. A dictionary is used
-    to cache the construction and search. These will be used to make sure
-    that any parallel communication is correctly handled even if the layer
-    is of a different type.
-    """
-    i = self.getGlobalTimeIndex(t)
-    ind = bisect_right(self.layer_blocks[0],i)
+    def buildLayerBlocks(self, layers):
+        # this block of code prepares the data for easy sorting
+        [counts, layer_blocks] = list(zip(*layers))
+        layer_indices = list(itertools.accumulate(counts))
 
-    # using a dictionary to cache previously built temp layers
-    if ind in self.temp_layers:
-      result = self.temp_layers[ind]
-    else:
-      result = self.buildLayerBlock(i)
-      self.temp_layers[ind] = result
-    
-    return result
+        num_steps = layer_indices[-1]
+        return (layer_indices, layer_blocks, counts), num_steps
 
-  def getTensorShapes(self):
-    return list(self.shape0)+self.parameter_shapes
+    def buildLayerBlock(self, i):
+        """
+        This function returns a block (e.g. a lambda that constructs the layer).
+        """
+        ind = bisect_right(self.layer_blocks[0], i)
+        layer = self.layer_blocks[1][ind]()
+        if self.layer_blocks[2][ind] == 1:
+            # if its just one time step, assume the user wants only a scalar
+            return self.PlainBlock(layer)
+        return self.ODEBlock(layer)
 
-  def setVectorWeights(self,t,x):
+    def getFeatureShapes(self, t):
+        i = self.getGlobalTimeIndex(t)
+        ind = bisect_right(self.layer_blocks[0], i)
+        return (self.shape0[ind],)
 
-    if self.splinet: 
-      # Evaluate the splines at time t and get interval k such that t \in [\tau_k, \tau_k+1] for splineknots \tau
-      with torch.no_grad():
-        splines, k = self.splinebasis.eval(t)
-        # Add up sum over p+1 non-zero splines(t) times weights coeffients, l=0,\dots,p
-        l = 0 # first one here, because I didn't know how to set the shape of 'weights' correctly...
-        layermodel_localID = k + l - self.start_layer
-        assert layermodel_localID >= 0 and layermodel_localID < len(self.layer_models)
-        layer = self.layer_models[layermodel_localID]
-        weights = [splines[l] * p.data for p in layer.parameters()] # l=0
-        # others: l=1,dots, p
-        for l in range(1,len(splines)):
-          layermodel_localID = k + l - self.start_layer
-          if t== self.Tf and l==len(splines)-1: # There is one more spline at Tf, which is zero at Tf and therefore it is not stored. Skip. 
-            continue
-          assert layermodel_localID >= 0 and layermodel_localID < len(self.layer_models)
-          layer = self.layer_models[layermodel_localID]
-          for dest_w, src_p in zip(weights, list(layer.parameters())):  
-              dest_w.add_(src_p.data, alpha=splines[l])
+    def getTempLayer(self, t):
+        """
+        This function returns a pytorch layer module. A dictionary is used
+        to cache the construction and search. These will be used to make sure
+        that any parallel communication is correctly handled even if the layer
+        is of a different type.
+        """
+        i = self.getGlobalTimeIndex(t)
+        ind = bisect_right(self.layer_blocks[0], i)
 
-    else: 
-      layer_index = self.getGlobalTimeIndex(t) - self.start_layer
-      if layer_index<len(self.layer_models) and layer_index>=0:
-        layer = self.layer_models[layer_index]
-      else:
-        layer = None
+        # using a dictionary to cache previously built temp layers
+        if ind in self.temp_layers:
+            result = self.temp_layers[ind]
+        else:
+            result = self.buildLayerBlock(i)
+            self.temp_layers[ind] = result
 
-      if layer!=None:
-        weights = [p.data for p in layer.parameters()]
-      else:
-        weights = []
+        return result
 
-    x.addWeightTensors(weights)
-  # end setVectorWeights
+    def getTensorShapes(self):
+        return list(self.shape0)+self.parameter_shapes
 
-  def setLayerWeights(self,t,tf,level,weights):
-    layer = self.getTempLayer(t)
-    with torch.no_grad():
-      for dest_p,src_w in zip(list(layer.parameters()),weights):
-        dest_p.data = src_w
-  # end setLayerWeights
+    def setVectorWeights(self, t, x):
 
-  def initializeVector(self,t,x):
-    self.setVectorWeights(t,x)
+        if self.splinet:
+            # Evaluate the splines at time t and get interval k such that t \in [\tau_k, \tau_k+1] for splineknots \tau
+            with torch.no_grad():
+                splines, k = self.splinebasis.eval(t)
+                # Add up sum over p+1 non-zero splines(t) times weights coeffients, l=0,\dots,p
+                # first one here, because I didn't know how to set the shape of 'weights' correctly...
+                l = 0
+                layermodel_localID = k + l - self.start_layer
+                assert layermodel_localID >= 0 and layermodel_localID < len(
+                    self.layer_models)
+                layer = self.layer_models[layermodel_localID]
+                weights = [splines[l] *
+                           p.data for p in layer.parameters()]  # l=0
+                # others: l=1,dots, p
+                for l in range(1, len(splines)):
+                    layermodel_localID = k + l - self.start_layer
+                    # There is one more spline at Tf, which is zero at Tf and therefore it is not stored. Skip.
+                    if t == self.Tf and l == len(splines)-1:
+                        continue
+                    assert layermodel_localID >= 0 and layermodel_localID < len(
+                        self.layer_models)
+                    layer = self.layer_models[layermodel_localID]
+                    for dest_w, src_p in zip(weights, list(layer.parameters())):
+                        dest_w.add_(src_p.data, alpha=splines[l])
 
-  def run(self,x):
-    # turn on derivative path (as requried)
-    self.use_deriv = self.training
-    
-    # instead of doing runBraid, can execute tests
-    #self.testBraid(x)
+        else:
+            layer_index = self.getGlobalTimeIndex(t) - self.start_layer
+            if layer_index < len(self.layer_models) and layer_index >= 0:
+                layer = self.layer_models[layer_index]
+            else:
+                layer = None
 
-    # run the braid solver
-    self.getMPIComm().Barrier()
-    with self.timer("runBraid"):
+            if layer != None:
+                weights = [p.data for p in layer.parameters()]
+            else:
+                weights = []
 
-      y = self.runBraid(x)
+        x.addWeightTensors(weights)
+    # end setVectorWeights
 
-      # reset derivative papth
-      self.use_deriv = False
+    def setLayerWeights(self, t, tf, level, weights):
+        layer = self.getTempLayer(t)
+        with torch.no_grad():
+            for dest_p, src_w in zip(list(layer.parameters()), weights):
+                dest_p.data = src_w
+    # end setLayerWeights
 
-    if y is not None:
-      return y[0]
-    else:
-      return None
-  # end forward
+    def initializeVector(self, t, x):
+        self.setVectorWeights(t, x)
 
-  def timer(self,name):
-    return self.timer_manager.timer("ForWD::"+name)
+    def run(self, x):
+        # turn on derivative path (as requried)
+        self.use_deriv = self.training
 
-  def parameters(self):
-    params = []
-    for l in self.layer_models:
-      if l!=None:
-        params += [list(l.parameters())]
+        # instead of doing runBraid, can execute tests
+        # self.testBraid(x)
 
-    return params
+        # run the braid solver
+        self.getMPIComm().Barrier()
+        with self.timer("runBraid"):
 
-  def eval(self,y,tstart,tstop,level,done,x=None):
-    """
-    Method called by "my_step" in braid. This is
-    required to propagate from tstart to tstop, with the initial
-    condition x. The level is defined by braid
-    """
+            y = self.runBraid(x)
 
-    self.setLayerWeights(tstart,tstop,level,y.weightTensors())
-    layer = self.getTempLayer(tstart)
+            # reset derivative papth
+            self.use_deriv = False
 
-    t_y = y.tensor().detach()
+        if y is not None:
+            return y[0]
+        else:
+            return None
+    # end forward
 
-    # no gradients are necessary here, so don't compute them
-    dt = tstop-tstart
-    with torch.no_grad():
-      ny = layer(dt,t_y)
-      y.replaceTensor(ny) 
+    def timer(self, name):
+        return self.timer_manager.timer("ForWD::"+name)
 
-    # This connects weights at tstop with the vector y. For a SpliNet, the weights at tstop are evaluated using the spline basis function. 
-    self.setVectorWeights(tstop,y)
-  # end eval
+    def parameters(self):
+        params = []
+        for l in self.layer_models:
+            if l != None:
+                params += [list(l.parameters())]
 
-  def getPrimalWithGrad(self,tstart,tstop):
-    """ 
-    Get the forward solution associated with this
-    time step and also get its derivative. This is
-    used by the BackwardApp in computation of the
-    adjoint (backprop) state and parameter derivatives.
-    """
+        return params
 
-    b_x = self.getUVector(0,tstart)
+    def eval(self, y, tstart, tstop, level, done, x=None):
+        """
+        Method called by "my_step" in braid. This is
+        required to propagate from tstart to tstop, with the initial
+        condition x. The level is defined by braid
+        """
 
-    # Set the layer at tstart. For a SpliNet, get the layer weights from x at tstart, otherwise, get layer and weights from storage.
-    if self.splinet:
-      self.setLayerWeights(tstart,tstop,0,b_x.weightTensors())
-      layer = self.getTempLayer(tstart)
-    else:
-      ts_index = self.getGlobalTimeIndex(tstart)-self.start_layer
-      assert(ts_index<len(self.layer_models))
-      assert(ts_index >= 0)
-      layer = self.layer_models[ts_index]
-    
-    t_x = b_x.tensor()
-    x = t_x.detach()
-    y = t_x.detach().clone()
+        self.setLayerWeights(tstart, tstop, level, y.weightTensors())
+        layer = self.getTempLayer(tstart)
 
-    x.requires_grad = True 
-    dt = tstop-tstart
-    with torch.enable_grad():
-      y = layer(dt,x)
-    return (y, x), layer
-  # end getPrimalWithGrad
+        t_y = y.tensor().detach()
+
+        # no gradients are necessary here, so don't compute them
+        dt = tstop-tstart
+        with torch.no_grad():
+            ny = layer(dt, t_y)
+            y.replaceTensor(ny)
+
+        # This connects weights at tstop with the vector y. For a SpliNet, the weights at tstop are evaluated using the spline basis function.
+        self.setVectorWeights(tstop, y)
+    # end eval
+
+    def getPrimalWithGrad(self, tstart, tstop, level):
+        """ 
+        Get the forward solution associated with this
+        time step and also get its derivative. This is
+        used by the BackwardApp in computation of the
+        adjoint (backprop) state and parameter derivatives.
+        """
+
+        b_x = self.getUVector(0, tstart)
+        t_x = b_x.tensor()
+
+        if self.spatial_coarsen:
+            for l in range(level):
+                t_x = self.spatial_coarsen(t_x, l)
+
+        # Set the layer at tstart. For a SpliNet, get the layer weights from x at tstart, otherwise, get layer and weights from storage.
+        if self.splinet:
+            self.setLayerWeights(tstart, tstop, 0, t_x.weightTensors())
+            layer = self.getTempLayer(tstart)
+        else:
+            ts_index = self.getGlobalTimeIndex(tstart)-self.start_layer
+            assert(ts_index < len(self.layer_models))
+            assert(ts_index >= 0)
+            layer = self.layer_models[ts_index]
+
+        x = t_x.detach()
+        y = t_x.detach().clone()
+
+        x.requires_grad = True
+        dt = tstop-tstart
+        with torch.enable_grad():
+            y = layer(dt, x)
+        return (y, x), layer
+    # end getPrimalWithGrad
 
 # end ForwardODENetApp
 
 ##############################################################
 
+    def __init__(self, fwd_app, timer_manager, max_levels=-1):
+        # call parent constructor
+        if max_levels == -1:
+            max_levels = fwd_app.max_levels
+        BraidApp.__init__(self, 'BWDApp',
+                          fwd_app.getMPIComm(),
+                          fwd_app.getMPIComm().Get_size()*fwd_app.local_num_steps,
+                          fwd_app.Tf,
+                          max_levels,
+                          fwd_app.max_iters,
+                          spatial_ref_pair=fwd_app.spatial_ref_pair)
 
-  def __init__(self,fwd_app,timer_manager,max_levels=-1):
-    # call parent constructor
-    if max_levels == -1:
-        max_levels = fwd_app.max_levels
-    BraidApp.__init__(self,'BWDApp',
-                           fwd_app.getMPIComm(),
-                           fwd_app.getMPIComm().Get_size()*fwd_app.local_num_steps,
-                           fwd_app.Tf,
-                           max_levels,
-                           fwd_app.max_iters,
-                           spatial_ref_pair=fwd_app.spatial_ref_pair)
+        self.fwd_app = fwd_app
 
-    self.fwd_app = fwd_app
+        # build up the core
+        self.initCore()
 
-    # build up the core
-    self.initCore()
+        # reverse ordering for adjoint/backprop
+        self.setRevertedRanks(1)
 
-    # reverse ordering for adjoint/backprop
-    self.setRevertedRanks(1)
+        # force evaluation of gradients at end of up-cycle
+        self.finalRelax()
 
-    # force evaluation of gradients at end of up-cycle
-    self.finalRelax()
+        self.timer_manager = timer_manager
+    # end __init__
 
-    self.timer_manager = timer_manager
-  # end __init__
+    def __del__(self):
+        self.fwd_app = None
 
-  def __del__(self):
-    self.fwd_app = None
+    def getTensorShapes(self):
+        return self.shape0
 
-  def getTensorShapes(self):
-    return self.shape0
+    def timer(self, name):
+        return self.timer_manager.timer("BckWD::"+name)
 
-  def timer(self,name):
-    return self.timer_manager.timer("BckWD::"+name)
+    def run(self, x):
 
-  def run(self,x):
-    
-    # instead of doing runBraid, can execute tests
-    #self.testBraid(x)
+        # instead of doing runBraid, can execute tests
+        # self.testBraid(x)
 
-    try:
+        try:
 
-      with self.timer("runBraid"):
-        f = self.runBraid(x)
+            with self.timer("runBraid"):
+                f = self.runBraid(x)
 
-      if f is not None:
-        f = f[0]
+            if f is not None:
+                f = f[0]
 
-      # Communicate the spline gradients here. Alternatively, this could be done in braid_function.py: "backward(ctx, grad_output)" ?
-      if self.fwd_app.splinet:
-        # req = []
-        for i,splinecomm in enumerate(self.fwd_app.spline_comm_vec):
-          if splinecomm != MPI.COMM_NULL: 
-            # print(splinecomm.Get_rank(), ": I will pack spline ", i)
-            # pack the spline into a buffer and initiate non-blocking allredude
-            splinelayer = self.fwd_app.layer_models[i - self.fwd_app.start_layer]
-            buf = utils.pack_buffer([p.grad for p in splinelayer.parameters()])
-            req=splinecomm.Iallreduce(MPI.IN_PLACE, buf, MPI.SUM)
+            # Communicate the spline gradients here. Alternatively, this could be done in braid_function.py: "backward(ctx, grad_output)" ?
+            if self.fwd_app.splinet:
+                # req = []
+                for i, splinecomm in enumerate(self.fwd_app.spline_comm_vec):
+                    if splinecomm != MPI.COMM_NULL:
+                        # print(splinecomm.Get_rank(), ": I will pack spline ", i)
+                        # pack the spline into a buffer and initiate non-blocking allredude
+                        splinelayer = self.fwd_app.layer_models[i -
+                                                                self.fwd_app.start_layer]
+                        buf = utils.pack_buffer(
+                            [p.grad for p in splinelayer.parameters()])
+                        req = splinecomm.Iallreduce(MPI.IN_PLACE, buf, MPI.SUM)
 
-            # Finish up communication. TODO: Queue all requests.
-            MPI.Request.Wait(req)
-            utils.unpack_buffer([p.grad for p in splinelayer.parameters()], buf)
-      # end splinet
+                        # Finish up communication. TODO: Queue all requests.
+                        MPI.Request.Wait(req)
+                        utils.unpack_buffer(
+                            [p.grad for p in splinelayer.parameters()], buf)
+            # end splinet
 
-      self.grads = []
+            self.grads = []
 
-      # preserve the layerwise structure, to ease communication
-      # - note the prection of the 'None' case, this is so that individual layers
-      # - can have gradient's turned off
-      my_params = self.fwd_app.parameters()
-      for sublist in my_params:
-        sub_gradlist = [] 
-        for item in sublist:
-          if item.grad is not None:
-            sub_gradlist += [ item.grad.clone() ] 
-          else:
-            sub_gradlist += [ None ]
+            # preserve the layerwise structure, to ease communication
+            # - note the prection of the 'None' case, this is so that individual layers
+            # - can have gradient's turned off
+            my_params = self.fwd_app.parameters()
+            for sublist in my_params:
+                sub_gradlist = []
+                for item in sublist:
+                    if item.grad is not None:
+                        sub_gradlist += [item.grad.clone()]
+                    else:
+                        sub_gradlist += [None]
 
-        self.grads += [ sub_gradlist ]
-      # end for sublist
-      # print(self.getMPIComm().Get_rank(), " self.grads=", self.grads)
+                self.grads += [sub_gradlist]
+            # end for sublist
+            # print(self.getMPIComm().Get_rank(), " self.grads=", self.grads)
 
-      for l in self.fwd_app.layer_models:
-         if l==None: continue
-         l.zero_grad()
+            for l in self.fwd_app.layer_models:
+                if l == None:
+                    continue
+                l.zero_grad()
 
-    except:
-      print('\n**** Torchbraid Internal Exception ****\n')
-      traceback.print_exc()
+        except:
+            print('\n**** Torchbraid Internal Exception ****\n')
+            traceback.print_exc()
 
-    return f
-  # end forward
+        return f
+    # end forward
 
-  def getFeatureShapes(self,t):
-    return self.fwd_app.getFeatureShapes(self.Tf-t)
+    def getFeatureShapes(self, t):
+        return self.fwd_app.getFeatureShapes(self.Tf-t)
 
-  def eval(self,w,tstart,tstop,level,done):
-    """
-    Evaluate the adjoint problem for a single time step. Here 'w' is the
-    adjoint solution. The variables 'x' and 'y' refer to the forward
-    problem solutions at the beginning (x) and end (y) of the type step.
-    """
-    try:
-        # print(self.fwd_app.my_rank, ": BWDeval level ", level, " ", tstart, "->", tstop, "done", done)
-          
-        # we need to adjust the time step values to reverse with the adjoint
-        # this is so that the renumbering used by the backward problem is properly adjusted
-        (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,
-                                                         self.Tf-tstart)
-                                                         
-        # print(self.fwd_app.my_rank, "--> FWD with layer ", [p.data for p in layer.parameters()])
+    def eval(self, w, tstart, tstop, level, done):
+        """
+        Evaluate the adjoint problem for a single time step. Here 'w' is the
+        adjoint solution. The variables 'x' and 'y' refer to the forward
+        problem solutions at the beginning (x) and end (y) of the type step.
+        """
+        try:
+            # print(self.fwd_app.my_rank, ": BWDeval level ", level, " ", tstart, "->", tstop, "done", done)
 
-        # t_x should have no gradient (for memory reasons)
-        assert(t_x.grad is None)
+            # we need to adjust the time step values to reverse with the adjoint
+            # this is so that the renumbering used by the backward problem is properly adjusted
+            (t_y, t_x), layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,
+                                                               self.Tf-tstart,
+                                                               level)
 
-        # we are going to change the required gradient, make sure they return
-        # to where they started!
-        required_grad_state = []
+            # print(self.fwd_app.my_rank, "--> FWD with layer ", [p.data for p in layer.parameters()])
 
-        # play with the layers gradient to make sure they are on apprpriately
-        for p in layer.parameters(): 
-          required_grad_state += [p.requires_grad]
-          if done==1:
-            if not p.grad is None:
-              p.grad.data.zero_()
-          else:
-            # if you are not done, compute no parameter gradients
-            p.requires_grad = False
+            # t_x should have no gradient (for memory reasons)
+            assert(t_x.grad is None)
 
-        # perform adjoint computations
-        t_w = w.tensor()
-        t_w.requires_grad = False
-        t_y.backward(t_w)
+            # we are going to change the required gradient, make sure they return
+            # to where they started!
+            required_grad_state = []
 
-        # The above set's the gradient of the layer.parameters(), which, in case of SpliNet, is the templayer -> need to spread those sensitivities to the layer_models
-        if self.fwd_app.splinet and done==1:
-          with torch.no_grad(): # No idea if this is actually needed here... 
-            splines, k = self.fwd_app.splinebasis.eval(self.Tf-tstop)
-            # Spread derivavites to d+1 non-zero splines(t) times weights:
-            # \bar L_{k+l} += splines[l] * layer.parameters().gradient
-            for l in range(len(splines)): 
-              # Get the layer whose gradient is to be updated
-              layermodel_localID = k + l - self.fwd_app.start_layer
-              if (self.Tf-tstop == 0.0) and l==len(splines)-1: # There is one more spline at Tf, which is zero at Tf and therefore it is not stored. Skip. 
-                continue
-              assert layermodel_localID >= 0 and layermodel_localID < len(self.fwd_app.layer_models)
-              layer_out = self.fwd_app.layer_models[layermodel_localID]
-
-              # Update the gradient of this layer
-              for dest, src in zip(list(layer_out.parameters()), list(layer.parameters())):  
-                if dest.grad == None:
-                  dest.grad = src.grad * splines[l]
+            # play with the layers gradient to make sure they are on apprpriately
+            for p in layer.parameters():
+                required_grad_state += [p.requires_grad]
+                if done == 1:
+                    if not p.grad is None:
+                        p.grad.data.zero_()
                 else:
-                  dest.grad.add_(src.grad, alpha=splines[l])
+                    # if you are not done, compute no parameter gradients
+                    p.requires_grad = False
 
+            # perform adjoint computations
+            t_w = w.tensor()
+            t_w.requires_grad = False
+            t_y.backward(t_w)
 
-        # this little bit of pytorch magic ensures the gradient isn't
-        # stored too long in this calculation (in particulcar setting
-        # the grad to None after saving it and returning it to braid)
-        w.replaceTensor(t_x.grad.detach().clone()) 
+            # The above set's the gradient of the layer.parameters(), which, in case of SpliNet, is the templayer -> need to spread those sensitivities to the layer_models
+            if self.fwd_app.splinet and done == 1:
+                with torch.no_grad():  # No idea if this is actually needed here...
+                    splines, k = self.fwd_app.splinebasis.eval(self.Tf-tstop)
+                    # Spread derivavites to d+1 non-zero splines(t) times weights:
+                    # \bar L_{k+l} += splines[l] * layer.parameters().gradient
+                    for l in range(len(splines)):
+                        # Get the layer whose gradient is to be updated
+                        layermodel_localID = k + l - self.fwd_app.start_layer
+                        # There is one more spline at Tf, which is zero at Tf and therefore it is not stored. Skip.
+                        if (self.Tf-tstop == 0.0) and l == len(splines)-1:
+                            continue
+                        assert layermodel_localID >= 0 and layermodel_localID < len(
+                            self.fwd_app.layer_models)
+                        layer_out = self.fwd_app.layer_models[layermodel_localID]
 
-        for p,s in zip(layer.parameters(),required_grad_state):
-          p.requires_grad = s
-    except:
-      print('\n**** Torchbraid Internal Exception: ' 
-           +'backward eval: rank={}, level={}, time interval=({:.2f},{:.2f}) ****\n'.format(self.fwd_app.my_rank,level,tstart,tstop))
-      traceback.print_exc()
-  # end eval
+                        # Update the gradient of this layer
+                        for dest, src in zip(list(layer_out.parameters()), list(layer.parameters())):
+                            if dest.grad == None:
+                                dest.grad = src.grad * splines[l]
+                            else:
+                                dest.grad.add_(src.grad, alpha=splines[l])
+
+            # this little bit of pytorch magic ensures the gradient isn't
+            # stored too long in this calculation (in particulcar setting
+            # the grad to None after saving it and returning it to braid)
+            w.replaceTensor(t_x.grad.detach().clone())
+
+            for p, s in zip(layer.parameters(), required_grad_state):
+                p.requires_grad = s
+        except:
+            print('\n**** Torchbraid Internal Exception: '
+                  + 'backward eval: rank={}, level={}, time interval=({:.2f},{:.2f}) ****\n'.format(self.fwd_app.my_rank, level, tstart, tstop))
+            traceback.print_exc()
+    # end eval
 
 # end BackwardODENetApp

@@ -46,6 +46,7 @@ import argparse
 import torch
 import torchbraid
 import torchbraid.utils
+from torchbraid import LayerParallel
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
@@ -200,9 +201,6 @@ class StepLayer(nn.Module):
 def plot_image(im, figsize=(14, 14), ind=(0, 0)):
     pyplot.figure(figsize=figsize)
     pyplot.imshow(im[ind[0], ind[1], :, :], cmap="gray")
-    lim = torch.max(torch.abs(im[0, 0, :, :]))
-    # pyplot.clim((-lim, lim))
-    # pyplot.colorbar()
     pyplot.show()
 
 
@@ -217,8 +215,9 @@ class SerialNet(nn.Module):
 
         if serial_nn is None:
             def step_layer(): return StepLayer(channels)
-            parallel_nn = torchbraid.LayerParallel(
-                MPI.COMM_SELF, step_layer, local_steps, Tf, max_levels=1, max_iters=1, spatial_ref_pair=None)
+            # parallel_nn = torchbraid.LayerParallel(
+            #     MPI.COMM_SELF, step_layer, local_steps, Tf, max_levels=1, max_iters=1, spatial_ref_pair=None)
+            parallel_nn = torchbraid.LayerParallel(MPI.COMM_SELF, step_layer, local_steps)
             parallel_nn.setPrintLevel(0)
 
             self.serial_nn = parallel_nn.buildSequentialOnRoot()
@@ -266,7 +265,7 @@ class ParallelNet(nn.Module):
         def step_layer(): return StepLayer(channels, init_conv, activation)
 
         self.parallel_nn = torchbraid.LayerParallel(
-            MPI.COMM_WORLD, step_layer, local_steps, Tf, max_levels=max_levels, max_iters=max_iters, spatial_ref_pair=sp_pair, sc_levels=sc_levels)
+            MPI.COMM_WORLD, step_layer, local_steps, Tf, max_fwd_levels=max_levels, max_iters=max_iters, spatial_ref_pair=sp_pair, spatial_ref_levels=sc_levels)
         if fwd_max_iters > 0:
             print('fwd_amx_iters', fwd_max_iters)
             self.parallel_nn.setFwdMaxIters(fwd_max_iters)

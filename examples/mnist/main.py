@@ -378,7 +378,7 @@ def main():
     transform = transforms.Compose([transforms.ToTensor(),
                                     transforms.Normalize((0.1307,), (0.3081,))
                                    ])
-    dataset = datasets.MNIST('./data', download=False,transform=transform)
+    dataset = datasets.MNIST('./data', download=True,transform=transform)
   else:
     root_print(rank,'-- Using Fashion MNIST')
     transform = transforms.Compose([transforms.ToTensor()])

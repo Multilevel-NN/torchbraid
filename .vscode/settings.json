@@ -1,3 +1,4 @@
 {
-    "python.pythonPath": "/home/cadaverous/anaconda3/envs/py37/bin/python"
+    "python.pythonPath": "/home/cadaverous/anaconda3/envs/py37/bin/python",
+    "python.analysis.extraPaths": ["${workspaceFolder}/torchbraid"]
 }
