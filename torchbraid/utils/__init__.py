@@ -39,6 +39,14 @@ from .gittools import git_rev
 # import bufpackunpack tools
 from .bufpackunpack import buffer_size, pack_buffer, unpack_buffer
 
+try:
+  # use the global one
+  from mpi4py import MPI
+except:
+  # default to the local dummy
+  print('\n-- Torchbraid Warning: No MPI found, using internal \'fake_mpi\'\n')
+  from .fake_mpi import MPI
+
 import gc
 import torch
 import traceback
@@ -107,6 +115,30 @@ def pickle_size(obj):
   this object.
   """
   return len(pickle.dumps(obj))
+
+def getDevice(comm):
+  """
+  Returns the host and serial device for this processor.
+
+  Only works on a single node at the moment (easy to change, use modulo arithmetic).
+  """
+  my_host    = torch.device('cpu')
+  if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
+    if comm.Get_rank()==0:
+      print('Using GPU Device')
+    my_device  = torch.device(f'cuda:{comm.Get_rank()}')
+    torch.cuda.set_device(my_device)
+  elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
+    if comm.Get_rank()==0:
+      print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
+    my_device = my_host
+  else:
+    if comm.Get_rank()==0:
+      print('No GPUs to be used, CPU only')
+    my_device = my_host
+
+  return my_device,my_host
+# end getDevice
 
 # def getMaxMemory(comm,message):
 #   usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss

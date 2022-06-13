@@ -180,6 +180,7 @@ from mpi4py import MPI
 comm = MPI.COMM_WORLD
 my_rank   = comm.Get_rank()
 last_rank = comm.Get_size()-1
+numprocs  = comm.Get_size()
 
 local_num_steps = int(num_steps/comm.Get_size())
 
@@ -229,7 +230,7 @@ if run_serial:
 else:
   root_print(my_rank,'Running TorchBraid: %d' % comm.Get_size())
   # build the parallel neural network
-  parallel_nn   = torchbraid.LayerParallel(comm,basic_block,local_num_steps,Tf,max_levels=max_levels,max_iters=max_iters)
+  parallel_nn   = torchbraid.LayerParallel(comm,basic_block,local_num_steps*numprocs,Tf,max_levels=max_levels,max_iters=max_iters)
   parallel_nn.setPrintLevel(print_level)
   parallel_nn.setSkipDowncycle(True)
   parallel_nn.setCFactor(cfactor)

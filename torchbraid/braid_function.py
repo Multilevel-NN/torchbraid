@@ -30,26 +30,64 @@
 #@HEADER
 
 import torch.autograd
+from torch.nn.functional import pad
 
 import torchbraid.utils as utils
 
 class BraidFunction(torch.autograd.Function):
+
+  @staticmethod
+  def padForBatchChange(old_batch,temp_batch,ten,batch_dim):
+    shape = ten.size()
+    assert(len(shape)>batch_dim)
+
+    padding = []
+    for i in range(len(shape)-batch_dim-1):
+      padding += [0,0]
+    padding += [0,old_batch-temp_batch]
+    return pad(ten,tuple(padding),'constant',0.0)
+
   @staticmethod
   def forward(ctx, fwd_app, bwd_app, x, *params):
     comm          = fwd_app.getMPIComm()
     my_rank       = fwd_app.getMPIComm().Get_rank()
     num_ranks     = fwd_app.getMPIComm().Get_size()
 
+    fwd_app.setDevice(x.device)
+    bwd_app.setDevice(x.device)
+
     # copy the input to all processors (ensure consistency)
-    shape = comm.bcast(x.size(),root=0)
+    if my_rank==0:
+      shape = fwd_app.buildShapes(x)
+    else: 
+      shape = None
+    shape = comm.bcast(shape,root=0)
+
+    old_shape = fwd_app.getShape()
+    adjusting = old_shape is not None and old_shape!=shape
+
+    # if batch size is larger (expand)
+    if old_shape is not None and shape[0][0] >  old_shape[0][0]:
+      adjusting = False
 
     # setup context
     ctx.fwd_app = fwd_app
     ctx.bwd_app = bwd_app
+    ctx.adjusting = adjusting
     ctx.save_for_backward(None, *params)
 
-    fwd_app.setShape(shape)
-    bwd_app.setShape(shape)
+    if adjusting:
+      old_batch  = old_shape[0][0]
+      temp_batch = shape[0][0]
+      x = BraidFunction.padForBatchChange(old_batch,temp_batch,x,0)
+      ctx.old_batch = old_batch
+      ctx.temp_batch = temp_batch
+  
+      shape = old_shape[0]
+    else:
+      fwd_app.setShape(shape)
+      bwd_app.setShape(shape)
+
 
     if my_rank==0:
       result = fwd_app.run(x)
@@ -57,12 +95,18 @@ class BraidFunction(torch.autograd.Function):
       result = fwd_app.run(None)
 
     if my_rank!=num_ranks-1:
-      result = torch.zeros(shape)
+      result_cpu = torch.zeros(shape[-1])
+    else:
+      result_cpu = result.cpu()
 
     # broadcast the output of the last layer 
-    comm.Bcast(result.numpy(),root=num_ranks-1)
+    comm.Bcast(result_cpu.numpy(),root=num_ranks-1)
+    result = result_cpu.to(x.device) # put back on the device
 
-    return result
+    if adjusting:
+      return result[0:temp_batch,:]
+    else:
+      return result
 
   @staticmethod
   def backward(ctx, grad_output):
@@ -73,11 +117,17 @@ class BraidFunction(torch.autograd.Function):
     # copy the input to the final processor (where iter time integration begins)
     if num_ranks>1:
       if my_rank==0:
-        comm.Send(grad_output.numpy(),dest=num_ranks-1)
+        grad_output_cpu = grad_output.cpu()
+        comm.Isend(grad_output_cpu.numpy(),dest=num_ranks-1)
       elif my_rank==num_ranks-1: 
-        comm.Recv(grad_output.numpy(),source=0)
+        grad_output_cpu = torch.zeros(grad_output.shape)
+        req = comm.Irecv(grad_output_cpu.numpy(),source=0)
+        req.Wait()
+        grad_output = grad_output_cpu.to(grad_output.device)
 
     if my_rank==num_ranks-1:
+      if ctx.adjusting:
+        grad_output = BraidFunction.padForBatchChange(ctx.old_batch,ctx.temp_batch,grad_output,0)
       result = ctx.bwd_app.run(grad_output)
     else:
       result = ctx.bwd_app.run(None)
@@ -86,13 +136,7 @@ class BraidFunction(torch.autograd.Function):
     grad_input = (None,None) 
     grad_input += (result,)
 
-    # send gradients to the right 
     grads = ctx.bwd_app.grads
-    if my_rank<num_ranks-1:
-      comm.send(grads[-1],dest=my_rank+1,tag=22)
-    if my_rank>0:
-      neighbor_model = comm.recv(source=my_rank-1,tag=22)
-      grads.insert(0,neighbor_model)
 
     # flatten the grads array
     grads = [g for sublist in grads for g in sublist]

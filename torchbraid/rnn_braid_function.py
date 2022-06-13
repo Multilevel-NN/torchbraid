@@ -53,6 +53,9 @@ class BraidFunction(torch.autograd.Function):
   @staticmethod
   def forward(ctx, fwd_app, bwd_app, num_input_tensors, x, *input_and_param_tensors):
 
+    fwd_app.setDevice(x.device)
+    bwd_app.setDevice(x.device)
+
     # copy the input to all processors (ensure consistency)
     comm = fwd_app.getMPIComm()
     with fwd_app.timer("func:precomm"):
@@ -81,6 +84,7 @@ class BraidFunction(torch.autograd.Function):
     ctx.num_input_tensors = num_input_tensors
     ctx.adjusting = adjusting
     ctx.save_for_backward(x, *input_and_param_tensors)
+    ctx.device = x.device
 
     with fwd_app.timer("func:run"):
       result = fwd_app.run(x,state)
@@ -97,18 +101,21 @@ class BraidFunction(torch.autograd.Function):
     comm          = ctx.bwd_app.getMPIComm()
     my_rank       = ctx.bwd_app.getMPIComm().Get_rank()
     num_ranks     = ctx.bwd_app.getMPIComm().Get_size()
+    device        = ctx.device
 
     # copy the input to the final processor (where iter time integration begins)
     with ctx.bwd_app.timer("func:precomm"):
       if num_ranks>1:
         if my_rank==num_ranks-1: 
           grad_state = torch.stack(grad_state)
-          req = comm.Irecv(grad_state.numpy(),source=0,tag=22)
+          req = comm.Irecv(grad_state.cpu().numpy(),source=0,tag=22)
           req.Wait()
 
         if my_rank==0:
           grad_state = torch.stack(grad_state)
-          comm.Isend(grad_state.numpy(),dest=num_ranks-1,tag=22)
+          grad_state_cpu = grad_state.cpu()
+          comm.Isend(grad_state_cpu.numpy(),dest=num_ranks-1,tag=22)
+          grad_state = grad_state_cpu.to(device)
 
         grad_state = tuple([grad_state[i] for i in range(len(grad_state))])
       # end if num_ranks
@@ -125,7 +132,7 @@ class BraidFunction(torch.autograd.Function):
     with ctx.bwd_app.timer("func:postrun"):
       # pack up the buffer, and then send it out
       buf_size = utils.buffer_size(ctx.bwd_app.grads)
-      src_buf = utils.pack_buffer(ctx.bwd_app.grads)
+      src_buf = utils.pack_buffer([g.cpu() for g in ctx.bwd_app.grads])
       dst_buf = np.zeros(buf_size)
 
       req = comm.Iallreduce(src_buf,dst_buf,MPI.SUM)
@@ -144,7 +151,9 @@ class BraidFunction(torch.autograd.Function):
 
       # with for communication to complete
       MPI.Request.Wait(req) 
-      utils.unpack_buffer(ctx.bwd_app.grads,dst_buf)
+      grads_cpu = [g.cpu() for g in ctx.bwd_app.grads]
+      utils.unpack_buffer(grads_cpu,dst_buf)
+      ctx.bwd_app.grads = [g.to(device) for g in grads_cpu]
 
       # setup the return value (perversely grad_input)
       for grad_needed,g in zip(ctx.needs_input_grad[5:],ctx.bwd_app.grads):

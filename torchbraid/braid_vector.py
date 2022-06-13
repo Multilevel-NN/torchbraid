@@ -37,33 +37,41 @@ from mpi4py import MPI
 class BraidVector:
   instance = -1 
 
-  def __init__(self,tensor,level):
+  def __init__(self,tensor,level,layer_data=None,send_flag=False):
     BraidVector.instance += 1
 
     self.instance = BraidVector.instance
-    self.weight_tensor_data_ = ()
-    self.layer_data_ = None
+    self.weight_tensor_data_ = []
+    self.level_  = level
+    self.layer_data_ = layer_data
+    self.send_flag_ = send_flag;
+
+    self.stream = None
 
     if isinstance(tensor,torch.Tensor):
       self.tensor_data_ = (tensor,)
     elif isinstance(tensor,Iterable):
-      # pre-condition...Only tensors
-      for t in tensor:
-        assert(isinstance(t,torch.Tensor))
-
       # if the input is a tuple, that is the full data
       self.tensor_data_ = tuple(tensor)
     elif tensor==None:
       self.tensor_data_ = (tensor,)
     else:
       assert(False)
-        
-    self.level_  = level
-    self.send_flag_ = False;
 
   def __del__(self):
     self.tensor_data_ = None
     self.weight_tensor_data_ = None
+
+  def setStream(self,s):
+    self.stream = s
+
+  def hasStream(self):
+    return self.stream is not None
+
+  def syncStream(self):
+    if self.hasStream():
+      self.stream.synchronize()
+      self.stream = None
 
   def setLayerData(self,layer_data):
     self.layer_data_ = layer_data

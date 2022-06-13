@@ -39,12 +39,37 @@ import torchbraid.utils as tbutils
 
 import test_cbs as cbs
 
+from mpi4py import MPI
+
+def getDevice(comm):
+  my_host    = torch.device('cpu')
+  use_cuda = False
+  if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
+    if comm.Get_rank()==0:
+      print('Using GPU Device')
+    my_device  = torch.device(f'cuda:{comm.Get_rank()}')
+    use_cuda = True
+  elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
+    if comm.Get_rank()==0:
+      print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
+    my_device = my_host
+  else:
+    if comm.Get_rank()==0:
+      print('No GPUs to be used, CPU only')
+    my_device = my_host
+  return my_device,my_host,use_cuda
+# end getDevice
+
+use_cuda = False
+device = torch.device('cpu')
+
 class DummyApp:
-  def __init__(self,dtype,layer_data_size):
+  def __init__(self,dtype,layer_data_size,use_cuda):
     self.dtype = dtype
     self.layer_data_size = layer_data_size
     self.timer_manager = tbutils.ContextTimerManager()
-
+    self.use_cuda = use_cuda
+    self.device = device
 
   def buildInit(self,t):
     # recoggnize that the default for pytorch is a 32 bit float...
@@ -67,11 +92,11 @@ class DummyApp:
 class TestLayerData:
   def __init__(self):
     self.s = { 'a':'some sort of data' + 'a'*10, 4: 2343}
-    self.linear = torch.nn.Linear(10,10)
+    self.linear = torch.nn.Linear(10,10).to(device)
 
 class TestTorchBraid(unittest.TestCase):
   def test_clone_init(self):
-    app = DummyApp(float,0)
+    app = DummyApp(float,0,use_cuda)
 
     clone_vec = cbs.cloneInitVector(app)
     clone = clone_vec.tensor()
@@ -83,7 +108,7 @@ class TestTorchBraid(unittest.TestCase):
     self.assertEqual(torch.norm(clone).item(),np.sqrt(4.0*5.0))
 
   def test_clone_vector(self):
-    app = DummyApp(float,0)
+    app = DummyApp(float,0,use_cuda)
 
     vec = app.buildInit(0.0)
     ten = vec.tensor() 
@@ -104,15 +129,15 @@ class TestTorchBraid(unittest.TestCase):
     sizeof_int   = cbs.sizeof_int()
     layer_data_size = 27
 
-    app = DummyApp(float,layer_data_size)
+    app = DummyApp(float,layer_data_size,use_cuda)
     shapes = app.getTensorShapes()
 
     self.assertEqual(layer_data_size,app.getLayerDataSize())
 
-    a = torch.ones(shapes[0])
-    b = torch.ones(shapes[1])
-    c = torch.ones(shapes[2])
-    d = torch.ones(shapes[3])
+    a = torch.ones(shapes[0],device=device)
+    b = torch.ones(shapes[1],device=device)
+    c = torch.ones(shapes[2],device=device)
+    d = torch.ones(shapes[3],device=device)
 
     bv = torchbraid.BraidVector((a,b),0)
     bv.addWeightTensors((c,d))
@@ -127,7 +152,8 @@ class TestTorchBraid(unittest.TestCase):
 
     sz = cbs.bufSize(app)
 
-    total_size = ( sizeof_int                # level
+    total_size = ( sizeof_int                # floats
+                 + sizeof_int                # level
                  + sizeof_int                # num tensors
                  + sizeof_int                # num_weighttensors
                  + num_tensors*sizeof_int    # number of tensors dimensions and shapes
@@ -147,13 +173,13 @@ class TestTorchBraid(unittest.TestCase):
     layer_data = TestLayerData()
     pickle_sz = tbutils.pickle_size(layer_data)
 
-    app = DummyApp(torch.float,pickle_sz)
+    app = DummyApp(torch.float,pickle_sz,use_cuda)
     shapes = app.getTensorShapes()
 
-    a = torch.ones(shapes[0])
-    b = torch.ones(shapes[1])
-    c = torch.ones(shapes[2])
-    d = torch.ones(shapes[3])
+    a = torch.ones(shapes[0],device=device)
+    b = torch.ones(shapes[1],device=device)
+    c = torch.ones(shapes[2],device=device)
+    d = torch.ones(shapes[3],device=device)
 
     bv_in = torchbraid.BraidVector((a,b),0)
     bv_in.addWeightTensors((c,d))
@@ -181,10 +207,12 @@ class TestTorchBraid(unittest.TestCase):
       self.assertTrue(torch.norm(i-2.0*o).item()<5.0e-16)
 
     out_layer_data = bv_out.getLayerData()
-    in_layer_data = bv_out.getLayerData()
+    in_layer_data  = bv_in.getLayerData()
 
     self.assertEqual(out_layer_data.s,in_layer_data.s)
-    self.assertEqual(out_layer_data.linear,in_layer_data.linear)
+    self.assertEqual(torch.norm(out_layer_data.linear.weight-in_layer_data.linear.weight),0.0)
+    self.assertEqual(torch.norm(out_layer_data.linear.bias-in_layer_data.linear.bias),0.0)
     
 if __name__ == '__main__':
+  device,_,use_cuda = getDevice(MPI.COMM_WORLD)
   unittest.main()

@@ -1,6 +1,8 @@
 installed_files.txt
 braid.out.cycle
 
+.vscode
+
 __pycache__/
 examples/mnist/data/
 examples/mnist/fashion-data/
@@ -8,6 +10,7 @@ examples/mnist/fashion-data/
 makefile.inc
 
 .DS_Store
+.vscode
 
 tests/build/
 tests/torchbraid_test.c
@@ -36,3 +39,9 @@ torchbraid/rnn_braid_app.html
 *.gz
 *.csv
 *.log
+examples/tiny_imagenet/tiny-imagenet-200
+
+examples/rnns/uci-har/UCI\ HAR\ Dataset/
+examples/rnns/uci-har/UCI\ HAR\ Dataset.zip
+examples/rnns/uci-har/__MACOSX
+

@@ -29,12 +29,15 @@
 # ************************************************************************
 #@HEADER
 
-from .layer_parallel import LayerParallel
-from .rnn_layer_parallel import RNN_Parallel, RNN_Serial
+class SerialComm:
+  def Get_rank(self):
+    return 0
+  def Get_size(self):
+     return 1 
 
-#from . import torchbraid_app
-from .braid_vector import BraidVector
+class MPINamespace:
+  def __init__(self):
+    self.COMM_WORLD = SerialComm()
+# end silly serial comm
 
-from . import utils
-
-import mgopt
+MPI = MPINamespace()

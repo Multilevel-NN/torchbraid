@@ -29,12 +29,47 @@
 # ************************************************************************
 #@HEADER
 
-from .layer_parallel import LayerParallel
-from .rnn_layer_parallel import RNN_Parallel, RNN_Serial
+import unittest
+import faulthandler
+faulthandler.enable()
 
-#from . import torchbraid_app
-from .braid_vector import BraidVector
+import time
+import torch
+import torchbraid.utils as utils
 
-from . import utils
+import numpy as np
 
-import mgopt
+def time_packUnpack(sizes,ctm,device):
+  in_tens = [torch.randn(s,device=device) for s in sizes]
+
+  with ctm.timer('buffer_size'):
+    buf_sz = utils.buffer_size(in_tens)
+
+  with ctm.timer('pack_buffer'):
+    buf = utils.pack_buffer(in_tens)
+
+  assert(len(buf.shape)==1)
+  assert(buf.shape[0]==buf_sz)
+
+  out_tens = [torch.zeros(s,device=device) for s in sizes]
+
+  with ctm.timer('unpack_buffer'):
+    utils.unpack_buffer(out_tens,buf)
+
+  for i,o in zip(in_tens,out_tens):
+    assert(torch.norm(i-o).item()==0.0)
+# end time_packUnpack
+
+ctm = utils.ContextTimerManager()
+device = torch.device('cpu')
+
+mult = 10
+sizes = [(9*mult,2*mult,3*mult),
+         (2*mult,5*mult),
+         (4*mult,1*mult,7*mult,9*mult)]
+
+iters = 200
+for i in range(0,iters):
+  time_packUnpack(sizes,ctm,device)
+
+print(ctm.getResultString())

@@ -1,0 +1,635 @@
+Output for
+$ python3 main_mgopt.py --samp-ratio 0.01 --lp-fwd-cfactor 2 --lp-bwd-cfactor 2 --mgopt-printlevel 2 
+
++++++++++++++++++
+
+Training setup:  Batch size:  50  Sample ratio:  0.01  MG/Opt Epochs:  2
+
+Nested Iter Level:  0
+  optimizing 1 steps
+  total params: [7010]
+  train params: [7010]
+
+  Train Epoch: 1 [0/500 (0%)]     	Loss: 2.315328	Time Per Batch 0.060966
+  Train Epoch: 1 [500/500 (100%)]     	Loss: 2.271688	Time Per Batch 0.048088
+
+  Test set: Average loss: 0.0458, Accuracy: 13/100 (13%)
+
+  Train Epoch: 2 [0/500 (0%)]     	Loss: 2.257113	Time Per Batch 0.046486
+  Train Epoch: 2 [500/500 (100%)]     	Loss: 2.173811	Time Per Batch 0.045514
+
+  Test set: Average loss: 0.0457, Accuracy: 8/100 (8%)
+
+  Time per epoch: 5.71e-01 (1 std dev 2.30e-02)
+  Time per test:  4.46e-02 (1 std dev 2.97e-03)
+
+Nested Iter Level:  1
+  optimizing 2 steps
+  total params: [7322]
+  train params: [7322]
+
+  Train Epoch: 1 [0/500 (0%)]     	Loss: 2.212873	Time Per Batch 0.103318
+  Train Epoch: 1 [500/500 (100%)]     	Loss: 2.154319	Time Per Batch 0.091865
+
+  Test set: Average loss: 0.0446, Accuracy: 19/100 (19%)
+
+  Train Epoch: 2 [0/500 (0%)]     	Loss: 2.153547	Time Per Batch 0.092552
+  Train Epoch: 2 [500/500 (100%)]     	Loss: 2.033704	Time Per Batch 0.088233
+
+  Test set: Average loss: 0.0426, Accuracy: 25/100 (25%)
+
+  Time per epoch: 1.00e+00 (1 std dev 2.54e-02)
+  Time per test:  6.01e-02 (1 std dev 1.84e-03)
+
+Nested Iter Level:  2
+  optimizing 4 steps
+  total params: [7946]
+  train params: [7946]
+
+  Train Epoch: 1 [0/500 (0%)]     	Loss: 2.031405	Time Per Batch 0.297479
+  Train Epoch: 1 [500/500 (100%)]     	Loss: 1.984555	Time Per Batch 0.284337
+
+  Test set: Average loss: 0.0417, Accuracy: 28/100 (28%)
+
+  Train Epoch: 2 [0/500 (0%)]     	Loss: 1.936058	Time Per Batch 0.281578
+  Train Epoch: 2 [500/500 (100%)]     	Loss: 1.864242	Time Per Batch 0.283267
+
+  Test set: Average loss: 0.0397, Accuracy: 33/100 (33%)
+
+  Time per epoch: 2.94e+00 (1 std dev 6.41e-03)
+  Time per test:  1.23e-01 (1 std dev 4.36e-04)
+
+MG/Opt Solver
+Number of Levels:     3
+Total Op Complexity:  2.804
+Trainable Op Complexity:  2.804
+  level      total params       trainable params 
+    0        7946 [35.67%]        7946 [35.67%] 
+    1        7322 [32.87%]        7322 [32.87%] 
+    2        7010 [31.47%]        7010 [31.47%] 
+
+MG/Opt parameters from level 0  network: ParallelNet
+    channels : 4
+    local_steps : 4
+    max_iters : 2
+    print_level : 0
+    Tf : 1.0
+    max_fwd_levels : 3
+    max_bwd_levels : 3
+    max_fwd_iters : -1
+    braid_print_level : 0
+    fwd_cfactor : 2
+    bwd_cfactor : 2
+    fine_fwd_fcf : False
+    fine_bwd_fcf : False
+    fwd_nrelax : 1
+    bwd_nrelax : 1
+    skip_downcycle : True
+    fmg : False
+    fwd_relax_only_cg : 0
+    bwd_relax_only_cg : 0
+    CWt : 1.0
+    fwd_finalrelax : False
+
+  interp_params: tb_get_injection_interp_params
+    Parameters: None
+
+MG/Opt parameters from level 1  network: ParallelNet
+    channels : 4
+    local_steps : 2
+    max_iters : 2
+    print_level : 0
+    Tf : 1.0
+    max_fwd_levels : 3
+    max_bwd_levels : 3
+    max_fwd_iters : -1
+    braid_print_level : 0
+    fwd_cfactor : 2
+    bwd_cfactor : 2
+    fine_fwd_fcf : False
+    fine_bwd_fcf : False
+    fwd_nrelax : 1
+    bwd_nrelax : 1
+    skip_downcycle : True
+    fmg : False
+    fwd_relax_only_cg : 0
+    bwd_relax_only_cg : 0
+    CWt : 1.0
+    fwd_finalrelax : False
+
+  interp_params: tb_get_injection_interp_params
+    Parameters: None
+
+MG/Opt parameters from level 2  network: ParallelNet
+    channels : 4
+    local_steps : 1
+    max_iters : 2
+    print_level : 0
+    Tf : 1.0
+    max_fwd_levels : 3
+    max_bwd_levels : 3
+    max_fwd_iters : -1
+    braid_print_level : 0
+    fwd_cfactor : 2
+    bwd_cfactor : 2
+    fine_fwd_fcf : False
+    fine_bwd_fcf : False
+    fwd_nrelax : 1
+    bwd_nrelax : 1
+    skip_downcycle : True
+    fmg : False
+    fwd_relax_only_cg : 0
+    bwd_relax_only_cg : 0
+    CWt : 1.0
+    fwd_finalrelax : False
+
+  interp_params: tb_get_injection_interp_params
+    Parameters: None
+
+
+
+Batch:  0
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       1.8344899415969849
+  Pre-relax done loss:  1.7986587285995483
+
+  Level:  1
+  Coarsest grid solve loss: 1.9054385423660278
+  Coarsest grid solve loss: 1.8767520189285278
+  Coarsest grid solve loss: 1.8296022415161133
+  Recursion exited
+
+  LS Alpha used:        1.0
+  CG Corr done loss:    1.6703181266784668
+  Post-relax loss:      1.6453334093093872
+
+------------------------------------------------------------------------------
+Train Epoch: 1 [50/500 (10%)]     	Loss: 1.645333	Time Per Batch 1.758005
+------------------------------------------------------------------------------
+
+Batch:  1
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       1.8777432441711426
+  Pre-relax done loss:  1.8315939903259277
+
+  Level:  1
+  Coarsest grid solve loss: 1.9062398672103882
+  Coarsest grid solve loss: 1.8901257514953613
+  Coarsest grid solve loss: 1.8432759046554565
+  Recursion exited
+
+  LS Alpha used:        2.0
+  CG Corr done loss:    1.708774447441101
+  Post-relax loss:      1.684267520904541
+
+Batch:  2
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       1.9856431484222412
+  Pre-relax done loss:  1.8910918235778809
+
+  Level:  1
+  Coarsest grid solve loss: 1.8929646015167236
+  Coarsest grid solve loss: 1.867679476737976
+  Coarsest grid solve loss: 1.7978090047836304
+  Recursion exited
+
+  LS Alpha used:        4.0
+  CG Corr done loss:    1.8134618997573853
+  Post-relax loss:      1.7820675373077393
+
+Batch:  3
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.783752202987671
+  Pre-relax done loss:  2.439033269882202
+
+  Level:  1
+  Coarsest grid solve loss: 2.266441583633423
+  Coarsest grid solve loss: 2.168006658554077
+  Coarsest grid solve loss: 1.9975762367248535
+  Recursion exited
+
+  LS Alpha used:        4.0
+  CG Corr done loss:    2.099958896636963
+  Post-relax loss:      2.0841970443725586
+
+Batch:  4
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.3552613258361816
+  Pre-relax done loss:  2.2641234397888184
+
+  Level:  1
+  Coarsest grid solve loss: 2.1773478984832764
+  Coarsest grid solve loss: 2.16576886177063
+  Coarsest grid solve loss: 2.093062400817871
+  Recursion exited
+
+  LS Alpha used:        8.0
+  CG Corr done loss:    2.175445318222046
+  Post-relax loss:      2.159782648086548
+
+Batch:  5
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.3385634422302246
+  Pre-relax done loss:  2.318363904953003
+
+  Level:  1
+  Coarsest grid solve loss: 2.2262840270996094
+  Coarsest grid solve loss: 2.215411901473999
+  Coarsest grid solve loss: 2.2021796703338623
+  Recursion exited
+
+  LS Alpha used:        16.0
+  CG Corr done loss:    2.270657539367676
+  Post-relax loss:      2.2696030139923096
+
+Batch:  6
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.3342559337615967
+  Pre-relax done loss:  2.3178062438964844
+
+  Level:  1
+  Coarsest grid solve loss: 2.2509868144989014
+  Coarsest grid solve loss: 2.2403323650360107
+  Coarsest grid solve loss: 2.2201318740844727
+  Recursion exited
+
+  LS Alpha used:        32.0
+  CG Corr done loss:    2.2543606758117676
+  Post-relax loss:      2.2514090538024902
+
+Batch:  7
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.2669997215270996
+  Pre-relax done loss:  2.2633209228515625
+
+  Level:  1
+  Coarsest grid solve loss: 2.2564778327941895
+  Coarsest grid solve loss: 2.253603219985962
+  Coarsest grid solve loss: 2.2500221729278564
+  Recursion exited
+
+  LS Alpha used:        8.0
+  CG Corr done loss:    2.256171464920044
+  Post-relax loss:      2.2521729469299316
+
+Batch:  8
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.582862615585327
+  Pre-relax done loss:  2.5450479984283447
+
+  Level:  1
+  Coarsest grid solve loss: 2.531254768371582
+  Coarsest grid solve loss: 2.52225399017334
+  Coarsest grid solve loss: 2.496771812438965
+  Recursion exited
+
+  LS Alpha used:        16.0
+  CG Corr done loss:    2.3149197101593018
+  Post-relax loss:      2.31437611579895
+
+Batch:  9
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.318328380584717
+  Pre-relax done loss:  2.3180508613586426
+
+  Level:  1
+  Coarsest grid solve loss: 2.3182334899902344
+  Coarsest grid solve loss: 2.317970037460327
+  Coarsest grid solve loss: 2.3175055980682373
+  Recursion exited
+
+  LS Alpha used:        32.0
+  CG Corr done loss:    2.3027164936065674
+  Post-relax loss:      2.302659273147583
+
+------------------------------------------------------------------------------
+Train Epoch: 1 [500/500 (100%)]     	Loss: 2.302659	Time Per Batch 1.913993
+------------------------------------------------------------------------------
+
+  Test set: Average loss: 0.0470, Accuracy: 10/100 (10%)
+
+  Test accuracy information for level 0
+    Test set: Average loss: 0.0461, Accuracy: 10/100 (10%)
+
+  Test accuracy information for level 1
+    Test set: Average loss: 0.0457, Accuracy: 8/100 (8%)
+
+  Time per epoch: 1.92e+01 
+  Time per test:  1.35e-01 
+
+Batch:  0
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.3235127925872803
+  Pre-relax done loss:  2.3236191272735596
+
+  Level:  1
+  Coarsest grid solve loss: 2.3236191272735596
+  Coarsest grid solve loss: 2.3239030838012695
+  Coarsest grid solve loss: 2.3239264488220215
+  Recursion exited
+
+  LS Alpha used:        2.0
+  CG Corr done loss:    2.323826789855957
+  Post-relax loss:      2.323695421218872
+
+------------------------------------------------------------------------------
+Train Epoch: 2 [50/500 (10%)]     	Loss: 2.323695	Time Per Batch 4.468042
+------------------------------------------------------------------------------
+
+Batch:  1
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.3107831478118896
+  Pre-relax done loss:  2.3105270862579346
+
+  Level:  1
+  Coarsest grid solve loss: 2.3105270862579346
+  Coarsest grid solve loss: 2.31024169921875
+  Coarsest grid solve loss: 2.309762716293335
+  Recursion exited
+
+  LS Alpha used:        4.0
+  CG Corr done loss:    2.3049705028533936
+  Post-relax loss:      2.30454421043396
+
+Batch:  2
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.337810516357422
+  Pre-relax done loss:  2.337552547454834
+
+  Level:  1
+  Coarsest grid solve loss: 2.337552547454834
+  Coarsest grid solve loss: 2.3372178077697754
+  Coarsest grid solve loss: 2.336686611175537
+  Recursion exited
+
+  LS Alpha used:        8.0
+  CG Corr done loss:    2.3258304595947266
+  Post-relax loss:      2.3254451751708984
+
+Batch:  3
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.370499610900879
+  Pre-relax done loss:  2.3703484535217285
+
+  Level:  1
+  Coarsest grid solve loss: 2.3703484535217285
+  Coarsest grid solve loss: 2.3702120780944824
+  Coarsest grid solve loss: 2.3698647022247314
+  Recursion exited
+
+  LS Alpha used:        16.0
+  CG Corr done loss:    2.357145071029663
+  Post-relax loss:      2.3568880558013916
+
+Batch:  4
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.378049850463867
+  Pre-relax done loss:  2.3772132396698
+
+  Level:  1
+  Coarsest grid solve loss: 2.3806557655334473
+  Coarsest grid solve loss: 2.3796350955963135
+  Coarsest grid solve loss: 2.377957344055176
+  Recursion exited
+
+  LS Alpha used:        32.0
+  CG Corr done loss:    2.246269702911377
+  Post-relax loss:      2.245326280593872
+
+Batch:  5
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.3025689125061035
+  Pre-relax done loss:  2.3028197288513184
+
+  Level:  1
+  Coarsest grid solve loss: 2.3028197288513184
+  Coarsest grid solve loss: 2.3032541275024414
+  Coarsest grid solve loss: 2.30358624458313
+  Recursion exited
+
+  LS Alpha used:        2.0
+  CG Corr done loss:    2.3048622608184814
+  Post-relax loss:      2.305037260055542
+
+Batch:  6
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.301055431365967
+  Pre-relax done loss:  2.301132917404175
+
+  Level:  1
+  Coarsest grid solve loss: 2.301132917404175
+  Coarsest grid solve loss: 2.3012912273406982
+  Coarsest grid solve loss: 2.3013246059417725
+  Recursion exited
+
+  LS Alpha used:        0.125
+  CG Corr done loss:    2.301147699356079
+  Post-relax loss:      2.3011090755462646
+
+Batch:  7
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.3081984519958496
+  Pre-relax done loss:  2.308166980743408
+
+  Level:  1
+  Coarsest grid solve loss: 2.308166980743408
+  Coarsest grid solve loss: 2.308143138885498
+  Coarsest grid solve loss: 2.308030366897583
+  Recursion exited
+
+  LS Alpha used:        0.0078125
+  CG Corr done loss:    2.308164119720459
+  Post-relax loss:      2.3080437183380127
+
+Batch:  8
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.3754477500915527
+  Pre-relax done loss:  2.375129222869873
+
+  Level:  1
+  Coarsest grid solve loss: 2.375129222869873
+  Coarsest grid solve loss: 2.374772310256958
+  Coarsest grid solve loss: 2.3740787506103516
+  Recursion exited
+
+  LS Alpha used:        0.00048828125
+  CG Corr done loss:    2.3751277923583984
+  Post-relax loss:      2.3744683265686035
+
+Batch:  9
+MG/Opt Iter:  0
+
+  Level:  0
+  Pre-relax loss:       2.3078949451446533
+  Pre-relax done loss:  2.3076305389404297
+
+  Level:  1
+  Coarsest grid solve loss: 2.3076305389404297
+  Coarsest grid solve loss: 2.3072915077209473
+  Coarsest grid solve loss: 2.306863307952881
+  Recursion exited
+
+  LS Alpha used:        3.0517578125e-05
+  CG Corr done loss:    2.3076305389404297
+  Post-relax loss:      2.307267665863037
+
+------------------------------------------------------------------------------
+Train Epoch: 2 [500/500 (100%)]     	Loss: 2.307268	Time Per Batch 2.993524
+------------------------------------------------------------------------------
+
+  Test set: Average loss: 0.0464, Accuracy: 6/100 (6%)
+
+  Test accuracy information for level 0
+    Test set: Average loss: 0.0461, Accuracy: 10/100 (10%)
+
+  Test accuracy information for level 1
+    Test set: Average loss: 0.0457, Accuracy: 8/100 (8%)
+
+  Time per epoch: 2.46e+01 (1 std dev 7.65e+00)
+  Time per test:  1.28e-01 (1 std dev 1.01e-02)
+
+MG/Opt Solver
+Number of Levels:     3
+Total Op Complexity:  2.804
+Trainable Op Complexity:  2.804
+  level      total params       trainable params 
+    0        7946 [35.67%]        7946 [35.67%] 
+    1        7322 [32.87%]        7322 [32.87%] 
+    2        7010 [31.47%]        7010 [31.47%] 
+
+MG/Opt parameters from level 0  network: ParallelNet
+    channels : 4
+    local_steps : 4
+    max_iters : 2
+    print_level : 0
+    Tf : 1.0
+    max_fwd_levels : 3
+    max_bwd_levels : 3
+    max_fwd_iters : -1
+    braid_print_level : 0
+    fwd_cfactor : 2
+    bwd_cfactor : 2
+    fine_fwd_fcf : False
+    fine_bwd_fcf : False
+    fwd_nrelax : 1
+    bwd_nrelax : 1
+    skip_downcycle : True
+    fmg : False
+    fwd_relax_only_cg : 0
+    bwd_relax_only_cg : 0
+    CWt : 1.0
+    fwd_finalrelax : False
+
+  interp_params: tb_get_injection_interp_params
+    Parameters: None
+
+  restrict_params: tb_get_injection_restrict_params
+    grad : False
+    cf : 2
+    deep_copy : True
+
+  restrict_grads: tb_get_injection_restrict_params
+    grad : True
+    cf : 2
+    deep_copy : True
+
+  restrict_states: tb_injection_restrict_network_state
+    Parameters: None
+
+  interp_states: tb_injection_interp_network_state
+    Parameters: None
+
+  line_search: tb_simple_backtrack_ls
+    ls_params : {'n_line_search': 6, 'alpha': 6.103515625e-05}
+
+MG/Opt parameters from level 1  network: ParallelNet
+    channels : 4
+    local_steps : 2
+    max_iters : 2
+    print_level : 0
+    Tf : 1.0
+    max_fwd_levels : 3
+    max_bwd_levels : 3
+    max_fwd_iters : -1
+    braid_print_level : 0
+    fwd_cfactor : 2
+    bwd_cfactor : 2
+    fine_fwd_fcf : False
+    fine_bwd_fcf : False
+    fwd_nrelax : 1
+    bwd_nrelax : 1
+    skip_downcycle : True
+    fmg : False
+    fwd_relax_only_cg : 0
+    bwd_relax_only_cg : 0
+    CWt : 1.0
+    fwd_finalrelax : False
+
+  interp_params: tb_get_injection_interp_params
+    Parameters: None
+
+MG/Opt parameters from level 2  network: ParallelNet
+    channels : 4
+    local_steps : 1
+    max_iters : 2
+    print_level : 0
+    Tf : 1.0
+    max_fwd_levels : 3
+    max_bwd_levels : 3
+    max_fwd_iters : -1
+    braid_print_level : 0
+    fwd_cfactor : 2
+    bwd_cfactor : 2
+    fine_fwd_fcf : False
+    fine_bwd_fcf : False
+    fwd_nrelax : 1
+    bwd_nrelax : 1
+    skip_downcycle : True
+    fmg : False
+    fwd_relax_only_cg : 0
+    bwd_relax_only_cg : 0
+    CWt : 1.0
+    fwd_finalrelax : False
+
+  interp_params: tb_get_injection_interp_params
+    Parameters: None
+
+

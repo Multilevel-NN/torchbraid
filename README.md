@@ -17,6 +17,14 @@ library. You might want mpi4py to use the native one on your platform).
 
 Note, the cython version is pretty important, particularly if torch layers are shipped directly by braid.
 
+### Setup for Conda (with native MPI support)
+  
+  ```
+  conda env create -f ${TORCHBRAID_DIR}/env/py37.env
+  conda activate py37
+  MPICC=path/to/mpicc pip install mpi4py
+  ```
+
 ## Build xbraid:
   1. Download from git@github.com:XBraid/xbraid.git
   1. The master branch should work fine
@@ -49,5 +57,6 @@ Take look at code in the examples directory.
 
 ## Publications
 
-1. Cyr, Eric C., Stefanie Günther, and Jacob B. Schroder. "Multilevel Initialization for Layer-Parallel Deep Neural Network Training." arXiv preprint arXiv:1912.08974 (2019). [Link](https://arxiv.org/pdf/1912.08974)
+1. Moon, Gordon Euhyun, and Eric C. Cyr. "Parallel Training of GRU Networks with a Multi-Grid Solver for Long Sequences." ICLR, 2022. [Arxiv Link](https://arxiv.org/abs/2203.04738)
+1. Cyr, Eric C., Stefanie Günther, and Jacob B. Schroder. "Multilevel Initialization for Layer-Parallel Deep Neural Network Training." arXiv preprint arXiv:1912.08974 (2019). [Arxiv Link](https://arxiv.org/pdf/1912.08974)
 1.  Günther, Stefanie, Lars Ruthotto, Jacob B. Schroder, Eric C. Cyr, and Nicolas R. Gauger. "Layer-parallel training of deep residual neural networks." SIAM Journal on Mathematics of Data Science 2, no. 1 (2020): 1-23. [Link](https://epubs.siam.org/doi/pdf/10.1137/19M1247620)

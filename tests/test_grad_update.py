@@ -45,6 +45,24 @@ faulthandler.enable()
 
 from mpi4py import MPI
 
+def getDevice(comm):
+  my_host    = torch.device('cpu')
+  if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
+    if comm.Get_rank()==0:
+      print('Using GPU Device')
+    my_device  = torch.device(f'cuda:{comm.Get_rank()}')
+    torch.cuda.set_device(my_device)
+  elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
+    if comm.Get_rank()==0:
+      print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
+    my_device = my_host
+  else:
+    if comm.Get_rank()==0:
+      print('No GPUs to be used, CPU only')
+    my_device = my_host
+  return my_device,my_host
+# end getDevice
+
 def output_exception():
   s = traceback.format_exc()
   print('\n**** TEST GENERIC Exception ****\n{}'.format(s))
@@ -101,12 +119,12 @@ class TestGradUpdate(unittest.TestCase):
     self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx')
   # end test_reLUNet_Approx
 
-  def copyParameterGradToRoot(self,m):
+  def copyParameterGradToRoot(self,m,device):
     comm     = m.getMPIComm()
     my_rank  = m.getMPIComm().Get_rank()
     num_proc = m.getMPIComm().Get_size()
  
-    params = [p.grad.clone() for p in list(m.parameters())]
+    params = [p.grad for p in list(m.parameters())]
 
     if len(params)==0:
       return params
@@ -114,21 +132,31 @@ class TestGradUpdate(unittest.TestCase):
     if my_rank==0:
       for i in range(1,num_proc):
         remote_p = comm.recv(source=i,tag=77)
+        remote_p = [p.to(device) for p in remote_p]
         params.extend(remote_p)
 
       return params
     else:
-      comm.send(params,dest=0,tag=77)
+      params_cpu = [p.cpu() for p in params]
+      comm.send(params_cpu,dest=0,tag=77)
       return None
   # end copyParametersToRoot
 
   def backForwardProp(self,dim, basic_block,x0,w0,max_levels,max_iters,test_tol,prefix,ref_pair=None):
     Tf = 2.0
-    num_steps = 4
+    num_procs = MPI.COMM_WORLD.Get_size()
+    num_steps = 4*num_procs
+
+    # figure out the whole GPU situation
+    my_device,my_host = getDevice(MPI.COMM_WORLD) 
+
+    x0 = x0.to(my_device)
+    w0 = w0.to(my_device)
 
     # this is the torchbraid class being tested 
     #######################################
-    m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_levels=max_levels,max_iters=max_iters,spatial_ref_pair=ref_pair)
+    m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_fwd_levels=max_levels,max_bwd_levels=max_levels,max_iters=max_iters,spatial_ref_pair=ref_pair)
+    m = m.to(my_device)
     m.setPrintLevel(0)
 
     w0 = m.copyVectorFromRoot(w0)
@@ -137,9 +165,11 @@ class TestGradUpdate(unittest.TestCase):
     #######################################
     dt = Tf/num_steps
     f = m.buildSequentialOnRoot()
+    if f is not None: # handle the cuda case
+      f = f.to(my_device)
 
     # run forward/backward propgation
-    lr = 1e-6
+    lr = 1e-3
 
     # propogation with torchbraid
     #######################################
@@ -159,7 +189,7 @@ class TestGradUpdate(unittest.TestCase):
     wm = m(xm)
     wm.backward(w0)
 
-    m_param_grad = self.copyParameterGradToRoot(m)
+    m_param_grad = self.copyParameterGradToRoot(m,my_device)
     wm = m.getFinalOnRoot(wm)
 
     # print time results
@@ -209,11 +239,12 @@ class TestGradUpdate(unittest.TestCase):
         self.assertTrue(not pm_grad is None)
 
         # accumulate parameter errors for testing purposes
-        param_errors += [(torch.norm(pf.grad-pm_grad)/torch.norm(pf.grad)).item()]
+        param_errors += [(torch.norm(pf.grad-pm_grad)/(1e-15+torch.norm(pf.grad))).item()]
  
         # check the error conditions
-        self.assertTrue(torch.norm(pf.grad-pm_grad)<=test_tol)
         #print('%s: p_grad error = %.6e (%.6e %.6e)' % (prefix,torch.norm(pf.grad-pm_grad),torch.norm(pf.grad),torch.norm(pm_grad)))
+        #sys.stdout.flush()
+        self.assertTrue(torch.norm(pf.grad-pm_grad)<=test_tol)
 
       if len(param_errors)>0:
         print('%s: p grad error (mean,stddev) = %.6e, %.6e' % (prefix,stats.mean(param_errors),stats.stdev(param_errors)))

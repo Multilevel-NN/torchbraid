@@ -61,8 +61,8 @@ class RNN_Serial(nn.Module):
 
   def forward(self,x,h_c=None):
     if h_c is None:
-      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
-      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size, x.device)
+      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size, x.device)
       h_c = (h,c)
     elif isinstance(h_c,torch.Tensor):
       h_c = (h_c,)
@@ -106,15 +106,23 @@ class RNN_Parallel(nn.Module):
       if inspect.isclass(op):
         return None
 
+      # determine the parallel device
+      device = None
+      for a in args:
+        if hasattr(a,'device'):
+          device = a.device
+          break
+      # take the first device
+
       # blindly assume that all the arguments are torch
       # tensors, and propagate this through
-      value = torch.zeros(1)
+      value = torch.zeros(1,device=device)
       for a in args:
         if a.requires_grad:
           value += torch.norm(a)
 
        # so this is all a hack to get this thing to work
-      return torch.zeros(1)*value
+      return torch.zeros(1,device=device)*value
   # end ExecLP
 
   ##################################################
@@ -144,15 +152,18 @@ class RNN_Parallel(nn.Module):
   def zero_grad(self):
     self.RNN_models.zero_grad()
 
+  def getFastForwardInfo(self):
+    return self.fwd_app.getFastForwardInfo()
+
   def getTimerManager(self):
     """
     Get a TimerContextManager that describes how much time is taken by what.
     """
     return self.timer_manager
 
-  def setPrintLevel(self,print_level):
-    self.fwd_app.setPrintLevel(print_level)
-    self.bwd_app.setPrintLevel(print_level)
+  def setPrintLevel(self,print_level,tb_print=False):
+    self.fwd_app.setPrintLevel(print_level,tb_print)
+    self.bwd_app.setPrintLevel(print_level,tb_print)
 
   def setNumRelax(self,relax,level=-1):
     self.fwd_app.setNumRelax(relax,level=level)
@@ -164,9 +175,21 @@ class RNN_Parallel(nn.Module):
   def setBwdNumRelax(self,relax,level=-1):
     self.bwd_app.setNumRelax(relax,level=level)
 
+  def setFwdAbsTol(self,abs_tol):
+    self.fwd_app.setAbsTol(abs_tol)
+
+  def setBwdAbsTol(self,abs_tol):
+    self.bwd_app.setAbsTol(abs_tol)
+
   def setMaxIters(self,max_iters):
     self.fwd_app.setNumRelax(max_iters)
     self.bwd_app.setNumRelax(max_iters)
+
+  def getFwdMaxIters(self):
+    return self.fwd_app.getMaxIters()
+
+  def getBwdMaxIters(self):
+    return self.bwd_app.getMaxIters()
 
   def setFwdMaxIters(self,max_iters):
     self.fwd_app.setMaxIters(max_iters)
@@ -191,8 +214,8 @@ class RNN_Parallel(nn.Module):
     # with the torch.autograd.function
 
     if h_c is None:
-      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
-      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size,device=x.device)
+      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size,device=x.device)
       h_c = (h,c)
 
     params = list(self.parameters())
