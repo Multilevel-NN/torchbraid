@@ -25,3 +25,14 @@ torchbraid/torchbraid_callbacks.html
 torchbraid/rnn_braid_app.c
 torchbraid/rnn_braid_app.*.so
 torchbraid/rnn_braid_app.html
+
+# data file-formats
+*.out
+*.pt
+*.json
+*_cfl*
+*.txt
+*-ubyte
+*.gz
+*.csv
+*.log
