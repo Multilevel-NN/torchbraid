@@ -347,21 +347,13 @@ def main():
   log_interval = args.log_interval
 
   model = buildNet(not args.use_serial,**network)
-  model = model.to(my_device)
 
-  if rank==0:
-    print('===============MODEL=============\n')
-  print(model)
 
   if args.opt=='SGD':
     optimizer = optim.SGD(model.parameters(), lr=args.lr)#, weight_decay=0.0001)
   else:
     optimizer = optim.Adam(model.parameters(), lr=args.lr)#, weight_decay=0.0001)
   compose = model.compose
-
-  if rank==0:
-    print('===============OPTIMIZER=============\n')
-    print(optimizer)
 
   epoch_times = []
   test_times = []
@@ -370,6 +362,28 @@ def main():
 
   if args.lr_scheduler:
     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10,30], gamma=0.1,verbose=(rank==0))
+
+  if args.load_model:
+    root_print(rank,f'Loading from \"{args.model_dir}\"')
+    model.loadParams(rank,args.model_dir)
+    optimizer.load_state_dict(torch.load(f'{args.model_dir}/optimizer.{rank}.mdl'))
+  if args.lr_scheduler:
+    scheduler.load_state_dict(torch.load(f'{args.model_dir}/scheduler.{rank}.mdl'))
+
+  model = model.to(my_device)
+
+  if rank==0:
+    print('===============MODEL=============\n')
+  print(model)
+
+  if rank==0:
+    print('===============OPTIMIZER=============\n')
+    print(optimizer)
+
+  if rank==0:
+    print('===============SCHEDULER=============\n')
+    print(scheduler)
+
 
   epoch = 0
   start_time = timer()
@@ -390,6 +404,15 @@ def main():
 
     if scheduler is not None:
       scheduler.step()
+
+    # output the serial and parallel models
+    if args.save_model:
+      root_print(rank,f'Saving to \"{args.model_dir}\"')
+      torch.save(optimizer.state_dict(),f'{args.model_dir}/optimizer.{rank}.mdl')
+      if args.lr_scheduler:
+        torch.save(scheduler.state_dict(),f'{args.model_dir}/scheduler.{rank}.mdl')
+      model.saveParams(rank,args.model_dir)
+    # end args
 
   if not args.use_serial:
     timer_str = model.parallel_nn.getTimersString()

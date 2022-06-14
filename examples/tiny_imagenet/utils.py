@@ -5,6 +5,7 @@ import numpy as np
 import sys
 import statistics as stats
 import argparse
+import copy
 
 import torch
 import torch.nn as nn
@@ -111,16 +112,33 @@ class StepLayer(nn.Module):
 
 def buildNet(parallel,**network):
   if parallel:
-    return ParallelNet(**network)
+    m = ParallelNet(**network)
   else:
-    return SerialNet(**network)
+    m = SerialNet(**network)
+  m.construct_params = network
+  return m
 # end buildNet
-    
+
+def buildNetClone(parallel,src,num_steps):
+  new_params = {a: src.construct_params[a] for a in src.construct_params}
+  new_params['global_steps'] = num_steps
+
+  if parallel:
+    return ParallelNet(**new_params)
+  else:
+    return SerialNet(**new_params)
+
+def remove_self(m):
+  m.pop('self')
+  return m
 
 class SerialNet(nn.Module):
   class ODEBlock(nn.Module):
     """This is a helper class to wrap layers that should be ODE time steps."""
     def __init__(self,dt,layer):
+      # save the constructor parameters (helpful for building coarse grids if desired)
+      self.construct_params = remove_self(locals())
+
       super(SerialNet.ODEBlock, self).__init__()
 
       self.layer = layer
@@ -178,6 +196,13 @@ class SerialNet(nn.Module):
     
   def getBwdStats(self):
     return 1,0.0
+
+  def saveParams(self,rank,model_dir):
+    torch.save(self.state_dict(),f'{model_dir}/serial_model.{rank}.mdl')
+
+  def loadParams(self,rank,model_dir):
+    self.load_state_dict(torch.load(f'{model_dir}/serial_model.{rank}.mdl'))
+
 
 class ParallelNet(nn.Module):
   ''' Full parallel ODE-net based on StepLayer,  will be parallelized in time ''' 
@@ -254,6 +279,13 @@ class ParallelNet(nn.Module):
     
   def getBwdStats(self):
     return self.parallel_nn.getBwdStats()
+
+  def saveParams(self,rank,model_dir):
+    torch.save(self.state_dict(),f'{model_dir}/parallel_model.{rank}.mdl')
+
+  def loadParams(self,rank,model_dir):
+    self.load_state_dict(torch.load(f'{model_dir}/parallel_model.{rank}.mdl'))
+
 # end ParallelNet 
 ####################################################################################
 ####################################################################################
@@ -276,6 +308,14 @@ def parse_args(mgopt_on=True):
                       help='how many batches to wait before logging training status')
   parser.add_argument('--use-serial',action='store_true', default=False, 
                       help='Turn on serial run (default: False)')
+
+  # model saving and loading settings
+  parser.add_argument('--save-model',action='store_true', default=False,
+                      help='Save the model to disk after each epoch (default: False)')
+  parser.add_argument('--load-model',action='store_true', default=False,
+                      help='Load the model from disk at startup (default: False)')
+  parser.add_argument('--model-dir',default='./',
+                      help='Location to Save the model to (default: ./)')
   
   # artichtectural settings
   parser.add_argument('--steps', type=int, default=4, metavar='N',
