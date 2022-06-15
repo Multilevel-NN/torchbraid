@@ -119,9 +119,9 @@ def buildNet(parallel,**network):
   return m
 # end buildNet
 
-def buildNetClone(parallel,src,num_steps):
-  new_params = {a: src.construct_params[a] for a in src.construct_params}
-  new_params['global_steps'] = num_steps
+def buildNetClone(parallel,src,replace):
+  new_params = {**src.construct_params}
+  new_params.update(replace)
 
   if parallel:
     return ParallelNet(**new_params)
