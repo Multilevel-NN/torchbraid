@@ -367,8 +367,8 @@ def main():
     root_print(rank,f'Loading from \"{args.model_dir}\"')
     model.loadParams(rank,args.model_dir)
     optimizer.load_state_dict(torch.load(f'{args.model_dir}/optimizer.{rank}.mdl'))
-  if args.lr_scheduler:
-    scheduler.load_state_dict(torch.load(f'{args.model_dir}/scheduler.{rank}.mdl'))
+    if args.lr_scheduler:
+      scheduler.load_state_dict(torch.load(f'{args.model_dir}/scheduler.{rank}.mdl'))
 
   model = model.to(my_device)
 
