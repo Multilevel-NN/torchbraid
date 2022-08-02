@@ -65,27 +65,7 @@ import statistics               as stats
 from torchvision import datasets, transforms
 from timeit import default_timer as timer
 
-from utils import parse_args, buildNet, ParallelNet, getComm, git_rev
-
-
-def getDevice(comm):
-  my_host    = torch.device('cpu')
-  if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
-    if comm.Get_rank()==0:
-      print('Using GPU Device')
-    my_device  = torch.device(f'cuda:{comm.Get_rank()}')
-    torch.cuda.set_device(my_device)
-  elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
-    if comm.Get_rank()==0:
-      print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
-    my_device = my_host
-  else:
-    if comm.Get_rank()==0:
-      print('No GPUs to be used, CPU only')
-    my_device = my_host
-
-  return my_device,my_host
-# end getDevice
+from utils import parse_args, buildNet, ParallelNet, getComm, git_rev, getDevice
 
 def root_print(rank,s):
   if rank==0:
@@ -173,15 +153,17 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,device):
                   total_time_bp/len(train_loader.dataset),
                   ))
 
-def test(rank,model,test_loader,epoch,compose,device,prefix=''):
+def test(rank,args,model,test_loader,epoch,compose,device,prefix=''):
+  log_interval = args.log_interval
   model.eval()
   correct = 0
   criterion = nn.CrossEntropyLoss()
   total_time = 0.0
   root_print(rank,f'EPOCH={epoch} TEST')
 
+  total_data = 0
   with torch.no_grad():
-    for data,target in test_loader:
+    for batch_idx,(data,target) in enumerate(test_loader):
       start_time = timer()
       data = data.to(device)
       target = target.long()
@@ -198,10 +180,18 @@ def test(rank,model,test_loader,epoch,compose,device,prefix=''):
       stop_time = timer()
 
       total_time += stop_time-start_time
+      total_data += len(data)
 
       # only accumulate the correct values on the root
       if rank==0:
         correct += pred.eq(target.view_as(pred)).sum().item()
+
+      if batch_idx % log_interval == 0:
+        format_str = 'Test Epoch: {:2d} [{:6d}/{:6d}]'
+        root_print(rank,format_str.format(
+                   epoch,
+                   total_data,
+                   len(test_loader.dataset)))
 
   root_print(rank,'{}Test set epoch {:2d}: Accuracy: {}/{} ({:.0f}%)\tTime Per Batch {:.6f}'.format(
       prefix,
@@ -387,7 +377,7 @@ def main():
 
   epoch = 0
   start_time = timer()
-  test_result = test(rank,model, test_loader,epoch,compose,my_device)
+  test_result = test(rank,args,model, test_loader,epoch,compose,my_device)
   end_time = timer()
   test_times += [end_time-start_time]  
 
@@ -398,7 +388,7 @@ def main():
     epoch_times += [end_time-start_time]
 
     start_time = timer()
-    test_result = test(rank,model, test_loader,epoch,compose,my_device)
+    test_result = test(rank,args,model, test_loader,epoch,compose,my_device)
     end_time = timer()
     test_times += [end_time-start_time]  
 

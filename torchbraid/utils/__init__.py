@@ -123,15 +123,14 @@ def getDevice(comm):
   Only works on a single node at the moment (easy to change, use modulo arithmetic).
   """
   my_host    = torch.device('cpu')
-  if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
+  if torch.cuda.is_available(): 
+    dev_cnt = torch.cuda.device_count() # this assumes all nodes have the same number of devices
+    dev_rank = comm.Get_rank() % dev_cnt
     if comm.Get_rank()==0:
       print('Using GPU Device')
-    my_device  = torch.device(f'cuda:{comm.Get_rank()}')
+    my_device  = torch.device(f'cuda:{dev_rank}')
+    #print(f'USING rank={comm.Get_rank()} device=cuda:{dev_rank}')
     torch.cuda.set_device(my_device)
-  elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
-    if comm.Get_rank()==0:
-      print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
-    my_device = my_host
   else:
     if comm.Get_rank()==0:
       print('No GPUs to be used, CPU only')

@@ -19,7 +19,7 @@ from torchbraid.mgopt import root_print, compute_levels
 
 from timeit import default_timer as timer
 
-from torchbraid.utils import MPI, git_rev
+from torchbraid.utils import MPI, git_rev, getDevice
 
 __all__ = [ 'parse_args', 'ParallelNet' ]
 
