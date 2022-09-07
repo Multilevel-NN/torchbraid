@@ -116,6 +116,10 @@ def main():
   train_size = int(50000*args.samp_ratio)
   test_size = int(10000*args.samp_ratio)
   #
+  if (train_size % args.batch_size) or (test_size % args.batch_size) != 0:
+    print("\nSize of train and test datasets must divide evenly with batch size")
+    return
+  #
   train_set = torch.utils.data.Subset(dataset,range(train_size))
   test_set  = torch.utils.data.Subset(dataset,range(train_size,train_size+test_size))
   #
