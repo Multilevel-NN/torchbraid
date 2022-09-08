@@ -935,7 +935,7 @@ class mgopt_solver:
       output = output + "MG/Opt parameters from level " + str(k) + '\n'
       if hasattr(self.levels[k], 'network'): output = output + print_option(lvl.network, attr_name="network: ") + '\n' 
       if hasattr(self.levels[k], 'interp_params'): output = output + print_option(lvl.interp_params, attr_name="interp_params: ") + '\n'
-      if hasattr(self.levels[k], 'optim'): output = output + print_option(lvl.optims, attr_name="optim: ") + '\n'
+      if hasattr(self.levels[k], 'optims'): output = output + print_option(lvl.optims, attr_name="optims: ") + '\n'
       if hasattr(self.levels[k], 'criterion'): output = output + print_option(lvl.criterions, attr_name="criterion: ") + '\n'
       if hasattr(self.levels[k], 'restrict_params'): output = output + print_option(lvl.restrict_params, attr_name="restrict_params: ") + '\n'
       if hasattr(self.levels[k], 'restrict_grads'): output = output + print_option(lvl.restrict_grads, attr_name="restrict_grads: ") + '\n'
