@@ -109,7 +109,7 @@ def test(rank, model, validation_generator):
 
         test_loss /= len(validation_generator.dataset)
 
-        root_print(rank,'\nTest set: Average loss: {:.4f}\n'.format(test_loss))
+        root_print(rank,'\nTest set: Average loss: {:.4f}\n'.format(test_loss.item()))
 
 
 fig,axs = plt.subplots()

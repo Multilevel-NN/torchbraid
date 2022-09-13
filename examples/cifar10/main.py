@@ -283,9 +283,9 @@ def main():
 
   transform = transforms.Compose([transforms.ToTensor(),
                               transforms.Normalize((0.5,0.5,0.5), (0.5,0.5,0.5))])
-  train_set = datasets.CIFAR10('./data', download=False,
+  train_set = datasets.CIFAR10('./data', download=True,
                                    transform=transform,train=True)
-  test_set  = datasets.CIFAR10('./data', download=False,
+  test_set  = datasets.CIFAR10('./data', download=True,
                                    transform=transform,train=False)
 
   train_loader = torch.utils.data.DataLoader(train_set,
