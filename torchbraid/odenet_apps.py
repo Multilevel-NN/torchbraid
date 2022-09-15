@@ -80,6 +80,9 @@ class ForwardODENetApp(BraidApp):
 
     self.finalRelax()
 
+    # set timing data output file
+    self.setTimerFile("braid_forward_timings")
+
     comm          = self.getMPIComm()
     my_rank       = self.getMPIComm().Get_rank()
     num_ranks     = self.getMPIComm().Get_size()
@@ -370,6 +373,9 @@ class BackwardODENetApp(BraidApp):
 
     # force evaluation of gradients at end of up-cycle
     self.finalRelax()
+
+    # set timing data output file
+    self.setTimerFile("braid_backward_timings")
 
     self.timer_manager = timer_manager
   # end __init__

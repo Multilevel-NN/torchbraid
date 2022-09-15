@@ -434,6 +434,11 @@ class BraidApp:
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetRelaxOnlyCG(core, flag)
 
+
+  def setTimerFile(self, filestem):
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetTimerFile(core, len(filestem), filestem.encode('utf-8'))
+
   def setCFactor(self,cfactor):
     self.cfactor = cfactor 
 
