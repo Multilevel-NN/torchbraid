@@ -63,73 +63,90 @@ def root_print(rank,s):
   if rank==0:
     print(s)
 
-class OpenConvLayer(nn.Module):
-  def __init__(self,channels):
-    super(OpenConvLayer, self).__init__()
-    ker_width = 3
-    self.conv = nn.Conv2d(1,channels,ker_width,padding=1)
-
-  def forward(self, x):
-    return F.relu(self.conv(x))
-# end layer
-
-class OpenFlatLayer(nn.Module):
-  def __init__(self,channels):
-    super(OpenFlatLayer, self).__init__()
-    self.channels = channels
+class OpenLayer(nn.Module):
+  def __init__(self,encoding):
+    super(OpenLayer, self).__init__()
+    self.encoding = encoding
+    self.emb = nn.Embedding(15514, 128)
+    self.dropout = nn.Dropout(p=.1)
+    self.posenc = PositionalEncoding(128) if encoding == 'Torch'\
+      else PE_Alternative(128) if encoding == 'Alternative'\
+      else Exception('encoding unknown')
 
   def forward(self, x):
     # this bit of python magic simply replicates each image in the batch
-    s = len(x.shape)*[1]
-    s[1] = self.channels
-    x = x.repeat(s)
+    x = self.emb(x) 
+    x = self.dropout(x)
+    x = self.posenc(x)
     return x
 # end layer
 
 class CloseLayer(nn.Module):
-  def __init__(self,channels):
+  def __init__(self,):
     super(CloseLayer, self).__init__()
-    self.fc1 = nn.Linear(channels*28*28, 32)
-    self.fc2 = nn.Linear(32, 10)
+    self.ln3 = nn.LayerNorm(128)
+    self.fc3 = nn.Linear(128, 49)
 
   def forward(self, x):
-    x = torch.flatten(x, 1)
-    x = self.fc1(x)
-    x = F.relu(x)
-    x = self.fc2(x)
-    return F.log_softmax(x, dim=1)
+    x = self.ln3(x)
+    x = self.fc3(x)
+    return x
 # end layer
 
 class StepLayer(nn.Module):
-  def __init__(self,channels):
+  def __init__(self):
     super(StepLayer, self).__init__()
-    ker_width = 3
-    self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1)
-    self.conv2 = nn.Conv2d(channels,channels,ker_width,padding=1)
+    self.fc1 = nn.Linear(128, 128)
+    self.fc2 = nn.Linear(128, 128)
+    self.att = nn.MultiheadAttention(
+      embed_dim=128, 
+      num_heads=1, 
+      dropout=.3, 
+      batch_first=True
+    )
+    self.ln1 = nn.LayerNorm(128)
+    self.ln2 = nn.LayerNorm(128)
+
+    self.mask = None
 
   def forward(self, x):
-    return F.relu(self.conv2(F.relu(self.conv1(x))))
+    # mask = d_extra['mask']
+
+    # ContinuousBlock - dxdtEncoder1DBlock
+    x0 = x
+    x = self.ln1(x)     # also try to remove layernorm
+    x, _ = self.att(x, x, x, self.mask)
+    x1 = x
+    x = x + x0
+
+    x = self.ln2(x)
+    # MLPBlock
+    x = self.fc1(x)
+    x = nn.ELU()(x)
+    x = self.fc2(x)
+    
+    x = x + x1
+    return x
 # end layer
 
 class SerialNet(nn.Module):
   def __init__(self,channels=12,local_steps=8,Tf=1.0,serial_nn=None,open_nn=None,close_nn=None):
     super(SerialNet, self).__init__()
-
     
     if open_nn is None:
-      self.open_nn = OpenFlatLayer(channels)
+      self.open_nn = OpenLayer()
     else:
       self.open_nn = open_nn
 
     if serial_nn is None:
-      step_layer = lambda: StepLayer(channels)
+      step_layer = lambda: StepLayer(encoding)
       numprocs = 1
       parallel_nn = torchbraid.LayerParallel(MPI.COMM_SELF,step_layer,numprocs*local_steps,Tf,
         #max_levels=1,
         max_iters=1)
       parallel_nn.setPrintLevel(0)
-    
-      self.serial_nn   = parallel_nn.buildSequentialOnRoot()
+      
+      self.serial_nn = parallel_nn.buildSequentialOnRoot()
     else:
       self.serial_nn = serial_nn
 
@@ -139,7 +156,9 @@ class SerialNet(nn.Module):
       self.close_nn = close_nn
 
   def forward(self, x):
+    mask = (x == 0)
     x = self.open_nn(x)
+    serial_nn.mask = mask
     x = self.serial_nn(x)
     x = self.close_nn(x)
     return x
@@ -178,9 +197,9 @@ class ParallelNet(nn.Module):
     # this object ensures that only the LayerParallel code runs on ranks!=0
     compose = self.compose = self.parallel_nn.comp_op()
     
-    # by passing this through 'compose' (mean composition: e.g. OpenFlatLayer o channels) 
+    # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels) 
     # on processors not equal to 0, these will be None (there are no parameters to train there)
-    self.open_nn = compose(OpenFlatLayer,channels)
+    self.open_nn = compose(OpenLayer,channels)
     self.close_nn = compose(CloseLayer,channels)
 
   def saveSerialNet(self,name):
@@ -196,11 +215,10 @@ class ParallelNet(nn.Module):
   def forward(self, x):
     # by passing this through 'o' (mean composition: e.g. self.open_nn o x) 
     # this makes sure this is run on only processor 0
-
+    mask = (x == 0)
     x = self.compose(self.open_nn,x)
-    x = self.parallel_nn(x)
+    x = self.parallel_nn(x, mask)
     x = self.compose(self.close_nn,x)
-
     return x
 # end ParallelNet 
 
@@ -381,14 +399,14 @@ def main():
   # read in Digits MNIST or Fashion MNIST
   if args.digits:
     root_print(rank,'-- Using Digit MNIST')
-    transform = transforms.Compose([transforms.ToTensor(),
-                                    transforms.Normalize((0.1307,), (0.3081,))
-                                   ])
-    dataset = datasets.MNIST('./data', download=False,transform=transform)
+    # transform = transforms.Compose([transforms.ToTensor(),
+    #                                 transforms.Normalize((0.1307,), (0.3081,))
+    #                                ])
+    # dataset = datasets.MNIST('./data', download=False,transform=transform)
   else:
     root_print(rank,'-- Using Fashion MNIST')
-    transform = transforms.Compose([transforms.ToTensor()])
-    dataset = datasets.FashionMNIST('./fashion-data', download=False,transform=transform)
+    # transform = transforms.Compose([transforms.ToTensor()])
+    # dataset = datasets.FashionMNIST('./fashion-data', download=False,transform=transform)
   # if args.digits
 
   root_print(rank,'-- procs    = {}\n'
