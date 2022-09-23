@@ -71,12 +71,12 @@ class ForwardODENetApp(BraidApp):
       return self.layer(x)
   # end ODEBlock
 
-  def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None, nsplines=0, splinedegree=1):
+  def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None,user_mpi_buf=False,nsplines=0, splinedegree=1):
     """
     """
     self.layer_blocks,num_steps = self.buildLayerBlocks(layers)
 
-    BraidApp.__init__(self,'FWDApp',comm,num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,require_storage=True)
+    BraidApp.__init__(self,'FWDApp',comm,num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,user_mpi_buf=user_mpi_buf,require_storage=True)
 
     self.finalRelax()
 
@@ -361,7 +361,8 @@ class BackwardODENetApp(BraidApp):
                            fwd_app.Tf,
                            max_levels,
                            fwd_app.max_iters,
-                           spatial_ref_pair=fwd_app.spatial_ref_pair)
+                           spatial_ref_pair=fwd_app.spatial_ref_pair,
+                           user_mpi_buf=fwd_app.user_mpi_buf)
 
     self.fwd_app = fwd_app
 

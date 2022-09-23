@@ -54,7 +54,8 @@ def output_exception(label):
 class BraidApp:
 
   def __init__(self,prefix_str,comm,num_steps,Tf,max_levels,max_iters,
-               spatial_ref_pair=None,require_storage=False,abs_tol=1e-12):
+               spatial_ref_pair=None,user_mpi_buf=False,
+               require_storage=False,abs_tol=1e-12):
 
     self.prefix_str = prefix_str # prefix string for helping to debug hopefully
     self.tb_print_level = 0      # set print level internally to zero
@@ -96,6 +97,9 @@ class BraidApp:
       self.spatial_refine = r
       self.spatial_mg = True
     # turn on spatial multigrid
+
+    self.user_mpi_buf = user_mpi_buf
+    # turn on user-allocated MPI buffers
 
     # build up the core
     self.py_core = self.initCore()
@@ -139,6 +143,8 @@ class BraidApp:
     cdef braid_PtFcnBufUnpack b_bufunpack = <braid_PtFcnBufUnpack> my_bufunpack
     cdef braid_PtFcnSCoarsen b_coarsen = <braid_PtFcnSCoarsen> my_coarsen
     cdef braid_PtFcnSRefine b_refine = <braid_PtFcnSRefine> my_refine
+    cdef braid_PtFcnBufAlloc b_bufalloc = <braid_PtFcnBufAlloc> my_bufalloc
+    cdef braid_PtFcnBufFree b_buffree = <braid_PtFcnBufFree> my_buffree
 
     ntime = self.num_steps
     tstart = 0.0
@@ -158,6 +164,9 @@ class BraidApp:
       braid_SetSpatialRefine(core,b_refine)
     # end if refinement_on
     
+    if self.user_mpi_buf:
+      braid_SetBufAllocFree(core, b_bufalloc, b_buffree)
+
     # Set Braid options
     if self.require_storage:
       braid_SetStorage(core,0)

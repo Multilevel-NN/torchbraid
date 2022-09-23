@@ -175,6 +175,10 @@ cdef extern from "braid.h":
 
     ctypedef int (*braid_PtFcnBufUnpack)(braid_App app, void *buffer, braid_Vector *u_ptr, braid_BufferStatus status)
 
+    ctypedef int (*braid_PtFcnBufAlloc)(braid_App app, void **buffer, int nbytes)
+
+    ctypedef int (*braid_PtFcnBufFree)(braid_App app, void **buffer)
+
     ctypedef int (*braid_PtFcnResidual)(braid_App app, braid_Vector ustop, braid_Vector r, braid_StepStatus status) 
 
     ctypedef int (*braid_PtFcnSCoarsen)(braid_App app, braid_Vector fu, braid_Vector *cu_ptr, braid_CoarsenRefStatus  status)
@@ -215,6 +219,7 @@ cdef extern from "braid.h":
     int braid_SetTimeGrid (braid_Core core, braid_PtFcnTimeGrid tgrid)
     int braid_SetSpatialCoarsen (braid_Core core, braid_PtFcnSCoarsen scoarsen)
     int braid_SetSpatialRefine (braid_Core core, braid_PtFcnSRefine srefine)
+    int braid_SetBufAllocFree (braid_Core core, braid_PtFcnBufAlloc bufalloc, braid_PtFcnBufFree buffree)
     int braid_SetPrintLevel (braid_Core core, int print_level)
     int braid_SetFileIOLevel (braid_Core core, int io_level)
     int braid_SetPrintFile (braid_Core core, const char *printfile_name)

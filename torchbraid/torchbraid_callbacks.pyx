@@ -42,6 +42,7 @@ cimport numpy as np
 
 from torch.cuda import Stream
 
+from libc.stdlib cimport malloc, free
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
 from cython cimport view
@@ -522,3 +523,16 @@ cdef int my_refine(braid_App app, braid_Vector cu, braid_Vector *fu_ptr, braid_C
     fu_ptr[0] = <braid_Vector> fu_vec
 
   return 0
+
+cdef int my_bufalloc(braid_App app, void **buffer, int nbytes):
+  pyApp  = <object> app
+  buffer[0] = malloc(nbytes)
+  
+  return 0;
+
+cdef int my_buffree(braid_App app, void **buffer):
+  free(buffer[0])
+  buffer[0] = NULL
+
+  return 0
+

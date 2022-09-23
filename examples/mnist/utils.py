@@ -90,12 +90,12 @@ class ParallelNet(nn.Module):
   def __init__(self, channels=8, global_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
                      print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
                      fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
-                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False):
+                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False, user_mpi_buf=False):
     super(ParallelNet, self).__init__()
 
     step_layer = lambda: StepLayer(channels)
 
-    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,global_steps,Tf,max_fwd_levels=max_fwd_levels,max_bwd_levels=max_bwd_levels,max_iters=max_iters)
+    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,global_steps,Tf,max_fwd_levels=max_fwd_levels,max_bwd_levels=max_bwd_levels,max_iters=max_iters,user_mpi_buf=user_mpi_buf)
 
     if max_fwd_iters>0:
       self.parallel_nn.setFwdMaxIters(max_fwd_iters)
@@ -229,6 +229,8 @@ def parse_args():
                       help='Layer parallel use relaxation only on coarse grid for forward cycle (default: False)')
   parser.add_argument('--lp-use-crelax-wt', type=float, default=1.0, metavar='CWt',
                       help='Layer parallel use weighted C-relaxation on backwards solve (default: 1.0).  Not used for coarsest braid level.')
+  parser.add_argument('--lp-user-mpi-buf',action='store_true', default=False, 
+                      help='Layer parallel use user-defined mpi buffers (default: False)')
 
   # algorithmic settings (nested iteration)
   parser.add_argument('--ni-levels', type=int, default=3, metavar='N',
