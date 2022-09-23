@@ -317,6 +317,81 @@ def tb_get_injection_interp_params(model_fine, model_coarse, cf=2, deep_copy=Fal
 
   return interp_params
 
+def tb_get_linear_interp_params(model_fine, model_coarse, cf=2, deep_copy=True, grad=False):
+  
+  ''' 
+  Interpolate the model_coarse parameters according to coarsening-factor in time cf.
+  Return a list of the interpolated model parameters.
+
+  If deep_copy is True, return a deep copy.
+  If grad is True, return the network gradient instead
+  '''
+
+  interp_params = []
+  
+  def create_parameter_copy(layer, grad):
+    ''' return a deep copy of this layer's parameters in list form '''
+    param_copy = []
+    for param in layer.parameters():
+      if grad: param_copy.append(torch.clone(param.grad))
+      else:    param_copy.append(torch.clone(param))
+    #
+    return param_copy
+
+  def create_parameter_linear_combo(l_i, l_j, w_i, w_j, grad):
+    ''' return a deep copy of the parameters for:  w_i*l_i + w_j*l_j '''
+    param_copy = []
+    for (p_i, p_j) in zip(l_i.parameters(), l_j.parameters()):
+      if grad: param_copy.append( w_i*p_i.grad + w_j*p_j.grad )
+      else:    param_copy.append( w_i*p_i + w_j*p_j )
+    #
+    return param_copy
+
+
+  if deep_copy == False:
+    print("deep_copy False not supported for linear interp.  copying unavoidable")
+    assert(False)
+  
+  # loop over all the children, interpolating the layer-parallel weights
+  with torch.no_grad():
+    for child in model_coarse.children():
+        
+      # handle layer parallel modules differently 
+      if isinstance(child, torchbraid.LayerParallel):
+        nlayers = len(child.layer_models)
+        
+        # copy the first layer
+        layer0 = child.layer_models[0]
+        interp_params = interp_params + create_parameter_copy(layer0, grad)
+
+        # interp intermediate layers
+        for i in range(1, nlayers):
+          left = child.layer_models[i-1]
+          right = child.layer_models[i]
+          for j in range(1, cf):
+            weight_l = (cf - j)*(1.0/cf)
+            weight_r = j*(1.0/cf)
+            interp_params = interp_params + create_parameter_linear_combo(left, right, weight_l, weight_r, grad)
+          
+          # finally, insert a full copy of right point
+          interp_params = interp_params + create_parameter_copy(right, grad)
+
+               
+        # copy the dangling F-points at end of time-line, use piece-wise constant 
+        layer = child.layer_models[-1]
+        for i in range(cf-1):
+          interp_params = interp_params + create_parameter_copy(layer, grad)
+        
+      else:
+        # Do simple injection for the opening and closing layers
+        for param in child.parameters():
+          if grad: interp_params.append(torch.clone(param.grad))
+          else:    interp_params.append(torch.clone(param))
+    ##
+
+  return interp_params
+
+
 
 def tb_parallel_get_injection_restrict_params(model_fine, model_coarse, cf=2, deep_copy=True, grad=False):
   ''' 
@@ -376,6 +451,97 @@ def tb_get_injection_restrict_params(model_fine, model_coarse, cf=2, deep_copy=F
             else:    restrict_params.append(param)
     ##
 
+  return restrict_params 
+
+def tb_get_linear_restrict_params(model_fine, model_coarse, cf=2, deep_copy=True, grad=False):
+  ''' 
+  Restrict the model_fine parameters according to coarsening-factor in time cf.
+  Return a list of the restricted model parameters.
+
+  If deep_copy is True, return a deep copy.
+  If grad is True, return the network gradient instead
+  '''
+  
+  restrict_params = []
+  
+  stencil_avg = [0.25,  0.5,  0.25] 
+  stencil_inj = [None,  1.0,  None] 
+
+  def combine(left, center, right, sten, grad):
+    ''' Helper function to combine three layers, weighted by the stencil in sten'''
+    new_params = []
+    with torch.no_grad():
+      for param in center.parameters():
+        if grad: new_params.append(sten[1]*torch.clone(param.grad))
+        else: new_params.append(sten[1]*torch.clone(param))
+      if left != None:
+        for idx, param in enumerate(left.parameters()):
+          if grad: new_params[idx] = new_params[idx] + sten[0]*param.grad
+          else: new_params[idx] = new_params[idx] + sten[0]*param
+      if right != None:
+        for idx, param in enumerate(right.parameters()):
+          if grad: new_params[idx] = new_params[idx] + sten[2]*param.grad
+          else: new_params[idx] = new_params[idx] + sten[2]*param
+    ##
+    return new_params    
+        
+
+  if deep_copy == False:
+    print("deep_copy False not supported for linear restrict.  copying unavoidable")
+    assert(False)
+  
+  # loop over all the children, restricting 
+  for child in model_fine.children():
+    
+    # handle layer parallel modules differently 
+    if isinstance(child, torchbraid.LayerParallel):
+      nlayers = len(child.layer_models)
+      num_Cpts = int((nlayers - 1)/cf + 1)
+      last_Cpt = (num_Cpts - 1)*cf  # computes index
+      
+      if(nlayers < 2):
+        print("linear restrict requires at least 2 layers") 
+        assert(False)
+      
+      # restrict first layer
+      with torch.no_grad():
+        center = child.layer_models[0]
+        restrict_params = restrict_params + combine(None, center, None, stencil_inj, grad)
+
+      # restrict middle layers
+      for idx in range(cf, nlayers-cf, cf):
+        left = child.layer_models[idx-1]
+        center = child.layer_models[idx]
+        right = child.layer_models[idx+1]
+        restrict_params = restrict_params + combine(left, center, right, stencil_avg, grad)
+
+      # restrict last C-point
+      if last_Cpt > 1:
+        # Special case if last C-point is last point on the grid
+        if last_Cpt == (nlayers - 1):
+          assert(False)
+          # This shouldn't be reached
+          with torch.no_grad():
+            center = child.layer_models[last_Cpt]
+            restrict_params = restrict_params + combine(None, center, None, stencil_inj, grad)
+         
+        # Last C-point is not last point on the grid
+        else:
+          with torch.no_grad():
+            center = child.layer_models[last_Cpt]
+            left = child.layer_models[last_Cpt-1]
+            right = child.layer_models[last_Cpt+1]
+            restrict_params = restrict_params + combine(left, center, right, stencil_avg, grad)
+
+
+    else:
+      # Do simple injection for the opening and closing layers
+      with torch.no_grad():
+        for param in child.parameters(): 
+          if grad: restrict_params.append(torch.clone(param.grad))
+          else:    restrict_params.append(torch.clone(param))
+
+    
   return restrict_params 
 
 
@@ -1745,6 +1911,9 @@ class mgopt_solver:
     if method == "tb_get_injection_restrict_params":
       get_restrict_params = tb_get_injection_restrict_params
       restrict_params_kwargs.update({'cf' : self.ni_rfactor, 'deep_copy' : True, 'grad' : False})
+    elif method == "tb_get_linear_restrict_params":
+      get_restrict_params = tb_get_linear_restrict_params
+      restrict_params_kwargs.update({'cf' : self.ni_rfactor, 'deep_copy' : True, 'grad' : False})
     elif method == "tb_parallel_get_injection_restrict_params":
       get_restrict_params = tb_parallel_get_injection_restrict_params
       restrict_params_kwargs.update({'cf' : self.ni_rfactor, 'deep_copy' : True, 'grad' : False})
@@ -1760,6 +1929,9 @@ class mgopt_solver:
     if method == "tb_get_injection_restrict_params":
       get_restrict_grad = tb_get_injection_restrict_params
       restrict_grad_kwargs.update({'cf' : self.ni_rfactor, 'deep_copy' : True, 'grad' : True})
+    elif method == "tb_get_linear_restrict_params":
+      get_restrict_grad = tb_get_linear_restrict_params
+      restrict_grad_kwargs.update({'cf' : self.ni_rfactor, 'deep_copy' : True, 'grad' : True})
     elif method == "tb_parallel_get_injection_restrict_params":
       get_restrict_grad = tb_parallel_get_injection_restrict_params
       restrict_grad_kwargs.update({'cf' : self.ni_rfactor, 'deep_copy' : True, 'grad' : True})
@@ -1774,6 +1946,9 @@ class mgopt_solver:
     method, interp_params_kwargs = unpack_arg(option)
     if method == "tb_get_injection_interp_params":
       get_interp_params = tb_get_injection_interp_params
+      interp_params_kwargs.update({'deep_copy' : True, 'grad' : False, 'cf' : self.ni_rfactor})
+    elif method == "tb_get_linear_interp_params":
+      get_interp_params = tb_get_linear_interp_params
       interp_params_kwargs.update({'deep_copy' : True, 'grad' : False, 'cf' : self.ni_rfactor})
     elif method == "tb_parallel_get_injection_interp_params":
       get_interp_params = tb_parallel_get_injection_interp_params
