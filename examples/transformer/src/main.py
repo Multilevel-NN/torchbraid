@@ -227,18 +227,19 @@ class ParallelNet(nn.Module):
     return x
 # end ParallelNet 
 
-def train(rank, args, model, train_loader, optimizer, epoch,compose):
+def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
   model.train()
   criterion = nn.CrossEntropyLoss(ignore_index=0)
   total_time = 0.0
   batch_epochs = 10
-  batch_epochs = args.epochs
+  batch_epochs = np.inf#args.epochs
   batch_ctr = 0
   for batch_idx, (data, target) in enumerate(train_loader):
     # root_print(rank, 'checkpoint 4')
     start_time = timer()
     optimizer.zero_grad()
-    output = model(data)
+    data = data.cuda()
+    output = model(data).cpu()
     loss = compose(
       criterion,
       output.reshape(-1, output.shape[-1]),
@@ -256,7 +257,7 @@ def train(rank, args, model, train_loader, optimizer, epoch,compose):
           100. * batch_idx / len(train_loader), loss.item(),total_time/(batch_idx+1.0)))
 
     batch_ctr += 1
-    if batch_ctr == batch_epochs:
+    if batch_ctr >= batch_epochs:
       break
     elif batch_ctr%(batch_epochs//4) == 0:
       for g in optimizer.param_groups:
@@ -305,15 +306,15 @@ def diagnose(rank, model, test_loader,epoch):
   pyplot.savefig('diagnose{:03d}.png'.format(epoch))
 
 
-def test(rank, model, test_loader,compose):
+def test(rank, model, test_loader, compose, device):
   model.eval()
   test_loss = 0
-  correct = 0
+  correct, total = 0, 0
   criterion = nn.CrossEntropyLoss()
   with torch.no_grad():
     for data, target in test_loader:
-      data, target = data, target
-      output = model(data)
+      data = data.to(device)
+      output = model(data).cpu()
       test_loss += compose(
         criterion,
         output.reshape(-1, output.shape[-1]),
@@ -322,14 +323,22 @@ def test(rank, model, test_loader,compose):
 
       output = MPI.COMM_WORLD.bcast(output,root=0)
       pred = output.reshape(-1, output.shape[-1]).argmax(dim=-1, keepdim=False)  # get the index of the max log-probability
+      # print(f'pred {pred.shape}   target {target.reshape(-1).shape}')
       # correct += pred.eq(target.view_as(pred)).sum().item()
-      correct += ((pred == target.reshape(-1))*(target.reshape(-1) != 0)).sum().item()/((target.reshape(-1) != 0).sum())
+      # print(((pred == target.reshape(-1))*(target.reshape(-1) != 0)).sum())
+      # print(((target.reshape(-1) != 0).sum()))
+      correct += ((pred == target.reshape(-1))*(target.reshape(-1) != 0)).sum().item()
+      total += ((target.reshape(-1) != 0).sum()).item()
+
+  accuracy = correct/total
 
   test_loss /= len(test_loader.dataset)
 
-  root_print(rank,'\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-      test_loss, correct, len(test_loader.dataset),
-      100. * correct / len(test_loader.dataset)))
+  # root_print(rank,'\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+  #     test_loss, correct, len(test_loader.dataset),
+  #     100. * correct / len(test_loader.dataset)))
+  root_print(rank,'\nTest set: Average loss: {:.4f}, Accuracy: {}\n'.format(
+      test_loss, accuracy))
 
 def compute_levels(num_steps,min_coarse_size,cfactor): 
   from math import log, floor 
@@ -430,6 +439,8 @@ def main():
   procs = MPI.COMM_WORLD.Get_size()
   args = parser.parse_args()
 
+  device = 'cuda' if torch.cuda.is_available() else 'cpu'
+  root_print(rank, f'device {device}')
   # root_print(rank, 'checkpoint 1')
 
   # some logic to default to Serial if on one processor,
@@ -526,7 +537,7 @@ def main():
       model = SerialNet(encoding=args.encoding,local_steps=local_steps,Tf=args.tf)
     compose = lambda op,*p: op(*p)
 
-  optimizer = optim.SGD(model.parameters(), lr=args.lr,momentum=0.9)
+  optimizer = optim.Adam(model.parameters(), lr=args.lr)#optim.SGD(model.parameters(), lr=args.lr,momentum=0.9)
 
   epoch_times = []
   test_times = []
@@ -537,14 +548,16 @@ def main():
 
   # root_print(rank, 'checkpoint 3')
 
-  for epoch in range(1, 2):#args.epochs + 1):
+  model = model.to(device)
+
+  for epoch in range(1, args.epochs + 1):
     start_time = timer()
-    train(rank,args, model, train_loader, optimizer, epoch,compose)
+    train(rank,args, model, train_loader, optimizer, epoch, compose, device)
     end_time = timer()
     epoch_times += [end_time-start_time]
 
     start_time = timer()
-    test(rank,model, test_loader,compose)
+    test(rank,model, test_loader, compose, device)
     end_time = timer()
     test_times += [end_time-start_time]
 
