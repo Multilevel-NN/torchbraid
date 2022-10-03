@@ -236,6 +236,10 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
   batch_ctr = 0
   for batch_idx, (data, target) in enumerate(train_loader):
     # root_print(rank, 'checkpoint 4')
+    # root_print(rank, f'data.shape {data.shape}')
+    if data.shape[0] != args.batch_size:
+      break
+    root_print(rank, f'test data.shape {data.shape}')
     start_time = timer()
     optimizer.zero_grad()
     data = data.cuda()
@@ -306,13 +310,16 @@ def diagnose(rank, model, test_loader,epoch):
   pyplot.savefig('diagnose{:03d}.png'.format(epoch))
 
 
-def test(rank, model, test_loader, compose, device):
+def test(rank, args, model, test_loader, compose, device):
   model.eval()
   test_loss = 0
   correct, total = 0, 0
   criterion = nn.CrossEntropyLoss()
   with torch.no_grad():
     for data, target in test_loader:
+      if data.shape[0] != 187:
+        break
+      root_print(rank, f'test data.shape {data.shape}')
       data = data.to(device)
       output = model(data).cpu()
       test_loss += compose(
@@ -452,8 +459,8 @@ def main():
   else:
     force_lp = False
 
-  force_lp = False
-
+  # 
+  force_lp = True
 
   root_print(rank, f'force_lp {force_lp}')
 
@@ -507,21 +514,20 @@ def main():
                                                   args.lp_use_relaxonlycg,
                                                   args.lp_use_fmg))
     
-    # root_print(rank, 'checkpoint 2')
+    root_print(rank, 'checkpoint 2')
 
-    # model = ParallelNet(encoding=args.encoding,
-    #                     local_steps=local_steps,
-    #                     max_levels=args.lp_levels,
-    #                     max_iters=args.lp_iters,
-    #                     fwd_max_iters=args.lp_fwd_iters,
-    #                     print_level=args.lp_print,
-    #                     braid_print_level=args.lp_braid_print,
-    #                     cfactor=args.lp_cfactor,
-    #                     fine_fcf=args.lp_finefcf,
-    #                     skip_downcycle=not args.lp_use_downcycle,
-    #                     fmg=args.lp_use_fmg,Tf=args.tf,
-    #                     relax_only_cg=args.lp_use_relaxonlycg)
-    model = SerialNet(encoding=args.encoding,local_steps=local_steps,Tf=args.tf)
+    model = ParallelNet(encoding=args.encoding,
+                        local_steps=local_steps,
+                        max_levels=args.lp_levels,
+                        max_iters=args.lp_iters,
+                        fwd_max_iters=args.lp_fwd_iters,
+                        print_level=args.lp_print,
+                        braid_print_level=args.lp_braid_print,
+                        cfactor=args.lp_cfactor,
+                        fine_fcf=args.lp_finefcf,
+                        skip_downcycle=not args.lp_use_downcycle,
+                        fmg=args.lp_use_fmg,Tf=args.tf,
+                        relax_only_cg=args.lp_use_relaxonlycg)
 
 
     if args.serial_file is not None:
@@ -552,12 +558,13 @@ def main():
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
-    train(rank,args, model, train_loader, optimizer, epoch, compose, device)
+    root_print(rank, f'epoch {epoch}')
+    train(rank, args, model, train_loader, optimizer, epoch, compose, device)
     end_time = timer()
     epoch_times += [end_time-start_time]
 
     start_time = timer()
-    test(rank,model, test_loader, compose, device)
+    test(rank, args, model, test_loader, compose, device)
     end_time = timer()
     test_times += [end_time-start_time]
 
