@@ -220,7 +220,12 @@ class ParallelNet(nn.Module):
     # by passing this through 'o' (mean composition: e.g. self.open_nn o x) 
     # this makes sure this is run on only processor 0
     mask = (x == 0)
+    #print(f'x.shape {x.shape}, mask.shape {mask.shape}, mask.sum() {mask.sum()}')
+    #print(f'mask {mask}')
+    #print(f'x {x}')
     x = self.compose(self.open_nn,x)
+    #print(f'x2.shape {x.shape}')
+    #print(f'x2 {x}')
     self.parallel_nn.mask = mask
     x = self.parallel_nn(x)
     x = self.compose(self.close_nn,x)
@@ -239,7 +244,7 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
     # root_print(rank, f'data.shape {data.shape}')
     if data.shape[0] != args.batch_size:
       break
-    root_print(rank, f'test data.shape {data.shape}')
+    #root_print(rank, f'train data.shape {data.shape}')
     start_time = timer()
     optimizer.zero_grad()
     data = data.cuda()
@@ -316,10 +321,10 @@ def test(rank, args, model, test_loader, compose, device):
   correct, total = 0, 0
   criterion = nn.CrossEntropyLoss()
   with torch.no_grad():
-    for data, target in test_loader:
-      if data.shape[0] != 187:
+    for data, target in test_loader:#test_loader
+      if data.shape[0] != 64:#187
         break
-      root_print(rank, f'test data.shape {data.shape}')
+      #root_print(rank, f'test data.shape {data.shape}')
       data = data.to(device)
       output = model(data).cpu()
       test_loss += compose(
@@ -381,7 +386,7 @@ def obtain_ds_dl(data_path_train, data_path_dev, batch_size, max_len):
     vocabs=vocabs, 
     attributes_input=attributes_input, 
     attributes_target=attributes_target,
-    batch_size=187, 
+    batch_size=64,#187, 
     bucket_size=max_len,
   )
 
@@ -513,8 +518,6 @@ def main():
                                                   not args.lp_use_downcycle,
                                                   args.lp_use_relaxonlycg,
                                                   args.lp_use_fmg))
-    
-    root_print(rank, 'checkpoint 2')
 
     model = ParallelNet(encoding=args.encoding,
                         local_steps=local_steps,
@@ -562,12 +565,12 @@ def main():
     train(rank, args, model, train_loader, optimizer, epoch, compose, device)
     end_time = timer()
     epoch_times += [end_time-start_time]
-
+    
     start_time = timer()
     test(rank, args, model, test_loader, compose, device)
     end_time = timer()
     test_times += [end_time-start_time]
-
+    
     # print out some diagnostics
     #if force_lp:
     #  diagnose(rank, model, test_loader,epoch)
