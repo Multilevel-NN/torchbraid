@@ -220,12 +220,7 @@ class ParallelNet(nn.Module):
     # by passing this through 'o' (mean composition: e.g. self.open_nn o x) 
     # this makes sure this is run on only processor 0
     mask = (x == 0)
-    #print(f'x.shape {x.shape}, mask.shape {mask.shape}, mask.sum() {mask.sum()}')
-    #print(f'mask {mask}')
-    #print(f'x {x}')
     x = self.compose(self.open_nn,x)
-    #print(f'x2.shape {x.shape}')
-    #print(f'x2 {x}')
     self.parallel_nn.mask = mask
     x = self.parallel_nn(x)
     x = self.compose(self.close_nn,x)
@@ -247,7 +242,7 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
     #root_print(rank, f'train data.shape {data.shape}')
     start_time = timer()
     optimizer.zero_grad()
-    data = data.cuda()
+    data = data.to(device)
     output = model(data).cpu()
     loss = compose(
       criterion,
@@ -335,10 +330,6 @@ def test(rank, args, model, test_loader, compose, device):
 
       output = MPI.COMM_WORLD.bcast(output,root=0)
       pred = output.reshape(-1, output.shape[-1]).argmax(dim=-1, keepdim=False)  # get the index of the max log-probability
-      # print(f'pred {pred.shape}   target {target.reshape(-1).shape}')
-      # correct += pred.eq(target.view_as(pred)).sum().item()
-      # print(((pred == target.reshape(-1))*(target.reshape(-1) != 0)).sum())
-      # print(((target.reshape(-1) != 0).sum()))
       correct += ((pred == target.reshape(-1))*(target.reshape(-1) != 0)).sum().item()
       total += ((target.reshape(-1) != 0).sum()).item()
 
@@ -464,8 +455,8 @@ def main():
   else:
     force_lp = False
 
-  # 
-  force_lp = True
+  force_lp = True 
+  # REMAINING TO DEBUG SERIAL: CUDA OUT OF MEMORY
 
   root_print(rank, f'force_lp {force_lp}')
 
