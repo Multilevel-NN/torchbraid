@@ -177,7 +177,11 @@ class ParallelNet(nn.Module):
 
     numprocs = MPI.COMM_WORLD.Get_size()
 
-    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps*numprocs,Tf,
+    self.parallel_nn = torchbraid.LayerParallel(
+      MPI.COMM_WORLD,
+      step_layer,           #[step_layer  for i in range(numprocs)] ?
+      local_steps*numprocs, #[local_steps for i in range(numprocs)] ?
+      Tf,
       max_fwd_levels=max_levels,
       max_bwd_levels=max_levels,
       max_iters=max_iters)
