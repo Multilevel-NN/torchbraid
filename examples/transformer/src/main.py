@@ -178,11 +178,12 @@ class ParallelNet(nn.Module):
     numprocs = MPI.COMM_WORLD.Get_size()
 
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,step_layer,local_steps*numprocs,Tf,
-      #max_levels=max_levels,
+      max_fwd_levels=max_levels,
+      max_bwd_levels=max_levels,
       max_iters=max_iters)
 
     if fwd_max_iters>0:
-      print('fwd_amx_iters',fwd_max_iters)
+      print('fwd_max_iters',fwd_max_iters)
       self.parallel_nn.setFwdMaxIters(fwd_max_iters)
     self.parallel_nn.setPrintLevel(print_level,True)
     self.parallel_nn.setPrintLevel(braid_print_level,False)
@@ -456,7 +457,7 @@ def main():
     force_lp = False
 
   force_lp = True 
-  # REMAINING TO DEBUG SERIAL: CUDA OUT OF MEMORY
+  # REMAINING TO DEBUG SERIAL w/ gpu: CUDA OUT OF MEMORY
 
   root_print(rank, f'force_lp {force_lp}')
 
