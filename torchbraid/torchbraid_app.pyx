@@ -55,7 +55,7 @@ class BraidApp:
 
   def __init__(self,prefix_str,comm,num_steps,Tf,max_levels,max_iters,
                spatial_ref_pair=None,user_mpi_buf=False,
-               require_storage=False,abs_tol=1e-12):
+               require_storage=False,abs_tol=1e-12, gpu_direct_commu=False):
 
     self.prefix_str = prefix_str # prefix string for helping to debug hopefully
     self.tb_print_level = 0      # set print level internally to zero
@@ -82,7 +82,10 @@ class BraidApp:
 
     self.x_final = None
     self.shape0 = None
-  
+
+    self.buffer = []
+    self.gpu_direct_commu = gpu_direct_commu
+
     comm          = self.getMPIComm()
     my_rank       = self.getMPIComm().Get_rank()
     num_ranks     = self.getMPIComm().Get_size()
@@ -244,7 +247,22 @@ class BraidApp:
       self.shape0 = shape
 
   def getShape(self):
-    return self.shape0 
+    return self.shape0
+
+  def addBufferEntry(self, tensor):
+    self.buffer.append(tensor)
+    return self.buffer[-1].data_ptr()
+
+  def getBuffer(self, addr):
+    for i in range(len(self.buffer)):
+      dataPtr = self.buffer[i].data_ptr()
+      if dataPtr == addr:
+        return self.buffer[i]
+
+    raise Exception('Buffer not found')
+
+  def removeBufferEntry(self, addr):
+    self.buffer = [item for item in self.buffer if item.data_ptr() != addr]
 
   def initializeStates(self):
     try:
@@ -447,6 +465,10 @@ class BraidApp:
   def setTimerFile(self, filestem):
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetTimerFile(core, len(filestem), filestem.encode('utf-8'))
+
+  def resetBraidTimer(self):
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_ResetTimer(core)
 
   def setCFactor(self,cfactor):
     self.cfactor = cfactor 

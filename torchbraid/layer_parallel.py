@@ -117,7 +117,7 @@ class LayerParallel(nn.Module):
       else:
         return torch.zeros(1,device=device)*value
 
-  def __init__(self,comm,layer_blocks,global_steps,Tf,max_fwd_levels=1,max_bwd_levels=1,max_iters=10,spatial_ref_pair=None,user_mpi_buf=False, nsplines=0, splinedegree=1):
+  def __init__(self,comm,layer_blocks,global_steps,Tf,max_fwd_levels=1,max_bwd_levels=1,max_iters=10,spatial_ref_pair=None,user_mpi_buf=False, nsplines=0, splinedegree=1, gpu_direct_commu=False):
     """
     This takes a number of arguments to construct a layer parallel list.
     The big piece here is layer_block and global_steps. If layer_block is a functor then those
@@ -147,8 +147,8 @@ class LayerParallel(nn.Module):
 
     self.fwd_app = apps.ForwardODENetApp(comm,layers,Tf,max_fwd_levels,max_iters,self.timer_manager,
                                          spatial_ref_pair=spatial_ref_pair,user_mpi_buf=user_mpi_buf,
-                                         nsplines=nsplines, splinedegree=splinedegree)
-    self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager,max_levels=max_bwd_levels)
+                                         nsplines=nsplines, splinedegree=splinedegree, gpu_direct_commu=gpu_direct_commu)
+    self.bwd_app = apps.BackwardODENetApp(self.fwd_app,self.timer_manager,max_levels=max_bwd_levels, gpu_direct_commu=gpu_direct_commu)
 
     self.layer_models = [l for l in self.fwd_app.layer_models]
     self.local_layers = nn.Sequential(*self.layer_models)

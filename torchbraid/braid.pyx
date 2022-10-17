@@ -228,6 +228,7 @@ cdef extern from "braid.h":
     int braid_SplitCommworld (const libmpi.MPI_Comm *comm_world, int px, libmpi.MPI_Comm *comm_x, libmpi.MPI_Comm *comm_t)
     int braid_SetShell (braid_Core core, braid_PtFcnSInit sinit, braid_PtFcnSClone sclone, braid_PtFcnSFree sfree)
     int braid_SetTimerFile(braid_Core core, int length, const char *filestem)
+    int braid_ResetTimer(braid_Core core)
     
 
     ##
