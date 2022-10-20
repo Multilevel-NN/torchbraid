@@ -277,9 +277,14 @@ def test(rank, model, test_loader, compose, device):
       output = model(data)
       test_loss += compose(criterion, output, target).item()
 
-      output = MPI.COMM_WORLD.bcast(output, root=0)
-      pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-      correct += pred.eq(target.view_as(pred)).sum().item()
+      # Old version
+      # output = MPI.COMM_WORLD.bcast(output, root=0)
+      # pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+      # correct += pred.eq(target.view_as(pred)).sum().item()
+
+      if rank == 0:
+        pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+        correct += pred.eq(target.view_as(pred)).sum().item()
 
   test_loss /= len(test_loader.dataset)
 
@@ -358,14 +363,19 @@ def main():
                       help='Layer parallel use user-defined mpi buffers (default: False)')
   parser.add_argument('--lp-gpu-direct-commu', action='store_true', default=False,
                       help='Layer parallel GPU direct communication (default: False)')
+  parser.add_argument('--warm-up', action='store_true', default=False,
+                      help='Warm up for GPU timings (default: False)')
 
-  rank = MPI.COMM_WORLD.Get_rank()
-  procs = MPI.COMM_WORLD.Get_size()
+  comm = MPI.COMM_WORLD
+  rank = comm.Get_rank()
+  procs = comm.Get_size()
   args = parser.parse_args()
 
   use_cuda = not args.no_cuda and torch.cuda.is_available()
-  device = torch.device("cuda" if use_cuda else "cpu")
-  root_print(rank, f'Torch version: {torch.__version__} | Device: {device}')
+  device, host = torchbraid.utils.getDevice(comm=comm)
+  if not use_cuda:
+    device = torch.device("cuda" if use_cuda else "cpu")
+  print(f'Run info rank: {rank}: Torch version: {torch.__version__} | Device: {device} | Host: {host}')
 
   # some logic to default to Serial if on one processor,
   # can be overriden by the user to run layer-parallel
@@ -476,15 +486,19 @@ def main():
   # if force_lp:
   #   diagnose(rank, model, test_loader,0)
 
-  warm_up_timer = timer()
-  train(rank=rank, args=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=0,
-        compose=compose, device=device)
-  if force_lp:
-    model.parallel_nn.timer_manager.resetTimers()
-    model.parallel_nn.fwd_app.resetBraidTimer()
-    model.parallel_nn.bwd_app.resetBraidTimer()
-  torch.cuda.synchronize()
-  root_print(rank, f'Warm up timer {timer() - warm_up_timer}')
+  if args.warm_up:
+    warm_up_timer = timer()
+    train(rank=rank, args=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=0,
+          compose=compose, device=device)
+    if force_lp:
+      model.parallel_nn.timer_manager.resetTimers()
+      model.parallel_nn.fwd_app.resetBraidTimer()
+      model.parallel_nn.bwd_app.resetBraidTimer()
+    if use_cuda:
+      torch.cuda.synchronize()
+    epoch_times = []
+    test_times = []
+    root_print(rank, f'Warm up timer {timer() - warm_up_timer}')
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
@@ -494,6 +508,7 @@ def main():
     epoch_times += [end_time - start_time]
 
     start_time = timer()
+
     test(rank=rank, model=model, test_loader=test_loader, compose=compose, device=device)
     end_time = timer()
     test_times += [end_time - start_time]
@@ -512,7 +527,6 @@ def main():
   root_print(rank,
              f'TIME PER TEST:  {"{:.2f}".format(stats.mean(test_times))} '
              f'{("(1 std dev " + "{:.2f}".format(stats.mean(test_times))) if len(test_times) > 1 else ""}')
-
 
 
 if __name__ == '__main__':

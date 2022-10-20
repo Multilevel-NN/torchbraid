@@ -36,3 +36,6 @@ tests-serial test-serial:
 	$(MPIRUN) -n 1 $(PYTHON) test_grad_update.py
 	$(MPIRUN) -n 1 $(PYTHON) test_rnn_layer_parallel.py
 	$(PYTHON) test_ContextTimer.py
+
+tests-direct-gpu test-direct-gpu:
+	$(MPIRUN) -n 2 $(PYTHON) test_gpu_direct_commu.py

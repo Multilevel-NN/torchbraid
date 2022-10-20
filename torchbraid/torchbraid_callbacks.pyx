@@ -442,18 +442,24 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,brai
         addr = <uintptr_t>buffer
         app_buffer = pyApp.getBuffer(addr)
 
-        #TODO: Get the information how many vt and wt from the braidApp
         vt = []
         wt = []
-
-        size = 0
         shapes = pyApp.getTensorShapes()[1:]
         ten_sizes = [item.numel() for item in shapes]
+        if hasattr(pyApp, 'getParameterShapes'):
+          size_wt = len(pyApp.getParameterShapes())
+        else:
+          size_wt = 0
+        size_vt = len(pyApp.shape0[1:])
+
+        size = 0
         for i in range(len(shapes)):
-          if i==0:
+          if i < size_vt:
             vt.append(torch.reshape(app_buffer[size:size+ten_sizes[i]], shapes[i]))
-          else:
+          elif i < size_vt+size_wt:
             wt.append(torch.reshape(app_buffer[size:size+ten_sizes[i]], shapes[i]))
+          else:
+            raise Exception(f'Bufunpack: size vt {size_vt} + size wt {size_wt} != len(shapes) {len(shapes)}')
           size += ten_sizes[i]
 
         if not hasattr(pyApp,'stream'):

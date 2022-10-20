@@ -20,5 +20,8 @@ tests test:
 tests-serial test-serial:
 	make -C ./tests tests-serial
 
+tests-direct-gpu test-direct-gpu:
+	make -C ./tests tests-direct-gpu
+
 example examples:
 	make -C ./examples examples

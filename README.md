@@ -55,6 +55,28 @@ Take look at code in the examples directory.
 
    `make uninstall`
 
+### GPU direct communication
+
+The default communication scheme of torchbraid using GPU's and layer parallel is given by: 
+
+GPU0 -> CPU0 -> CPU1 -> GPU1
+
+Copying memory between the GPUs and CPUs can be expensive, so torchbraid also supports direct GPU communication, where 
+data is sent directly between GPUs without taking the longer route via CPUs. This feature can be enabled by a simple 
+flag, but requires a CUDA-aware MPI version ( see [here](https://developer.nvidia.com/blog/introduction-cuda-aware-mpi/)
+or [here](https://www.open-mpi.org/faq/?category=runcuda) for more information). A simple first test to determine if 
+your system supports CUDA-aware MPI is to execute the command
+
+`ompi_info --parsable -l 9 --all | grep mpi_built_with_cuda_support:value`
+
+This command returns a string with true or false at the end. However, in our experiments, it was not always sufficient 
+to check that this value is true. One way to test whether direct GPU communication works on your system is to run:
+
+`make tests-direct-gpu`
+
+If the test works, your MPI version supports direct GPU communication. If the test throws an error (typically a 
+segmentation fault), your MPI version does not support direct GPU communication.
+
 ## Publications
 
 1. Moon, Gordon Euhyun, and Eric C. Cyr. "Parallel Training of GRU Networks with a Multi-Grid Solver for Long Sequences." ICLR, 2022. [Arxiv Link](https://arxiv.org/abs/2203.04738)

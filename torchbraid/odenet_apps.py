@@ -212,6 +212,9 @@ class ForwardODENetApp(BraidApp):
   def getTensorShapes(self):
     return list(self.shape0)+self.parameter_shapes
 
+  def getParameterShapes(self):
+    return self.parameter_shapes
+
   def setVectorWeights(self,t,x):
 
     if self.splinet: 

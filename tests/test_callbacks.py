@@ -70,6 +70,7 @@ class DummyApp:
     self.timer_manager = tbutils.ContextTimerManager()
     self.use_cuda = use_cuda
     self.device = device
+    self.gpu_direct_commu = False
 
   def buildInit(self,t):
     # recoggnize that the default for pytorch is a 32 bit float...
@@ -97,7 +98,6 @@ class TestLayerData:
 class TestTorchBraid(unittest.TestCase):
   def test_clone_init(self):
     app = DummyApp(float,0,use_cuda)
-
     clone_vec = cbs.cloneInitVector(app)
     clone = clone_vec.tensor()
     clone_sz = clone.size()
