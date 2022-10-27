@@ -63,6 +63,8 @@ import input_pipeline
 import preprocessing
 from models import PositionalEncoding, PE_Alternative
 
+import time
+
 def root_print(rank,s):
   if rank==0:
     print(s)
@@ -184,7 +186,8 @@ class ParallelNet(nn.Module):
       Tf,
       max_fwd_levels=max_levels,
       max_bwd_levels=max_levels,
-      max_iters=max_iters)
+      max_iters=max_iters,
+    )
 
     if fwd_max_iters>0:
       print('fwd_max_iters',fwd_max_iters)
@@ -239,6 +242,7 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
   batch_epochs = 10
   batch_epochs = np.inf#args.epochs
   batch_ctr = 0
+  forward_times, backward_times = [], []
   for batch_idx, (data, target) in enumerate(train_loader):
     # root_print(rank, 'checkpoint 4')
     # root_print(rank, f'data.shape {data.shape}')
@@ -248,13 +252,24 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
     start_time = timer()
     optimizer.zero_grad()
     data = data.to(device)
+
+    ## Forward pass
+    t0_forward = time.time()
     output = model(data).cpu()
     loss = compose(
       criterion,
       output.reshape(-1, output.shape[-1]),
       target.reshape(-1)
     )
+    t1_forward = time.time()
+    forward_times.append(t1_forward - t0_forward)
+
+    ## Backward pass
+    t0_backward = time.time()
     loss.backward()
+    t1_backward = time.time()
+    backward_times.append(t1_backward - t0_backward)
+
     stop_time = timer()
     optimizer.step()
 
@@ -276,6 +291,8 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
   # root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
   #   epoch, (batch_idx+1) * len(data), len(train_loader.dataset),
   #   100. * (batch_idx+1) / len(train_loader), loss.item(),total_time/(batch_idx+1.0)))
+
+  return forward_times, backward_times
 
 def diagnose(rank, model, test_loader,epoch):
   model.parallel_nn.diagnostics(True)
@@ -322,8 +339,8 @@ def test(rank, args, model, test_loader, compose, device):
   criterion = nn.CrossEntropyLoss()
   with torch.no_grad():
     for data, target in test_loader:#test_loader
-      if data.shape[0] != 64:#187
-        break
+      # if data.shape[0] != args.batch_size:#64:#187
+      #   break
       #root_print(rank, f'test data.shape {data.shape}')
       data = data.to(device)
       output = model(data).cpu()
@@ -347,6 +364,8 @@ def test(rank, args, model, test_loader, compose, device):
   #     100. * correct / len(test_loader.dataset)))
   root_print(rank,'\nTest set: Average loss: {:.4f}, Accuracy: {}\n'.format(
       test_loss, accuracy))
+
+  return accuracy
 
 def compute_levels(num_steps,min_coarse_size,cfactor): 
   from math import log, floor 
@@ -382,7 +401,7 @@ def obtain_ds_dl(data_path_train, data_path_dev, batch_size, max_len):
     vocabs=vocabs, 
     attributes_input=attributes_input, 
     attributes_target=attributes_target,
-    batch_size=64,#187, 
+    batch_size=batch_size,#64,#187, 
     bucket_size=max_len,
   )
 
@@ -400,7 +419,7 @@ def main():
                       help='how much of the data to read in and use for training/testing')
 
   # artichtectural settings
-  parser.add_argument('--steps', type=int, default=4, metavar='N',
+  parser.add_argument('--steps', type=int, default=4, metavar='N',     # 128, 32, 
                       help='Number of times steps in the resnet layer (default: 4)')
   parser.add_argument('--encoding', type=str, default='Torch',
                       help='which positional encoding will be used for the attention')
@@ -412,7 +431,7 @@ def main():
                       help='Final time')
 
   # algorithmic settings (gradient descent and batching
-  parser.add_argument('--batch-size', type=int, default=64, metavar='N',
+  parser.add_argument('--batch-size', type=int, default=64, metavar='N',    # 32; 128, 256, 512, ... until it crashes
                       help='input batch size for training (default: 50)')
   parser.add_argument('--epochs', type=int, default=2, metavar='N',
                       help='number of epochs to train (default: 2)')
@@ -422,11 +441,11 @@ def main():
   # algorithmic settings (parallel or serial)
   parser.add_argument('--force-lp', action='store_true', default=False,
                       help='Use layer parallel even if there is only 1 MPI rank')
-  parser.add_argument('--lp-levels', type=int, default=3, metavar='N',
+  parser.add_argument('--lp-levels', type=int, default=3, metavar='N',  # 1
                       help='Layer parallel levels (default: 3)')
-  parser.add_argument('--lp-iters', type=int, default=2, metavar='N',
+  parser.add_argument('--lp-iters', type=int, default=2, metavar='N',   # 1
                       help='Layer parallel iterations (default: 2)')
-  parser.add_argument('--lp-fwd-iters', type=int, default=-1, metavar='N',
+  parser.add_argument('--lp-fwd-iters', type=int, default=-1, metavar='N',    # 1
                       help='Layer parallel (forward) iterations (default: -1, default --lp-iters)')
   parser.add_argument('--lp-print', type=int, default=0, metavar='N',
                       help='Layer parallel internal print level (default: 0)')
@@ -442,6 +461,13 @@ def main():
                       help='Layer parallel use FMG for one cycle (default: False)')
   parser.add_argument('--lp-use-relaxonlycg',action='store_true', default=0, 
                       help='Layer parallel use relaxation only on coarse grid (default: False)')
+
+  ## save model  
+  parser.add_argument('--output_fn',type=str, required=True, 
+                      help='Output filename (for model saving)')
+  parser.add_argument('--models_dir',type=str, required=True, 
+                      help='Models directory (for model saving)')
+
 
   rank  = MPI.COMM_WORLD.Get_rank()
   procs = MPI.COMM_WORLD.Get_size()
@@ -460,7 +486,7 @@ def main():
   else:
     force_lp = False
 
-  force_lp = True 
+  # force_lp = True 
   # REMAINING TO DEBUG SERIAL w/ gpu: CUDA OUT OF MEMORY
 
   root_print(rank, f'force_lp {force_lp}')
@@ -555,18 +581,44 @@ def main():
 
   model = model.to(device)
 
+  # earlystop_ctr = 0
+  # earlystop_patience = 5
+  try:
+    filenm = f'ContTrans_lr{args.lr}_epochs{args.epochs}_tf{fill(args.tf, 2)}_usedowncycle{args.lp_use_downcycle}_steps{args.steps}_cfactor{args.lp_cfactor}_levels{args.lp_levels}_nnodestimestasksnode{procs}_proc{device}_batchsize{args.batch_size}_maxiters{args.lp_iters}'
+  except:
+    filenm = 'problem.txt'
   for epoch in range(1, args.epochs + 1):
+    t0_epoch = time.time()
+
     start_time = timer()
     root_print(rank, f'epoch {epoch}')
-    train(rank, args, model, train_loader, optimizer, epoch, compose, device)
+    times_fwd, times_bwd = train(rank, args, model, train_loader, 
+                                 optimizer, epoch, compose, device)
+
+    print(f'Average  forward time:\t{np.mean(times_fwd)} (train)')
+    print(f'Average backward time:\t{np.mean(times_bwd)} (train)')
+
     end_time = timer()
     epoch_times += [end_time-start_time]
     
     start_time = timer()
-    test(rank, args, model, test_loader, compose, device)
+    acc = test(rank, args, model, test_loader, compose, device)
     end_time = timer()
     test_times += [end_time-start_time]
-    
+
+    t1_epoch = time.time()
+    print(f'Epoch time:\t{t1_epoch - t0_epoch}')
+
+    ## Save model after each epoch
+    model_state = {
+      'model_state': model.state_dict(),
+      'optimizer': optimizer.state_dict(),
+    }
+    torch.save(
+      model_state, 
+      f'{args.models_dir}/{args.output_fn}.pt'
+    )
+
     # print out some diagnostics
     #if force_lp:
     #  diagnose(rank, model, test_loader,epoch)
@@ -577,6 +629,7 @@ def main():
 
   # root_print(rank,'TIME PER EPOCH: %.2e (1 std dev %.2e)' % (stats.mean(epoch_times),stats.stdev(epoch_times)))
   # root_print(rank,'TIME PER TEST:  %.2e (1 std dev %.2e)' % (stats.mean(test_times), stats.stdev(test_times)))
+
 
 if __name__ == '__main__':
   main()

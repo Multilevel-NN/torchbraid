@@ -58,7 +58,11 @@ class Dataset(torch.utils.data.Dataset):
 
 def obtain_dataset(**params):
 	dataset = Dataset(**params)
-	dataloader = torch.utils.data.DataLoader(dataset, batch_size=params['batch_size'], shuffle=True)
+	dataloader = torch.utils.data.DataLoader(dataset, 
+		batch_size=params['batch_size'], 
+		shuffle=True,
+		drop_last=True,
+	)
 	return dataset, dataloader
 
 

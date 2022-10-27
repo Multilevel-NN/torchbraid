@@ -1,0 +1,7 @@
+0.- Prepare 3 terminal tabs: local1, local2, cluster. Locals at ML_PQ and cluster at transformer/
+1.- Select your job generator in prepare_run.py (local)
+2.- Change output_dir name in job generator (local)
+3.- Copy cluster password in wallpaper
+4.- Run prepare_run.py (local1)
+5.- sbatch experiments/debug.job and check performance
+6.- python utils/submit_jobs.py & change tab to cluster
