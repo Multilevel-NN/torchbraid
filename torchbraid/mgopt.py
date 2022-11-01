@@ -690,7 +690,7 @@ def tb_injection_restrict_adam_state(model_fine, model_coarse, opt_fine, opt_coa
 
 ##
 # Basic TorchBraid cross Entropy loss function extended to take MG/Opt Term
-def tb_mgopt_cross_ent(output, target, mgopt_term=None):
+def tb_mgopt_cross_ent(output, target, mgopt_term=None, model=None):
   '''
   Define cross entropy loss with optional new MG/Opt term
   '''
@@ -712,7 +712,7 @@ def tb_mgopt_cross_ent(output, target, mgopt_term=None):
 
 ##
 # Basic TorchBraid regression loss function extended to take MG/Opt Term
-def tb_mgopt_regression(output, target, network_parameters=None, v=None):
+def tb_mgopt_regression(output, target, network_parameters=None, v=None, model=None):
   '''
   Define cross entropy loss with optional new MG/Opt term
   '''
@@ -726,6 +726,75 @@ def tb_mgopt_regression(output, target, network_parameters=None, v=None):
     return loss - mgopt_term
   else:
     return loss
+
+
+##
+# Basic TorchBraid cross Entropy loss function extended in two ways (i) to take MG/Opt Term, and (ii) to add continuity regularization terms
+def tb_mgopt_cross_ent_plus_continuity(output, target, mgopt_term=None, model=None, continuity_constant=0.0001):
+  '''
+  Define cross entropy loss with optional new MG/Opt term
+  '''
+  if False:
+    # Manually define basic cross-entropy (probably not useful)
+    log_prob = -1.0 * F.log_softmax(output, 1)
+    loss = log_prob.gather(1, target.unsqueeze(1))
+    loss = loss.mean()
+  else:
+    # Use PyTorch's loss, which should be identical
+    criterion = nn.CrossEntropyLoss()
+    loss = criterion(output, target)
+
+  
+  # Add regularization terms for continuity and on size of classification layer
+  dt = model.parallel_nn.fwd_app.dt
+  # First deal with continuity term
+  scaling = continuity_constant/(4.0*dt)
+  for child in model.children():
+    
+    # The three NN blocks are stored as opening, closing, or LP layer
+    name = str(type(child))
+    name = name[ name.rfind('.')+1 : name.rfind('\'') ]
+    if name == 'LayerParallel':
+
+      for (left,right) in zip( child.layer_models[:-1], child.layer_models[1:]): 
+        for (p_left, p_right) in zip(left.parameters(), right.parameters()):
+          diff = (p_left - p_right).flatten()
+          loss = loss + scaling*torch.dot(diff, diff)
+  
+
+  ## Second comes the second derivative term
+  #scaling = continuity_constant/(4.0*dt*dt)
+  #for child in model.children():
+  #  
+  #  # The three NN blocks are stored as opening, closing, or LP layer
+  #  name = str(type(child))
+  #  name = name[ name.rfind('.')+1 : name.rfind('\'') ]
+  #  if name == 'LayerParallel':
+  #
+  #    for (left, center, right) in zip( child.layer_models[:-2], child.layer_models[1:-1], child.layer_models[2:]): 
+  #      for (p_left, p_center, p_right) in zip(left.parameters(), center.parameters(), right.parameters()):
+  #        diff = (p_left - 2.0*p_center + p_right).flatten()
+  #        loss = loss + scaling*torch.dot(diff, diff)
+  #
+  ###
+  ## Third deal with classification layer
+  #scaling = continuity_constant/4.0
+  #for child in model.children():
+  #  
+  #  # The three NN blocks are stored as opening, closing, or LP layer
+  #  name = str(type(child))
+  #  name = name[ name.rfind('.')+1 : name.rfind('\'') ]
+  #  if name == 'CloseLayer':
+  #    for param in child.parameters():
+  #      loss = loss + scaling*torch.dot(param.flatten(), param.flatten())
+
+
+  # Compute MGOPT term (be careful to use only PyTorch functions)
+  if mgopt_term != None: 
+    return loss - mgopt_term
+  else:
+    return loss
+
 
 
 def tb_adam_no_ls(lvl, e_h, x_h, v_h, model, data, target, optimizer, criterion, criterion_kwargs, compose, old_loss, e_dot_gradf, mgopt_printlevel, ls_params):
@@ -1081,7 +1150,8 @@ class mgopt_solver:
         output += indent + indent + "Parameters: None\n"
       else:
         for a in args:
-          output += indent + indent +a + " : " + str(args[a]) + '\n'
+          if a != 'model': # 'model' can be a key for some arguments, like criterion, but does not need to be printed
+            output += indent + indent + a + " : " + str(args[a]) + '\n'
       ##
       return output
 
@@ -1102,7 +1172,7 @@ class mgopt_solver:
       if hasattr(self.levels[k], 'network'): output = output + print_option(lvl.network, attr_name="network: ") + '\n' 
       if hasattr(self.levels[k], 'interp_params'): output = output + print_option(lvl.interp_params, attr_name="interp_params: ") + '\n'
       if hasattr(self.levels[k], 'optims'): output = output + print_option(lvl.optims, attr_name="optims: ") + '\n'
-      if hasattr(self.levels[k], 'criterion'): output = output + print_option(lvl.criterions, attr_name="criterion: ") + '\n'
+      if hasattr(self.levels[k], 'criterions'): output = output + print_option(lvl.criterions, attr_name="criterion: ") + '\n'
       if hasattr(self.levels[k], 'restrict_params'): output = output + print_option(lvl.restrict_params, attr_name="restrict_params: ") + '\n'
       if hasattr(self.levels[k], 'restrict_grads'): output = output + print_option(lvl.restrict_grads, attr_name="restrict_grads: ") + '\n'
       if hasattr(self.levels[k], 'restrict_states'): output = output + print_option(lvl.restrict_states, attr_name="restrict_states: ") + '\n'
@@ -1228,7 +1298,7 @@ class mgopt_solver:
     optims.reverse()
     criterions.reverse()
     networks.reverse()
-
+    
     ##
     # Seed the generator for the below training 
     if seed is not None:
@@ -1659,7 +1729,7 @@ class mgopt_solver:
     (get_interp_params, interp_params_kwargs)     = self.process_get_interp_params(self.levels[lvl].interp_params)
     (do_interp_states, interp_states_kwargs)      = self.process_interp_states(self.levels[lvl].interp_states)
     #
-    (coarse_criterion, coarse_compose, coarse_criterion_kwargs) = self.process_criterion(self.levels[lvl+1].criterions, model)
+    (coarse_criterion, coarse_compose, coarse_criterion_kwargs) = self.process_criterion(self.levels[lvl+1].criterions, coarse_model)
     
     ##
     # Fixed-point test level output
@@ -1824,21 +1894,24 @@ class mgopt_solver:
         such as arg1='something' or arg1=['something1, something2] or
         arg1=('something, {}), and we want these formats to all be converted to 
         per-level parameter specifications.
+
+        All tuple arguments are assumed to be of the form 
+        (string, dict)
+
         """
         if isinstance(to_levelize, tuple):
-            to_levelize = [to_levelize for i in range(max_levels)]
+            to_levelize = [(to_levelize[0], to_levelize[1].copy()) for i in range(max_levels)]
         elif isinstance(to_levelize, str):
             to_levelize = [(to_levelize, {}) for i in range(max_levels)]
         elif isinstance(to_levelize, list):
             if len(to_levelize) < max_levels:
                 mlz = max_levels - len(to_levelize)
-                toext = [to_levelize[-1] for i in range(mlz)]
+                toext = [(to_levelize[-1][0], to_levelize[-1][1].copy()) for i in range(mlz)]
                 to_levelize.extend(toext)
         elif to_levelize is None:
             to_levelize = [(None, {}) for i in range(max_levels)]
 
         return to_levelize
-
 
   ###
   # Begin user option processing routines
@@ -1847,8 +1920,13 @@ class mgopt_solver:
   def process_criterion(self, option, model):
     ''' Return Criterion (objective) and the compose function for option '''
     method, criterion_kwargs = unpack_arg(option)
+    criterion_kwargs['model'] = model   # some criteria (Loss functions) need the model to compute the loss
+
     if method == "tb_mgopt_cross_ent":
       criterion = tb_mgopt_cross_ent
+      compose = model.compose
+    elif method == "tb_mgopt_cross_ent_plus_continuity":
+      criterion = tb_mgopt_cross_ent_plus_continuity
       compose = model.compose
     elif method == "tb_mgopt_regression":
       criterion = tb_mgopt_regression
