@@ -316,7 +316,7 @@ def diagnose(rank, model, test_loader, epoch):
   pyplot.savefig('diagnose{:03d}.png'.format(epoch))
 
 
-def te_st(model, test_loader, compose, device, comm_dp, comm_lp):
+def test(model, test_loader, compose, device, comm_dp, comm_lp):
   rank_lp = comm_lp.Get_rank()
   rank_dp = comm_dp.Get_rank()
   model.eval()
@@ -627,7 +627,7 @@ def main():
 
     start_time = timer()
 
-    te_st(model=model, test_loader=test_loader, compose=compose, device=device, comm_dp=comm_dp, comm_lp=comm_lp)
+    test(model=model, test_loader=test_loader, compose=compose, device=device, comm_dp=comm_dp, comm_lp=comm_lp)
     end_time = timer()
     test_times += [end_time - start_time]
 
