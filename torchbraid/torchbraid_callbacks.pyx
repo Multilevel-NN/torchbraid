@@ -168,7 +168,7 @@ cdef int my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
       #v_mem = ten_U.clone()
 
       tensors = [t.detach().clone() for t in ten_U.tensor_data_]
-      cl = BraidVector(tensors,ten_U.level_,ten_U.layer_data_,ten_U.send_flag_)
+      cl = BraidVector(tensors,ten_U.layer_data_,ten_U.send_flag_)
       if len(ten_U.weight_tensor_data_)>0:
         cl.weight_tensor_data_ = [t.detach() for t in ten_U.weight_tensor_data_]
 
@@ -275,7 +275,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
         with pyApp.timer("bufpack-header"):
           ibuffer = <int *> buffer
 
-          level              = bv_u.level()
+          level              = -1
           num_tensors        = len(all_tensors)
           num_weight_tensors = len(bv_u.weightTensors())
           layer_data_size    = pyApp.getLayerDataSize()
@@ -429,7 +429,7 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,brai
             vector_tensors = tens[0:num_tensors-num_weight_tensors]
             weight_tensors = tens[num_tensors-num_weight_tensors:]
 
-            u_obj = BraidVector(vector_tensors,level,layer_data,send_flag=True)
+            u_obj = BraidVector(vector_tensors,layer_data,send_flag=True)
             u_obj.weight_tensor_data_ = weight_tensors
             Py_INCREF(u_obj)
 
@@ -467,7 +467,7 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,brai
         stream = pyApp.stream
 
         #TODO: Get the level information, get the layer data
-        u_obj = BraidVector(tensor = vt, level = 0, layer_data = None, send_flag = True)
+        u_obj = BraidVector(tensor = vt, layer_data = None, send_flag = True)
         u_obj.weight_tensor_data_ = wt
         Py_INCREF(u_obj)
 
@@ -548,7 +548,7 @@ cdef int my_bufunpack_cpu(braid_App app, void *buffer, braid_Vector *u_ptr,braid
         vector_tensors = tens[0:num_tensors-num_weight_tensors]
         weight_tensors = tens[num_tensors-num_weight_tensors:]
 
-        u_obj = BraidVector(vector_tensors,level,layer_data,send_flag=True)
+        u_obj = BraidVector(vector_tensors,layer_data,send_flag=True)
         u_obj.weight_tensor_data_ = weight_tensors
         Py_INCREF(u_obj)
 
@@ -570,7 +570,7 @@ cdef int my_coarsen(braid_App app, braid_Vector fu, braid_Vector *cu_ptr, braid_
     braid_CoarsenRefStatusGetLevel(status,&level)
 
     cu_mem = pyApp.spatial_coarse(ten_fu,level)
-    cu_vec = BraidVector(cu_mem,level)
+    cu_vec = BraidVector(cu_mem)
     Py_INCREF(cu_vec) # why do we need this?
 
     cu_ptr[0] = <braid_Vector> cu_vec

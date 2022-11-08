@@ -37,12 +37,11 @@ from mpi4py import MPI
 class BraidVector:
   instance = -1 
 
-  def __init__(self,tensor,level,layer_data=None,send_flag=False):
+  def __init__(self,tensor,layer_data=None,send_flag=False):
     BraidVector.instance += 1
 
     self.instance = BraidVector.instance
     self.weight_tensor_data_ = []
-    self.level_  = level
     self.layer_data_ = layer_data
     self.send_flag_ = send_flag;
 
@@ -132,9 +131,6 @@ class BraidVector:
   def allTensors(self):
     return list(self.tensor_data_) + self.weight_tensor_data_
 
-  def level(self):
-    return self.level_
-
   def getSendFlag(self):
     return self.send_flag_
 
@@ -144,7 +140,7 @@ class BraidVector:
   def clone(self):
     with torch.no_grad():
       tensors = [t.detach().clone() for t in self.tensors()]
-      cl = BraidVector(tuple(tensors),self.level())
+      cl = BraidVector(tuple(tensors))
 
       # copy any weight tensors
       tensors = [t.detach() for t in self.weightTensors()]

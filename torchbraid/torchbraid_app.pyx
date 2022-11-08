@@ -527,7 +527,7 @@ class BraidApp:
     if self.reverted and self.mpi_comm.Get_rank()!=self.mpi_comm.Get_size()-1:
       return
 
-    self.x0 = BraidVector(x0,0)
+    self.x0 = BraidVector(x0)
 
     # set the appropriate initial condition
     if core.warm_restart:
@@ -546,9 +546,9 @@ class BraidApp:
     try:
       if t>0:
         zeros = [torch.zeros(s,device=self.device) for s in self.getFeatureShapes(t)]
-        x = BraidVector(tuple(zeros),0)
+        x = BraidVector(tuple(zeros))
       else:
-        x = BraidVector(self.x0.tensors(),0)
+        x = BraidVector(self.x0.tensors())
   
       # an inherited function to initialize the vector
       # here you would assign weights
@@ -566,8 +566,6 @@ class BraidApp:
     if self.x_final==None:
       return None
       
-    # assert the level
-    assert(self.x_final.level()==0)
     x_final_tensors = self.x_final.tensors()
 
     return x_final_tensors

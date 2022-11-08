@@ -68,8 +68,8 @@ def cloneVector(app,x):
   return <object> v
 
 def addVector(app,alpha,ten_x,beta,ten_y):
-  x = BraidVector(ten_x,0)
-  y = BraidVector(ten_y,0)
+  x = BraidVector(ten_x)
+  y = BraidVector(ten_y)
 
   cdef braid_App c_app = <PyObject*>app
   cdef double dalpha = alpha
@@ -80,7 +80,7 @@ def addVector(app,alpha,ten_x,beta,ten_y):
   my_sum(c_app,dalpha,c_x,dbeta,c_y)
 
 def vectorNorm(app,ten_x):
-  x = BraidVector(ten_x,0)
+  x = BraidVector(ten_x)
 
   cdef braid_App c_app = <PyObject*>app
   cdef braid_Vector c_x = <braid_Vector>x

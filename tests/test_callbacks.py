@@ -74,7 +74,7 @@ class DummyApp:
 
   def buildInit(self,t):
     # recoggnize that the default for pytorch is a 32 bit float...
-    return torchbraid.BraidVector(torch.ones(4,5,dtype=self.dtype),0)
+    return torchbraid.BraidVector(torch.ones(4,5,dtype=self.dtype))
 
   def getTensorShapes(self):
     return [torch.Size(s) for s in [(4,5),(3,2,2,4),(1,3),(9,7,4)]]
@@ -139,7 +139,7 @@ class TestTorchBraid(unittest.TestCase):
     c = torch.ones(shapes[2],device=device)
     d = torch.ones(shapes[3],device=device)
 
-    bv = torchbraid.BraidVector((a,b),0)
+    bv = torchbraid.BraidVector((a,b))
     bv.addWeightTensors((c,d))
 
     num_tensors = len(shapes)
@@ -181,7 +181,7 @@ class TestTorchBraid(unittest.TestCase):
     c = torch.ones(shapes[2],device=device)
     d = torch.ones(shapes[3],device=device)
 
-    bv_in = torchbraid.BraidVector((a,b),0)
+    bv_in = torchbraid.BraidVector((a,b))
     bv_in.addWeightTensors((c,d))
     bv_in.setLayerData(layer_data)
 
@@ -201,7 +201,6 @@ class TestTorchBraid(unittest.TestCase):
     bv_out = cbs.unpack(app,block)
 
     # check the answers
-    self.assertEqual(bv_in.level(),bv_out.level())
     self.assertEqual(len(bv_in.allTensors()),len(bv_out.allTensors()))
     for i,o in zip(bv_in.allTensors(),bv_out.allTensors()):
       self.assertTrue(torch.norm(i-2.0*o).item()<5.0e-16)
