@@ -153,7 +153,6 @@ class TestTorchBraid(unittest.TestCase):
     sz = cbs.bufSize(app)
 
     total_size = ( sizeof_int                # floats
-                 + sizeof_int                # level
                  + sizeof_int                # num tensors
                  + sizeof_int                # num_weighttensors
                  + num_tensors*sizeof_int    # number of tensors dimensions and shapes

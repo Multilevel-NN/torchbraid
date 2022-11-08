@@ -217,7 +217,6 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
 
         # there are mulitple fields in a packed buffer, in order
         size_ptr[0] = (sizeof(int)  # number of floats
-                       + sizeof(int)  # level
                        + sizeof(int)  # num tensors
                        + sizeof(int)  # num weight tensors
                        + sizeof(int)  # other layer information (size in bytes)
@@ -271,20 +270,18 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
             flat_tensor_cpu = flat_tensor
 
         # write out the buffer header data
-        head_offset = 5 # this is accomdating space for the header integers
+        head_offset = 4 # this is accomdating space for the header integers
         with pyApp.timer("bufpack-header"):
           ibuffer = <int *> buffer
 
-          level              = -1
           num_tensors        = len(all_tensors)
           num_weight_tensors = len(bv_u.weightTensors())
           layer_data_size    = pyApp.getLayerDataSize()
 
-          ibuffer[0] = level
-          ibuffer[1] = num_tensors
-          ibuffer[2] = num_weight_tensors
-          ibuffer[3] = float_cnt
-          ibuffer[4] = layer_data_size
+          ibuffer[0] = num_tensors
+          ibuffer[1] = num_weight_tensors
+          ibuffer[2] = float_cnt
+          ibuffer[3] = layer_data_size
 
         with pyApp.timer("bufpack-pickle"):
           if bv_u.getLayerData() is not None:
@@ -374,13 +371,12 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,brai
         # read in the buffer metda data
         ibuffer = <int *> buffer
 
-        level              = ibuffer[0]
-        num_tensors        = ibuffer[1]
-        num_weight_tensors = ibuffer[2]
-        float_cnt          = ibuffer[3]
-        layer_data_size    = ibuffer[4]
+        num_tensors        = ibuffer[0]
+        num_weight_tensors = ibuffer[1]
+        float_cnt          = ibuffer[2]
+        layer_data_size    = ibuffer[3]
 
-        head_offset = 5
+        head_offset = 4
 
         if not hasattr(pyApp,'stream'):
           pyApp.stream = Stream(pyApp.device)
@@ -388,7 +384,7 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,brai
 
         # copy from the buffer into the braid vector
         with torch.cuda.stream(stream):
-          fbuffer = <float *>(buffer+(head_offset)*sizeof(int)) # level, rank, sizes
+          fbuffer = <float *>(buffer+(head_offset)*sizeof(int)) # rank, sizes
           with pyApp.timer("bufunpack-move"):
             ten_cpu = torch.from_numpy(np.asarray(<float[:float_cnt]> fbuffer))
             ten_gpu = ten_cpu.to(pyApp.device)
@@ -498,16 +494,15 @@ cdef int my_bufunpack_cpu(braid_App app, void *buffer, braid_Vector *u_ptr,braid
       # read in the buffer metda data
       ibuffer = <int *> buffer
 
-      level              = ibuffer[0]
-      num_tensors        = ibuffer[1]
-      num_weight_tensors = ibuffer[2]
-      float_cnt          = ibuffer[3]
-      layer_data_size    = ibuffer[4]
+      num_tensors        = ibuffer[0]
+      num_weight_tensors = ibuffer[1]
+      float_cnt          = ibuffer[2]
+      layer_data_size    = ibuffer[3]
 
-      head_offset = 5
+      head_offset = 4
 
       # copy from the buffer into the braid vector
-      fbuffer = <float *>(buffer+(head_offset)*sizeof(int)) # level, rank, sizes
+      fbuffer = <float *>(buffer+(head_offset)*sizeof(int)) # rank, sizes
       with pyApp.timer("bufunpack-move"):
         ten_cpu = torch.from_numpy(np.asarray(<float[:float_cnt]> fbuffer))
         ten_cpu = ten_cpu.detach().clone()
@@ -587,7 +582,7 @@ cdef int my_refine(braid_App app, braid_Vector cu, braid_Vector *fu_ptr, braid_C
     braid_CoarsenRefStatusGetNRefine(status,&level)
 
     fu_mem = pyApp.spatial_refine(ten_cu,level)
-    fu_vec = BraidVector(fu_mem,level)
+    fu_vec = BraidVector(fu_mem)
     Py_INCREF(fu_vec) # why do we need this?
 
     fu_ptr[0] = <braid_Vector> fu_vec
