@@ -37,7 +37,6 @@ import torch
 import numpy as np
 import traceback
 import sys
-import pickle
 cimport numpy as np
 
 from torch.cuda import Stream
@@ -168,7 +167,7 @@ cdef int my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
       #v_mem = ten_U.clone()
 
       tensors = [t.detach().clone() for t in ten_U.tensor_data_]
-      cl = BraidVector(tensors,ten_U.layer_data_,ten_U.send_flag_)
+      cl = BraidVector(tensors,ten_U.send_flag_)
       if len(ten_U.weight_tensor_data_)>0:
         cl.weight_tensor_data_ = [t.detach() for t in ten_U.weight_tensor_data_]
 
@@ -204,7 +203,6 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
         num_tensors = len(shapes) # all tensors
         cnt = 0
         total_shape = 0
-        layer_data_size = 0
         for s in shapes:
           cnt += s.numel() # pyApp.shape0[0].numel()
           rank = len(s) #len(pyApp.shape0[0])
@@ -223,7 +221,6 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
                        + num_tensors * sizeof(int)  # tensor rank
                        + total_shape  # tensor shapes
                        + sizeof(float) * cnt  # tensor data
-                       + layer_data_size  # pickled layer size
                        )
       else:
         #TODO: Is there a nicer way to get the buff_elements number?
@@ -270,18 +267,16 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
             flat_tensor_cpu = flat_tensor
 
         # write out the buffer header data
-        head_offset = 4 # this is accomdating space for the header integers
+        head_offset = 3 # this is accomdating space for the header integers
         with pyApp.timer("bufpack-header"):
           ibuffer = <int *> buffer
 
           num_tensors        = len(all_tensors)
           num_weight_tensors = len(bv_u.weightTensors())
-          layer_data_size    = 0
 
           ibuffer[0] = num_tensors
           ibuffer[1] = num_weight_tensors
           ibuffer[2] = float_cnt
-          ibuffer[3] = layer_data_size
 
         final_offset = head_offset*sizeof(int)+float_cnt*sizeof(float)
 
@@ -346,7 +341,6 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,brai
   cdef int head_offset
   cdef int float_cnt
   cdef int sz
-  cdef int layer_data_size
   cdef view.array my_buf
   cdef uintptr_t addr
 
@@ -361,9 +355,8 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,brai
         num_tensors        = ibuffer[0]
         num_weight_tensors = ibuffer[1]
         float_cnt          = ibuffer[2]
-        layer_data_size    = ibuffer[3]
 
-        head_offset = 4
+        head_offset = 3
 
         if not hasattr(pyApp,'stream'):
           pyApp.stream = Stream(pyApp.device)
@@ -378,7 +371,7 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,brai
 
           with pyApp.timer("bufunpack-sizes"):
             sizes = []
-            ibuffer = <int *> (buffer+head_offset*sizeof(int)+float_cnt*sizeof(float)+layer_data_size*sizeof(char))
+            ibuffer = <int *> (buffer+head_offset*sizeof(int)+float_cnt*sizeof(float))
             offset = 0
             for t in range(num_tensors):
               rank = ibuffer[offset]
@@ -388,8 +381,6 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,brai
 
               sizes += [torch.Size(size)]
               offset += len(size)+1
-
-          layer_data = None
 
           with pyApp.timer("bufunpack-movearound"):
             tens = []
@@ -404,7 +395,7 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,brai
             vector_tensors = tens[0:num_tensors-num_weight_tensors]
             weight_tensors = tens[num_tensors-num_weight_tensors:]
 
-            u_obj = BraidVector(vector_tensors,layer_data,send_flag=True)
+            u_obj = BraidVector(vector_tensors,send_flag=True)
             u_obj.weight_tensor_data_ = weight_tensors
             Py_INCREF(u_obj)
 
@@ -442,7 +433,7 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,brai
         stream = pyApp.stream
 
         #TODO: Get the level information, get the layer data
-        u_obj = BraidVector(tensor = vt, layer_data = None, send_flag = True)
+        u_obj = BraidVector(tensor = vt, send_flag = True)
         u_obj.weight_tensor_data_ = wt
         Py_INCREF(u_obj)
 
@@ -463,7 +454,6 @@ cdef int my_bufunpack_cpu(braid_App app, void *buffer, braid_Vector *u_ptr,braid
   cdef int head_offset
   cdef int float_cnt
   cdef int sz
-  cdef int layer_data_size
   cdef view.array my_buf
 
   try:
@@ -476,9 +466,8 @@ cdef int my_bufunpack_cpu(braid_App app, void *buffer, braid_Vector *u_ptr,braid
       num_tensors        = ibuffer[0]
       num_weight_tensors = ibuffer[1]
       float_cnt          = ibuffer[2]
-      layer_data_size    = ibuffer[3]
 
-      head_offset = 4
+      head_offset = 3
 
       # copy from the buffer into the braid vector
       fbuffer = <float *>(buffer+(head_offset)*sizeof(int)) # rank, sizes
@@ -488,7 +477,7 @@ cdef int my_bufunpack_cpu(braid_App app, void *buffer, braid_Vector *u_ptr,braid
 
       with pyApp.timer("bufunpack-sizes"):
         sizes = []
-        ibuffer = <int *> (buffer+head_offset*sizeof(int)+float_cnt*sizeof(float)+layer_data_size*sizeof(char))
+        ibuffer = <int *> (buffer+head_offset*sizeof(int)+float_cnt*sizeof(float))
         offset = 0
         for t in range(num_tensors):
           rank = ibuffer[offset]
@@ -498,8 +487,6 @@ cdef int my_bufunpack_cpu(braid_App app, void *buffer, braid_Vector *u_ptr,braid
 
           sizes += [torch.Size(size)]
           offset += len(size)+1
-
-      layer_data = None
 
       with pyApp.timer("bufunpack-movearound"):
         tens = []
@@ -514,7 +501,7 @@ cdef int my_bufunpack_cpu(braid_App app, void *buffer, braid_Vector *u_ptr,braid
         vector_tensors = tens[0:num_tensors-num_weight_tensors]
         weight_tensors = tens[num_tensors-num_weight_tensors:]
 
-        u_obj = BraidVector(vector_tensors,layer_data,send_flag=True)
+        u_obj = BraidVector(vector_tensors,send_flag=True)
         u_obj.weight_tensor_data_ = weight_tensors
         Py_INCREF(u_obj)
 

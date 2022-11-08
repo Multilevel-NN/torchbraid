@@ -37,12 +37,11 @@ from mpi4py import MPI
 class BraidVector:
   instance = -1 
 
-  def __init__(self,tensor,layer_data=None,send_flag=False):
+  def __init__(self,tensor,send_flag=False):
     BraidVector.instance += 1
 
     self.instance = BraidVector.instance
     self.weight_tensor_data_ = []
-    self.layer_data_ = None
     self.send_flag_ = send_flag;
 
     self.stream = None
@@ -71,15 +70,6 @@ class BraidVector:
     if self.hasStream():
       self.stream.synchronize()
       self.stream = None
-
-  def setLayerData(self,layer_data):
-    self.layer_data_ = None
-
-  def releaseLayerData(self):
-    self.layer_data_ = None
-
-  def getLayerData(self):
-    return self.layer_data_
 
   def addWeightTensors(self,weights):
     """
@@ -145,9 +135,6 @@ class BraidVector:
       # copy any weight tensors
       tensors = [t.detach() for t in self.weightTensors()]
       cl.addWeightTensors(tensors)
-
-      # copy layer information
-      cl.setLayerData(self.getLayerData())
 
       cl.setSendFlag(self.getSendFlag())
 

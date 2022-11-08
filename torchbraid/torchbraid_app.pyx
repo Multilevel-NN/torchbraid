@@ -230,9 +230,6 @@ class BraidApp:
 
     self.enable_diagnostics = enable
 
-  def getLayerDataSize(self):
-    return 0
-
   def buildShapes(self,x):
     return x.size()
 

@@ -64,9 +64,8 @@ use_cuda = False
 device = torch.device('cpu')
 
 class DummyApp:
-  def __init__(self,dtype,layer_data_size,use_cuda):
+  def __init__(self,dtype,use_cuda):
     self.dtype = dtype
-    self.layer_data_size = 0
     self.timer_manager = tbutils.ContextTimerManager()
     self.use_cuda = use_cuda
     self.device = device
@@ -82,22 +81,14 @@ class DummyApp:
   def getBufSize(self):
      return sizeof(int)+ (2+4+2+3)*sizeof(int)
 
-  def getLayerDataSize(self):
-     return 0
-
   def timer(self,name):
     return self.timer_manager.timer("Dummy::"+name)
 
 # end DummyApp
 
-class TestLayerData:
-  def __init__(self):
-    self.s = { 'a':'some sort of data' + 'a'*10, 4: 2343}
-    self.linear = torch.nn.Linear(10,10).to(device)
-
 class TestTorchBraid(unittest.TestCase):
   def test_clone_init(self):
-    app = DummyApp(float,0,use_cuda)
+    app = DummyApp(float,use_cuda)
     clone_vec = cbs.cloneInitVector(app)
     clone = clone_vec.tensor()
     clone_sz = clone.size()
@@ -108,7 +99,7 @@ class TestTorchBraid(unittest.TestCase):
     self.assertEqual(torch.norm(clone).item(),np.sqrt(4.0*5.0))
 
   def test_clone_vector(self):
-    app = DummyApp(float,0,use_cuda)
+    app = DummyApp(float,use_cuda)
 
     vec = app.buildInit(0.0)
     ten = vec.tensor() 
@@ -127,12 +118,9 @@ class TestTorchBraid(unittest.TestCase):
   def test_buff_size(self):
     sizeof_float = cbs.sizeof_float()
     sizeof_int   = cbs.sizeof_int()
-    layer_data_size = 0
 
-    app = DummyApp(float,layer_data_size,use_cuda)
+    app = DummyApp(float,use_cuda)
     shapes = app.getTensorShapes()
-
-    self.assertEqual(layer_data_size,app.getLayerDataSize())
 
     a = torch.ones(shapes[0],device=device)
     b = torch.ones(shapes[1],device=device)
@@ -159,7 +147,6 @@ class TestTorchBraid(unittest.TestCase):
                  + data_shapes               # the shapes of each tensor
                  + data_size                 # the shapes of each tensor
                  + sizeof_int                # how much layer data (bytes)
-                 + layer_data_size           # checkout of layer data
                  )
 
     self.assertEqual(sz,total_size)
@@ -169,9 +156,7 @@ class TestTorchBraid(unittest.TestCase):
     sizeof_float = cbs.sizeof_float()
     sizeof_int   = cbs.sizeof_int()
 
-    pickle_sz = 0
-
-    app = DummyApp(torch.float,pickle_sz,use_cuda)
+    app = DummyApp(torch.float,use_cuda)
     shapes = app.getTensorShapes()
 
     a = torch.ones(shapes[0],device=device)
