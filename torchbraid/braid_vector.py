@@ -42,7 +42,7 @@ class BraidVector:
 
     self.instance = BraidVector.instance
     self.weight_tensor_data_ = []
-    self.layer_data_ = layer_data
+    self.layer_data_ = None
     self.send_flag_ = send_flag;
 
     self.stream = None
@@ -73,7 +73,7 @@ class BraidVector:
       self.stream = None
 
   def setLayerData(self,layer_data):
-    self.layer_data_ = layer_data
+    self.layer_data_ = None
 
   def releaseLayerData(self):
     self.layer_data_ = None

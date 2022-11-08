@@ -204,7 +204,7 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
         num_tensors = len(shapes) # all tensors
         cnt = 0
         total_shape = 0
-        layer_data_size = pyApp.getLayerDataSize()
+        layer_data_size = 0
         for s in shapes:
           cnt += s.numel() # pyApp.shape0[0].numel()
           rank = len(s) #len(pyApp.shape0[0])
@@ -276,27 +276,14 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
 
           num_tensors        = len(all_tensors)
           num_weight_tensors = len(bv_u.weightTensors())
-          layer_data_size    = pyApp.getLayerDataSize()
+          layer_data_size    = 0
 
           ibuffer[0] = num_tensors
           ibuffer[1] = num_weight_tensors
           ibuffer[2] = float_cnt
           ibuffer[3] = layer_data_size
 
-        with pyApp.timer("bufpack-pickle"):
-          if bv_u.getLayerData() is not None:
-            pbuf_src = pickle.dumps(bv_u.getLayerData())
-            assert(layer_data_size>=len(pbuf_src))
-
-            cbuffer = <char *>(buffer+head_offset*sizeof(int)+float_cnt*sizeof(float))
-
-            my_buf = <char[:len(pbuf_src)]> cbuffer
-            my_buf[:] = pbuf_src
-
-            final_offset = head_offset*sizeof(int)+float_cnt*sizeof(float)+layer_data_size*sizeof(char)
-          else:
-            final_offset = head_offset*sizeof(int)+float_cnt*sizeof(float)
-          # end if layer_data_size
+        final_offset = head_offset*sizeof(int)+float_cnt*sizeof(float)
 
         with pyApp.timer("bufpack-sizes"):
           ibuffer = <int *> (buffer+final_offset)
@@ -402,15 +389,7 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,brai
               sizes += [torch.Size(size)]
               offset += len(size)+1
 
-          with pyApp.timer("bufunpack-pickle"):
-            layer_data = None
-            if layer_data_size>0:
-              # this is to make sure I can use the vbuffer
-              vbuffer = <char *>(buffer+head_offset*sizeof(int)+float_cnt*sizeof(float))
-
-              my_buf = <char[:layer_data_size]> vbuffer
-              layer_data = pickle.loads(my_buf)
-            # end if layer_data_size
+          layer_data = None
 
           with pyApp.timer("bufunpack-movearound"):
             tens = []
@@ -520,15 +499,7 @@ cdef int my_bufunpack_cpu(braid_App app, void *buffer, braid_Vector *u_ptr,braid
           sizes += [torch.Size(size)]
           offset += len(size)+1
 
-      with pyApp.timer("bufunpack-pickle"):
-        layer_data = None
-        if layer_data_size>0:
-          # this is to make sure I can use the vbuffer
-          vbuffer = <char *>(buffer+head_offset*sizeof(int)+float_cnt*sizeof(float))
-
-          my_buf = <char[:layer_data_size]> vbuffer
-          layer_data = pickle.loads(my_buf)
-        # end if layer_data_size
+      layer_data = None
 
       with pyApp.timer("bufunpack-movearound"):
         tens = []

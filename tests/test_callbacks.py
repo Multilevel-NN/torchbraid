@@ -66,7 +66,7 @@ device = torch.device('cpu')
 class DummyApp:
   def __init__(self,dtype,layer_data_size,use_cuda):
     self.dtype = dtype
-    self.layer_data_size = layer_data_size
+    self.layer_data_size = 0
     self.timer_manager = tbutils.ContextTimerManager()
     self.use_cuda = use_cuda
     self.device = device
@@ -83,7 +83,7 @@ class DummyApp:
      return sizeof(int)+ (2+4+2+3)*sizeof(int)
 
   def getLayerDataSize(self):
-     return self.layer_data_size
+     return 0
 
   def timer(self,name):
     return self.timer_manager.timer("Dummy::"+name)
@@ -127,7 +127,7 @@ class TestTorchBraid(unittest.TestCase):
   def test_buff_size(self):
     sizeof_float = cbs.sizeof_float()
     sizeof_int   = cbs.sizeof_int()
-    layer_data_size = 27
+    layer_data_size = 0
 
     app = DummyApp(float,layer_data_size,use_cuda)
     shapes = app.getTensorShapes()
@@ -169,8 +169,7 @@ class TestTorchBraid(unittest.TestCase):
     sizeof_float = cbs.sizeof_float()
     sizeof_int   = cbs.sizeof_int()
 
-    layer_data = TestLayerData()
-    pickle_sz = tbutils.pickle_size(layer_data)
+    pickle_sz = 0
 
     app = DummyApp(torch.float,pickle_sz,use_cuda)
     shapes = app.getTensorShapes()
@@ -182,7 +181,6 @@ class TestTorchBraid(unittest.TestCase):
 
     bv_in = torchbraid.BraidVector((a,b))
     bv_in.addWeightTensors((c,d))
-    bv_in.setLayerData(layer_data)
 
     # allocate space
     block = cbs.MemoryBlock(cbs.bufSize(app))
@@ -204,13 +202,6 @@ class TestTorchBraid(unittest.TestCase):
     for i,o in zip(bv_in.allTensors(),bv_out.allTensors()):
       self.assertTrue(torch.norm(i-2.0*o).item()<5.0e-16)
 
-    out_layer_data = bv_out.getLayerData()
-    in_layer_data  = bv_in.getLayerData()
-
-    self.assertEqual(out_layer_data.s,in_layer_data.s)
-    self.assertEqual(torch.norm(out_layer_data.linear.weight-in_layer_data.linear.weight),0.0)
-    self.assertEqual(torch.norm(out_layer_data.linear.bias-in_layer_data.linear.bias),0.0)
-    
 if __name__ == '__main__':
   device,_,use_cuda = getDevice(MPI.COMM_WORLD)
   unittest.main()
