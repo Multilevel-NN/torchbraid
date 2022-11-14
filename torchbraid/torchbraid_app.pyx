@@ -37,7 +37,7 @@ import numpy as np
 import traceback
 
 from libc.stdio cimport FILE, stdout
-from braid_vector import BraidVector
+from .braid_vector import BraidVector
 
 cimport mpi4py.MPI as MPI
 

@@ -32,7 +32,7 @@
 import torch
 import torch.nn as nn
 
-from braid_vector import BraidVector
+from .braid_vector import BraidVector
 from torchbraid_app import BraidApp
 import utils 
 import itertools

@@ -29,12 +29,12 @@
 # ************************************************************************
 #@HEADER
 
-from .layer_parallel import LayerParallel
-from .rnn_layer_parallel import RNN_Parallel, RNN_Serial
+from . import torchbraid_app
+from . import utils
 
-#from . import torchbraid_app
 from .braid_vector import BraidVector
 
-from . import utils
+from .layer_parallel import LayerParallel
+from .rnn_layer_parallel import RNN_Parallel, RNN_Serial
 
 import mgopt

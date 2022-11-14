@@ -11,7 +11,6 @@ import subprocess
 def git(*args):
     return subprocess.check_call(['git'] + list(args))
 
-#braid_dir = os.environ["XBRAID_ROOT"]
 braid_dir = './xbraid/braid'
 if "EXTRA_FLAGS" in os.environ.keys():
   extra_compile_args = os.environ["EXTRA_FLAGS"]
@@ -22,8 +21,8 @@ if "CC" not in os.environ.keys():
   os.environ["CC"] = mpi4py.get_config()['mpicc']
 
 ext_modules = [Extension(
-                name='eccyrpack.braid',
-                sources=["eccyrpack/braid.pyx"],
+                name='torchbraid.torchbraid_app',
+                sources=["torchbraid/*.pyx"],
                 libraries=["braid"],
                 library_dirs=[braid_dir],
                 include_dirs=[braid_dir,numpy.get_include()],
