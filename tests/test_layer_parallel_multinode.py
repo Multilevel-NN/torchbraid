@@ -42,6 +42,7 @@ import torchbraid
 import faulthandler
 faulthandler.enable()
 
+from torchbraid.utils import getDevice
 from mpi4py import MPI
 
 def root_print(rank,s):
@@ -61,25 +62,6 @@ def useCuda(comm):
   if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
     return True
   return False
-
-def getDevice(comm):
-  my_host    = torch.device('cpu')
-  if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
-    if comm.Get_rank()==0:
-      print('Using GPU Device')
-    my_device  = torch.device(f'cuda:{comm.Get_rank()}')
-    torch.cuda.set_device(my_device)
-  elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
-    if comm.Get_rank()==0:
-      print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
-    my_device = my_host
-  else:
-    if comm.Get_rank()==0:
-      print('No GPUs to be used, CPU only')
-    my_device = my_host
-  return my_device,my_host
-# end getDevice
-
 
 class TestLayerParallel_MultiNODE(unittest.TestCase):
 

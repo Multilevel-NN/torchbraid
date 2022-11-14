@@ -39,26 +39,8 @@ import torchbraid.utils as tbutils
 
 import test_cbs as cbs
 
+from torchbraid.utils import getDevice
 from mpi4py import MPI
-
-def getDevice(comm):
-  my_host    = torch.device('cpu')
-  use_cuda = False
-  if torch.cuda.is_available() and torch.cuda.device_count()>=comm.Get_size():
-    if comm.Get_rank()==0:
-      print('Using GPU Device')
-    my_device  = torch.device(f'cuda:{comm.Get_rank()}')
-    use_cuda = True
-  elif torch.cuda.is_available() and torch.cuda.device_count()<comm.Get_size():
-    if comm.Get_rank()==0:
-      print('GPUs are not used, because MPI ranks are more than the device count, using CPU')
-    my_device = my_host
-  else:
-    if comm.Get_rank()==0:
-      print('No GPUs to be used, CPU only')
-    my_device = my_host
-  return my_device,my_host,use_cuda
-# end getDevice
 
 use_cuda = False
 device = torch.device('cpu')
@@ -188,5 +170,6 @@ class TestTorchBraid(unittest.TestCase):
       self.assertTrue(torch.norm(i-2.0*o).item()<5.0e-16)
 
 if __name__ == '__main__':
-  device,_,use_cuda = getDevice(MPI.COMM_WORLD)
+  device,host_device = getDevice(MPI.COMM_WORLD)
+  use_cuda = (device.type=='cuda')
   unittest.main()
