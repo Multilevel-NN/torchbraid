@@ -185,11 +185,6 @@ class ForwardODENetApp(BraidApp):
       return self.PlainBlock(layer)
     return self.ODEBlock(layer)
 
-  def getFeatureShapes(self,t):
-    i = self.getGlobalTimeIndex(t)
-    ind = bisect_right(self.layer_blocks[0],i)
-    return (self.shape0[ind],)
-
   def getTempLayer(self,t):
     """
     This function returns a pytorch layer module. A dictionary is used
@@ -212,7 +207,12 @@ class ForwardODENetApp(BraidApp):
   def getTensorShapes(self):
     return list(self.shape0)+self.parameter_shapes
 
-  def getParameterShapes(self):
+  def getFeatureShapes(self,t):
+    i = self.getGlobalTimeIndex(t)
+    ind = bisect_right(self.layer_blocks[0],i)
+    return (self.shape0[ind],)
+
+  def getParameterShapes(self,t):
     return self.parameter_shapes
 
   def setVectorWeights(self,t,x):

@@ -412,10 +412,9 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,brai
         wt = []
         shapes = pyApp.getTensorShapes()[1:]
         ten_sizes = [item.numel() for item in shapes]
-        if hasattr(pyApp, 'getParameterShapes'):
-          size_wt = len(pyApp.getParameterShapes())
-        else:
-          size_wt = 0
+        __fake_t__ = 0.0 
+
+        size_wt = len(pyApp.getParameterShapes(t=__fake_t__))
         size_vt = len(pyApp.shape0[1:])
 
         size = 0

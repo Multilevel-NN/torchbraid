@@ -539,6 +539,9 @@ class BraidApp:
   def getFeatureShapes(self,t):
     return self.shape0
 
+  def getParameterShapes(self,t):
+    return [] # empty size, no rank no size
+
   def buildInit(self,t):
     try:
       if t>0:
