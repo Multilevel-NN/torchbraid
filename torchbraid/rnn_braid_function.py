@@ -60,7 +60,7 @@ class BraidFunction(torch.autograd.Function):
     comm = fwd_app.getMPIComm()
     with fwd_app.timer("func:precomm"):
       sizes = tuple([input_and_param_tensors[i].size() for i in range(num_input_tensors)])
-      shape = comm.bcast(sizes,root=0)
+      shape = list(comm.bcast(sizes,root=0))
 
     old_shape = fwd_app.getShape()
     adjusting = old_shape is not None and old_shape!=shape

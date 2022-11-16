@@ -210,7 +210,7 @@ class ForwardODENetApp(BraidApp):
   def getFeatureShapes(self,t):
     i = self.getGlobalTimeIndex(t)
     ind = bisect_right(self.layer_blocks[0],i)
-    return (self.shape0[ind],)
+    return [self.shape0[ind],]
 
   def getParameterShapes(self,t):
     return self.parameter_shapes

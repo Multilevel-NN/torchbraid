@@ -57,8 +57,17 @@ class DummyApp:
     # recoggnize that the default for pytorch is a 32 bit float...
     return torchbraid.BraidVector(torch.ones(4,5,dtype=self.dtype))
 
+#  def getTensorShapes(self):
+#    return [torch.Size(s) for s in [(4,5),(3,2,2,4),(1,3),(9,7,4)]]
+
+  def getFeatureShapes(self,i):
+    return [torch.Size(s) for s in [(4,5),(3,2,2,4)]]
+
+  def getParameterShapes(self,i):
+    return [torch.Size(s) for s in [(1,3),(9,7,4)]]
+
   def getTensorShapes(self):
-    return [torch.Size(s) for s in [(4,5),(3,2,2,4),(1,3),(9,7,4)]]
+    return self.getFeatureShapes(0) + self.getParameterShapes(0)
 
   def getBufSize(self):
      return sizeof(int)+ (2+4+2+3)*sizeof(int)

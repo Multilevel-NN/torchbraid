@@ -239,7 +239,9 @@ class BraidApp:
   def setShape(self,shape):
     # the shape to use if non-exists for taking advantage of allocations in braid
     if isinstance(shape,torch.Size):
-      self.shape0 = (shape,)
+      self.shape0 = [shape,]
+    elif isinstance(shape,tuple):
+      assert(False)
     else:
       self.shape0 = shape
 
@@ -537,7 +539,7 @@ class BraidApp:
     pass
 
   def getFeatureShapes(self,t):
-    return self.shape0
+    return list(self.shape0)
 
   def getParameterShapes(self,t):
     return [] # empty size, no rank no size

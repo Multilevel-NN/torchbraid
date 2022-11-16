@@ -122,6 +122,12 @@ class ForwardBraidApp(parent.BraidApp):
   def getTensorShapes(self):
     return list(self.shape0)+self.seq_shapes
 
+  def getFeatureShapes(self,i):
+    return self.shape0
+
+  def getParameterShapes(self,i):
+    return self.seq_shapes
+
   def getDataVectorIndex(self,t):
     shift = 0
     if self.mpi_comm.Get_rank()>0:
