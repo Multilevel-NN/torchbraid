@@ -233,9 +233,6 @@ class BraidApp:
   def buildShapes(self,x):
     return x.size()
 
-  def getTensorShapes(self):
-    return self.shape0
-
   def setShape(self,shape):
     # the shape to use if non-exists for taking advantage of allocations in braid
     if isinstance(shape,torch.Size):

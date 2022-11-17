@@ -199,7 +199,6 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
     pyApp = <object> app
     with pyApp.timer("bufsize"):
       if not pyApp.gpu_direct_commu or not pyApp.use_cuda:
-        #shapes = # pyApp.getTensorShapes()
         shapes = pyApp.getFeatureShapes(0) + pyApp.getParameterShapes(0)
         num_tensors = len(shapes) # all tensors
         cnt = 0
@@ -225,7 +224,6 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
                        )
       else:
         #TODO: Is there a nicer way to get the buff_elements number?
-        #tmp = pyApp.getTensorShapes()[1:]
         tmp = pyApp.getFeatureShapes(0) + pyApp.getParameterShapes(0)
         buff_elements = np.sum([item.numel() for item in tmp])
         size_ptr[0] = (buff_elements * sizeof(float))
@@ -412,7 +410,6 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,brai
 
         vt = []
         wt = []
-        #shapes = pyApp.getTensorShapes()[1:]
         shapes = pyApp.getFeatureShapes(0) + pyApp.getParameterShapes(0)
         ten_sizes = [item.numel() for item in shapes]
         __fake_t__ = 0.0 
@@ -557,7 +554,6 @@ cdef int my_bufalloc(braid_App app, void **buffer, int nbytes):
   if not pyApp.gpu_direct_commu or not pyApp.use_cuda:
     buffer[0] = malloc(nbytes)
   else:
-    #tmp = pyApp.getTensorShapes()[1:]
     tmp = pyApp.getFeatureShapes(0) + pyApp.getParameterShapes(0)
     buff_elements = np.sum([item.numel() for item in tmp])
     addr = pyApp.addBufferEntry(tensor=torch.empty(buff_elements, dtype=torch.float32, device='cuda'))

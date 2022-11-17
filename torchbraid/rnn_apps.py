@@ -119,9 +119,6 @@ class ForwardBraidApp(parent.BraidApp):
   def timer(self,name):
     return self.timer_manager.timer("ForWD::"+name)
 
-  def getTensorShapes(self):
-    return list(self.shape0)+self.seq_shapes
-
   def getFeatureShapes(self,i):
     return self.shape0
 
@@ -336,9 +333,6 @@ class BackwardBraidApp(parent.BraidApp):
     if t!=0.0:
       for ten in x.tensors():
         ten[:] = 0.0
-
-  def getTensorShapes(self):
-    return self.shape0
 
   def timer(self,name):
     return self.timer_manager.timer("BckWD::"+name)

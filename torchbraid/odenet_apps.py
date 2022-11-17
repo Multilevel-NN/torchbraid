@@ -204,9 +204,6 @@ class ForwardODENetApp(BraidApp):
     
     return result
 
-  def getTensorShapes(self):
-    return list(self.shape0)+self.parameter_shapes
-
   def getFeatureShapes(self,t):
     i = self.getGlobalTimeIndex(t)
     ind = bisect_right(self.layer_blocks[0],i)
@@ -388,9 +385,6 @@ class BackwardODENetApp(BraidApp):
 
   def __del__(self):
     self.fwd_app = None
-
-  def getTensorShapes(self):
-    return self.shape0
 
   def timer(self,name):
     return self.timer_manager.timer("BckWD::"+name)
