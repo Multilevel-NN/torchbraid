@@ -164,7 +164,6 @@ class ForwardODENetApp(BraidApp):
       layer = layer_constr().to(self.device) 
       x = layer(x)
       shapes += [x.shape]
-    print(f'{self.getMPIComm().Get_rank()}: shapes ',shapes)
     return shapes
 
   def buildLayerBlocks(self,layers):
