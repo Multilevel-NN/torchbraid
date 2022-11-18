@@ -200,13 +200,11 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
   braid_BufferStatusGetTIndex(status, &tidx)
   braid_BufferStatusGetLevel(status, &level)
 
-  # print("BUF SIZE",tidx,level)
-
   try:
     pyApp = <object> app
     with pyApp.timer("bufsize"):
       if not pyApp.gpu_direct_commu or not pyApp.use_cuda:
-        shapes = pyApp.getFeatureShapes(0) + pyApp.getParameterShapes(0)
+        shapes = pyApp.getFeatureShapes(tidx,level) + pyApp.getParameterShapes(tidx,level)
         num_tensors = len(shapes) # all tensors
         cnt = 0
         total_shape = 0
@@ -231,7 +229,7 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
                        )
       else:
         #TODO: Is there a nicer way to get the buff_elements number?
-        tmp = pyApp.getFeatureShapes(0) + pyApp.getParameterShapes(0)
+        tmp = pyApp.getFeatureShapes(tidx,level) + pyApp.getParameterShapes(tidx,level)
         buff_elements = np.sum([item.numel() for item in tmp])
         size_ptr[0] = (buff_elements * sizeof(float))
 
@@ -258,9 +256,6 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
 
   braid_BufferStatusGetTIndex(status, &tidx)
   braid_BufferStatusGetLevel(status, &level)
-
-  # print("BUF PACK",tidx,level)
-
 
   try:
     pyApp = <object> app
@@ -347,16 +342,14 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   braid_BufferStatusGetTIndex(status, &tidx)
   braid_BufferStatusGetLevel(status, &level)
 
-  # print("BUF UNPACK",tidx,level)
-
   pyApp = <object> app
   if pyApp.use_cuda:
-    return my_bufunpack_cuda(app, buffer, u_ptr,status)
+    return my_bufunpack_cuda(app, buffer, u_ptr,tidx, level)
   else:
-    return my_bufunpack_cpu(app, buffer, u_ptr,status)
+    return my_bufunpack_cpu(app, buffer, u_ptr,tidx, level)
 # end my_bufunpack
 
-cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,braid_BufferStatus status):
+cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,int tidx,int level):
   cdef int * ibuffer
   cdef float * fbuffer
   cdef void * vbuffer
@@ -430,24 +423,23 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,brai
         addr = <uintptr_t>buffer
         app_buffer = pyApp.getBuffer(addr)
 
-        vt = []
-        wt = []
-        shapes = pyApp.getFeatureShapes(0) + pyApp.getParameterShapes(0)
-        ten_sizes = [item.numel() for item in shapes]
-        __fake_t__ = 0.0 
+        vt = pyApp.getFeatureShapes(tidx,level)
+        wt = pyApp.getParameterShapes(tidx,level)
+        sizes = sum([item.numel() for item in vt + wt])
 
-        size_wt = len(pyApp.getParameterShapes(t=__fake_t__))
-        size_vt = len(pyApp.shape0[1:])
-
-        size = 0
-        for i in range(len(shapes)):
-          if i < size_vt:
-            vt.append(torch.reshape(app_buffer[size:size+ten_sizes[i]], shapes[i]))
-          elif i < size_vt+size_wt:
-            wt.append(torch.reshape(app_buffer[size:size+ten_sizes[i]], shapes[i]))
-          else:
-            raise Exception(f'Bufunpack: size vt {size_vt} + size wt {size_wt} != len(shapes) {len(shapes)}')
-          size += ten_sizes[i]
+        #shapes = pyApp.getFeatureShapes(tidx,level) + pyApp.getParameterShapes(tidx,level)
+        #size_wt = len(pyApp.getParameterShapes(tidx,level))
+        #size_vt = len(pyApp.shape0[1:])
+        #
+        #size = 0
+        #for i in range(len(shapes)):
+        #  if i < size_vt:
+        #    vt.append(torch.reshape(app_buffer[size:size+ten_sizes[i]], shapes[i]))
+        #  elif i < size_vt+size_wt:
+        #    wt.append(torch.reshape(app_buffer[size:size+ten_sizes[i]], shapes[i]))
+        #  else:
+        #    raise Exception(f'Bufunpack: size vt {size_vt} + size wt {size_wt} != len(shapes) {len(shapes)}')
+        #  size += ten_sizes[i]
 
         if not hasattr(pyApp,'stream'):
           pyApp.stream = Stream(pyApp.device)
@@ -468,7 +460,7 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,brai
 
   return 0
 
-cdef int my_bufunpack_cpu(braid_App app, void *buffer, braid_Vector *u_ptr,braid_BufferStatus status):
+cdef int my_bufunpack_cpu(braid_App app, void *buffer, braid_Vector *u_ptr,int tidx,int level):
   cdef int * ibuffer
   cdef float * fbuffer
   cdef void * vbuffer
@@ -576,7 +568,7 @@ cdef int my_bufalloc(braid_App app, void **buffer, int nbytes):
   if not pyApp.gpu_direct_commu or not pyApp.use_cuda:
     buffer[0] = malloc(nbytes)
   else:
-    tmp = pyApp.getFeatureShapes(0) + pyApp.getParameterShapes(0)
+    tmp = pyApp.getFeatureShapes(0,0) + pyApp.getParameterShapes(0,0)
     buff_elements = np.sum([item.numel() for item in tmp])
     addr = pyApp.addBufferEntry(tensor=torch.empty(buff_elements, dtype=torch.float32, device='cuda'))
 

@@ -57,10 +57,10 @@ class DummyApp:
     # recoggnize that the default for pytorch is a 32 bit float...
     return torchbraid.BraidVector(torch.ones(4,5,dtype=self.dtype))
 
-  def getFeatureShapes(self,i):
+  def getFeatureShapes(self,tidx,level):
     return [torch.Size(s) for s in [(4,5),(3,2,2,4)]]
 
-  def getParameterShapes(self,i):
+  def getParameterShapes(self,tidx,level):
     return [torch.Size(s) for s in [(1,3),(9,7,4)]]
 
   def getBufSize(self):
@@ -105,7 +105,7 @@ class TestTorchBraid(unittest.TestCase):
     sizeof_int   = cbs.sizeof_int()
 
     app = DummyApp(float,use_cuda)
-    shapes = app.getFeatureShapes(0) + app.getParameterShapes(0)
+    shapes = app.getFeatureShapes(0,0) + app.getParameterShapes(0,0)
 
     a = torch.ones(shapes[0],device=device)
     b = torch.ones(shapes[1],device=device)
@@ -142,7 +142,7 @@ class TestTorchBraid(unittest.TestCase):
     sizeof_int   = cbs.sizeof_int()
 
     app = DummyApp(torch.float,use_cuda)
-    shapes = app.getFeatureShapes(0) + app.getParameterShapes(0)
+    shapes = app.getFeatureShapes(0,0) + app.getParameterShapes(0,0)
 
     a = torch.ones(shapes[0],device=device)
     b = torch.ones(shapes[1],device=device)

@@ -205,12 +205,12 @@ class ForwardODENetApp(BraidApp):
     
     return result
 
-  def getFeatureShapes(self,t):
-    i = self.getGlobalTimeIndex(t)
+  def getFeatureShapes(self,tidx,level):
+    i = self.getFineTimeIndex(tidx,level)
     ind = bisect_right(self.layer_blocks[0],i)
     return [self.shape0[ind],]
 
-  def getParameterShapes(self,t):
+  def getParameterShapes(self,tidx,level):
     return self.parameter_shapes
 
   def setVectorWeights(self,t,x):
@@ -448,8 +448,10 @@ class BackwardODENetApp(BraidApp):
     return f
   # end forward
 
-  def getFeatureShapes(self,t):
-    return self.fwd_app.getFeatureShapes(self.Tf-t)
+  def getFeatureShapes(self,tidx,level):
+    fine_idx = self.getFineTimeIndex(tidx,level)
+    # need to map back to the global fine index on the forward grid
+    return self.fwd_app.getFeatureShapes(self.num_steps-fine_idx,0)
 
   def eval(self,w,tstart,tstop,level,done):
     """
