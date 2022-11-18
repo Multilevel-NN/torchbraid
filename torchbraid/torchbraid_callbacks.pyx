@@ -560,7 +560,7 @@ cdef int my_refine(braid_App app, braid_Vector cu, braid_Vector *fu_ptr, braid_C
 
   return 0
 
-cdef int my_bufalloc(braid_App app, void **buffer, int nbytes):
+cdef int my_bufalloc(braid_App app, void **buffer, int nbytes, braid_BufferStatus status):
   cdef uintptr_t addr
 
   pyApp = <object>app

@@ -177,7 +177,7 @@ cdef extern from "braid.h":
 
     ctypedef int (*braid_PtFcnBufUnpack)(braid_App app, void *buffer, braid_Vector *u_ptr, braid_BufferStatus status)
 
-    ctypedef int (*braid_PtFcnBufAlloc)(braid_App app, void **buffer, int nbytes)
+    ctypedef int (*braid_PtFcnBufAlloc)(braid_App app, void **buffer, int nbytes, braid_BufferStatus status)
 
     ctypedef int (*braid_PtFcnBufFree)(braid_App app, void **buffer)
 
