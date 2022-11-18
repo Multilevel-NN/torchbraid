@@ -196,6 +196,35 @@ class TestTorchBraid(unittest.TestCase):
     MPI.COMM_WORLD.barrier()
   # end test_reLUNet_Approx
 
+  def test_variableCFactor(self):
+    basic_block = lambda: ReLUBlock(2)
+    cfactor = {0: 4, 1: 3, 2: 2}
+
+    # figure out the whole GPU situation
+    my_device,my_host = getDevice(MPI.COMM_WORLD) 
+
+    # this is the torchbraid class being tested 
+    #######################################
+    m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,144,Tf=2.0,max_fwd_levels=3,max_bwd_levels=3)
+    m = m.to(my_device)
+    m.setSkipDowncycle(False)
+    m.setCFactor(cfactor)
+
+    # test the getFineTimeIndex function (interrogates the app)
+    #######################################
+
+    fine_tidx = m.fwd_app.getFineTimeIndex(tidx=23,level=0)
+    self.assertEqual(fine_tidx,23)
+
+    fine_tidx = m.fwd_app.getFineTimeIndex(tidx=28,level=0)
+    self.assertEqual(fine_tidx,28)
+    
+    fine_tidx = m.fwd_app.getFineTimeIndex(tidx=23,level=3)
+    self.assertEqual(fine_tidx,23*cfactor[0]*cfactor[1]*cfactor[2])
+
+    fine_tidx = m.fwd_app.getFineTimeIndex(tidx=23,level=1)
+    self.assertEqual(fine_tidx,23*cfactor[0])
+
   def copyParameterGradToRoot(self,m,device):
     comm     = m.getMPIComm()
     my_rank  = m.getMPIComm().Get_rank()
@@ -238,6 +267,21 @@ class TestTorchBraid(unittest.TestCase):
     m.setCFactor(cfactor)
 
     w0 = m.copyVectorFromRoot(w0)
+
+    # test the getFineTimeIndex function (interrogates the app)
+    #######################################
+
+    fine_tidx = m.fwd_app.getFineTimeIndex(tidx=23,level=0)
+    self.assertEqual(fine_tidx,23)
+
+    fine_tidx = m.fwd_app.getFineTimeIndex(tidx=28,level=0)
+    self.assertEqual(fine_tidx,28)
+    
+    fine_tidx = m.fwd_app.getFineTimeIndex(tidx=28,level=3)
+    self.assertEqual(fine_tidx,28*cfactor**3) 
+
+    fine_tidx = m.fwd_app.getFineTimeIndex(tidx=23,level=3)
+    self.assertEqual(fine_tidx,23*cfactor**3) 
 
     # this is the reference torch "solution"
     #######################################

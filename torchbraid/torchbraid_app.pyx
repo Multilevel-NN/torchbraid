@@ -36,6 +36,7 @@ import torch
 import numpy as np
 import traceback
 
+from typing import Union
 from libc.stdio cimport FILE, stdout
 from braid_vector import BraidVector
 
@@ -466,7 +467,23 @@ class BraidApp:
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_ResetTimer(core)
 
-  def setCFactor(self,cfactor):
+  def setCFactor(self,cfactor : Union[int, dict]):
+    """
+    Change the coarsening factor.
+
+    Set the coarsening factor. If an integer then this 
+    is set on all levels. However, if this is a dictionary
+    then the convection follows the braid convection. So
+    an cfactor[0] defines the coarsening rate going from
+    level 0 to level 1.
+
+    Parameters
+    ----------
+
+    cfactor : int | dict
+      The coarsening factor(s) to be used.
+    """
+
     self.cfactor = cfactor 
 
     core = (<PyBraid_Core> self.py_core).getCore()
@@ -509,6 +526,38 @@ class BraidApp:
 
   def getMPIComm(self):
     return self.mpi_comm
+
+  def getFineTimeIndex(self,tidx,level):
+    """
+    Compute the global time index on the fine level.    
+
+    Using the global (independent of the number of processors), time index
+    on a specified level in the time step hierarchy compute the global time
+    index on the finest level. This uses the stored coarsening factors
+    to compute the fine level index. 
+
+    Parameters
+    ----------
+
+    tidx : int
+      The global time index on the level
+
+    level : int
+      The level the time index is with respect to.
+    """
+
+    if isinstance(self.cfactor,int):
+      return tidx * self.cfactor**level
+
+    # the coarsening factor is different on each level
+    assert(isinstance(self.cfactor,dict))
+
+    # build a list containing levels from top to bottom
+    cfactors = [self.cfactor[l] for l in range(level-1,-1,-1)]
+    for cf in cfactors:
+      tidx = cf * tidx
+
+    return tidx
 
   def getGlobalTimeIndex(self,t):
     return round(t / self.dt)
