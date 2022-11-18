@@ -568,9 +568,13 @@ cdef int my_bufalloc(braid_App app, void **buffer, int nbytes, braid_BufferStatu
   if not pyApp.gpu_direct_commu or not pyApp.use_cuda:
     buffer[0] = malloc(nbytes)
   else:
-    tmp = pyApp.getFeatureShapes(0,0) + pyApp.getParameterShapes(0,0)
-    buff_elements = np.sum([item.numel() for item in tmp])
-    addr = pyApp.addBufferEntry(tensor=torch.empty(buff_elements, dtype=torch.float32, device='cuda'))
+    dtype = torch.float32
+
+    # convert nbytes to number of elements, nbytes / size of element = (dtype.bits/8)
+    #  -- why torch decides to return bits is deeply elusive to me
+    elements = nbytes / (torch.finfo(dtype).bits / 8) 
+
+    addr = pyApp.addBufferEntry(tensor=torch.empty(elements, dtype=dtype, device='cuda'))
 
     buffer[0]=<void *> addr
   return 0
