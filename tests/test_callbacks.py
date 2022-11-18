@@ -117,22 +117,13 @@ class TestTorchBraid(unittest.TestCase):
 
     num_tensors = len(shapes)
 
-    data_shapes = 0
     data_size = 0
     for s in shapes:
-      data_shapes += len(s)*sizeof_int
       data_size += s.numel()*sizeof_float
 
     sz = cbs.bufSize(app)
 
-    total_size = ( sizeof_int                # floats
-                 + sizeof_int                # num tensors
-                 + sizeof_int                # num_weighttensors
-                 + num_tensors*sizeof_int    # number of tensors dimensions and shapes
-                 + data_shapes               # the shapes of each tensor
-                 + data_size                 # the shapes of each tensor
-                 + sizeof_int                # how much layer data (bytes)
-                 )
+    total_size = data_size
 
     self.assertEqual(sz,total_size)
   # end test_buff_size
@@ -144,10 +135,10 @@ class TestTorchBraid(unittest.TestCase):
     app = DummyApp(torch.float,use_cuda)
     shapes = app.getFeatureShapes(0,0) + app.getParameterShapes(0,0)
 
-    a = torch.ones(shapes[0],device=device)
-    b = torch.ones(shapes[1],device=device)
-    c = torch.ones(shapes[2],device=device)
-    d = torch.ones(shapes[3],device=device)
+    a = 1.*torch.ones(shapes[0],device=device)
+    b = 2.*torch.ones(shapes[1],device=device)
+    c = 3.*torch.ones(shapes[2],device=device)
+    d = 4.*torch.ones(shapes[3],device=device)
 
     bv_in = torchbraid.BraidVector((a,b))
     bv_in.addWeightTensors((c,d))
@@ -170,9 +161,10 @@ class TestTorchBraid(unittest.TestCase):
     # check the answers
     self.assertEqual(len(bv_in.allTensors()),len(bv_out.allTensors()))
     for i,o in zip(bv_in.allTensors(),bv_out.allTensors()):
-      self.assertTrue(torch.norm(i-2.0*o).item()<5.0e-16)
+      self.assertTrue(torch.norm(i-1.0-o).item()<5.0e-16)
 
 if __name__ == '__main__':
   device,host_device = getDevice(MPI.COMM_WORLD)
   use_cuda = (device.type=='cuda')
+  print(f'USE CUDA? = {use_cuda}')
   unittest.main()
