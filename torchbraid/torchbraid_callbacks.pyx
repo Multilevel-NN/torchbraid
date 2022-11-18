@@ -194,6 +194,13 @@ cdef int my_norm(braid_App app, braid_Vector u, double *norm_ptr):
   return 0
 
 cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
+  cdef int tidx
+  cdef int level
+
+  braid_BufferStatusGetTIndex(status, &tidx)
+  braid_BufferStatusGetLevel(status, &level)
+
+  # print("BUF SIZE",tidx,level)
 
   try:
     pyApp = <object> app
@@ -246,6 +253,13 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   cdef int float_cnt
   cdef view.array my_buf
   cdef uintptr_t addr
+  cdef int tidx
+  cdef int level
+
+  braid_BufferStatusGetTIndex(status, &tidx)
+  braid_BufferStatusGetLevel(status, &level)
+
+  # print("BUF PACK",tidx,level)
 
 
   try:
@@ -327,6 +341,14 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void *buffer,braid_BufferStat
   return 0
 
 cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_BufferStatus status):
+  cdef int tidx
+  cdef int level
+
+  braid_BufferStatusGetTIndex(status, &tidx)
+  braid_BufferStatusGetLevel(status, &level)
+
+  # print("BUF UNPACK",tidx,level)
+
   pyApp = <object> app
   if pyApp.use_cuda:
     return my_bufunpack_cuda(app, buffer, u_ptr,status)

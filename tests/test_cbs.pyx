@@ -93,9 +93,9 @@ def vectorNorm(app,ten_x):
 def bufSize(app):
   cdef braid_App c_app = <PyObject*>app
   cdef int [1] sz = [0]
-  cdef braid_BufferStatus status = NULL
+  cdef _braid_BufferStatus_struct status
   
-  my_bufsize(c_app,sz,status)
+  my_bufsize(c_app,sz,&status)
 
   return sz[0] 
 
@@ -121,18 +121,18 @@ cdef class MemoryBlock:
 def pack(app,vec,block,level):
   cdef braid_App c_app    = <PyObject*>app
   cdef braid_Vector c_vec = <braid_Vector> vec
-  cdef braid_BufferStatus status = NULL
+  cdef _braid_BufferStatus_struct status
   cdef MemoryBlock blk = <MemoryBlock> block
 
-  my_bufpack(c_app, c_vec, blk.data,status)
+  my_bufpack(c_app, c_vec, blk.data,&status)
 
 def unpack(app,block):
   cdef braid_App c_app    = <PyObject*>app
   cdef braid_Vector c_vec    
   cdef MemoryBlock blk = <MemoryBlock> block
-  cdef braid_BufferStatus status = NULL
+  cdef _braid_BufferStatus_struct status
   
-  my_bufunpack(c_app,blk.data,&c_vec,status)
+  my_bufunpack(c_app,blk.data,&c_vec,&status)
 
   vec = <object> c_vec
   return vec
