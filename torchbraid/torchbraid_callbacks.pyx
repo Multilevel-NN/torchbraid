@@ -54,6 +54,9 @@ def output_exception(label):
 ##
 # Define your Python Braid Vector as a C-struct
 
+cdef int get_bytes(dtype):
+  return int(torch.finfo(dtype).bits/8)
+
 cdef int my_access(braid_App app,braid_Vector u,braid_AccessStatus status):
 
   cdef double t
@@ -208,7 +211,7 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
       cnt = 0
       for s in shapes:
         cnt += s.numel() 
-      size_ptr[0] = sizeof(float)*cnt
+      size_ptr[0] = get_bytes(float)*cnt
 
   except:
     output_exception("my_bufsize")
@@ -223,11 +226,12 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void * buffer,braid_BufferSta
   braid_BufferStatusGetLevel(status, &level)
 
   pyApp = <object> app
-
-  # this option (use cuda without gpu direct communication) results in *bad* performance
-  assert(not (not pyApp.gpu_direct_commu and pyApp.use_cuda))
  
   if pyApp.use_cuda:
+    # this option (use cuda without gpu direct communication) results in *bad* performance
+    assert(pyApp.gpu_direct_commu,
+           'TorchBraid:bufpack - GPU Compatible MPI must be enabled')
+
     return my_bufpack_cuda(app, u, buffer, tidx, level)
   else:
     return my_bufpack_cpu(app, u, buffer, tidx, level)
@@ -247,7 +251,7 @@ cdef int my_bufpack_cpu(braid_App app, braid_Vector u, void *buffer,int tidx, in
       for item in all_tensors:
         flat = item.detach().flatten()
         size = int(flat.shape[0])
-        tbuffer = torch.from_numpy(np.asarray(<float[:size]> (buffer+start*sizeof(float))))
+        tbuffer = torch.from_numpy(np.asarray(<float[:size]> (buffer+start*get_bytes(float))))
         tbuffer.copy_(flat)
         start += size
 
@@ -264,13 +268,13 @@ cdef int my_bufpack_cuda(braid_App app, braid_Vector u, void *buffer,int tidx, i
   cdef char * cbuffer
   cdef int foffset
   cdef int final_offset
-  cdef int float_cnt
   cdef view.array my_buf
   cdef uintptr_t addr
 
   try:
     pyApp = <object> app
     with pyApp.timer("bufpack"):
+
       addr = <uintptr_t> buffer
       app_buffer = pyApp.getBuffer(addr = addr)
 
@@ -279,6 +283,7 @@ cdef int my_bufpack_cuda(braid_App app, braid_Vector u, void *buffer,int tidx, i
       all_tensors = bv_u.allTensors()
       start = 0
       for item in all_tensors:
+        print('any.pack',item.shape)
         flat = item.detach().flatten()
         size = flat.shape[0]
         app_buffer[start:start + size] = flat
@@ -298,29 +303,24 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
 
   pyApp = <object> app
 
-  # this option (use cuda without gpu direct communication) results in *bad* performance
-  assert(not (not pyApp.gpu_direct_commu and pyApp.use_cuda))
-
   if pyApp.use_cuda:
+    # this option (use cuda without gpu direct communication) results in *bad* performance
+    assert(pyApp.gpu_direct_commu,
+           'TorchBraid:bufpack - GPU Compatible MPI must be enabled')
+
     return my_bufunpack_cuda(app, buffer, u_ptr,tidx, level)
   else:
     return my_bufunpack_cpu(app, buffer, u_ptr,tidx, level)
 # end my_bufunpack
 
 cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,int tidx,int level):
-  cdef int * ibuffer
-  cdef float * fbuffer
-  cdef void * vbuffer
-  cdef int float_cnt
-  cdef int sz
-  cdef view.array my_buf
   cdef uintptr_t addr
 
   try:
     pyApp = <object> app
     with pyApp.timer("bufunpack"):
-      addr = <uintptr_t>buffer
-      app_buffer = pyApp.getBuffer(addr)
+      addr = <uintptr_t> buffer
+      app_buffer = pyApp.getBuffer(addr = addr)
 
       size_vt = pyApp.getFeatureShapes(tidx,level)
       size_wt = pyApp.getParameterShapes(tidx,level)
@@ -329,13 +329,13 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,int 
       start = 0
       for s in size_vt:
         size = s.numel()
-        vt.append(torch.reshape(app_buffer[start:start+size], s))
+        vt.append(torch.reshape(app_buffer[start:start+size].detach().clone(), s))
         start += size
 
       wt = []
       for s in size_wt:
         size = s.numel()
-        wt.append(torch.reshape(app_buffer[start:start+size], s))
+        wt.append(torch.reshape(app_buffer[start:start+size].detach().clone(), s))
         start += size
 
       u_obj = BraidVector(tensor = vt, send_flag = True)
@@ -364,21 +364,20 @@ cdef int my_bufunpack_cpu(braid_App app, void *buffer, braid_Vector *u_ptr,int t
       start = 0
       for s in size_vt:
         size = s.numel()
-        tbuffer = torch.from_numpy(np.asarray(<float[:size]> (buffer+start*sizeof(float))))
+        tbuffer = torch.from_numpy(np.asarray(<float[:size]> (buffer+start*get_bytes(float))))
         vt.append(torch.reshape(tbuffer.detach().clone(), s))
         start += size
 
       wt = []
       for s in size_wt:
         size = s.numel()
-        tbuffer = torch.from_numpy(np.asarray(<float[:size]> (buffer+start*sizeof(float))))
+        tbuffer = torch.from_numpy(np.asarray(<float[:size]> (buffer+start*get_bytes(float))))
         wt.append(torch.reshape(tbuffer.detach().clone(), s))
         start += size
 
       u_obj = BraidVector(tensor = vt, send_flag = True)
       u_obj.weight_tensor_data_ = wt
       Py_INCREF(u_obj)
-
 
       # set the pointer for output
       u_ptr[0] = <braid_Vector> u_obj
@@ -426,28 +425,34 @@ cdef int my_bufalloc(braid_App app, void **buffer, int nbytes, braid_BufferStatu
 
   pyApp = <object>app
 
-  if not pyApp.gpu_direct_commu or not pyApp.use_cuda:
-    buffer[0] = malloc(nbytes)
-  else:
-    dtype = torch.float32
+  if pyApp.use_cuda:
+    # this option (use cuda without gpu direct communication) results in *bad* performance
+    assert(pyApp.gpu_direct_commu,
+           'TorchBraid:bufpack - GPU Compatible MPI must be enabled')
 
-    # convert nbytes to number of elements, nbytes / size of element = (dtype.bits/8)
-    #  -- why torch decides to return bits is deeply elusive to me
-    elements = nbytes / (torch.finfo(dtype).bits / 8) 
+    # convert nbytes to number of elements
+    elements = math.ceil(nbytes / get_bytes(float))
 
-    addr = pyApp.addBufferEntry(tensor=torch.empty(elements, dtype=dtype, device='cuda'))
+    addr = pyApp.addBufferEntry(tensor=torch.empty(elements, dtype=torch.float32, device='cuda'))
 
     buffer[0]=<void *> addr
+  else:
+    buffer[0] = malloc(nbytes)
   return 0
 
 cdef int my_buffree(braid_App app, void **buffer):
   cdef uintptr_t addr
 
   pyApp = <object> app
-  if not pyApp.gpu_direct_commu or not pyApp.use_cuda:
-    free(buffer[0])
-    buffer[0] = NULL
-  else:
+  if pyApp.use_cuda:
+    # this option (use cuda without gpu direct communication) results in *bad* performance
+    assert(pyApp.gpu_direct_commu,
+           'TorchBraid:bufpack - GPU Compatible MPI must be enabled')
+
     addr = <uintptr_t> buffer[0]
     pyApp.removeBufferEntry(addr=addr)
+  else:
+    free(buffer[0])
+    buffer[0] = NULL
+
   return 0

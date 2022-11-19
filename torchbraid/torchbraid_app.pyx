@@ -369,12 +369,20 @@ class BraidApp:
     # end core
 
   def setDevice(self,device):
+    cdef braid_PtFcnBufAlloc b_bufalloc = <braid_PtFcnBufAlloc> my_bufalloc
+    cdef braid_PtFcnBufFree b_buffree = <braid_PtFcnBufFree> my_buffree
+    cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
+    cdef braid_Core core = py_core.getCore()
+
     self.device = device
 
     self.use_cuda = False
     if torch.cuda.is_available():
       self.use_cuda = self.device.type=='cuda'
 
+    if self.use_cuda:
+      self.user_mpi_buf = True
+      braid_SetBufAllocFree(core, b_bufalloc, b_buffree)
 
   def diagnostics(self,enable):
     """

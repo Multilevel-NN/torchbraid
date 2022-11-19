@@ -105,18 +105,35 @@ def sizeof_int():
 def sizeof_float():
   return sizeof(int)
 
-
 cdef class MemoryBlock:
   cdef void* data
+  cdef bint use_cuda
+  cdef object app
 
-  def __cinit__(self, size_t number):
-    # allocate some memory (uninitialised, may contain arbitrary data)
-    self.data = <double*> PyMem_Malloc(number * sizeof(double))
+  def __cinit__(self, app, size_t number):
+    cdef uintptr_t addr
+
+    self.app = app
+    self.use_cuda = app.use_cuda
+
+    if app.use_cuda:
+      addr = app.addBufferEntry(tensor=torch.empty(number/sizeof(float), dtype=float, device='cuda'))
+      self.data = <void *> addr
+    else:
+      # allocate some memory (uninitialised, may contain arbitrary data)
+      self.data = <double*> PyMem_Malloc(number * sizeof(double))
+
     if not self.data:
       raise MemoryError()
 
   def __dealloc__(self):
-    PyMem_Free(self.data)  # no-op if self.data is NULL
+    cdef uintptr_t addr
+
+    if not self.use_cuda:
+      PyMem_Free(self.data)  # no-op if self.data is NULL
+    else:
+      addr = <uintptr_t> self.data
+      self.app.removeBufferEntry(addr=addr)
 
 def pack(app,vec,block,level):
   cdef braid_App c_app    = <PyObject*>app

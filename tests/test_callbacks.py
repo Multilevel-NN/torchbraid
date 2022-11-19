@@ -51,7 +51,8 @@ class DummyApp:
     self.timer_manager = tbutils.ContextTimerManager()
     self.use_cuda = use_cuda
     self.device = device
-    self.gpu_direct_commu = False
+    self.gpu_direct_commu = True
+    self.buffer = []
 
   def buildInit(self,t):
     # recoggnize that the default for pytorch is a 32 bit float...
@@ -68,6 +69,21 @@ class DummyApp:
 
   def timer(self,name):
     return self.timer_manager.timer("Dummy::"+name)
+
+  def addBufferEntry(self, tensor):
+    self.buffer.append(tensor)
+    return self.buffer[-1].data_ptr()
+
+  def getBuffer(self, addr):
+    for i in range(len(self.buffer)):
+      dataPtr = self.buffer[i].data_ptr()
+      if dataPtr == addr:
+        return self.buffer[i]
+
+    raise Exception('Buffer not found')
+
+  def removeBufferEntry(self, addr):
+    self.buffer = [item for item in self.buffer if item.data_ptr() != addr]
 
 # end DummyApp
 
@@ -144,7 +160,7 @@ class TestTorchBraid(unittest.TestCase):
     bv_in.addWeightTensors((c,d))
 
     # allocate space
-    block = cbs.MemoryBlock(cbs.bufSize(app))
+    block = cbs.MemoryBlock(app,cbs.bufSize(app))
 
     # communicate in/out
     cbs.pack(app,bv_in,block,0)
