@@ -116,6 +116,9 @@ class ForwardODENetApp(BraidApp):
     # Now creating the trainable layers
     self.layer_models = [self.buildLayerBlock(self.start_layer+i) for i in range(owned_layers)]
 
+    if self.use_cuda:
+      torch.cuda.synchronize()
+
     self.timer_manager = timer_manager
     self.use_deriv = False
 
