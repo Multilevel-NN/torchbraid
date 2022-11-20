@@ -283,7 +283,6 @@ cdef int my_bufpack_cuda(braid_App app, braid_Vector u, void *buffer,int tidx, i
       all_tensors = bv_u.allTensors()
       start = 0
       for item in all_tensors:
-        print('any.pack',item.shape)
         flat = item.detach().flatten()
         size = flat.shape[0]
         app_buffer[start:start + size] = flat

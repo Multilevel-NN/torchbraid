@@ -100,10 +100,10 @@ def bufSize(app):
   return sz[0] 
 
 def sizeof_int():
-  return sizeof(float)
+  return sizeof(int)
 
 def sizeof_float():
-  return sizeof(int)
+  return sizeof(double)
 
 cdef class MemoryBlock:
   cdef void* data

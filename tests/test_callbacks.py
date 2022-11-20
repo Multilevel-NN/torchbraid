@@ -135,7 +135,8 @@ class TestTorchBraid(unittest.TestCase):
 
     data_size = 0
     for s in shapes:
-      data_size += s.numel()*sizeof_float
+      data_size += s.numel()
+    data_size *= sizeof_float
 
     sz = cbs.bufSize(app)
 
@@ -148,7 +149,7 @@ class TestTorchBraid(unittest.TestCase):
     sizeof_float = cbs.sizeof_float()
     sizeof_int   = cbs.sizeof_int()
 
-    app = DummyApp(torch.float,use_cuda)
+    app = DummyApp(float,use_cuda)
     shapes = app.getFeatureShapes(0,0) + app.getParameterShapes(0,0)
 
     a = 1.*torch.ones(shapes[0],device=device)
