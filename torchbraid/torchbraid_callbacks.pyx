@@ -281,13 +281,15 @@ cdef int my_bufpack_cuda(braid_App app, braid_Vector u, void *buffer,int tidx, i
       bv_u = <object> u
 
       all_tensors = bv_u.allTensors()
-      print('PACK ',(tidx,level),all_tensors[0])
       start = 0
       for item in all_tensors:
         flat = item.detach().flatten()
         size = flat.shape[0]
         app_buffer[start:start + size] = flat
         start += size
+
+      # finish the data movement
+      torch.cuda.synchronize()
 
   except:
     output_exception("my_bufpack")
@@ -341,8 +343,6 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,int 
       u_obj = BraidVector(tensor = vt, send_flag = True)
       u_obj.weight_tensor_data_ = wt
       Py_INCREF(u_obj)
-
-      print('UNPACK',(tidx,level),vt[0])
 
       # set the pointer for output
       u_ptr[0] = <braid_Vector> u_obj
