@@ -97,9 +97,6 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
       braid_StepStatusGetDone(status, &done)
 
       u = <object> vec_u
-      if u.hasStream():
-        with pyApp.timer("step-synch"):
-          u.syncStream()
 
       # modify the state vector in place
       pyApp.eval(u,tstart,tstop,level,done)
@@ -107,6 +104,10 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
       # store final step
       if level==0 and tstop==pyApp.Tf:
         pyApp.x_final = u.clone()
+
+      # finish the step computation
+      if pyApp.use_cuda:
+        torch.cuda.synchronize()
 
   except:
     output_exception("my_step: rank={}, step=({},{}), level={}, sf={}".format(pyApp.getMPIComm().Get_rank(),
@@ -155,6 +156,10 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
       for ten_X,ten_Y in zip(bv_X.tensors(),bv_Y.tensors()):
         ten_Y.mul_(float(beta))
         ten_Y.add_(ten_X,alpha=float(alpha))
+
+      # finish the sum computation
+      if pyApp.use_cuda:
+        torch.cuda.synchronize()
   except:
     output_exception("my_sum")
     sys.stdout.flush()
@@ -226,7 +231,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void * buffer,braid_BufferSta
   braid_BufferStatusGetLevel(status, &level)
 
   pyApp = <object> app
- 
+
   if pyApp.use_cuda:
     # this option (use cuda without gpu direct communication) results in *bad* performance
     assert(pyApp.gpu_direct_commu,
@@ -310,9 +315,11 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
     assert(pyApp.gpu_direct_commu,
            'TorchBraid:bufpack - GPU Compatible MPI must be enabled')
 
-    return my_bufunpack_cuda(app, buffer, u_ptr,tidx, level)
+    result = my_bufunpack_cuda(app, buffer, u_ptr,tidx, level)
   else:
-    return my_bufunpack_cpu(app, buffer, u_ptr,tidx, level)
+    result = my_bufunpack_cpu(app, buffer, u_ptr,tidx, level)
+
+  return result
 # end my_bufunpack
 
 cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,int tidx,int level):
@@ -347,6 +354,8 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,int 
       # set the pointer for output
       u_ptr[0] = <braid_Vector> u_obj
 
+      # finish data movement (this one might not be neccessary)
+      torch.cuda.synchronize()
   except:
     output_exception("my_bufunpack_gpu")
 
