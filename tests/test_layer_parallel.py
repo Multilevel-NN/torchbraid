@@ -189,7 +189,7 @@ class TestTorchBraid(unittest.TestCase):
     # this catch block, augments the 
     rank = MPI.COMM_WORLD.Get_rank()
     try:
-      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx',print_level=3)
+      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-6,prefix='reLUNet_Approx')
     except RuntimeError as err:
       raise RuntimeError("proc=%d) reLUNet_Approx..failure" % rank) from err
 

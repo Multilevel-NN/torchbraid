@@ -123,8 +123,10 @@ class ForwardODENetApp(BraidApp):
     self.use_deriv = False
 
     self.parameter_shapes = []
-    for p in self.layer_models[0].parameters(): 
-      self.parameter_shapes += [p.data.size()]
+    for layer_constr in self.layer_blocks[1]:
+      # build the layer on the proper device
+      layer = layer_constr()
+      self.parameter_shapes += [[p.data.size() for p in layer.parameters()]]
 
     self.temp_layers = dict()
 
@@ -165,8 +167,10 @@ class ForwardODENetApp(BraidApp):
     for layer_constr in self.layer_blocks[1]:
       # build the layer on the proper device
       layer = layer_constr().to(self.device) 
+       
       x = layer(x)
       shapes += [x.shape]
+
     return shapes
 
   def buildLayerBlocks(self,layers):
@@ -213,7 +217,12 @@ class ForwardODENetApp(BraidApp):
     return [self.shape0[ind],]
 
   def getParameterShapes(self,tidx,level):
-    return self.parameter_shapes
+    if len(self.parameter_shapes)<=0:
+      return []
+    i = self.getFineTimeIndex(tidx,level)
+    ind = bisect_right(self.layer_blocks[0],i)
+
+    return self.parameter_shapes[ind]
 
   def setVectorWeights(self,t,x):
 

@@ -292,7 +292,7 @@ cdef int my_bufpack_cuda(braid_App app, braid_Vector u, void *buffer,int tidx, i
       torch.cuda.synchronize()
 
   except:
-    output_exception("my_bufpack")
+    output_exception(f"my_bufpack: time index = {tidx}, level = {level}")
 
   return 0
 
