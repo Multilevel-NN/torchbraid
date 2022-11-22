@@ -52,7 +52,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import torchbraid
+from torchbraid.layer_parallel import LayerParallel
 import torchbraid.utils
 from torchvision import datasets, transforms
 
@@ -123,7 +123,7 @@ class SerialNet(nn.Module):
     if serial_nn is None:
       step_layer = lambda: StepLayer(channels)
       numprocs = 1
-      parallel_nn = torchbraid.LayerParallel(MPI.COMM_SELF, step_layer, numprocs * local_steps, Tf,
+      parallel_nn = LayerParallel(MPI.COMM_SELF, step_layer, numprocs * local_steps, Tf,
                                              max_fwd_levels=1, max_bwd_levels=1, max_iters=1)
       parallel_nn.setPrintLevel(0, True)
       self.serial_nn = parallel_nn.buildSequentialOnRoot()
@@ -152,7 +152,7 @@ class ParallelNet(nn.Module):
 
     numprocs = MPI.COMM_WORLD.Get_size()
 
-    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD, step_layer, local_steps * numprocs, Tf,
+    self.parallel_nn = LayerParallel(MPI.COMM_WORLD, step_layer, local_steps * numprocs, Tf,
                                                 max_fwd_levels=max_levels, max_bwd_levels=max_levels,
                                                 max_iters=max_iters, user_mpi_buf=user_mpi_buf,
                                                 gpu_direct_commu=gpu_direct_commu)

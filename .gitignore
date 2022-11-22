@@ -19,15 +19,16 @@ tests/torchbraid_test.html
 tests/test_cbs.c
 tests/test_cbs.*.so
 tests/test_cbs.html
-torchbraid/braid.html
-torchbraid/build/
-torchbraid/torchbraid_app.c
-torchbraid/torchbraid_app.*.so
-torchbraid/torchbraid_app.html
-torchbraid/torchbraid_callbacks.html
-torchbraid/rnn_braid_app.c
-torchbraid/rnn_braid_app.*.so
-torchbraid/rnn_braid_app.html
+src/torchbraid/braid.html
+src/torchbraid/build/
+src/torchbraid/torchbraid_app.c
+src/torchbraid/torchbraid_app.*.so
+src/torchbraid/torchbraid_app.html
+src/torchbraid/torchbraid_callbacks.html
+src/torchbraid/rnn_braid_app.c
+src/torchbraid/rnn_braid_app.*.so
+src/torchbraid/rnn_braid_app.html
+src/xbraid
 
 examples/tiny_imagenet/tiny-imagenet-200
 
