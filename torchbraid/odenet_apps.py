@@ -116,12 +116,17 @@ class ForwardODENetApp(BraidApp):
     # Now creating the trainable layers
     self.layer_models = [self.buildLayerBlock(self.start_layer+i) for i in range(owned_layers)]
 
+    if self.use_cuda:
+      torch.cuda.synchronize()
+
     self.timer_manager = timer_manager
     self.use_deriv = False
 
     self.parameter_shapes = []
-    for p in self.layer_models[0].parameters(): 
-      self.parameter_shapes += [p.data.size()]
+    for layer_constr in self.layer_blocks[1]:
+      # build the layer on the proper device
+      layer = layer_constr()
+      self.parameter_shapes += [[p.data.size() for p in layer.parameters()]]
 
     self.temp_layers = dict()
 
@@ -162,8 +167,10 @@ class ForwardODENetApp(BraidApp):
     for layer_constr in self.layer_blocks[1]:
       # build the layer on the proper device
       layer = layer_constr().to(self.device) 
+       
       x = layer(x)
       shapes += [x.shape]
+
     return shapes
 
   def buildLayerBlocks(self,layers):
@@ -204,13 +211,18 @@ class ForwardODENetApp(BraidApp):
     
     return result
 
-  def getFeatureShapes(self,t):
-    i = self.getGlobalTimeIndex(t)
+  def getFeatureShapes(self,tidx,level):
+    i = self.getFineTimeIndex(tidx,level)
     ind = bisect_right(self.layer_blocks[0],i)
     return [self.shape0[ind],]
 
-  def getParameterShapes(self,t):
-    return self.parameter_shapes
+  def getParameterShapes(self,tidx,level):
+    if len(self.parameter_shapes)<=0:
+      return []
+    i = self.getFineTimeIndex(tidx,level)
+    ind = bisect_right(self.layer_blocks[0],i)
+
+    return self.parameter_shapes[ind]
 
   def setVectorWeights(self,t,x):
 
@@ -447,8 +459,10 @@ class BackwardODENetApp(BraidApp):
     return f
   # end forward
 
-  def getFeatureShapes(self,t):
-    return self.fwd_app.getFeatureShapes(self.Tf-t)
+  def getFeatureShapes(self,tidx,level):
+    fine_idx = self.getFineTimeIndex(tidx,level)
+    # need to map back to the global fine index on the forward grid
+    return self.fwd_app.getFeatureShapes(self.num_steps-fine_idx,0)
 
   def eval(self,w,tstart,tstop,level,done):
     """

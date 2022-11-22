@@ -36,6 +36,7 @@ import torch
 import numpy as np
 import traceback
 
+from typing import Union
 from libc.stdio cimport FILE, stdout
 from braid_vector import BraidVector
 
@@ -124,6 +125,165 @@ class BraidApp:
     self.use_cuda = False
   # end __init__
 
+  def getNumSteps(self):
+    """
+    Get the total number of steps over all procesors.
+    """
+    return self.num_steps
+
+  def setPrintLevel(self,print_level,tb_print=False):
+    """
+    Set the print level for this object. 
+
+    If tb_print (torchbraid print) is
+    set to true this method sets the internal printing diagnostics. If it is
+    false, the print level is passed along to xbraid.
+
+    Parameters
+    ----------
+   
+    print_level : int
+      Integer print level, higher is more output. 0 is no output
+
+    tb_print : bool
+      Set the braid print level if False, otherwise set torchbraids print level.
+    """
+
+    if tb_print:
+      # short circuit and set internal level
+      self.tb_print_level = print_level
+    else:
+      # set (default) xbraid printing 
+      self.print_level = print_level
+
+      core = (<PyBraid_Core> self.py_core).getCore()
+      braid_SetPrintLevel(core,self.print_level)
+
+  def getFeatureShapes(self,tidx : int,level : int) -> list:
+    """
+    Get the shape of the feature tensor at a time index and level.
+
+    Using the global (independent of the number of processors), time index
+    on a specified level in the time step hierarchy get the shape of the
+    feature vector (for neural ODEs this is the solution to the ODE). 
+
+    Parameters
+    ----------
+
+    tidx : int
+      The global time index on the level
+
+    level : int
+      The level the time index is with respect to.
+
+    Returns
+    -------
+
+    A list containing the shapes associated with the feature tensor at the
+    specified level and time index.
+    """
+
+    return list(self.shape0)
+
+  def getParameterShapes(self,tidx : int,level : int) -> list:
+    """
+    Get the shape of the weigts and biases to be communicated at a time index and level.
+
+    Using the global (independent of the number of processors), time index
+    on a specified level in the time step hierarchy get the shape of the
+    weights and biases if they need to be communicated. Typically for forward propagation
+    they do, but for backward propgation they don't and the default (return an empty list)
+    can be used
+
+    Parameters
+    ----------
+
+    tidx : int
+      The global time index on the level
+
+    level : int
+      The level the time index is with respect to.
+
+    Returns
+    -------
+
+    A list containing the shapes associated with the weight tensors at the
+    specified level and time index that need to be communciated. This can
+    be an empty list (and is by default). Typically this is non-empty for the
+    forward pass, and an empty list for the backward pass.
+    """
+    return [] # empty size, no rank no size
+
+  def getFineTimeIndex(self,tidx,level):
+    """
+    Compute the global time index on the fine level.    
+
+    Using the global (independent of the number of processors), time index
+    on a specified level in the time step hierarchy compute the global time
+    index on the finest level. This uses the stored coarsening factors
+    to compute the fine level index. 
+
+    Parameters
+    ----------
+
+    tidx : int
+      The global time index on the level
+
+    level : int
+      The level the time index is with respect to.
+    """
+
+    if isinstance(self.cfactor,int):
+      return tidx * self.cfactor**level
+
+    # the coarsening factor is different on each level
+    assert(isinstance(self.cfactor,dict))
+
+    # build a list containing levels from top to bottom
+    cfactors = [self.cfactor[l] for l in range(level-1,-1,-1)]
+    for cf in cfactors:
+      tidx = cf * tidx
+
+    return tidx
+
+
+  def setCFactor(self,cfactor : Union[int, dict]):
+    """
+    Change the coarsening factor.
+
+    Set the coarsening factor. If an integer then this 
+    is set on all levels. However, if this is a dictionary
+    then the convection follows the braid convection. So
+    an cfactor[0] defines the coarsening rate going from
+    level 0 to level 1.
+
+    Parameters
+    ----------
+
+    cfactor : int | dict
+      The coarsening factor(s) to be used.
+    """
+
+    self.cfactor = cfactor 
+
+    core = (<PyBraid_Core> self.py_core).getCore()
+    if isinstance(cfactor,dict):
+      for level in sorted(cfactor.keys()):
+        braid_SetCFactor(core,level,cfactor[level]) # -1 implies chage on all levels
+    
+    else: 
+      braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
+
+  def finalRelax(self):
+    """
+    Force the application to do a final FC relaxtion sweep. 
+
+    This is useful for computing the gradient in the backpropagation or adjoint method.
+    """
+    cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
+    cdef braid_Core core = py_core.getCore()
+    braid_SetFinalFCRelax(core)
+  
   def initCore(self):
     cdef braid_Core core
     cdef PyBraid_Core py_fwd_core
@@ -209,17 +369,20 @@ class BraidApp:
     # end core
 
   def setDevice(self,device):
+    cdef braid_PtFcnBufAlloc b_bufalloc = <braid_PtFcnBufAlloc> my_bufalloc
+    cdef braid_PtFcnBufFree b_buffree = <braid_PtFcnBufFree> my_buffree
+    cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
+    cdef braid_Core core = py_core.getCore()
+
     self.device = device
 
     self.use_cuda = False
     if torch.cuda.is_available():
       self.use_cuda = self.device.type=='cuda'
 
-  def getNumSteps(self):
-    """
-    Get the total number of steps over all procesors.
-    """
-    return self.num_steps
+    if self.use_cuda:
+      self.user_mpi_buf = True
+      braid_SetBufAllocFree(core, b_bufalloc, b_buffree)
 
   def diagnostics(self,enable):
     """
@@ -272,15 +435,6 @@ class BraidApp:
       output_exception("{}:initializeStates: rank {}, t={}".format(self.prefix_str,self.getMPIComm().Get_rank(),t))
    
   # end initializeStates
-
-  def finalRelax(self):
-    """
-    Force the application to do a final FC relaxtion sweep. This is useful for
-    computing the gradient in the backpropagation or adjoint method.
-    """
-    cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
-    cdef braid_Core core = py_core.getCore()
-    braid_SetFinalFCRelax(core)
 
   def testBraid(self, x):
     """
@@ -399,23 +553,6 @@ class BraidApp:
   def getCore(self):
     return self.py_core    
  
-  def setPrintLevel(self,print_level,tb_print=False):
-    """
-    Set the print level for this object. If tb_print (torchbraid print) is
-    set to true this method sets the internal printing diagnostics. If it is
-    false, the print level is passed along to xbraid.
-    """
-
-    if tb_print:
-      # short circuit and set internal level
-      self.tb_print_level = print_level
-    else:
-      # set (default) xbraid printing 
-      self.print_level = print_level
-
-      core = (<PyBraid_Core> self.py_core).getCore()
-      braid_SetPrintLevel(core,self.print_level)
-  
   def setStorage(self, storage):
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetStorage(core, storage)
@@ -466,16 +603,6 @@ class BraidApp:
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_ResetTimer(core)
 
-  def setCFactor(self,cfactor):
-    self.cfactor = cfactor 
-
-    core = (<PyBraid_Core> self.py_core).getCore()
-    if isinstance(cfactor,dict):
-      for level in sorted(cfactor.keys()):
-        braid_SetCFactor(core,level,cfactor[level]) # -1 implies chage on all levels
-    
-    else: 
-      braid_SetCFactor(core,-1,self.cfactor) # -1 implies chage on all levels
 
   def setSkipDowncycle(self,skip):
     if skip:
@@ -535,16 +662,11 @@ class BraidApp:
   def initializeVector(self,t,x):  
     pass
 
-  def getFeatureShapes(self,t):
-    return list(self.shape0)
-
-  def getParameterShapes(self,t):
-    return [] # empty size, no rank no size
-
   def buildInit(self,t):
     try:
       if t>0:
-        zeros = [torch.zeros(s,device=self.device) for s in self.getFeatureShapes(t)]
+        glb_idx = self.getGlobalTimeIndex(t)
+        zeros = [torch.zeros(s,device=self.device) for s in self.getFeatureShapes(glb_idx,0)]
         x = BraidVector(tuple(zeros))
       else:
         x = BraidVector(self.x0.tensors())
@@ -1122,11 +1244,4 @@ class BraidApp:
     # state and params directly into model_fine instead of returning
     
     return restrict_params
-  
-  
-# end BraidApp
-
-
-  
-  
 # end BraidApp

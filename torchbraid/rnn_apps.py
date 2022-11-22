@@ -119,10 +119,10 @@ class ForwardBraidApp(parent.BraidApp):
   def timer(self,name):
     return self.timer_manager.timer("ForWD::"+name)
 
-  def getFeatureShapes(self,i):
+  def getFeatureShapes(self,tidx,level):
     return self.shape0
 
-  def getParameterShapes(self,i):
+  def getParameterShapes(self,tidx,level):
     return self.seq_shapes
 
   def getDataVectorIndex(self,t):

@@ -93,46 +93,63 @@ def vectorNorm(app,ten_x):
 def bufSize(app):
   cdef braid_App c_app = <PyObject*>app
   cdef int [1] sz = [0]
-  cdef braid_BufferStatus status = NULL
+  cdef _braid_BufferStatus_struct status
   
-  my_bufsize(c_app,sz,status)
+  my_bufsize(c_app,sz,&status)
 
   return sz[0] 
 
 def sizeof_int():
-  return sizeof(float)
-
-def sizeof_float():
   return sizeof(int)
 
+def sizeof_float():
+  return sizeof(double)
 
 cdef class MemoryBlock:
   cdef void* data
+  cdef bint use_cuda
+  cdef object app
 
-  def __cinit__(self, size_t number):
-    # allocate some memory (uninitialised, may contain arbitrary data)
-    self.data = <double*> PyMem_Malloc(number * sizeof(double))
+  def __cinit__(self, app, size_t number):
+    cdef uintptr_t addr
+
+    self.app = app
+    self.use_cuda = app.use_cuda
+
+    if app.use_cuda:
+      addr = app.addBufferEntry(tensor=torch.empty(number/sizeof(float), dtype=float, device='cuda'))
+      self.data = <void *> addr
+    else:
+      # allocate some memory (uninitialised, may contain arbitrary data)
+      self.data = <double*> PyMem_Malloc(number * sizeof(double))
+
     if not self.data:
       raise MemoryError()
 
   def __dealloc__(self):
-    PyMem_Free(self.data)  # no-op if self.data is NULL
+    cdef uintptr_t addr
+
+    if not self.use_cuda:
+      PyMem_Free(self.data)  # no-op if self.data is NULL
+    else:
+      addr = <uintptr_t> self.data
+      self.app.removeBufferEntry(addr=addr)
 
 def pack(app,vec,block,level):
   cdef braid_App c_app    = <PyObject*>app
   cdef braid_Vector c_vec = <braid_Vector> vec
-  cdef braid_BufferStatus status = NULL
+  cdef _braid_BufferStatus_struct status
   cdef MemoryBlock blk = <MemoryBlock> block
 
-  my_bufpack(c_app, c_vec, blk.data,status)
+  my_bufpack(c_app, c_vec, blk.data,&status)
 
 def unpack(app,block):
   cdef braid_App c_app    = <PyObject*>app
   cdef braid_Vector c_vec    
   cdef MemoryBlock blk = <MemoryBlock> block
-  cdef braid_BufferStatus status = NULL
+  cdef _braid_BufferStatus_struct status
   
-  my_bufunpack(c_app,blk.data,&c_vec,status)
+  my_bufunpack(c_app,blk.data,&c_vec,&status)
 
   vec = <object> c_vec
   return vec

@@ -130,6 +130,8 @@ cdef extern from "braid_status.h":
     # Wrap BufferStatus Routines
     int braid_BufferStatusGetMessageType (braid_BufferStatus status, int *messagetype_ptr)
     int braid_BufferStatusSetSize ( braid_BufferStatus status, int size)
+    int braid_BufferStatusGetTIndex(braid_BufferStatus status, int * idx)
+    int braid_BufferStatusGetLevel(braid_BufferStatus status, int * level)
 
     ##
     # Wrap SyncStatus Routines
@@ -175,7 +177,7 @@ cdef extern from "braid.h":
 
     ctypedef int (*braid_PtFcnBufUnpack)(braid_App app, void *buffer, braid_Vector *u_ptr, braid_BufferStatus status)
 
-    ctypedef int (*braid_PtFcnBufAlloc)(braid_App app, void **buffer, int nbytes)
+    ctypedef int (*braid_PtFcnBufAlloc)(braid_App app, void **buffer, int nbytes, braid_BufferStatus status)
 
     ctypedef int (*braid_PtFcnBufFree)(braid_App app, void **buffer)
 
