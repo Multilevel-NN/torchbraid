@@ -43,7 +43,18 @@ extension = [Extension(
     include_dirs=[braid_dir, numpy.get_include()],
 )]
 
+install_requires = [
+    'setuptools',
+    'mpi4py',
+    'cython',
+    'numpy',
+    'torch',
+    'torchvision',
+    'matplotlib'
+]
+
 setup(
     ext_modules=cythonize(extension),
+    install_requires=install_requires,
     cmdclass={'build_ext': myMake}
 )
