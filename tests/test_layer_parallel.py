@@ -37,7 +37,7 @@ import sys
 import numpy as np
 import statistics as stats
 
-import torchbraid
+from torchbraid.layer_parallel import LayerParallel
 
 import faulthandler
 faulthandler.enable()
@@ -247,7 +247,7 @@ class TestTorchBraid(unittest.TestCase):
 
     # this is the torchbraid class being tested 
     #######################################
-    m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps*MPI.COMM_WORLD.Get_size(),Tf,max_fwd_levels=max_levels,max_bwd_levels=max_levels,max_iters=max_iters,spatial_ref_pair=ref_pair)
+    m = LayerParallel(MPI.COMM_WORLD,basic_block,num_steps*MPI.COMM_WORLD.Get_size(),Tf,max_fwd_levels=max_levels,max_bwd_levels=max_levels,max_iters=max_iters,spatial_ref_pair=ref_pair)
     m = m.to(my_device)
     m.setPrintLevel(print_level)
     m.setSkipDowncycle(False)

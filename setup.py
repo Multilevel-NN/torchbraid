@@ -4,7 +4,7 @@ import subprocess
 import mpi4py
 import numpy
 from Cython.Build import cythonize, build_ext
-from setuptools import setup, Extension
+from setuptools import setup, Extension, find_packages
 
 if "CC" not in os.environ.keys():
     os.environ["CC"] = mpi4py.get_config()['mpicc']
@@ -56,5 +56,9 @@ install_requires = [
 setup(
     ext_modules=cythonize(extension),
     install_requires=install_requires,
+    packages=find_packages(where="src"),
+    package_dir={"": "src"},
+    package_data={"torchbraid": ["*.pyx"],
+                  "xbraid.braid": ["*.h"]},
     cmdclass={'build_ext': myMake}
 )

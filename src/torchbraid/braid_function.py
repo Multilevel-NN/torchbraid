@@ -32,8 +32,6 @@
 import torch.autograd
 from torch.nn.functional import pad
 
-import utils
-
 class BraidFunction(torch.autograd.Function):
 
   @staticmethod
