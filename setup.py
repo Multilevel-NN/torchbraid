@@ -11,6 +11,7 @@ if "CC" not in os.environ.keys():
 
 braid_dir = './src/xbraid/braid'
 
+
 class myMake(build_ext):
 
     def run(self):
@@ -18,11 +19,10 @@ class myMake(build_ext):
         super().run()
 
     def pre_build(self):
-
         print(os.path.exists(os.path.join(os.getcwd(), 'src', 'xbraid')))
         if not os.path.exists(os.path.join(os.getcwd(), 'src', 'xbraid')):
             print('cloning xbraid...')
-            subprocess.check_call(['git', 'clone','https://github.com/XBraid/xbraid.git'], cwd='./src')
+            subprocess.check_call(['git', 'clone', 'https://github.com/XBraid/xbraid.git'], cwd='./src')
 
         print('building xbraid...')
         subprocess.check_call(['make', 'debug=no', 'braid'], cwd='./src/xbraid')
@@ -37,7 +37,7 @@ braid_sources = ['src/xbraid/braid/' + item for item in braid_sources]
 
 extension = [Extension(
     name="torchbraid.torchbraid_app",
-    sources=["src/torchbraid/torchbraid_app.pyx"]+braid_sources,
+    sources=["src/torchbraid/torchbraid_app.pyx"] + braid_sources,
     libraries=["braid"],
     library_dirs=[braid_dir],
     include_dirs=[braid_dir, numpy.get_include()],
@@ -54,7 +54,7 @@ install_requires = [
 ]
 
 setup(
-    ext_modules=cythonize(extension),
+    ext_modules=cythonize(extension, language_level="3"),
     install_requires=install_requires,
     packages=find_packages(where="src"),
     package_dir={"": "src"},
