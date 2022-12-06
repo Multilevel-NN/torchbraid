@@ -1,4 +1,4 @@
-from .braid_funcs cimport *
+from torchbraid.braid_funcs cimport *
 cdef class PyBraid_Core:
     '''
     This class is a simple wrapper about the C-struct braid_Core

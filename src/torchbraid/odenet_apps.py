@@ -33,7 +33,8 @@ import torch
 import torch.nn as nn
 
 from .braid_vector import BraidVector
-from .torchbraid_app import BraidApp
+from torchbraid.torchbraid_app import BraidApp
+from torchbraid.bsplines import BsplineBasis
 import torchbraid.utils
 import itertools
 
@@ -43,7 +44,6 @@ import resource
 import copy
 
 from bisect import bisect_right
-from .bsplines import BsplineBasis
 from mpi4py import MPI
 
 class ForwardODENetApp(BraidApp):

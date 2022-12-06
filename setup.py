@@ -58,7 +58,7 @@ setup(
     install_requires=install_requires,
     packages=find_packages(where="src"),
     package_dir={"": "src"},
-    package_data={"torchbraid": ["*.pyx"],
+    package_data={"torchbraid": ["*.pyx", "*.pxd"],
                   "xbraid.braid": ["*.h"]},
     cmdclass={'build_ext': myMake}
 )
