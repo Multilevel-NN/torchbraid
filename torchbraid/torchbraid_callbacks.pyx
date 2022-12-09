@@ -71,6 +71,10 @@ cdef int my_access(braid_App app,braid_Vector u,braid_AccessStatus status):
       braid_AccessStatusGetT(status, &t)
 
       pyApp.access(t,ten_u)
+
+      # finish the step computation
+      if pyApp.use_cuda:
+        torch.cuda.synchronize()
   except:
     output_exception("my_access")
 
@@ -128,6 +132,10 @@ cdef int my_init(braid_App app, double t, braid_Vector *u_ptr):
       Py_INCREF(u_mem) # why do we need this?
 
       u_ptr[0] = <braid_Vector> u_mem
+
+      # finish the step computation
+      if pyApp.use_cuda:
+        torch.cuda.synchronize()
   except:
     output_exception("my_init")
 
@@ -142,6 +150,10 @@ cdef int my_free(braid_App app, braid_Vector u):
       # Decrement the smart pointer
       Py_DECREF(pyU)
       del pyU
+
+      # finish the step computation
+      if pyApp.use_cuda:
+        torch.cuda.synchronize()
   except:
     output_exception("my_free")
   return 0
@@ -161,9 +173,11 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
       if pyApp.use_cuda:
         torch.cuda.synchronize()
   except:
-    output_exception("my_sum")
+    x_shapes = [ten_X.size() for ten_X in bv_X.tensors()]
+    y_shapes = [ten_Y.size() for ten_Y in bv_Y.tensors()]
+
+    output_exception(f"my_sum: {x_shapes}, {y_shapes}")
     sys.stdout.flush()
-    sys.exit(1)
 
   return 0
 
@@ -182,6 +196,10 @@ cdef int my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
       v_mem = cl
       Py_INCREF(v_mem) # why do we need this?
       v_ptr[0] = <braid_Vector> v_mem
+
+      # finish the step computation (OK)
+      if pyApp.use_cuda:
+        torch.cuda.synchronize()
   except:
     output_exception("my_clone")
 
@@ -196,6 +214,10 @@ cdef int my_norm(braid_App app, braid_Vector u, double *norm_ptr):
       norms = torch.stack([torch.square(ten_U).sum() for ten_U in tensors_U])
 
       norm_ptr[0] = math.sqrt(norms.sum().item())
+
+      # finish the step computation (OK)
+      if pyApp.use_cuda:
+        torch.cuda.synchronize()
   except:
     output_exception("my_norm")
 
@@ -218,6 +240,9 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
         cnt += s.numel() 
       size_ptr[0] = get_bytes(float)*cnt
 
+      # finish the step computation (OK)
+      if pyApp.use_cuda:
+        torch.cuda.synchronize()
   except:
     output_exception("my_bufsize")
 
@@ -449,6 +474,11 @@ cdef int my_bufalloc(braid_App app, void **buffer, int nbytes, braid_BufferStatu
     buffer[0]=<void *> addr
   else:
     buffer[0] = malloc(nbytes)
+
+  # finish the step computation
+  if pyApp.use_cuda:
+    torch.cuda.synchronize()
+
   return 0
 
 cdef int my_buffree(braid_App app, void **buffer):
@@ -462,8 +492,13 @@ cdef int my_buffree(braid_App app, void **buffer):
 
     addr = <uintptr_t> buffer[0]
     pyApp.removeBufferEntry(addr=addr)
+
   else:
     free(buffer[0])
     buffer[0] = NULL
+
+  # finish the step computation
+  if pyApp.use_cuda:
+    torch.cuda.synchronize()
 
   return 0
