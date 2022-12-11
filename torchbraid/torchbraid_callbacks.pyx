@@ -73,10 +73,6 @@ cdef int my_access(braid_App app,braid_Vector u,braid_AccessStatus status):
       braid_AccessStatusGetT(status, &t)
 
       pyApp.access(t,ten_u)
-
-      # finish the step computation
-      if pyApp.use_cuda:
-        torch.cuda.synchronize()
   except:
     output_exception("my_access")
 
@@ -110,10 +106,6 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
       # store final step
       if level==0 and tstop==pyApp.Tf:
         pyApp.x_final = u.clone()
-
-      # finish the step computation
-      if pyApp.use_cuda:
-        torch.cuda.synchronize()
 
   except:
     output_exception("my_step: rank={}, step=({},{}), level={}, sf={}".format(pyApp.getMPIComm().Get_rank(),
@@ -152,10 +144,6 @@ cdef int my_free(braid_App app, braid_Vector u):
       # Decrement the smart pointer
       Py_DECREF(pyU)
       del pyU
-
-      # finish the step computation
-      if pyApp.use_cuda:
-        torch.cuda.synchronize()
   except:
     output_exception("my_free")
   return 0
@@ -216,10 +204,6 @@ cdef int my_norm(braid_App app, braid_Vector u, double *norm_ptr):
       norms = torch.stack([torch.square(ten_U).sum() for ten_U in tensors_U])
 
       norm_ptr[0] = math.sqrt(norms.sum().item())
-
-      # finish the step computation (OK)
-      if pyApp.use_cuda:
-        torch.cuda.synchronize()
   except:
     output_exception("my_norm")
 
@@ -245,10 +229,6 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
       for s in shapes:
         cnt += s.numel() 
       size_ptr[0] = get_bytes(float_type)*cnt
-
-      # finish the step computation (OK)
-      if pyApp.use_cuda:
-        torch.cuda.synchronize()
   except:
     output_exception("my_bufsize")
 
@@ -472,12 +452,10 @@ cdef int my_bufalloc(braid_App app, void **buffer, int nbytes, braid_BufferStatu
     addr = pyApp.addBufferEntry(tensor=torch.empty(elements, dtype=__float_alloc_type__, device='cuda'))
 
     buffer[0]=<void *> addr
+
+    torch.cuda.synchronize()
   else:
     buffer[0] = malloc(nbytes)
-
-  # finish the step computation
-  if pyApp.use_cuda:
-    torch.cuda.synchronize()
 
   return 0
 
@@ -496,9 +474,5 @@ cdef int my_buffree(braid_App app, void **buffer):
   else:
     free(buffer[0])
     buffer[0] = NULL
-
-  # finish the step computation
-  if pyApp.use_cuda:
-    torch.cuda.synchronize()
 
   return 0
