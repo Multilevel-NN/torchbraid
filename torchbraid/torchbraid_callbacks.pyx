@@ -159,9 +159,9 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
         ten_Y.mul_(float(beta))
         ten_Y.add_(ten_X,alpha=float(alpha))
 
-      # finish the sum computation
-      if pyApp.use_cuda:
-        torch.cuda.synchronize()
+      ## finish the sum computation
+      ##if pyApp.use_cuda:
+      ##  torch.cuda.synchronize()
   except:
     x_shapes = [ten_X.size() for ten_X in bv_X.tensors()]
     y_shapes = [ten_Y.size() for ten_Y in bv_Y.tensors()]
