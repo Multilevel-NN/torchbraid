@@ -47,6 +47,8 @@ from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
 from cython cimport view
 
+__float_alloc_type__ = torch.float32
+
 def output_exception(label):
   s = traceback.format_exc()
   print('\n**** Torchbraid Callbacks::{} Exception ****\n{}'.format(label,s))
@@ -232,13 +234,17 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
 
   try:
     pyApp = <object> app
+
+    float_type = float # on CPU
+    if pyApp.user_mpi_buf:
+      float_type = __float_alloc_type__ # on CUDA
     with pyApp.timer("bufsize"):
       shapes = pyApp.getFeatureShapes(tidx,level) + pyApp.getParameterShapes(tidx,level)
 
       cnt = 0
       for s in shapes:
         cnt += s.numel() 
-      size_ptr[0] = get_bytes(float)*cnt
+      size_ptr[0] = get_bytes(float_type)*cnt
 
       # finish the step computation (OK)
       if pyApp.use_cuda:
@@ -293,12 +299,6 @@ cdef int my_bufpack_cpu(braid_App app, braid_Vector u, void *buffer,int tidx, in
 cdef int my_bufpack_cuda(braid_App app, braid_Vector u, void *buffer,int tidx, int level):
 
   # Convert void * to a double array (note fbuffer is a C-array, so no bounds checking is done)
-  cdef int * ibuffer
-  cdef float * fbuffer
-  cdef char * cbuffer
-  cdef int foffset
-  cdef int final_offset
-  cdef view.array my_buf
   cdef uintptr_t addr
 
   try:
@@ -467,9 +467,9 @@ cdef int my_bufalloc(braid_App app, void **buffer, int nbytes, braid_BufferStatu
            'TorchBraid:bufpack - GPU Compatible MPI must be enabled')
 
     # convert nbytes to number of elements
-    elements = math.ceil(nbytes / get_bytes(float))
+    elements = math.ceil(nbytes / get_bytes(__float_alloc_type__))
 
-    addr = pyApp.addBufferEntry(tensor=torch.empty(elements, dtype=torch.float32, device='cuda'))
+    addr = pyApp.addBufferEntry(tensor=torch.empty(elements, dtype=__float_alloc_type__, device='cuda'))
 
     buffer[0]=<void *> addr
   else:

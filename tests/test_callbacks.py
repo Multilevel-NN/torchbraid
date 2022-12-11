@@ -44,12 +44,18 @@ from mpi4py import MPI
 
 use_cuda = False
 device = torch.device('cpu')
+float_type = float
+cuda_float_type = torch.float32
 
 class DummyApp:
-  def __init__(self,dtype,use_cuda):
-    self.dtype = dtype
+  def __init__(self,use_cuda):
+    if use_cuda:
+      self.dtype = cuda_float_type
+    else:
+      self.dtype = float_type
     self.timer_manager = tbutils.ContextTimerManager()
     self.use_cuda = use_cuda
+    self.user_mpi_buf = use_cuda
     self.device = device
     self.gpu_direct_commu = True
     self.buffer = []
@@ -89,7 +95,7 @@ class DummyApp:
 
 class TestTorchBraid(unittest.TestCase):
   def test_clone_init(self):
-    app = DummyApp(float,use_cuda)
+    app = DummyApp(use_cuda)
     clone_vec = cbs.cloneInitVector(app)
     clone = clone_vec.tensor()
     clone_sz = clone.size()
@@ -97,10 +103,12 @@ class TestTorchBraid(unittest.TestCase):
     self.assertEqual(len(clone_sz),2)
     self.assertEqual(clone_sz[0],4)
     self.assertEqual(clone_sz[1],5)
-    self.assertEqual(torch.norm(clone).item(),np.sqrt(4.0*5.0))
+
+    norm_exact = torch.sqrt(torch.tensor(4.0*5.0,dtype=app.dtype))
+    self.assertEqual(torch.norm(clone).item(),norm_exact)
 
   def test_clone_vector(self):
-    app = DummyApp(float,use_cuda)
+    app = DummyApp(use_cuda)
 
     vec = app.buildInit(0.0)
     ten = vec.tensor() 
@@ -110,17 +118,21 @@ class TestTorchBraid(unittest.TestCase):
     clone = clone_vec.tensor()
     clone_sz = clone.size()
 
+
     self.assertEqual(len(clone_sz),2)
     self.assertEqual(clone_sz[0],4)
     self.assertEqual(clone_sz[1],5)
-    self.assertEqual(torch.norm(clone).item(),np.sqrt(4.0*4.0*5.0))
+
+    norm_exact = torch.sqrt(torch.tensor(4.0*4.0*5.0,dtype=app.dtype))
+    self.assertEqual(torch.norm(clone).item(),norm_exact.item())
   # end test_clone
 
   def test_buff_size(self):
-    sizeof_float = cbs.sizeof_float()
-    sizeof_int   = cbs.sizeof_int()
 
-    app = DummyApp(float,use_cuda)
+    app = DummyApp(use_cuda)
+
+    sizeof_float = cbs.sizeof_float(app.dtype)
+
     shapes = app.getFeatureShapes(0,0) + app.getParameterShapes(0,0)
 
     a = torch.ones(shapes[0],device=device)
@@ -146,10 +158,12 @@ class TestTorchBraid(unittest.TestCase):
   # end test_buff_size
 
   def test_buff_pack_unpack(self):
-    sizeof_float = cbs.sizeof_float()
-    sizeof_int   = cbs.sizeof_int()
 
-    app = DummyApp(float,use_cuda)
+    app = DummyApp(use_cuda)
+
+    sizeof_float = cbs.sizeof_float(app.dtype)
+    tol_float    = 5.*cbs.eps_float(app.dtype) # something small
+
     shapes = app.getFeatureShapes(0,0) + app.getParameterShapes(0,0)
 
     a = 1.*torch.ones(shapes[0],device=device)
@@ -178,7 +192,7 @@ class TestTorchBraid(unittest.TestCase):
     # check the answers
     self.assertEqual(len(bv_in.allTensors()),len(bv_out.allTensors()))
     for i,o in zip(bv_in.allTensors(),bv_out.allTensors()):
-      self.assertTrue(torch.norm(i-1.0-o).item()<5.0e-16)
+      self.assertTrue(torch.norm(i-1.0-o).item()<tol_float)
 
 if __name__ == '__main__':
   device,host_device = getDevice(MPI.COMM_WORLD)

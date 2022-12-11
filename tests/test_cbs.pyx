@@ -35,6 +35,8 @@
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from cpython.ref cimport PyObject
 
+import torch
+
 include "../torchbraid/torchbraid_app.pyx"
 
 # Other helper functions (mostly for testing)
@@ -99,11 +101,11 @@ def bufSize(app):
 
   return sz[0] 
 
-def sizeof_int():
-  return sizeof(int)
+def sizeof_float(dtype):
+  return int(torch.finfo(dtype).bits/8)
 
-def sizeof_float():
-  return sizeof(double)
+def eps_float(dtype):
+  return torch.finfo(dtype).eps
 
 cdef class MemoryBlock:
   cdef void* data
@@ -116,12 +118,14 @@ cdef class MemoryBlock:
     self.app = app
     self.use_cuda = app.use_cuda
 
+    float_type = app.dtype
+
     if app.use_cuda:
-      addr = app.addBufferEntry(tensor=torch.empty(number/sizeof(float), dtype=float, device='cuda'))
+      addr = app.addBufferEntry(tensor=torch.empty(int(number/sizeof_float(float_type)), dtype=float_type, device='cuda'))
       self.data = <void *> addr
     else:
       # allocate some memory (uninitialised, may contain arbitrary data)
-      self.data = <double*> PyMem_Malloc(number * sizeof(double))
+      self.data = <double*> PyMem_Malloc(number * sizeof(float_type))
 
     if not self.data:
       raise MemoryError()
