@@ -57,11 +57,13 @@ class CloseLayer(nn.Module):
   def __init__(self,channels):
     super(CloseLayer, self).__init__()
 
-    self.avg = nn.AdaptiveAvgPool2d((1,1))
-    self.fc = nn.Linear(8*16*16, 200)
+    self.conv = nn.Conv2d(512, 4, kernel_size=1, stride=2, padding=1,bias=False)
+    self.avg  = nn.AdaptiveAvgPool2d((8,8))
+    self.fc   = nn.Linear(4*8*8, 200)
 
   def forward(self, x):
-    #x = self.avg(x)
+    x = self.conv(x)
+    x = self.avg(x)
     out = torch.flatten(x.view(x.size(0),-1), 1)
     return self.fc(out)
 # end layer
