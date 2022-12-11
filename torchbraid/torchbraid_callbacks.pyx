@@ -186,10 +186,6 @@ cdef int my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
       v_mem = cl
       Py_INCREF(v_mem) # why do we need this?
       v_ptr[0] = <braid_Vector> v_mem
-
-      # finish the step computation (OK)
-      if pyApp.use_cuda:
-        torch.cuda.synchronize()
   except:
     output_exception("my_clone")
 
