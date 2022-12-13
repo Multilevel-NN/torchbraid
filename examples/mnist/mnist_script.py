@@ -136,17 +136,6 @@ def root_print(rank, s):
   if rank == 0:
     print(s)
 
-##
-# Compute number of parallel-in-time multigrid levels 
-def compute_levels(num_steps, min_coarse_size, cfactor):
-  from math import log, floor
-  # Find L such that ( max_L min_coarse_size*cfactor**L <= num_steps)
-  levels = floor(log(float(num_steps) / min_coarse_size, cfactor)) + 1
-
-  if levels < 1:
-    levels = 1
-  return levels
-
 
 def main():
   # Begin setting up run-time environment 

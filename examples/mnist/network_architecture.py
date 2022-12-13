@@ -238,6 +238,17 @@ def parse_args():
   procs = MPI.COMM_WORLD.Get_size()
   args = parser.parse_args()
   
+  ##
+  # Compute number of parallel-in-time multigrid levels 
+  def compute_levels(num_steps, min_coarse_size, cfactor):
+    from math import log, floor
+    # Find L such that ( max_L min_coarse_size*cfactor**L <= num_steps)
+    levels = floor(log(float(num_steps) / min_coarse_size, cfactor)) + 1
+
+    if levels < 1:
+      levels = 1
+    return levels
+
   if args.lp_max_levels < 1:
     min_coarse_size = 3
     args.lp_max_levels = compute_levels(args.steps, min_coarse_size, args.lp_cfactor)
