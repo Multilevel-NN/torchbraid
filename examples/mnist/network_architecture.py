@@ -1,12 +1,3 @@
-"""
-This file contains:
-  - Generic multilevel solver.
-    Based on PyAMG multilevel solver, https://github.com/pyamg/pyamg
-    PyAMG is released under the MIT license.
-  - MG/Opt implementations of the multilevel solver
-"""
-
-
 from __future__ import print_function
 
 import numpy as np
@@ -30,7 +21,7 @@ from timeit import default_timer as timer
 from mpi4py import MPI
 
 
-__all__ = [ 'parse_args', 'ParallelNet' ]
+__all__ = [ 'OpenFlatLayer', 'CloseLayer', 'StepLayer', 'parse_args', 'ParallelNet' ]
 
 ####################################################################################
 ####################################################################################
@@ -82,7 +73,6 @@ class StepLayer(nn.Module):
     return F.relu(self.conv2(F.relu(self.conv1(x))))
 
 
-
 ####################################################################################
 ####################################################################################
 
@@ -129,6 +119,7 @@ class ParallelNet(nn.Module):
     self.close_nn = compose(CloseLayer, channels)
 
   def saveSerialNet(self, name):
+    # Model can be reloaded in serial format with: model = torch.load(filename)
     serial_nn = self.parallel_nn.buildSequentialOnRoot()
     if MPI.COMM_WORLD.Get_rank() == 0:
       s_net = SerialNet(-1, -1, -1, serial_nn=serial_nn, open_nn=self.open_nn, close_nn=self.close_nn)
@@ -145,110 +136,101 @@ class ParallelNet(nn.Module):
 
     return x
 
+# Serial Network Class (used by the saveSerialNet functionality in ParallelNet)
+class SerialNet(nn.Module):
+  def __init__(self, channels=12, local_steps=8, Tf=1.0, serial_nn=None, open_nn=None, close_nn=None):
+    super(SerialNet, self).__init__()
+
+    if open_nn is None:
+      self.open_nn = OpenFlatLayer(channels)
+    else:
+      self.open_nn = open_nn
+
+    if serial_nn is None:
+      step_layer = lambda: StepLayer(channels)
+      numprocs = 1
+      parallel_nn = torchbraid.LayerParallel(MPI.COMM_SELF, step_layer, numprocs * local_steps, Tf,
+                                             max_fwd_levels=1, max_bwd_levels=1, max_iters=1)
+      parallel_nn.setPrintLevel(0, True)
+      self.serial_nn = parallel_nn.buildSequentialOnRoot()
+    else:
+      self.serial_nn = serial_nn
+
+    if close_nn is None:
+      self.close_nn = CloseLayer(channels)
+    else:
+      self.close_nn = close_nn
+
+  def forward(self, x):
+    x = self.open_nn(x)
+    x = self.serial_nn(x)
+    x = self.close_nn(x)
+    return x
+
+
 ####################################################################################
 ####################################################################################
 
 # Parse command line 
-# >>> Move over params from notebook, then update notebook to use this file (and just add some comments there)
-
 def parse_args():
   """
   Return back an args dictionary based on a standard parsing of the command line inputs
   """
   
   # Command line settings
-  parser = argparse.ArgumentParser(description='MG/Opt Solver Parameters')
+  parser = argparse.ArgumentParser(description='MNIST example argument parser')
   parser.add_argument('--seed', type=int, default=1, metavar='S',
                       help='random seed (default: 1)')
   parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                       help='how many batches to wait before logging training status')
-  parser.add_argument('--use-fashion',action='store_true', default=False, 
-                      help='Enables the use of Fashion MNIST if on, and Digit MNIST otherwise')
+  parser.add_argument('--dataset', default='digits', 
+                      help='if digits use digits MNIST, if fashion use fashion MNIST') 
   
   # artichtectural settings
-  parser.add_argument('--steps', type=int, default=4, metavar='N',
-                      help='Number of times steps in the resnet layer (default: 4)')
-  parser.add_argument('--channels', type=int, default=8, metavar='N',
-                      help='Number of channels in resnet layer (default: 8)')
-  parser.add_argument('--tf',type=float,default=1.0,
-                      help='Final time')
+  parser.add_argument('--steps', type=int, default=32, metavar='N',
+                      help='Number of times steps in the resnet layer (default: 32)')
+  parser.add_argument('--channels', type=int, default=3, metavar='N',
+                      help='Number of channels in resnet layer (default: 4)')
+  parser.add_argument('--Tf',type=float,default=1.0,
+                      help='Final time for ResNet layer-parallel part')
+  parser.add_argument('--serial-file', type=str, default=None,
+                      help='Save network to file in serial (not parallel) format')
 
-  # algorithmic settings (gradient descent and batching)
+  # algorithmic settings (batching)
+  parser.add_argument('--percent-data', type=float, default=0.05, metavar='N',
+                      help='how much of the data to read in and use for training/testing')
   parser.add_argument('--batch-size', type=int, default=50, metavar='N',
                       help='input batch size for training (default: 50)')
-  parser.add_argument('--NIepochs', type=int, default=2, metavar='N',
-                      help='number of epochs per Nested Iteration (default: 2)')
-  parser.add_argument('--epochs', type=int, default=2, metavar='N',
-                      help='number of epochs to train (default: 2)')
-  parser.add_argument('--samp-ratio', type=float, default=1.0, metavar='N',
-                      help='number of samples as a ratio of the total number of samples')
+  parser.add_argument('--epochs', type=int, default=3, metavar='N',
+                      help='number of epochs to train (default: 3)')
   parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                       help='learning rate (default: 0.01)')
-  parser.add_argument('--zero-init-guess', type=int, default=0, metavar='N',
-                      help='Zero initial guess for all parameters when starting NI (parallel reproducibility), 0:False, 1:True (default: 0)')
-  parser.add_argument('--preserve-optim', type=int, default=1, metavar='N',
-                      help='Preserve optimizer state between MGOpt V-cycles, 0:False, 1:True (default: 1)')
   
-  # algorithmic settings (parallel or serial)
-  parser.add_argument('--lp-fwd-levels', type=int, default=3, metavar='N',
-                      help='Layer parallel levels for forward solve (default: 3)')
-  parser.add_argument('--lp-bwd-levels', type=int, default=3, metavar='N',
-                      help='Layer parallel levels for backward solve (default: 3)')
-  parser.add_argument('--lp-iters', type=int, default=2, metavar='N',
-                      help='Layer parallel iterations (default: 2)')
-  parser.add_argument('--lp-fwd-iters', type=int, default=-1, metavar='N',
-                      help='Layer parallel (forward) iterations (default: -1, default --lp-iters)')
-  parser.add_argument('--lp-print', type=int, default=0, metavar='N',
+  # algorithmic settings (layer-parallel)
+  parser.add_argument('--lp-max-levels', type=int, default=3, metavar='N',
+                      help='Layer parallel max number of levels (default: 3)')
+  parser.add_argument('--lp-bwd-max-iters', type=int, default=1, metavar='N',
+                      help='Layer parallel max backward iterations (default: 1)')
+  parser.add_argument('--lp-fwd-max-iters', type=int, default=2, metavar='N',
+                      help='Layer parallel max forward iterations (default: 2)')
+  parser.add_argument('--lp-print-level', type=int, default=0, metavar='N',
                       help='Layer parallel internal print level (default: 0)')
-  parser.add_argument('--lp-braid-print', type=int, default=0, metavar='N',
+  parser.add_argument('--lp-braid-print-level', type=int, default=0, metavar='N',
                       help='Layer parallel braid print level (default: 0)')
-  parser.add_argument('--lp-fwd-cfactor', type=int, default=4, metavar='N',
-                      help='Layer parallel coarsening factor for forward solve (default: 4)')
-  parser.add_argument('--lp-bwd-cfactor', type=int, default=4, metavar='N',
-                      help='Layer parallel coarsening factor for backward solve (default: 4)')
-  parser.add_argument('--lp-fwd-nrelax-coarse', type=int, default=1, metavar='N',
-                      help='Layer parallel relaxation steps on coarse grids for forward solve (default: 1)')
-  parser.add_argument('--lp-bwd-nrelax-coarse', type=int, default=1, metavar='N',
-                      help='Layer parallel relaxation steps on coarse grids for backward solve (default: 1)')
-  parser.add_argument('--lp-fwd-finefcf',action='store_true', default=False, 
+  parser.add_argument('--lp-cfactor', type=int, default=4, metavar='N',
+                      help='Layer parallel coarsening factor (default: 4)')
+  parser.add_argument('--lp-fine-fcf',action='store_true', default=False, 
                       help='Layer parallel fine FCF for forward solve, on or off (default: False)')
-  parser.add_argument('--lp-bwd-finefcf',action='store_true', default=False, 
-                      help='Layer parallel fine FCF for backward solve, on or off (default: False)')
-  parser.add_argument('--lp-fwd-finalrelax',action='store_true', default=False, 
-                      help='Layer parallel do final FC relax after forward cycle ends (always on for backward). (default: False)')
-  parser.add_argument('--lp-use-downcycle',action='store_true', default=False, 
-                      help='Layer parallel use downcycle on or off (default: False)')
-  parser.add_argument('--lp-use-fmg',action='store_true', default=False, 
-                      help='Layer parallel use FMG for one cycle (default: False)')
-  parser.add_argument('--lp-bwd-relaxonlycg',action='store_true', default=0, 
-                      help='Layer parallel use relaxation only on coarse grid for backward cycle (default: False)')
-  parser.add_argument('--lp-fwd-relaxonlycg',action='store_true', default=0, 
-                      help='Layer parallel use relaxation only on coarse grid for forward cycle (default: False)')
-  parser.add_argument('--lp-use-crelax-wt', type=float, default=1.0, metavar='CWt',
-                      help='Layer parallel use weighted C-relaxation on backwards solve (default: 1.0).  Not used for coarsest braid level.')
+  parser.add_argument('--no-cuda', action='store_true', default=False,
+                      help='disables CUDA training')
+  parser.add_argument('--warm-up', action='store_true', default=False,
+                      help='Warm up for GPU timings (default: False)')
   parser.add_argument('--lp-user-mpi-buf',action='store_true', default=False, 
                       help='Layer parallel use user-defined mpi buffers (default: False)')
-
-  # algorithmic settings (nested iteration)
-  parser.add_argument('--ni-levels', type=int, default=3, metavar='N',
-                      help='Number of nested iteration levels (default: 3)')
-  parser.add_argument('--ni-rfactor', type=int, default=2, metavar='N',
-                      help='Refinment factor for nested iteration (default: 2)')
-  
-  # algorithmic settings (MG/Opt)
-  parser.add_argument('--mgopt-printlevel', type=int, default=1, metavar='N',
-                      help='Print level for MG/Opt, 0 least, 1 some, 2 a lot') 
-  parser.add_argument('--mgopt-iter', type=int, default=1, metavar='N',
-                      help='Number of MG/Opt iterations to optimize over a batch')
-  parser.add_argument('--mgopt-levels', type=int, default=2, metavar='N',
-                      help='Number of MG/Opt levels to use')
-  parser.add_argument('--mgopt-nrelax-pre', type=int, default=1, metavar='N',
-                      help='Number of MG/Opt pre-relaxations on each level')
-  parser.add_argument('--mgopt-nrelax-post', type=int, default=1, metavar='N',
-                      help='Number of MG/Opt post-relaxations on each level')
-  parser.add_argument('--mgopt-nrelax-coarse', type=int, default=3, metavar='N',
-                      help='Number of MG/Opt relaxations to solve the coarsest grid')
-
+  parser.add_argument('--lp-use-downcycle', action='store_true', default=False,
+                      help='Layer parallel use downcycle on or off (default: False)')
+  parser.add_argument('--lp-gpu-direct-commu', action='store_true', default=False,
+                      help='Layer parallel GPU direct communication (default: False)')
 
   ##
   # Do some parameter checking
@@ -256,28 +238,14 @@ def parse_args():
   procs = MPI.COMM_WORLD.Get_size()
   args = parser.parse_args()
   
-  if args.lp_bwd_levels==-1:
+  if args.lp_max_levels < 1:
     min_coarse_size = 3
-    args.lp_bwd_levels = compute_levels(args.steps, min_coarse_size, args.lp_bwd_cfactor)
+    args.lp_max_levels = compute_levels(args.steps, min_coarse_size, args.lp_cfactor)
 
-  if args.lp_fwd_levels==-1:
-    min_coarse_size = 3
-    args.lp_fwd_levels = compute_levels(args.steps,min_coarse_size,args.lp_fwd_cfactor)
-
-  if args.steps % procs!=0:
-    root_print(rank, 1, 1, 'Steps must be an even multiple of the number of processors: %d %d' % (args.steps,procs) )
+  if args.steps % procs != 0:
+    root_print(rank, 1, 1, 'Steps must be an even multiple of the number of processors: %d %d' % (args.steps, procs) )
     sys.exit(0)
   
-  ni_levels = args.ni_levels
-  ni_rfactor = args.ni_rfactor
-  if args.steps % ni_rfactor**(ni_levels-1) != 0:
-    root_print(rank, 1, 1, 'Steps combined with the coarsest nested iteration level must be an even multiple: %d %d %d' % (args.steps,ni_rfactor,ni_levels-1))
-    sys.exit(0)
-  
-  if args.steps / ni_rfactor**(ni_levels-1) % procs != 0:
-    root_print(rank, 1, 1, 'Coarsest nested iteration must fit on the number of processors')
-    sys.exit(0)
-
   return args
 
 
