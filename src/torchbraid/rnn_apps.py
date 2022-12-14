@@ -37,7 +37,7 @@ import traceback
 import numpy as np
 
 from torchbraid.torchbraid_app import BraidApp
-import utils
+import torchbraid.utils
 
 import sys
 
