@@ -11,9 +11,11 @@ A braid interface to pytorch
   + MPI compiler
 
 Conda environments can be found in 'torchbraid/env' directories. These can be used too get a consistent conda enviroonement
-for using torchbraid. The one caveat, is that mpi4py should be installed consistenclty with the MPI compiler. In some cases
+for using torchbraid. The one caveat, is that mpi4py should be installed consistently with the MPI compiler. In some cases
 doing a 'pip install mpi4py' is to be preferred to installing it through conda (conda installs an alternate MPI compiler and
 library. You might want mpi4py to use the native one on your platform).
+
+Note, virtual environments can be used instead of Conda.
 
 Note, the cython version is pretty important, particularly if torch layers are shipped directly by braid.
 
@@ -24,14 +26,38 @@ Note, the cython version is pretty important, particularly if torch layers are s
   conda activate py37
   MPICC=path/to/mpicc pip install mpi4py
   ```
+## Build torchbraid (pip):
 
-## Build xbraid:
+1. Optional: create a new virtual environment
+ `python -m venv pip-test`
+ `source pip-test/bin/activate`
+
+1. Install using pip from torchbraid directory
+ `pip install .`
+
+If a development environment is desired, do
+`pip install -e .`
+Then all changes in the .py files are directly applicable in the
+installation. Changes to .pyx files require a re-installation.
+
+1. Run unit tests (may need to install tox)
+  `tox`
+
+1. Test run
+ `cd examples/mnist/`
+ `python download.py`
+ `mpirun -n 2 python main.py`
+
+
+## Build torchbraid (Makefile):
+
+### Build xbraid:
   1. Download from git@github.com:XBraid/xbraid.git
   1. The master branch should work fine
   1. From the xbraid directory run `make debug=no braid`
 
-## Build torchbraid:
 
+### Build torchbraid
   1. Copy makefile.inc.example to makefile.inc 
   1. Modify makefile.inc to include your build specifics
   1. Type make
