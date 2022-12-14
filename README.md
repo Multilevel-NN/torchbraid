@@ -29,23 +29,24 @@ Note, the cython version is pretty important, particularly if torch layers are s
 ## Build torchbraid (pip):
 
 1. Optional: create a new virtual environment
- `python -m venv pip-test`
- `source pip-test/bin/activate`
 
-1. Install using pip from torchbraid directory
- `pip install .`
+   `python -m venv pip-test`  
+   `source pip-test/bin/activate`
 
-If a development environment is desired, do
-`pip install -e .`
-Then all changes in the .py files are directly applicable in the
-installation. Changes to .pyx files require a re-installation.
+1. Install using pip.  From inside torchbraid directory, do  
+  `pip install .`
 
-1. Run unit tests (may need to install tox)
+    If a development environment is desired, do  
+    `pip install -e .`  
+    Then all changes in the .py files are directly applicable in the
+    installation. Changes to .pyx files require a re-installation.
+
+1. Run unit tests (may need to install tox)  
   `tox`
 
-1. Test run
- `cd examples/mnist/`
- `python download.py`
+1. Test run  
+ `cd examples/mnist/`  
+ `python download.py`  
  `mpirun -n 2 python main.py`
 
 
@@ -81,7 +82,7 @@ Take look at code in the examples directory.
 
    `make uninstall`
 
-### GPU direct communication
+## GPU direct communication
 
 The default communication scheme of torchbraid using GPU's and layer parallel is given by: 
 
