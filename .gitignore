@@ -3,6 +3,7 @@ braid.out.cycle
 
 .vscode
 
+.ipynb_checkpoints/
 __pycache__/
 examples/mnist/data/
 examples/mnist/digit-data/
