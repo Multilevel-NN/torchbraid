@@ -32,7 +32,7 @@ torchbraid/rnn_braid_app.*.so
 torchbraid/rnn_braid_app.html
 
 examples/tiny_imagenet/tiny-imagenet-200
-
+examples/mnist/mnist_layerparallel_training.png
 examples/rnns/uci-har/UCI\ HAR\ Dataset/
 examples/rnns/uci-har/UCI\ HAR\ Dataset.zip
 examples/rnns/uci-har/__MACOSX
