@@ -603,6 +603,9 @@ class BraidApp:
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_ResetTimer(core)
 
+  def setBraidTimers(self, flag):
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetTimings(core, flag)
 
   def setSkipDowncycle(self,skip):
     if skip:
