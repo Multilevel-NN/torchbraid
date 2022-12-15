@@ -11,7 +11,7 @@ A braid interface to pytorch
   + MPI compiler
 
 Conda environments can be found in 'torchbraid/env' directories. These can be used too get a consistent conda enviroonement
-for using torchbraid. The one caveat, is that mpi4py should be installed consistenclty with the MPI compiler. In some cases
+for using torchbraid. The one caveat, is that mpi4py should be installed consistently with the MPI compiler. In some cases
 doing a 'pip install mpi4py' is to be preferred to installing it through conda (conda installs an alternate MPI compiler and
 library. You might want mpi4py to use the native one on your platform).
 
@@ -35,10 +35,10 @@ Note, the cython version is pretty important, particularly if torch layers are s
   1. Copy makefile.inc.example to makefile.inc 
   1. Modify makefile.inc to include your build specifics
   1. Type make
-  1. You will need to add 
-       `export PYTHONPATH=${TORCHBRAID_DIR}/torchbraid:${TORCHBRAID_DIR}:${PYTHONPATH}` to your 
-     environment, this makes sure that the python search path
-     for modules is setup
+  1. You will need to add the torchbraid directory to your python path. E.g.:
+      `export TORCHBRAID_DIR=/path/to/torchbraid`
+      `export PYTHONPATH=${TORCHBRAID_DIR}/torchbraid:${TORCHBRAID_DIR}:${PYTHONPATH}`
+    This makes sure that the python search path for modules is setup.
 
 Take look at code in the examples directory.
 
