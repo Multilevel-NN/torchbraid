@@ -1,4 +1,4 @@
-#@HEADER
+# @HEADER
 # ************************************************************************
 # 
 #                        Torchbraid v. 0.1
@@ -27,7 +27,7 @@
 # Questions? Contact Eric C. Cyr (eccyr@sandia.gov)
 # 
 # ************************************************************************
-#@HEADER
+# @HEADER
 
 ###
 #
@@ -57,22 +57,24 @@ import numpy as np
 import sys
 
 import torch
-import torch.nn                 as nn
-import torch.optim              as optim
+import torch.nn as nn
+import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
-import statistics               as stats
+import statistics as stats
 
 from torchvision import datasets, transforms
 from timeit import default_timer as timer
 
 from utils import parse_args, buildNet, ParallelNet, getComm, git_rev, getDevice
 
-def root_print(rank,s):
-  if rank==0:
+
+def root_print(rank, s):
+  if rank == 0:
     print(s)
     sys.stdout.flush()
 
-def train(rank,args,model,train_loader,optimizer,epoch,compose,device):
+
+def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
   log_interval = args.log_interval
   torch.enable_grad()
 
@@ -88,7 +90,7 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,device):
   total_data = 0
 
   cumulative_start_time = timer()
-  for batch_idx,(data,target) in enumerate(train_loader):
+  for batch_idx, (data, target) in enumerate(train_loader):
     data = data.to(device)
     target = target.long()
     target = target.to(device)
@@ -99,21 +101,21 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,device):
     optimizer.zero_grad()
     start_time_fp = timer()
     output = model(data)
-    total_time_fp += timer()-start_time_fp
+    total_time_fp += timer() - start_time_fp
 
     fwd_itr, fwd_res = model.getFwdStats()
 
     # compute loss
     start_time_cm = timer()
-    if len(output.shape)==1:
-      output = torch.unsqueeze(output,0)
-    loss = compose(criterion,output,target)
-    total_time_cm += timer()-start_time_cm
+    if len(output.shape) == 1:
+      output = torch.unsqueeze(output, 0)
+    loss = compose(criterion, output, target)
+    total_time_cm += timer() - start_time_cm
 
     # compute gradient
     start_time_bp = timer()
     loss.backward()
-    total_time_bp += timer()-start_time_bp
+    total_time_bp += timer() - start_time_bp
 
     bwd_itr, bwd_res = model.getBwdStats()
 
@@ -121,49 +123,50 @@ def train(rank,args,model,train_loader,optimizer,epoch,compose,device):
     stop_time = timer()
     optimizer.step()
 
-    total_data    += len(data)
-    total_time    += stop_time-start_time
+    total_data += len(data)
+    total_time += stop_time - start_time
 
     cumulative_stop_time = timer()
-    cumulative_time = (cumulative_stop_time-cumulative_start_time) 
+    cumulative_time = (cumulative_stop_time - cumulative_start_time)
 
     if batch_idx % log_interval == 0:
-        root_print(rank,format_str.format(
-                        epoch, 
-                        total_data,
-                        len(train_loader.dataset), 
-                        loss.item(),
-                        total_time/(batch_idx+1.0),
-                        cumulative_time/(batch_idx+1.0),
-                        fwd_itr,fwd_res,
-                        bwd_itr,bwd_res
-                        ))
+      root_print(rank, format_str.format(
+        epoch,
+        total_data,
+        len(train_loader.dataset),
+        loss.item(),
+        total_time / (batch_idx + 1.0),
+        cumulative_time / (batch_idx + 1.0),
+        fwd_itr, fwd_res,
+        bwd_itr, bwd_res
+      ))
 
-  root_print(rank,(format_str+', fp={:.6f}, cm={:.6f}, bp={:.6f}').format(
-                  epoch, 
-                  len(train_loader.dataset),
-                  len(train_loader.dataset), 
-                  loss.item(),
-                  total_time/(batch_idx+1.0),
-                  cumulative_time/(batch_idx+1.0),
-                  fwd_itr,fwd_res,
-                  bwd_itr,bwd_res,
-                  total_time_fp/len(train_loader.dataset),
-                  total_time_cm/len(train_loader.dataset),
-                  total_time_bp/len(train_loader.dataset),
-                  ))
+  root_print(rank, (format_str + ', fp={:.6f}, cm={:.6f}, bp={:.6f}').format(
+    epoch,
+    len(train_loader.dataset),
+    len(train_loader.dataset),
+    loss.item(),
+    total_time / (batch_idx + 1.0),
+    cumulative_time / (batch_idx + 1.0),
+    fwd_itr, fwd_res,
+    bwd_itr, bwd_res,
+    total_time_fp / len(train_loader.dataset),
+    total_time_cm / len(train_loader.dataset),
+    total_time_bp / len(train_loader.dataset),
+  ))
 
-def test(rank,args,model,test_loader,epoch,compose,device,prefix=''):
+
+def test(rank, args, model, test_loader, epoch, compose, device, prefix=''):
   log_interval = args.log_interval
   model.eval()
   correct = 0
   criterion = nn.CrossEntropyLoss()
   total_time = 0.0
-  root_print(rank,f'EPOCH={epoch} TEST')
+  root_print(rank, f'EPOCH={epoch} TEST')
 
   total_data = 0
   with torch.no_grad():
-    for batch_idx,(data,target) in enumerate(test_loader):
+    for batch_idx, (data, target) in enumerate(test_loader):
       start_time = timer()
       data = data.to(device)
       target = target.long()
@@ -172,39 +175,39 @@ def test(rank,args,model,test_loader,epoch,compose,device,prefix=''):
       # evaluate inference
       output = model(data)
 
-      if len(output.shape)==1:
-        output = torch.unsqueeze(output,0)
+      if len(output.shape) == 1:
+        output = torch.unsqueeze(output, 0)
 
       # compute the number of solutions
-      pred = compose(torch.argmax,output, dim=1, keepdim=True)
+      pred = compose(torch.argmax, output, dim=1, keepdim=True)
       stop_time = timer()
 
-      total_time += stop_time-start_time
+      total_time += stop_time - start_time
       total_data += len(data)
 
       # only accumulate the correct values on the root
-      if rank==0:
+      if rank == 0:
         correct += pred.eq(target.view_as(pred)).sum().item()
 
       if batch_idx % log_interval == 0:
         format_str = 'Test Epoch: {:2d} [{:6d}/{:6d}]'
-        root_print(rank,format_str.format(
-                   epoch,
-                   total_data,
-                   len(test_loader.dataset)))
+        root_print(rank, format_str.format(
+          epoch,
+          total_data,
+          len(test_loader.dataset)))
 
-  root_print(rank,'{}Test set epoch {:2d}: Accuracy: {}/{} ({:.0f}%)\tTime Per Batch {:.6f}'.format(
-      prefix,
-      epoch,
-      correct, len(test_loader.dataset),
-      100. * correct / len(test_loader.dataset),
-      total_time/len(test_loader.dataset)))
-
+  root_print(rank, '{}Test set epoch {:2d}: Accuracy: {}/{} ({:.0f}%)\tTime Per Batch {:.6f}'.format(
+    prefix,
+    epoch,
+    correct, len(test_loader.dataset),
+    100. * correct / len(test_loader.dataset),
+    total_time / len(test_loader.dataset)))
 
   return 100. * correct / len(test_loader.dataset)
 
+
 class FakeIter:
-  def __init__(self,cnt,elmt): 
+  def __init__(self, cnt, elmt):
     self.cnt = cnt
     self.elmt = elmt
 
@@ -212,43 +215,44 @@ class FakeIter:
     return self
 
   def __next__(self):
-    if self.cnt>0:
+    if self.cnt > 0:
       self.cnt -= 1
       return self.elmt
     else:
       raise StopIteration
 
+
 class FakeLoader:
-  def __init__(self,cnt,device):
+  def __init__(self, cnt, device):
     self.cnt = cnt
 
-    elmt = torch.tensor((),device=device)
-    self.elmt = (elmt,elmt)
+    elmt = torch.tensor((), device=device)
+    self.elmt = (elmt, elmt)
 
-    self.dataset = cnt*[None]
+    self.dataset = cnt * [None]
 
   def __iter__(self):
-    return FakeIter(self.cnt,self.elmt)
+    return FakeIter(self.cnt, self.elmt)
 
-def parallel_loader(rank,loader,device):  
-  if rank==0:
+
+def parallel_loader(rank, loader, device):
+  if rank == 0:
     return loader
   batches = len(loader)
-  return FakeLoader(batches,device)
+  return FakeLoader(batches, device)
+
 
 def main():
-  
   ##
   # Parse command line args (function defined above)
   args = parse_args(mgopt_on=False)
   comm = getComm()
   procs = comm.Get_size()
-  rank  = comm.Get_rank()
+  rank = comm.Get_rank()
 
-  root_print(rank,'TORCHBRAID REV: %s' % git_rev())
+  root_print(rank, 'TORCHBRAID REV: %s' % git_rev())
 
-
-  my_device,my_host = getDevice(comm)
+  my_device, my_host = getDevice(comm)
 
   global_steps = args.steps
 
@@ -256,14 +260,13 @@ def main():
   # Load training and testing data, while reducing the number of samples (if desired) for faster execution
   transform = transforms.Compose([transforms.ToTensor(),
                                   transforms.Normalize((0.1307,), (0.3081,))
-                                 ])
+                                  ])
   ##
   # Load Tiny ImageNet
-  if rank==0:
+  if rank == 0:
     print('Using Tiny ImageNet...\n')
     print(args)
   ##
-
 
   # Load datasets
   traindir = './tiny-imagenet-200/new_train'
@@ -271,78 +274,86 @@ def main():
   normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
                                    std=[0.2023, 0.1994, 0.2010])
   train_dataset = datasets.ImageFolder(traindir,
-      transforms.Compose([
-          # transforms.RandomResizedCrop(56),
-          # transforms.RandomHorizontalFlip(),
-          # transforms.Resize(64),
-          transforms.RandomCrop(64, padding=4),
-          transforms.RandomHorizontalFlip(),
-          transforms.ToTensor(),
-          normalize, transforms.RandomErasing(0.25) ]))
+                                       transforms.Compose([
+                                         # transforms.RandomResizedCrop(56),
+                                         # transforms.RandomHorizontalFlip(),
+                                         # transforms.Resize(64),
+                                         transforms.RandomCrop(64, padding=4),
+                                         transforms.RandomHorizontalFlip(),
+                                         transforms.ToTensor(),
+                                         normalize, transforms.RandomErasing(0.25)]))
   test_dataset = datasets.ImageFolder(valdir, transforms.Compose([
-                                      transforms.Resize(64),
-                                      transforms.ToTensor(),
-                                      normalize ])) 
+    transforms.Resize(64),
+    transforms.ToTensor(),
+    normalize]))
 
   # Trim datasets 
-  train_size = int(88000*args.samp_ratio)
-  test_size = int(22000*args.samp_ratio)
+  train_size = int(88000 * args.samp_ratio)
+  test_size = int(22000 * args.samp_ratio)
   #
   train_dataset = torch.utils.data.Subset(train_dataset, range(train_size))
-  test_dataset  = torch.utils.data.Subset(test_dataset, range(test_size))
+  test_dataset = torch.utils.data.Subset(test_dataset, range(test_size))
 
   # Create data loaders
   train_loader = torch.utils.data.DataLoader(train_dataset,
-          batch_size=args.batch_size, shuffle=True,
-          pin_memory=True)
-  train_loader = parallel_loader(rank,train_loader,my_device)
+                                             batch_size=args.batch_size, shuffle=True,
+                                             pin_memory=True)
+  train_loader = parallel_loader(rank, train_loader, my_device)
   test_loader = torch.utils.data.DataLoader(test_dataset,
-          batch_size=args.batch_size, shuffle=False,
-          pin_memory=True)
-  test_loader = parallel_loader(rank,test_loader,my_device)
-  if rank==0:
-    print("\nTraining setup:  Batch size:  " + str(args.batch_size) + "  Sample ratio:  " + str(args.samp_ratio) + "  Epochs:  " + str(args.epochs) )
+                                            batch_size=args.batch_size, shuffle=False,
+                                            pin_memory=True)
+  test_loader = parallel_loader(rank, test_loader, my_device)
+  if rank == 0:
+    print("\nTraining setup:  Batch size:  " + str(args.batch_size) + "  Sample ratio:  " + str(
+      args.samp_ratio) + "  Epochs:  " + str(args.epochs))
 
   ##
   # Define ParNet parameters for each nested iteration level, starting from fine to coarse
-  network = {                 'channels'          : args.channels, 
-                              'global_steps'      : global_steps,
-                              'max_iters'         : args.lp_iters,
-                              'print_level'       : args.lp_print,
-                              'Tf'                : args.tf,
-                              'max_fwd_levels'    : args.lp_fwd_levels,
-                              'max_bwd_levels'    : args.lp_bwd_levels,
-                              'max_fwd_iters'     : args.lp_fwd_iters,
-                              'print_level'       : args.lp_print,
-                              'braid_print_level' : args.lp_braid_print,
-                              'fwd_cfactor'       : args.lp_fwd_cfactor,
-                              'bwd_cfactor'       : args.lp_bwd_cfactor,
-                              'fine_fwd_fcf'      : args.lp_fwd_finefcf,
-                              'fine_bwd_fcf'      : args.lp_bwd_finefcf,
-                              'fwd_nrelax'        : args.lp_fwd_nrelax_coarse,
-                              'bwd_nrelax'        : args.lp_bwd_nrelax_coarse,
-                              'skip_downcycle'    : not args.lp_use_downcycle,
-                              'fmg'               : args.lp_use_fmg,
-                              'fwd_relax_only_cg' : args.lp_fwd_relaxonlycg,
-                              'bwd_relax_only_cg' : args.lp_bwd_relaxonlycg,
-                              'CWt'               : args.lp_use_crelax_wt,
-                              'fwd_finalrelax'    : args.lp_fwd_finalrelax,
-                              'diff_scale'        : args.diff_scale,
-                              'activation'        : args.activation
-                      }
+  network = {'channels': args.channels,
+             'global_steps': global_steps,
+             'max_iters': args.lp_iters,
+             'print_level': args.lp_print,
+             'Tf': args.tf,
+             'max_fwd_levels': args.lp_fwd_levels,
+             'max_bwd_levels': args.lp_bwd_levels,
+             'max_fwd_iters': args.lp_fwd_iters,
+             'print_level': args.lp_print,
+             'braid_print_level': args.lp_braid_print,
+             'fwd_cfactor': args.lp_fwd_cfactor,
+             'bwd_cfactor': args.lp_bwd_cfactor,
+             'fine_fwd_fcf': args.lp_fwd_finefcf,
+             'fine_bwd_fcf': args.lp_bwd_finefcf,
+             'fwd_nrelax': args.lp_fwd_nrelax_coarse,
+             'bwd_nrelax': args.lp_bwd_nrelax_coarse,
+             'skip_downcycle': not args.lp_use_downcycle,
+             'fmg': args.lp_use_fmg,
+             'fwd_relax_only_cg': args.lp_fwd_relaxonlycg,
+             'bwd_relax_only_cg': args.lp_bwd_relaxonlycg,
+             'CWt': args.lp_use_crelax_wt,
+             'fwd_finalrelax': args.lp_fwd_finalrelax,
+             'diff_scale': args.diff_scale,
+             'activation': args.activation
+             }
 
   ##
   # Initialize MG/Opt solver with nested iteration 
   epochs = args.epochs
   log_interval = args.log_interval
 
-  model = buildNet(not args.use_serial,**network)
+  model = buildNet(not args.use_serial, **network)
 
+  # Activate Braid timers and specify output files
+  model.parallel_nn.fwd_app.setBraidTimers(flag=1)
+  model.parallel_nn.bwd_app.setBraidTimers(flag=1)
+  model.parallel_nn.fwd_app.setTimerFile(
+    f'b_fwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
+  model.parallel_nn.bwd_app.setTimerFile(
+    f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
 
-  if args.opt=='SGD':
-    optimizer = optim.SGD(model.parameters(), lr=args.lr)#, weight_decay=0.0001)
+  if args.opt == 'SGD':
+    optimizer = optim.SGD(model.parameters(), lr=args.lr)  # , weight_decay=0.0001)
   else:
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)#, weight_decay=0.0001)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)  # , weight_decay=0.0001)
   compose = model.compose
 
   epoch_times = []
@@ -351,66 +362,85 @@ def main():
   scheduler = None
 
   if args.lr_scheduler:
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10,30], gamma=0.1,verbose=(rank==0))
+    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10, 30], gamma=0.1, verbose=(rank == 0))
 
   if args.load_model:
-    root_print(rank,f'Loading from \"{args.model_dir}\"')
-    model.loadParams(rank,args.model_dir)
+    root_print(rank, f'Loading from \"{args.model_dir}\"')
+    model.loadParams(rank, args.model_dir)
     optimizer.load_state_dict(torch.load(f'{args.model_dir}/optimizer.{rank}.mdl'))
     if args.lr_scheduler:
       scheduler.load_state_dict(torch.load(f'{args.model_dir}/scheduler.{rank}.mdl'))
 
   model = model.to(my_device)
 
-  if rank==0:
+  if rank == 0:
     print('===============MODEL=============\n')
   print(model)
 
-  if rank==0:
+  if rank == 0:
     print('===============OPTIMIZER=============\n')
     print(optimizer)
 
-  if rank==0:
+  if rank == 0:
     print('===============SCHEDULER=============\n')
     print(scheduler)
 
+  # Warm up gpu's (There has to be a cheaper way than calling a complete train call.
+  # We just need one small run to "start" the gpu's.
+  if str(my_device).startswith('cuda'):
+    warm_up_timer = timer()
+    train(rank=rank, args=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=0,
+          compose=compose, device=my_device)
+    model.parallel_nn.timer_manager.resetTimers()
+    model.parallel_nn.fwd_app.resetBraidTimer()
+    model.parallel_nn.bwd_app.resetBraidTimer()
+    torch.cuda.synchronize()
+    epoch_times = []
+    test_times = []
+    root_print(rank, f'Warm up timer {timer() - warm_up_timer}')
+
+  print(f'Run info rank: {rank}: Torch version: {torch.__version__} | Device: {my_device} | Host: {my_host}')
 
   epoch = 0
   start_time = timer()
-  test_result = test(rank,args,model, test_loader,epoch,compose,my_device)
+  test_result = test(rank, args, model, test_loader, epoch, compose, my_device)
   end_time = timer()
-  test_times += [end_time-start_time]  
+  test_times += [end_time - start_time]
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
-    train(rank,args, model, train_loader, optimizer, epoch,compose,my_device)
+    train(rank, args, model, train_loader, optimizer, epoch, compose, my_device)
     end_time = timer()
-    epoch_times += [end_time-start_time]
+    epoch_times += [end_time - start_time]
 
     start_time = timer()
-    test_result = test(rank,args,model, test_loader,epoch,compose,my_device)
+    test_result = test(rank, args, model, test_loader, epoch, compose, my_device)
     end_time = timer()
-    test_times += [end_time-start_time]  
+    test_times += [end_time - start_time]
 
     if scheduler is not None:
       scheduler.step()
 
     # output the serial and parallel models
     if args.save_model:
-      root_print(rank,f'Saving to \"{args.model_dir}\"')
-      torch.save(optimizer.state_dict(),f'{args.model_dir}/optimizer.{rank}.mdl')
+      root_print(rank, f'Saving to \"{args.model_dir}\"')
+      torch.save(optimizer.state_dict(), f'{args.model_dir}/optimizer.{rank}.mdl')
       if args.lr_scheduler:
-        torch.save(scheduler.state_dict(),f'{args.model_dir}/scheduler.{rank}.mdl')
-      model.saveParams(rank,args.model_dir)
+        torch.save(scheduler.state_dict(), f'{args.model_dir}/scheduler.{rank}.mdl')
+      model.saveParams(rank, args.model_dir)
     # end args
 
   if not args.use_serial:
     timer_str = model.parallel_nn.getTimersString()
-    root_print(rank,timer_str)
+    root_print(rank, timer_str)
+
+  root_print(rank,
+             f'TIME PER EPOCH: {"{:.2f}".format(stats.mean(epoch_times))} '
+             f'{("(1 std dev " + "{:.2f})".format(stats.mean(epoch_times))) if len(epoch_times) > 1 else ""}')
+  root_print(rank,
+             f'TIME PER TEST:  {"{:.2f}".format(stats.mean(test_times))} '
+             f'{("(1 std dev " + "{:.2f})".format(stats.mean(test_times))) if len(test_times) > 1 else ""}')
 
 
-  root_print(rank,'TIME PER EPOCH: %.2e (1 std dev %.2e)' % (stats.mean(epoch_times),stats.stdev(epoch_times)))
-  root_print(rank,'TIME PER TEST:  %.2e (1 std dev %.2e)' % (stats.mean(test_times), stats.stdev(test_times)))
-  
 if __name__ == '__main__':
   main()
