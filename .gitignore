@@ -28,6 +28,8 @@ src/torchbraid/torchbraid_callbacks.html
 src/torchbraid/rnn_braid_app.c
 src/torchbraid/rnn_braid_app.*.so
 src/torchbraid/rnn_braid_app.html
+src/torchbraid/test_fixtures/*.so
+src/torchbraid/test_fixtures/test_cbs.c
 src/xbraid
 
 examples/tiny_imagenet/tiny-imagenet-200

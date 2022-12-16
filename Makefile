@@ -1,17 +1,20 @@
 .PHONY: tests clean uninstall all
 
-all: 
-	make -C ./torchbraid
+all:
+	make -C ./src/torchbraid/test_fixtures
+	make -C ./src/torchbraid
 	make -C ./tests
 
 clean:
-	make -C ./torchbraid clean
+	make -C ./src/torchbraid/test_fixtures clean
+	make -C ./src/torchbraid clean
 	make -C ./tests clean
 	rm -fr examples/mnist/data
 	rm -fr examples/cifar10/data
 
 uninstall:
-	make -C ./torchbraid uninstall
+	make -C ./src/torchbraid/test_fixtures uninstall
+	make -C ./src/torchbraid uninstall
 	make -C ./tests uninstall
 
 tests test:
