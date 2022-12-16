@@ -35,7 +35,7 @@
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from cpython.ref cimport PyObject
 
-include "../torchbraid/torchbraid_app.pyx"
+include "../torchbraid_app.pyx"
 
 # Other helper functions (mostly for testing)
 #################################

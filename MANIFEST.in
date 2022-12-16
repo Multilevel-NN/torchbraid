@@ -1,3 +1,3 @@
 recursive-include src *.h
 recursive-include src *.a
-recursive-include tests *.pyx
+recursive-include src *.pyx

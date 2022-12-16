@@ -37,8 +37,6 @@ import numpy as np
 import torchbraid
 import torchbraid.utils as tbutils
 
-import test_cbs as cbs
-
 from mpi4py import MPI
 
 def getDevice(comm):
@@ -89,7 +87,7 @@ class DummyApp:
 class TestTorchBraid(unittest.TestCase):
   def test_clone_init(self):
     app = DummyApp(float,use_cuda)
-    clone_vec = cbs.cloneInitVector(app)
+    clone_vec = torchbraid.test_cbs.cloneInitVector(app)
     clone = clone_vec.tensor()
     clone_sz = clone.size()
 
@@ -105,7 +103,7 @@ class TestTorchBraid(unittest.TestCase):
     ten = vec.tensor() 
     ten *= 2.0
 
-    clone_vec = cbs.cloneVector(app,vec)
+    clone_vec = torchbraid.test_cbs.cloneVector(app,vec)
     clone = clone_vec.tensor()
     clone_sz = clone.size()
 
@@ -116,8 +114,8 @@ class TestTorchBraid(unittest.TestCase):
   # end test_clone
 
   def test_buff_size(self):
-    sizeof_float = cbs.sizeof_float()
-    sizeof_int   = cbs.sizeof_int()
+    sizeof_float = torchbraid.test_cbs.sizeof_float()
+    sizeof_int   = torchbraid.test_cbs.sizeof_int()
 
     app = DummyApp(float,use_cuda)
     shapes = app.getTensorShapes()
@@ -138,7 +136,7 @@ class TestTorchBraid(unittest.TestCase):
       data_shapes += len(s)*sizeof_int
       data_size += s.numel()*sizeof_float
 
-    sz = cbs.bufSize(app)
+    sz = torchbraid.test_cbs.bufSize(app)
 
     total_size = ( sizeof_int                # floats
                  + sizeof_int                # num tensors
@@ -153,8 +151,8 @@ class TestTorchBraid(unittest.TestCase):
   # end test_buff_size
 
   def test_buff_pack_unpack(self):
-    sizeof_float = cbs.sizeof_float()
-    sizeof_int   = cbs.sizeof_int()
+    sizeof_float = torchbraid.test_cbs.sizeof_float()
+    sizeof_int   = torchbraid.test_cbs.sizeof_int()
 
     app = DummyApp(torch.float,use_cuda)
     shapes = app.getTensorShapes()
@@ -168,10 +166,10 @@ class TestTorchBraid(unittest.TestCase):
     bv_in.addWeightTensors((c,d))
 
     # allocate space
-    block = cbs.MemoryBlock(cbs.bufSize(app))
+    block = torchbraid.test_cbs.MemoryBlock(torchbraid.test_cbs.bufSize(app))
 
     # communicate in/out
-    cbs.pack(app,bv_in,block,0)
+    torchbraid.test_cbs.pack(app,bv_in,block,0)
 
     # we want to make sure we are not just blindly copying
     # memory
@@ -180,7 +178,7 @@ class TestTorchBraid(unittest.TestCase):
     c += 1.0
     d += 1.0
 
-    bv_out = cbs.unpack(app,block)
+    bv_out = torchbraid.test_cbs.unpack(app,block)
 
     # check the answers
     self.assertEqual(len(bv_in.allTensors()),len(bv_out.allTensors()))
