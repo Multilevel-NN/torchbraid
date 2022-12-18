@@ -131,6 +131,8 @@ cdef extern from "braid_status.h":
     # Wrap BufferStatus Routines
     int braid_BufferStatusGetMessageType(braid_BufferStatus status, int *messagetype_ptr)
     int braid_BufferStatusSetSize(braid_BufferStatus status, int size)
+    int braid_BufferStatusGetTIndex(braid_BufferStatus status, int * idx)
+    int braid_BufferStatusGetLevel(braid_BufferStatus status, int * level)
 
     ##
     # Wrap SyncStatus Routines
@@ -234,6 +236,7 @@ cdef extern from "braid.h":
     int braid_SetShell(braid_Core core, braid_PtFcnSInit sinit, braid_PtFcnSClone sclone, braid_PtFcnSFree sfree)
     int braid_SetTimerFile(braid_Core core, int length, const char *filestem)
     int braid_ResetTimer(braid_Core core)
+    int braid_SetTimings(braid_Core core, int boolean)
 
     ##
     # Braid Test Routines

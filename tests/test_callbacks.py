@@ -1,34 +1,3 @@
-#@HEADER
-# ************************************************************************
-# 
-#                        Torchbraid v. 0.1
-# 
-# Copyright 2020 National Technology & Engineering Solutions of Sandia, LLC 
-# (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. 
-# Government retains certain rights in this software.
-# 
-# Torchbraid is licensed under 3-clause BSD terms of use:
-# 
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are
-# met:
-# 
-# 1. Redistributions of source code must retain the above copyright
-# notice, this list of conditions and the following disclaimer.
-# 
-# 2. Redistributions in binary form must reproduce the above copyright
-# notice, this list of conditions and the following disclaimer in the
-# documentation and/or other materials provided with the distribution.
-# 
-# 3. Neither the name National Technology & Engineering Solutions of Sandia, 
-# LLC nor the names of the contributors may be used to endorse or promote 
-# products derived from this software without specific prior written permission.
-# 
-# Questions? Contact Eric C. Cyr (eccyr@sandia.gov)
-# 
-# ************************************************************************
-#@HEADER
-
 import torch
 import math
 import unittest
@@ -36,8 +5,6 @@ import numpy as np
 
 import torchbraid
 import torchbraid.utils as tbutils
-
-import test_cbs as cbs
 
 from torchbraid.utils import getDevice
 from mpi4py import MPI
@@ -131,7 +98,7 @@ class TestTorchBraid(unittest.TestCase):
 
     app = DummyApp(use_cuda)
 
-    sizeof_float = cbs.sizeof_float(app.dtype)
+    sizeof_float = torchbraid.test_cbs.sizeof_float(app.dtype)
 
     shapes = app.getFeatureShapes(0,0) + app.getParameterShapes(0,0)
 
@@ -161,8 +128,8 @@ class TestTorchBraid(unittest.TestCase):
 
     app = DummyApp(use_cuda)
 
-    sizeof_float = cbs.sizeof_float(app.dtype)
-    tol_float    = 5.*cbs.eps_float(app.dtype) # something small
+    sizeof_float = torchbraid.test_cbs.sizeof_float(app.dtype)
+    tol_float    = 5.*torchbraid.test_cbs.eps_float(app.dtype) # something small
 
     shapes = app.getFeatureShapes(0,0) + app.getParameterShapes(0,0)
 
@@ -192,10 +159,10 @@ class TestTorchBraid(unittest.TestCase):
     # check the answers
     self.assertEqual(len(bv_in.allTensors()),len(bv_out.allTensors()))
     for i,o in zip(bv_in.allTensors(),bv_out.allTensors()):
-      self.assertTrue(torch.norm(i-2.0*o).item()<5.0e-16)
+      self.assertTrue(torch.norm(i-1.0-o).item()<tol_float)
 
 if __name__ == '__main__':
-  device,host_device = tbutils.getDevice(MPI.COMM_WORLD)
+  device,host_device = getDevice(MPI.COMM_WORLD)
   use_cuda = (device.type=='cuda')
   print(f'USE CUDA? = {use_cuda}')
   unittest.main()

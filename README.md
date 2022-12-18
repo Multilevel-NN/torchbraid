@@ -63,8 +63,7 @@ Note, the cython version is pretty important, particularly if torch layers are s
   1. Modify makefile.inc to include your build specifics
   1. Type make
   1. You will need to add the torchbraid directory to your python path. E.g.:
-      `export TORCHBRAID_DIR=/path/to/torchbraid`
-      `export PYTHONPATH=${TORCHBRAID_DIR}/torchbraid:${TORCHBRAID_DIR}:${PYTHONPATH}`
+     1. `export PYTHONPATH=${PYTHONPATH}:/path/to/torchbraid/src`
     This makes sure that the python search path for modules is setup.
 
 Take look at code in the examples directory.

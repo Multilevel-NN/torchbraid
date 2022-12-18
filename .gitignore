@@ -33,6 +33,8 @@ src/torchbraid/rnn_braid_app.html
 src/torchbraid/test_fixtures/*.so
 src/torchbraid/test_fixtures/test_cbs.c
 src/xbraid
+drivers/mnist/fashion-data
+drivers/mnist/data
 
 examples/tiny_imagenet/tiny-imagenet-200
 examples/mnist/mnist_layerparallel_training.png

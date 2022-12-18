@@ -37,7 +37,7 @@ from cpython.ref cimport PyObject
 
 import torch
 
-include "../torchbraid/torchbraid_app.pyx"
+include "../torchbraid_app.pyx"
 
 # Other helper functions (mostly for testing)
 #################################
