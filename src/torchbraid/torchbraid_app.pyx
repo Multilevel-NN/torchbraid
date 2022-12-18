@@ -38,7 +38,7 @@ import traceback
 
 from typing import Union
 from libc.stdio cimport FILE, stdout
-from braid_vector import BraidVector
+from torchbraid.braid_vector import BraidVector
 
 cimport mpi4py.MPI as MPI
 

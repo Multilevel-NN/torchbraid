@@ -1,4 +1,4 @@
-include ../makefile.inc
+include ../../makefile.inc
 
 MODULE_NAME=torchbraid
 

@@ -36,18 +36,18 @@ import torch
 import traceback
 import numpy as np
 
-import torchbraid_app as parent
-import utils
+from torchbraid.torchbraid_app import BraidApp
+import torchbraid.utils
 
 import sys
 
 from timeit import default_timer as timer
 from mpi4py import MPI
 
-class ForwardBraidApp(parent.BraidApp):
+class ForwardBraidApp(BraidApp):
 
   def __init__(self,comm,RNN_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,abs_tol):
-    parent.BraidApp.__init__(self,'RNN',
+    BraidApp.__init__(self,'RNN',
                                    comm,
                                    comm.Get_size()*local_num_steps,
                                    Tf,
@@ -300,11 +300,11 @@ class ForwardBraidApp(parent.BraidApp):
 
 ##############################################################
 
-class BackwardBraidApp(parent.BraidApp):
+class BackwardBraidApp(BraidApp):
 
   def __init__(self,fwd_app,timer_manager,abs_tol):
     # call parent constructor
-    parent.BraidApp.__init__(self,'RNN',fwd_app.getMPIComm(),
+    BraidApp.__init__(self,'RNN',fwd_app.getMPIComm(),
                           fwd_app.getMPIComm().Get_size()*fwd_app.local_num_steps,
                           fwd_app.Tf,
                           fwd_app.max_levels,

@@ -96,7 +96,7 @@ class DummyApp:
 class TestTorchBraid(unittest.TestCase):
   def test_clone_init(self):
     app = DummyApp(use_cuda)
-    clone_vec = cbs.cloneInitVector(app)
+    clone_vec = torchbraid.test_cbs.cloneInitVector(app)
     clone = clone_vec.tensor()
     clone_sz = clone.size()
 
@@ -114,7 +114,7 @@ class TestTorchBraid(unittest.TestCase):
     ten = vec.tensor() 
     ten *= 2.0
 
-    clone_vec = cbs.cloneVector(app,vec)
+    clone_vec = torchbraid.test_cbs.cloneVector(app,vec)
     clone = clone_vec.tensor()
     clone_sz = clone.size()
 
@@ -150,7 +150,7 @@ class TestTorchBraid(unittest.TestCase):
       data_size += s.numel()
     data_size *= sizeof_float
 
-    sz = cbs.bufSize(app)
+    sz = torchbraid.test_cbs.bufSize(app)
 
     total_size = data_size
 
@@ -175,10 +175,10 @@ class TestTorchBraid(unittest.TestCase):
     bv_in.addWeightTensors((c,d))
 
     # allocate space
-    block = cbs.MemoryBlock(app,cbs.bufSize(app))
+    block = torchbraid.test_cbs.MemoryBlock(app,torchbraid.test_cbs.bufSize(app))
 
     # communicate in/out
-    cbs.pack(app,bv_in,block,0)
+    torchbraid.test_cbs.pack(app,bv_in,block,0)
 
     # we want to make sure we are not just blindly copying
     # memory
@@ -187,15 +187,15 @@ class TestTorchBraid(unittest.TestCase):
     c += 1.0
     d += 1.0
 
-    bv_out = cbs.unpack(app,block)
+    bv_out = torchbraid.test_cbs.unpack(app,block)
 
     # check the answers
     self.assertEqual(len(bv_in.allTensors()),len(bv_out.allTensors()))
     for i,o in zip(bv_in.allTensors(),bv_out.allTensors()):
-      self.assertTrue(torch.norm(i-1.0-o).item()<tol_float)
+      self.assertTrue(torch.norm(i-2.0*o).item()<5.0e-16)
 
 if __name__ == '__main__':
-  device,host_device = getDevice(MPI.COMM_WORLD)
+  device,host_device = tbutils.getDevice(MPI.COMM_WORLD)
   use_cuda = (device.type=='cuda')
   print(f'USE CUDA? = {use_cuda}')
   unittest.main()

@@ -32,9 +32,10 @@
 import torch
 import torch.nn as nn
 
-from braid_vector import BraidVector
-from torchbraid_app import BraidApp
-import utils 
+from .braid_vector import BraidVector
+from torchbraid.torchbraid_app import BraidApp
+from torchbraid.bsplines import BsplineBasis
+import torchbraid.utils
 import itertools
 
 import sys
@@ -43,7 +44,6 @@ import resource
 import copy
 
 from bisect import bisect_right
-from bsplines import BsplineBasis
 from mpi4py import MPI
 
 class ForwardODENetApp(BraidApp):
@@ -422,12 +422,12 @@ class BackwardODENetApp(BraidApp):
             # print(splinecomm.Get_rank(), ": I will pack spline ", i)
             # pack the spline into a buffer and initiate non-blocking allredude
             splinelayer = self.fwd_app.layer_models[i - self.fwd_app.start_layer]
-            buf = utils.pack_buffer([p.grad for p in splinelayer.parameters()])
+            buf = torchbraid.utils.pack_buffer([p.grad for p in splinelayer.parameters()])
             req=splinecomm.Iallreduce(MPI.IN_PLACE, buf, MPI.SUM)
 
             # Finish up communication. TODO: Queue all requests.
             MPI.Request.Wait(req)
-            utils.unpack_buffer([p.grad for p in splinelayer.parameters()], buf)
+            torchbraid.utils.unpack_buffer([p.grad for p in splinelayer.parameters()], buf)
       # end splinet
 
       self.grads = []
