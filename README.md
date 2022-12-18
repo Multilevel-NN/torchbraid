@@ -46,8 +46,7 @@ Note, the cython version is pretty important, particularly if torch layers are s
 
 1. Test run  
  `cd examples/mnist/`  
- `python download.py`  
- `mpirun -n 2 python main.py`
+ `mpirun -n 2 python mnist_script.py --percent-data 0.01`
 
 
 ## Build torchbraid (Makefile):
