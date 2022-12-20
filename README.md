@@ -44,10 +44,20 @@ Note, the cython version is pretty important, particularly if torch layers are s
 1. Run unit tests (may need to install tox)  
   `tox`
 
+    The package tox is used for testing in a continuous integration sense and automatically
+    creates and populates a new python environment. However, if you have an environment that
+    already satisfies the dependency requirements you can run the test commands directly
+    using `tox-direct`. 
+
+    1. Install tox-direct
+      `pip install tox-direct'
+
+    1. Run commands
+      `tox --direct`
+
 1. Test run  
  `cd examples/mnist/`  
  `mpirun -n 2 python mnist_script.py --percent-data 0.01`
-
 
 ## Build torchbraid (Makefile):
 
