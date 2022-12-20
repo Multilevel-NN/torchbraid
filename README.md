@@ -2,30 +2,6 @@
 
 A braid interface to pytorch
 
-## Requirements:
-  + python libs:
-    cython
-    mpi4py
-    pytorch
-  + build of xbraid
-  + MPI compiler
-
-Conda environments can be found in 'torchbraid/env' directories. These can be used too get a consistent conda enviroonement
-for using torchbraid. The one caveat, is that mpi4py should be installed consistently with the MPI compiler. In some cases
-doing a 'pip install mpi4py' is to be preferred to installing it through conda (conda installs an alternate MPI compiler and
-library. You might want mpi4py to use the native one on your platform).
-
-Note, virtual environments can be used instead of Conda.
-
-Note, the cython version is pretty important, particularly if torch layers are shipped directly by braid.
-
-### Setup for Conda (with native MPI support)
-  
-  ```
-  conda env create -f ${TORCHBRAID_DIR}/env/py37.env
-  conda activate py37
-  MPICC=path/to/mpicc pip install mpi4py
-  ```
 ## Build torchbraid (pip):
 
 1. Optional: create a new virtual environment
@@ -60,6 +36,31 @@ Note, the cython version is pretty important, particularly if torch layers are s
  `mpirun -n 2 python mnist_script.py --percent-data 0.01`
 
 ## Build torchbraid (Makefile):
+
+### Requirements:
+  + python libs:
+    cython
+    mpi4py
+    pytorch
+  + build of xbraid
+  + MPI compiler
+
+Conda environments can be found in 'torchbraid/env' directories. These can be used too get a consistent conda enviroonement
+for using torchbraid. The one caveat, is that mpi4py should be installed consistently with the MPI compiler. In some cases
+doing a 'pip install mpi4py' is to be preferred to installing it through conda (conda installs an alternate MPI compiler and
+library. You might want mpi4py to use the native one on your platform).
+
+Note, virtual environments can be used instead of Conda.
+
+Note, the cython version is pretty important, particularly if torch layers are shipped directly by braid.
+
+### Setup for Conda (with native MPI support)
+  
+  ```
+  conda env create -f ${TORCHBRAID_DIR}/env/py37.env
+  conda activate py37
+  MPICC=path/to/mpicc pip install mpi4py
+  ```
 
 ### Build xbraid:
   1. Download from git@github.com:XBraid/xbraid.git
