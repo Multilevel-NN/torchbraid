@@ -21,6 +21,7 @@ tests/torchbraid_test.html
 tests/test_cbs.c
 tests/test_cbs.*.so
 tests/test_cbs.html
+src/torchbraid.egg-info/
 src/torchbraid/braid.html
 src/torchbraid/build/
 src/torchbraid/torchbraid_app.c
