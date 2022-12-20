@@ -1,4 +1,4 @@
-.PHONY: tests clean uninstall all 
+.PHONY: tests clean all 
 .PHONY: test-direct-gpu  tests-direct-gpu tests test tests-serial test-serial
 
 all:
@@ -10,11 +10,6 @@ clean:
 	make -C ./src/torchbraid clean
 	rm -fr examples/mnist/data
 	rm -fr examples/cifar10/data
-
-uninstall:
-	make -C ./src/torchbraid/test_fixtures uninstall
-	make -C ./src/torchbraid uninstall
-	make -C ./tests uninstall
 
 tests test:
 	make -C ./tests tests

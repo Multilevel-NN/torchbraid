@@ -86,10 +86,6 @@ Take look at code in the examples directory.
 
    `make clean`
 
-### To uninstall python (this may be a no-op)
-
-   `make uninstall`
-
 ## GPU direct communication
 
 The default communication scheme of torchbraid using GPU's and layer parallel is given by: 
