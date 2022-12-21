@@ -1,6 +1,6 @@
-MNIST Examples Directory
+## MNIST Examples Directory
 
-Jupyter Notebook Examples:
+### Jupyter Notebook Examples:
 1. start0_install_mpi_notebook.ipynb
    Notebook with instructions on installing, verifying MPI in the Jupyter
    setting
@@ -15,7 +15,7 @@ Jupyter Notebook Examples:
    More complicated fashion and digits MNIST example in MPI+Jupyter form,
    with more options for the layer-parallel solver
 
-Command-line Python scripts for training
+## Command-line Python scripts for training
 1. mnist_script.py
    Script equivalent to mnist_notebook.ipynb, most full featured MNIST 
    example in this directory.
