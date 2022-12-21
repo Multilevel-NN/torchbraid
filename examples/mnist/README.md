@@ -15,7 +15,7 @@
    More complicated fashion and digits MNIST example in MPI+Jupyter form,
    with more options for the layer-parallel solver
 
-## Command-line Python scripts for training
+### Command-line Python scripts for training
 1. mnist_script.py
    Script equivalent to mnist_notebook.ipynb, most full featured MNIST 
    example in this directory.
