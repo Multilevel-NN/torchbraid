@@ -5,6 +5,8 @@
    Notebook with instructions on installing, verifying MPI in the Jupyter
    setting
 
+   See [startup](STARTUP.md)
+
 1. start1_simple_mpi_notebook.ipynb
    Notebook with simple MPI verifications 
 
