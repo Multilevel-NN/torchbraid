@@ -6,10 +6,8 @@ For references, these websites are not terrible
 - https://charlesreid1.com/wiki/Jupyter/MPI
 
 #### Before running this example, do the following
-1) Install dependencies
+1) Install dependencies (assumes dependencies, e.g. mpi4py have  been install)
 
-        brew install open-mpi
-        pip3 install mpi4py
         pip3 install ipyparallel
         jupyter serverextension enable --py ipyparallel
 
@@ -27,7 +25,7 @@ For references, these websites are not terrible
 
         $ ipcluster start --n=2 --engines=mpi --profile=mpi
    
-or depending, may need to use
+   or depending, may need to use
    
         $ ipcluster start --n=2 --engines=MPIEngineSetLauncher --profile=mpi
 
