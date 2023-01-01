@@ -348,12 +348,13 @@ def main():
   model = buildNet(not args.use_serial, **network)
 
   # Activate Braid timers and specify output files
-  model.parallel_nn.fwd_app.setBraidTimers(flag=1)
-  model.parallel_nn.bwd_app.setBraidTimers(flag=1)
-  model.parallel_nn.fwd_app.setTimerFile(
-    f'b_fwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
-  model.parallel_nn.bwd_app.setTimerFile(
-    f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
+  if hasattr(model,'parallel_nn'):
+    model.parallel_nn.fwd_app.setBraidTimers(flag=1)
+    model.parallel_nn.bwd_app.setBraidTimers(flag=1)
+    model.parallel_nn.fwd_app.setTimerFile(
+      f'b_fwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
+    model.parallel_nn.bwd_app.setTimerFile(
+      f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
 
   if args.opt == 'SGD':
     optimizer = optim.SGD(model.parameters(), lr=args.lr)  # , weight_decay=0.0001)
