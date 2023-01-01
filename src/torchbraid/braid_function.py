@@ -86,15 +86,14 @@ class BraidFunction(torch.autograd.Function):
       fwd_app.setShape(shape)
       bwd_app.setShape(shape)
 
-    # on the last rank, the result is computed...extract it
-    if my_rank==num_ranks-1:
-      result = fwd_app.run(x)
-    else:
+    if my_rank!=num_ranks-1:
       result = torch.zeros(shape[-1],device=x.device)
       fwd_app.run(x)
+    else:
+      result = fwd_app.run(x)
 
     # broadcast the output of the last layer 
-    comm.Bcast(result,root=num_ranks-1)
+    result = comm.bcast(result,root=num_ranks-1)
 
     if adjusting:
       return result[0:temp_batch,:]
@@ -110,6 +109,8 @@ class BraidFunction(torch.autograd.Function):
     # copy the input to the final processor (where time integration begins)
     if num_ranks>1:
       if my_rank==0:
+        if ctx.fwd_app.use_cuda:
+          torch.cuda.synchronize()
         comm.Isend(grad_output,dest=num_ranks-1)
       elif my_rank==num_ranks-1: 
         req = comm.Irecv(grad_output,source=0)
