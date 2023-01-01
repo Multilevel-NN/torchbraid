@@ -30,7 +30,7 @@
 #@HEADER
 
 import torch.autograd
-from torch.nn.functional import pad
+import torch.nn.functional as F
 
 class BraidFunction(torch.autograd.Function):
 
@@ -43,7 +43,7 @@ class BraidFunction(torch.autograd.Function):
     for i in range(len(shape)-batch_dim-1):
       padding += [0,0]
     padding += [0,old_batch-temp_batch]
-    return pad(ten,tuple(padding),'constant',0.0)
+    return F.pad(ten,tuple(padding),'constant',0.0)
 
   @staticmethod
   def forward(ctx, fwd_app, bwd_app, x, *params):
@@ -86,20 +86,15 @@ class BraidFunction(torch.autograd.Function):
       fwd_app.setShape(shape)
       bwd_app.setShape(shape)
 
-
-    if my_rank==0:
+    # on the last rank, the result is computed...extract it
+    if my_rank==num_ranks-1:
       result = fwd_app.run(x)
     else:
-      result = fwd_app.run(None)
-
-    if my_rank!=num_ranks-1:
-      result_cpu = torch.zeros(shape[-1])
-    else:
-      result_cpu = result.cpu()
+      result = torch.zeros(shape[-1],device=x.device)
+      fwd_app.run(x)
 
     # broadcast the output of the last layer 
-    comm.Bcast(result_cpu.numpy(),root=num_ranks-1)
-    result = result_cpu.to(x.device) # put back on the device
+    comm.Bcast(result,root=num_ranks-1)
 
     if adjusting:
       return result[0:temp_batch,:]
@@ -112,16 +107,13 @@ class BraidFunction(torch.autograd.Function):
     my_rank       = ctx.bwd_app.getMPIComm().Get_rank()
     num_ranks     = ctx.bwd_app.getMPIComm().Get_size()
 
-    # copy the input to the final processor (where iter time integration begins)
+    # copy the input to the final processor (where time integration begins)
     if num_ranks>1:
       if my_rank==0:
-        grad_output_cpu = grad_output.cpu()
-        comm.Isend(grad_output_cpu.numpy(),dest=num_ranks-1)
+        comm.Isend(grad_output,dest=num_ranks-1)
       elif my_rank==num_ranks-1: 
-        grad_output_cpu = torch.zeros(grad_output.shape)
-        req = comm.Irecv(grad_output_cpu.numpy(),source=0)
+        req = comm.Irecv(grad_output,source=0)
         req.Wait()
-        grad_output = grad_output_cpu.to(grad_output.device)
 
     if my_rank==num_ranks-1:
       if ctx.adjusting:
