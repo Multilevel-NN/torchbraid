@@ -348,7 +348,7 @@ def main():
   model = buildNet(not args.use_serial, **network)
 
   # Activate Braid timers and specify output files
-  if hasattr(model,'parallel_nn'):
+  if not args.use_serial:
     model.parallel_nn.fwd_app.setBraidTimers(flag=1)
     model.parallel_nn.bwd_app.setBraidTimers(flag=1)
     model.parallel_nn.fwd_app.setTimerFile(
@@ -397,9 +397,10 @@ def main():
     warm_up_timer = timer()
     train(rank=rank, args=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=0,
           compose=compose, device=my_device)
-    model.parallel_nn.timer_manager.resetTimers()
-    model.parallel_nn.fwd_app.resetBraidTimer()
-    model.parallel_nn.bwd_app.resetBraidTimer()
+    if not args.use_serial:
+      model.parallel_nn.timer_manager.resetTimers()
+      model.parallel_nn.fwd_app.resetBraidTimer()
+      model.parallel_nn.bwd_app.resetBraidTimer()
     torch.cuda.synchronize()
     epoch_times = []
     test_times = []
