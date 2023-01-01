@@ -141,6 +141,11 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
         bwd_itr, bwd_res
       ))
 
+    # on GPU's let the first batch be a warm up
+    if batch_idx==0:
+      total_time = 0.0
+      cumulative_time = 0.0
+
   root_print(rank, (format_str + ', fp={:.6f}, cm={:.6f}, bp={:.6f}').format(
     epoch,
     len(train_loader.dataset),
