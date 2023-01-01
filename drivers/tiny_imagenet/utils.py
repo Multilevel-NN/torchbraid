@@ -227,7 +227,7 @@ class ParallelNet(nn.Module):
     layers    = [open_layer,    step_layer_1, trans_layer_1,    step_layer_2,  trans_layer_2,step_layer_3, trans_layer_3, step_layer_4]
     num_steps = [         1,  global_steps-1,             1,   global_steps-1, 1,            global_steps-1,           1, global_steps-1]
 
-    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,layers,num_steps,Tf,max_fwd_levels=max_fwd_levels,max_bwd_levels=max_bwd_levels,max_iters=max_iters)
+    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD,layers,num_steps,Tf,max_fwd_levels=max_fwd_levels,max_bwd_levels=max_bwd_levels,max_iters=max_iters,gpu_direct_commu=True)
     if max_fwd_iters>0:
       self.parallel_nn.setFwdMaxIters(max_fwd_iters)
     self.parallel_nn.setPrintLevel(print_level,True)

@@ -239,15 +239,15 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void * buffer,braid_BufferSta
 
   pyApp = <object> app
 
-  if pyApp.use_cuda:
-    # this option (use cuda without gpu direct communication) results in *bad* performance
-    assert(pyApp.gpu_direct_commu,
-           'TorchBraid:bufpack - GPU Compatible MPI must be enabled')
 
-    return my_bufpack_cuda(app, u, buffer, tidx, level)
-  else:
-    return my_bufpack_cpu(app, u, buffer, tidx, level)
-# end my_bufunpack
+  try:
+    if pyApp.use_cuda:
+      return my_bufpack_cuda(app, u, buffer, tidx, level)
+    else:
+      return my_bufpack_cpu(app, u, buffer, tidx, level)
+  except:
+    output_exception("my_bufpack")
+# end my_bufpack
 
 cdef int my_bufpack_cpu(braid_App app, braid_Vector u, void *buffer,int tidx, int level):
   cdef int start
@@ -268,7 +268,7 @@ cdef int my_bufpack_cpu(braid_App app, braid_Vector u, void *buffer,int tidx, in
         start += size
 
   except:
-    output_exception("my_bufpack")
+    output_exception("my_bufpack_cpu")
 
   return 0
 
@@ -298,7 +298,7 @@ cdef int my_bufpack_cuda(braid_App app, braid_Vector u, void *buffer,int tidx, i
       torch.cuda.synchronize()
 
   except:
-    output_exception(f"my_bufpack: time index = {tidx}, level = {level}")
+    output_exception(f"my_bufpack_cuda: time index = {tidx}, level = {level}")
 
   return 0
 
@@ -311,14 +311,13 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
 
   pyApp = <object> app
 
-  if pyApp.use_cuda:
-    # this option (use cuda without gpu direct communication) results in *bad* performance
-    assert(pyApp.gpu_direct_commu,
-           'TorchBraid:bufpack - GPU Compatible MPI must be enabled')
-
-    result = my_bufunpack_cuda(app, buffer, u_ptr,tidx, level)
-  else:
-    result = my_bufunpack_cpu(app, buffer, u_ptr,tidx, level)
+  try:
+    if pyApp.use_cuda:
+      result = my_bufunpack_cuda(app, buffer, u_ptr,tidx, level)
+    else:
+      result = my_bufunpack_cpu(app, buffer, u_ptr,tidx, level)
+  except:
+    output_exception("my_bufunpack")
 
   return result
 # end my_bufunpack
@@ -438,10 +437,6 @@ cdef int my_bufalloc(braid_App app, void **buffer, int nbytes, braid_BufferStatu
   pyApp = <object>app
 
   if pyApp.use_cuda:
-    # this option (use cuda without gpu direct communication) results in *bad* performance
-    assert(pyApp.gpu_direct_commu,
-           'TorchBraid:bufpack - GPU Compatible MPI must be enabled')
-
     # convert nbytes to number of elements
     elements = math.ceil(nbytes / get_bytes(__float_alloc_type__))
 
@@ -460,10 +455,6 @@ cdef int my_buffree(braid_App app, void **buffer):
 
   pyApp = <object> app
   if pyApp.use_cuda:
-    # this option (use cuda without gpu direct communication) results in *bad* performance
-    assert(pyApp.gpu_direct_commu,
-           'TorchBraid:bufpack - GPU Compatible MPI must be enabled')
-
     addr = <uintptr_t> buffer[0]
     pyApp.removeBufferEntry(addr=addr)
 

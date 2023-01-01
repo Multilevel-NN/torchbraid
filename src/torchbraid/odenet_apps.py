@@ -71,12 +71,12 @@ class ForwardODENetApp(BraidApp):
       return self.layer(x)
   # end ODEBlock
 
-  def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None,user_mpi_buf=False,nsplines=0, splinedegree=1, gpu_direct_commu=False):
+  def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None,user_mpi_buf=False,nsplines=0, splinedegree=1):
     """
     """
     self.layer_blocks,num_steps = self.buildLayerBlocks(layers)
 
-    BraidApp.__init__(self,'FWDApp',comm,num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,user_mpi_buf=user_mpi_buf,require_storage=True, gpu_direct_commu=gpu_direct_commu)
+    BraidApp.__init__(self,'FWDApp',comm,num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,user_mpi_buf=user_mpi_buf,require_storage=True)
 
     self.finalRelax()
 
@@ -363,7 +363,7 @@ class ForwardODENetApp(BraidApp):
 
 class BackwardODENetApp(BraidApp):
 
-  def __init__(self,fwd_app,timer_manager,max_levels=-1, gpu_direct_commu=False):
+  def __init__(self,fwd_app,timer_manager,max_levels=-1):
     # call parent constructor
     if max_levels == -1:
         max_levels = fwd_app.max_levels
@@ -374,8 +374,7 @@ class BackwardODENetApp(BraidApp):
                            max_levels,
                            fwd_app.max_iters,
                            spatial_ref_pair=fwd_app.spatial_ref_pair,
-                           user_mpi_buf=fwd_app.user_mpi_buf,
-                           gpu_direct_commu=gpu_direct_commu)
+                           user_mpi_buf=fwd_app.user_mpi_buf)
 
 
     self.fwd_app = fwd_app

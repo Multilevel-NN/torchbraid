@@ -56,7 +56,7 @@ class BraidApp:
 
   def __init__(self,prefix_str,comm,num_steps,Tf,max_levels,max_iters,
                spatial_ref_pair=None,user_mpi_buf=False,
-               require_storage=False,abs_tol=1e-12, gpu_direct_commu=False):
+               require_storage=False,abs_tol=1e-12):
 
     self.prefix_str = prefix_str # prefix string for helping to debug hopefully
     self.tb_print_level = 0      # set print level internally to zero
@@ -85,7 +85,6 @@ class BraidApp:
     self.shape0 = None
 
     self.buffer = []
-    self.gpu_direct_commu = gpu_direct_commu
 
     comm          = self.getMPIComm()
     my_rank       = self.getMPIComm().Get_rank()
