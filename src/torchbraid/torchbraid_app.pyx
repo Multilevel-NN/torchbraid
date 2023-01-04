@@ -157,6 +157,8 @@ class BraidApp:
 
       core = (<PyBraid_Core> self.py_core).getCore()
       braid_SetPrintLevel(core,self.print_level)
+      # Always turn off the braid.out.cycle file
+      braid_SetFileIOLevel(core, 0)
 
   def getFeatureShapes(self,tidx : int,level : int) -> list:
     """
@@ -341,6 +343,7 @@ class BraidApp:
     braid_SetAbsTol(core,self.abs_tol)
     braid_SetAccessLevel(core,0)
     #braid_SetCRelaxWt(core, -1, 1.2)   # Turn on weighted relaxation, probably want to add command line argument
+    braid_SetFileIOLevel(core, 0)       # Always turn off the braid.out.cycle file
     if self.skip_downcycle==0:
       braid_SetSkip(core,0)
     else:
@@ -499,7 +502,8 @@ class BraidApp:
          self.initializeStates()
        self.first = False
 
-       braid_Drive(core) # my_step -> App:eval -> resnet "basic block"
+       with self.timer("braid_Drive"):
+         braid_Drive(core) # my_step -> App:eval -> resnet "basic block"
 
        self.printBraidStats()
 
