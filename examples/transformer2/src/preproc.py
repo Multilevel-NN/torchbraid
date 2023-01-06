@@ -15,7 +15,7 @@ fn_voc_de = f'{pfx}/data/task2_ende/vocab.50K.de.txt'
 fn_voc_en = f'{pfx}/data/task2_ende/vocab.50K.en.txt'
 
 
-def data_(fn_data, voc):
+def data_(fn_data, voc, small):
     sentences_enc = []
     idx_unk = voc['<unk>']
     max_len = -1
@@ -29,7 +29,7 @@ def data_(fn_data, voc):
             sentence_enc = [voc.get(word, idx_unk) for word in line]
             sentences_enc.append(sentence_enc)
             max_len = max(max_len, len(sentence_enc))
-            # if i > 10000: break
+            if small and i > 10000: break
 
     idx_pad = voc['<pad>']
     data = idx_pad * torch.ones(size=(len(sentences_enc), max_len+2), 
@@ -47,14 +47,14 @@ def data_(fn_data, voc):
     return data
 
 
-def main():
+def main(small=False):
     voc_de = voc_(fn_voc_de)
     voc_en = voc_(fn_voc_en)
 
-    data_de_tr = data_(fn_data_de_tr, voc_de)
-    data_en_tr = data_(fn_data_en_tr, voc_en)
-    data_de_te = data_(fn_data_de_te, voc_de)
-    data_en_te = data_(fn_data_en_te, voc_en)
+    data_de_tr = data_(fn_data_de_tr, voc_de, small)
+    data_en_tr = data_(fn_data_en_tr, voc_en, small)
+    data_de_te = data_(fn_data_de_te, voc_de, small)
+    data_en_te = data_(fn_data_en_te, voc_en, small)
 
     return (voc_de, voc_en), \
            (data_de_tr, data_en_tr, data_de_te, data_en_te)

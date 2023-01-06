@@ -59,8 +59,8 @@ from timeit import default_timer as timer
 
 from mpi4py import MPI
 
-import input_pipeline
-import preprocessing
+import preproc    
+from torch.utils.data import DataLoader  
 from models import PositionalEncoding, PE_Alternative
 
 import time
@@ -73,7 +73,7 @@ class OpenLayer(nn.Module):
   def __init__(self,encoding):
     super(OpenLayer, self).__init__()
     self.encoding = encoding
-    self.emb = nn.Embedding(15514, 128)
+    self.emb = nn.Embedding(50001, 128)
     self.dropout = nn.Dropout(p=.1)
     self.posenc = PositionalEncoding(128) if encoding == 'Torch'\
       else PE_Alternative(128) if encoding == 'Alternative'\
@@ -88,22 +88,38 @@ class OpenLayer(nn.Module):
 # end layer
 
 class CloseLayer(nn.Module):
-  def __init__(self):
+  def __init__(self, encoding):
     super(CloseLayer, self).__init__()
-    self.ln3 = nn.LayerNorm(128)
-    self.fc3 = nn.Linear(128, 49)
+
+    self.fc = nn.Linear(128, 50001)
 
   def forward(self, x):
-    x = self.ln3(x)
-    x = self.fc3(x)
+    # x = self.ln3(x)
+    # x = self.fc3(x)
+
+
+    x = self.fc(x.transpose(0, 1))
+
     return x
 # end layer
 
 class StepLayer(nn.Module):
   def __init__(self):
     super(StepLayer, self).__init__()
+    
+
+
+
+
+
     self.fc1 = nn.Linear(128, 128)
     self.fc2 = nn.Linear(128, 128)
+
+
+
+
+
+
     self.att = nn.MultiheadAttention(
       embed_dim=128, 
       num_heads=1, 
@@ -115,10 +131,24 @@ class StepLayer(nn.Module):
 
     self.mask = None
 
+    self.decoder_layer = nn.TransformerDecoderLayer(
+      d_model=128, 
+      nhead=1, 
+      dropout=.3, 
+      batch_first=True,
+      dim_feedforward=128,
+    )
+    self.decoder = nn.TransformerDecoder(self.decoder_layer, num_layers=3)
+    self.tgt = None
+    self.emb_tgt = nn.Embedding(50001, 128)
+    self.posenc = PositionalEncoding(128) if encoding == 'Torch'\
+      else PE_Alternative(128) if encoding == 'Alternative'\
+      else Exception('encoding unknown')
   def forward(self, x):
     # mask = d_extra['mask']
 
     # ContinuousBlock - dxdtEncoder1DBlock
+    ## Encoder
     x0 = x
     x = self.ln1(x)     # also try to remove layernorm
     x, _ = self.att(x, x, x, self.mask)
@@ -132,6 +162,27 @@ class StepLayer(nn.Module):
     x = self.fc2(x)
     
     x = x + x1
+
+    ## Decoder
+    tgt = self.tgt
+    assert tgt is not None
+
+    msk_tgt = nn.Transformer.generate_square_subsequent_mask(
+                             sz=tgt.shape[1]).to(x.device)
+    msk_pad_tgt = (tgt == 0)
+    msk_pad_mem = self.msk_pad_mem
+
+    tgt = self.emb_tgt(tgt)
+    tgt = self.posenc(tgt)
+
+    x = self.decoder(
+      tgt=tgt,
+      memory=x,
+      tgt_mask=msk_tgt,
+      tgt_key_padding_mask=msk_pad_tgt,
+      memory_key_padding_mask=msk_pad_mem,
+    )
+
     return x
 # end layer
 
@@ -157,22 +208,26 @@ class SerialNet(nn.Module):
       self.serial_nn = serial_nn
 
     if close_nn is None:
-      self.close_nn = CloseLayer()
+      self.close_nn = CloseLayer(encoding)
     else:
       self.close_nn = close_nn
 
   def forward(self, x):
     mask = (x == 0)
     x = self.open_nn(x)
+
     self.serial_nn.mask = mask
     x = self.serial_nn(x)
+
+    self.close_nn.msk_pad_mem = mask
     x = self.close_nn(x)
+
     return x
 # end SerialNet 
 
 class ParallelNet(nn.Module):
   def __init__(self,encoding,local_steps=8,Tf=1.0,max_levels=1,max_iters=1,fwd_max_iters=0,print_level=0,
-    braid_print_level=0,cfactor=4,fine_fcf=False,skip_downcycle=True,fmg=False,relax_only_cg=0):
+    braid_print_level=0,cfactor=4,fine_fcf=False,skip_downcycle=True,fmg=False,relax_only_cg=0,):
     super(ParallelNet, self).__init__()
 
     step_layer = lambda: StepLayer()
@@ -211,8 +266,10 @@ class ParallelNet(nn.Module):
     
     # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels) 
     # on processors not equal to 0, these will be None (there are no parameters to train there)
-    self.open_nn = compose(OpenLayer,encoding)
-    self.close_nn = compose(CloseLayer)
+    self.open_nn = compose(OpenLayer, encoding)
+    self.close_nn = compose(CloseLayer, encoding)
+    assert self.open_nn is not None
+    assert self.close_nn is not None
 
   def saveSerialNet(self,name):
     serial_nn = self.parallel_nn.buildSequentialOnRoot()
@@ -229,9 +286,13 @@ class ParallelNet(nn.Module):
     # this makes sure this is run on only processor 0
     mask = (x == 0)
     x = self.compose(self.open_nn,x)
+
     self.parallel_nn.mask = mask
     x = self.parallel_nn(x)
+    
+    self.close_nn.msk_pad_mem = mask
     x = self.compose(self.close_nn,x)
+    
     return x
 # end ParallelNet 
 
@@ -239,8 +300,8 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
   model.train()
   criterion = nn.CrossEntropyLoss(ignore_index=0)
   total_time = 0.0
-  batch_epochs = 10
   batch_epochs = np.inf#args.epochs
+  batch_epochs = 100
   batch_ctr = 0
   forward_times, backward_times = [], []
   for batch_idx, (data, target) in enumerate(train_loader):
@@ -251,15 +312,21 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
     #root_print(rank, f'train data.shape {data.shape}')
     start_time = timer()
     optimizer.zero_grad()
-    data = data.to(device)
+    # data = data.to(device)  # task 1
+    target, tgt_inp = target[:, 1:], target[:, :-1] # task 2
+    data, tgt_inp = data.to(device), tgt_inp.to(device) # task 2
+    target = target.long()
 
     ## Forward pass
     t0_forward = time.time()
+    model.close_nn.tgt = tgt_inp
     output = model(data).cpu()
     loss = compose(
       criterion,
-      output.reshape(-1, output.shape[-1]),
-      target.reshape(-1)
+      output.reshape(-1, output.shape[-1]),   # task 1
+      target.reshape(-1)    # task 1
+      # output.transpose(1,2),   # task 2     --> it's the same
+      # target,   # task 2
     )
     t1_forward = time.time()
     forward_times.append(t1_forward - t0_forward)
@@ -283,10 +350,10 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
     batch_ctr += 1
     if batch_ctr >= batch_epochs:
       break
-    elif batch_ctr%(batch_epochs//4) == 0:
-      for g in optimizer.param_groups:
-        g['lr'] *= .5
-      root_print(rank, 'change lr *= .5')
+    # elif batch_ctr%(batch_epochs//4) == 0:
+    #   for g in optimizer.param_groups:
+    #     g['lr'] *= .5
+    #   root_print(rank, 'change lr *= .5')
 
   # root_print(rank,'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
   #   epoch, (batch_idx+1) * len(data), len(train_loader.dataset),
@@ -336,13 +403,18 @@ def test(rank, args, model, test_loader, compose, device):
   model.eval()
   test_loss = 0
   correct, total = 0, 0
-  criterion = nn.CrossEntropyLoss()
+  criterion = nn.CrossEntropyLoss(ignore_index=0)
   with torch.no_grad():
     for data, target in test_loader:#test_loader
-      # if data.shape[0] != args.batch_size:#64:#187
-      #   break
+      if data.shape[0] != args.batch_size:#64:#187
+        break
       #root_print(rank, f'test data.shape {data.shape}')
-      data = data.to(device)
+      # data = data.to(device)  # task 1
+      target, tgt_inp = target[:, 1:], target[:, :-1] # task 2
+      data, tgt_inp = data.to(device), tgt_inp.to(device) # task 2
+      target = target.long()
+
+      model.close_nn.tgt = tgt_inp
       output = model(data).cpu()
       test_loss += compose(
         criterion,
@@ -377,35 +449,6 @@ def compute_levels(num_steps,min_coarse_size,cfactor):
     levels = 1
   return levels
 # end compute levels
-
-
-def obtain_ds_dl(data_path_train, data_path_dev, batch_size, max_len):
-  train = data_path_train
-  dev = data_path_dev
-
-  vocabs = input_pipeline.create_vocabs(train)
-
-  attributes_input = [input_pipeline.CoNLLAttributes.FORM]
-  attributes_target = [input_pipeline.CoNLLAttributes.XPOS]
-
-  train_ds, train_dl = preprocessing.obtain_dataset(
-    filename=train, 
-    vocabs=vocabs, 
-    attributes_input=attributes_input, 
-    attributes_target=attributes_target,
-    batch_size=batch_size, 
-    bucket_size=max_len,
-  )
-  eval_ds, eval_dl = preprocessing.obtain_dataset(
-    filename=dev, 
-    vocabs=vocabs, 
-    attributes_input=attributes_input, 
-    attributes_target=attributes_target,
-    batch_size=batch_size,#64,#187, 
-    bucket_size=max_len,
-  )
-
-  return train_ds, eval_ds, train_dl, eval_dl
 
 def main():
   # Training settings
@@ -510,16 +553,16 @@ def main():
                   '-- tf       = {}\n'
                   '-- steps    = {}'.format(procs,args.encoding,args.tf,args.steps))
 
-  # train_size = int(50000 * args.percent_data)
-  # test_size  = int(10000 * args.percent_data)
-  # train_set = torch.utils.data.Subset(dataset,range(train_size))
-  # test_set  = torch.utils.data.Subset(dataset,range(train_size,train_size+test_size))
-  # train_loader = torch.utils.data.DataLoader(train_set,batch_size=args.batch_size,shuffle=False)
-  # test_loader = torch.utils.data.DataLoader(test_set,batch_size=args.batch_size,shuffle=False)
-  data_path_train = '/users/msalvado/MLT/ML_PQ/data/en_gum-ud-train.conllu.txt'
-  data_path_dev = '/users/msalvado/MLT/ML_PQ/data/en_gum-ud-dev.conllu.txt'
-  train_ds, eval_ds, train_dl, eval_dl = obtain_ds_dl(data_path_train, data_path_dev, args.batch_size, max_len=2048)
-  train_set, test_set, train_loader, test_loader = train_ds, eval_ds, train_dl, eval_dl
+  vocs, sents = preproc.main()
+  voc_de, voc_en = vocs
+  sents_de_tr, sents_en_tr, sents_de_te, sents_en_te = sents
+  # ds_tr, ds_te = (tuple(zip(sents)) for sents in [(sents_de_tr, sents_en_tr),
+  #                                                 (sents_de_te, sents_en_te)])
+  ds_tr, ds_te = [(i, j) for (i, j) in zip(sents_de_tr, sents_en_tr)], [(i, j) for (i, j) in zip(sents_de_te, sents_en_te)]
+  dl_tr, dl_te = (DataLoader(ds, batch_size=args.batch_size, shuffle=True, 
+                             drop_last=True) for ds in (ds_tr, ds_te))
+
+  train_set, test_set, train_loader, test_loader = ds_tr, ds_te, dl_tr, dl_te
 
   root_print(rank,'')
 
