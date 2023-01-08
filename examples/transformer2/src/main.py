@@ -70,34 +70,45 @@ def root_print(rank,s):
     print(s)
 
 class OpenLayer(nn.Module):
-  def __init__(self,encoding):
+  def __init__(self, encoding, step_layer):
     super(OpenLayer, self).__init__()
     self.encoding = encoding
-    self.emb = nn.Embedding(50001, 128)
-    self.dropout = nn.Dropout(p=.1)
+    self.step_layer = step_layer
+
+    self.emb_src = nn.Embedding(50001, 128)
+    self.emb_tgt = nn.Embedding(50001, 128)
+    self.dout_src = nn.Dropout(p=.1)
+    self.dout_tgt = nn.Dropout(p=.1)
     self.posenc = PositionalEncoding(128) if encoding == 'Torch'\
       else PE_Alternative(128) if encoding == 'Alternative'\
       else Exception('encoding unknown')
 
+    self.tgt = None
+
   def forward(self, x):
-    # this bit of python magic simply replicates each image in the batch
-    x = self.emb(x) 
-    x = self.dropout(x)
+    self.step_layer.msk_pad_src = (x == 0)
+
+    x = self.emb_src(x)
+    x = self.dout_src(x)
     x = self.posenc(x)
+
+    tgt = self.tgt
+    assert tgt is not None
+    self.step_layer.msk_pad_tgt = (tgt == 0)
+    tgt = self.emb_tgt(tgt)
+    tgt = self.dout_tgt(tgt)
+    tgt = self.posenc(tgt)
+    self.step_layer.tgt = tgt
+
     return x
 # end layer
 
 class CloseLayer(nn.Module):
-  def __init__(self, encoding):
+  def __init__(self):
     super(CloseLayer, self).__init__()
-
     self.fc = nn.Linear(128, 50001)
 
   def forward(self, x):
-    # x = self.ln3(x)
-    # x = self.fc3(x)
-
-
     x = self.fc(x.transpose(0, 1))
 
     return x
@@ -106,82 +117,95 @@ class CloseLayer(nn.Module):
 class StepLayer(nn.Module):
   def __init__(self):
     super(StepLayer, self).__init__()
-    
 
+    self.tgt = None
+    self.msk_pad_src = None
+    self.msk_pad_mem = None
+    self.msk_pad_tgt = None
 
-
-
-
-    self.fc1 = nn.Linear(128, 128)
-    self.fc2 = nn.Linear(128, 128)
-
-
-
-
-
-
-    self.att = nn.MultiheadAttention(
+    ## Encoder    
+    self.enc_att = nn.MultiheadAttention(
       embed_dim=128, 
-      num_heads=1, 
+      num_heads=8, 
       dropout=.3, 
       batch_first=True
     )
-    self.ln1 = nn.LayerNorm(128)
-    self.ln2 = nn.LayerNorm(128)
 
-    self.mask = None
+    self.enc_fc1 = nn.Linear(128, 1024)
+    self.enc_dout = nn.Dropout(.1)
+    self.enc_fc2 = nn.Linear(1024, 128)
 
-    self.decoder_layer = nn.TransformerDecoderLayer(
-      d_model=128, 
-      nhead=1, 
+    self.enc_ln1 = nn.LayerNorm(128, eps=1e-5)
+    self.enc_ln2 = nn.LayerNorm(128, eps=1e-5)
+    self.enc_dout1 = nn.Dropout(.1)
+    self.enc_dout2 = nn.Dropout(.1)
+
+    ## Decoder
+    self.dec_att_tgt = nn.MultiheadAttention(
+      embed_dim=128, 
+      num_heads=8, 
       dropout=.3, 
-      batch_first=True,
-      dim_feedforward=128,
+      batch_first=True
     )
-    self.decoder = nn.TransformerDecoder(self.decoder_layer, num_layers=3)
-    self.tgt = None
-    self.emb_tgt = nn.Embedding(50001, 128)
-    self.posenc = PositionalEncoding(128) if encoding == 'Torch'\
-      else PE_Alternative(128) if encoding == 'Alternative'\
-      else Exception('encoding unknown')
-  def forward(self, x):
-    # mask = d_extra['mask']
+    self.dec_att_mha = nn.MultiheadAttention(
+      embed_dim=128, 
+      num_heads=8, 
+      dropout=.3, 
+      batch_first=True
+    )
+    self.dec_fc1 = nn.Linear(128, 1024)
+    self.dec_dout = nn.Dropout(.1)
+    self.dec_fc2 = nn.Linear(1024, 128)
 
+    self.dec_ln1 = nn.LayerNorm(128, eps=1e-5)
+    self.dec_ln2 = nn.LayerNorm(128, eps=1e-5)
+    self.dec_ln3 = nn.LayerNorm(128, eps=1e-5)
+    self.dec_dout1 = nn.Dropout(.1)
+    self.dec_dout2 = nn.Dropout(.1)
+    self.dec_dout3 = nn.Dropout(.1)
+
+  def forward(self, src):
     # ContinuousBlock - dxdtEncoder1DBlock
     ## Encoder
-    x0 = x
-    x = self.ln1(x)     # also try to remove layernorm
-    x, _ = self.att(x, x, x, self.mask)
-    x1 = x
-    x = x + x0
+    msk_pad_src = self.msk_pad_src#(src == 0)
 
-    x = self.ln2(x)
-    # MLPBlock
-    x = self.fc1(x)
-    x = nn.ELU()(x)
-    x = self.fc2(x)
-    
-    x = x + x1
+    x = src
+
+    x_sa, _ = self.enc_att(x, x, x, key_padding_mask=msk_pad_src)
+    x_sa = self.enc_dout1(x_sa)
+    x = self.enc_ln1(x + x_sa)
+
+    x_ff = self.enc_fc1(x).relu()
+    x_ff = self.enc_dout(x_ff)
+    x_ff = self.enc_fc2(x_ff)
+    x_ff = self.enc_dout2(x_ff)
+    x = self.enc_ln2(x + x_ff)
+
+    mem = x
 
     ## Decoder
     tgt = self.tgt
     assert tgt is not None
 
     msk_tgt = nn.Transformer.generate_square_subsequent_mask(
-                             sz=tgt.shape[1]).to(x.device)
-    msk_pad_tgt = (tgt == 0)
-    msk_pad_mem = self.msk_pad_mem
+                             sz=tgt.shape[1]).to(mem.device)
+    msk_pad_mem = self.msk_pad_src
+    msk_pad_tgt = self.msk_pad_tgt#(tgt == 0)
 
-    tgt = self.emb_tgt(tgt)
-    tgt = self.posenc(tgt)
+    tgt_sa = self.dec_att_tgt(tgt, tgt, tgt, attn_mask=msk_tgt, 
+                              key_padding_mask=msk_pad_tgt)
+    tgt_sa = self.dec_dout1(tgt_sa)
+    tgt = self.dec_ln1(tgt + tgt_sa)
 
-    x = self.decoder(
-      tgt=tgt,
-      memory=x,
-      tgt_mask=msk_tgt,
-      tgt_key_padding_mask=msk_pad_tgt,
-      memory_key_padding_mask=msk_pad_mem,
-    )
+    x_mha = self.dec_att_mha(tgt, mem, mem, key_padding_mask=msk_pad_mem)
+    x_mha = self.dec_dout2(x_mha)
+    x = self.dec_ln2(x + x_mha)
+
+    x_ff = self.dec_fc1(x).relu()
+    x_ff = self.dec_dout(x_ff)
+    x_ff = self.dec_fc2(x_ff)
+    x_ff = self.dec_dout3(x_ff)
+    x = self.dec_ln3(x + x_ff)
 
     return x
 # end layer
@@ -190,11 +214,7 @@ class SerialNet(nn.Module):
   def __init__(self,encoding,local_steps=8,Tf=1.0,serial_nn=None,open_nn=None,close_nn=None):
     super(SerialNet, self).__init__()
     
-    if open_nn is None:
-      self.open_nn = OpenLayer(encoding)
-    else:
-      self.open_nn = open_nn
-
+    ## Step layer
     if serial_nn is None:
       step_layer = lambda: StepLayer()
       numprocs = 1
@@ -207,19 +227,21 @@ class SerialNet(nn.Module):
     else:
       self.serial_nn = serial_nn
 
+    ## Open layer
+    if open_nn is None:
+      self.open_nn = OpenLayer(encoding, step_layer)
+    else:
+      self.open_nn = open_nn
+
+    ## Close layer
     if close_nn is None:
-      self.close_nn = CloseLayer(encoding)
+      self.close_nn = CloseLayer()
     else:
       self.close_nn = close_nn
 
   def forward(self, x):
-    mask = (x == 0)
     x = self.open_nn(x)
-
-    self.serial_nn.mask = mask
     x = self.serial_nn(x)
-
-    self.close_nn.msk_pad_mem = mask
     x = self.close_nn(x)
 
     return x
@@ -266,8 +288,8 @@ class ParallelNet(nn.Module):
     
     # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels) 
     # on processors not equal to 0, these will be None (there are no parameters to train there)
-    self.open_nn = compose(OpenLayer, encoding)
-    self.close_nn = compose(CloseLayer, encoding)
+    self.open_nn = compose(OpenLayer, encoding, step_layer)
+    self.close_nn = compose(CloseLayer)
     assert self.open_nn is not None
     assert self.close_nn is not None
 
@@ -301,7 +323,7 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
   criterion = nn.CrossEntropyLoss(ignore_index=0)
   total_time = 0.0
   batch_epochs = np.inf#args.epochs
-  batch_epochs = 100
+  # batch_epochs = 100
   batch_ctr = 0
   forward_times, backward_times = [], []
   for batch_idx, (data, target) in enumerate(train_loader):
@@ -319,7 +341,7 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
 
     ## Forward pass
     t0_forward = time.time()
-    model.close_nn.tgt = tgt_inp
+    model.open_nn.tgt = tgt_inp
     output = model(data).cpu()
     loss = compose(
       criterion,
@@ -652,15 +674,15 @@ def main():
     t1_epoch = time.time()
     print(f'Epoch time:\t{t1_epoch - t0_epoch}')
 
-    ## Save model after each epoch
-    model_state = {
-      'model_state': model.state_dict(),
-      'optimizer': optimizer.state_dict(),
-    }
-    torch.save(
-      model_state, 
-      f'{args.models_dir}/{args.output_fn}.pt'
-    )
+    # ## Save model after each epoch    <-- too much space!!
+    # model_state = {
+    #   'model_state': model.state_dict(),
+    #   'optimizer': optimizer.state_dict(),
+    # }
+    # torch.save(
+    #   model_state, 
+    #   f'{args.models_dir}/{args.output_fn}.pt'
+    # )
 
     # print out some diagnostics
     #if force_lp:
