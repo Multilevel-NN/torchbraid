@@ -92,8 +92,8 @@ class BraidFunction(torch.autograd.Function):
     else:
       result = fwd_app.run(x)
 
-    # broadcast the output of the last layer 
-    result = comm.bcast(result,root=num_ranks-1)
+    # broadcast the output of the last layer
+    comm.Bcast(result, root=num_ranks - 1)
 
     if adjusting:
       return result[0:temp_batch,:]
