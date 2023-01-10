@@ -70,10 +70,9 @@ def root_print(rank,s):
     print(s)
 
 class OpenLayer(nn.Module):
-  def __init__(self, encoding, step_layer):
+  def __init__(self, encoding):
     super(OpenLayer, self).__init__()
     self.encoding = encoding
-    self.step_layer = step_layer
 
     self.emb_src = nn.Embedding(50001, 128)
     self.emb_tgt = nn.Embedding(50001, 128)
@@ -86,7 +85,7 @@ class OpenLayer(nn.Module):
     self.tgt = None
 
   def forward(self, x):
-    self.step_layer.msk_pad_src = (x == 0)
+    self.msk_pad_src = (x == 0)
 
     x = self.emb_src(x)
     x = self.dout_src(x)
@@ -94,11 +93,12 @@ class OpenLayer(nn.Module):
 
     tgt = self.tgt
     assert tgt is not None
-    self.step_layer.msk_pad_tgt = (tgt == 0)
+    self.msk_pad_tgt = (tgt == 0)
+    self.msk_pad_mem = self.msk_pad_src
     tgt = self.emb_tgt(tgt)
     tgt = self.dout_tgt(tgt)
     tgt = self.posenc(tgt)
-    self.step_layer.tgt = tgt
+    self.tgt = tgt
 
     return x
 # end layer
@@ -114,14 +114,11 @@ class CloseLayer(nn.Module):
     return x
 # end layer
 
-class StepLayer(nn.Module):
+class StepLayer_enc(nn.Module):
   def __init__(self):
-    super(StepLayer, self).__init__()
+    super(StepLayer_enc, self).__init__()
 
-    self.tgt = None
     self.msk_pad_src = None
-    self.msk_pad_mem = None
-    self.msk_pad_tgt = None
 
     ## Encoder    
     self.enc_att = nn.MultiheadAttention(
@@ -139,6 +136,35 @@ class StepLayer(nn.Module):
     self.enc_ln2 = nn.LayerNorm(128, eps=1e-5)
     self.enc_dout1 = nn.Dropout(.1)
     self.enc_dout2 = nn.Dropout(.1)
+
+  def forward(self, src):
+    # ContinuousBlock - dxdtEncoder1DBlock
+    ## Encoder
+    msk_pad_src = self.msk_pad_src#(src == 0)
+
+    x = src
+
+    x_sa, _ = self.enc_att(x, x, x, key_padding_mask=msk_pad_src)
+    x_sa = self.enc_dout1(x_sa)
+    x = self.enc_ln1(x + x_sa)
+
+    x_ff = self.enc_fc1(x).relu()
+    x_ff = self.enc_dout(x_ff)
+    x_ff = self.enc_fc2(x_ff)
+    x_ff = self.enc_dout2(x_ff)
+    x = self.enc_ln2(x + x_ff)
+
+    return x
+# end layer
+
+class StepLayer_dec(nn.Module):
+  def __init__(self):
+    super(StepLayer_dec, self).__init__()
+
+    self.mem = None
+    self.tgt = None
+    self.msk_pad_mem = None
+    self.msk_pad_tgt = None
 
     ## Decoder
     self.dec_att_tgt = nn.MultiheadAttention(
@@ -164,32 +190,27 @@ class StepLayer(nn.Module):
     self.dec_dout2 = nn.Dropout(.1)
     self.dec_dout3 = nn.Dropout(.1)
 
-  def forward(self, src):
+  def forward(self, tgt):
     # ContinuousBlock - dxdtEncoder1DBlock
-    ## Encoder
-    msk_pad_src = self.msk_pad_src#(src == 0)
 
-    x = src
-
-    x_sa, _ = self.enc_att(x, x, x, key_padding_mask=msk_pad_src)
-    x_sa = self.enc_dout1(x_sa)
-    x = self.enc_ln1(x + x_sa)
-
-    x_ff = self.enc_fc1(x).relu()
-    x_ff = self.enc_dout(x_ff)
-    x_ff = self.enc_fc2(x_ff)
-    x_ff = self.enc_dout2(x_ff)
-    x = self.enc_ln2(x + x_ff)
-
-    mem = x
+    with open('../llog.txt', 'a') as f:
+      f.write('b tgt ' + str(tgt is None) + '\n')
+      f.write('b mem ' + str(self.mem is None) + '\n')
+      f.write('b msk_pad_mem ' + str(self.msk_pad_mem is None) + '\n')
+      f.write('b msk_pad_tgt ' + str(self.msk_pad_tgt is None) + '\n')
 
     ## Decoder
+    mem = self.mem
     tgt = self.tgt
-    assert tgt is not None
+    with open('../llog2.txt', 'w') as f:
+      f.write('b tgt ' + str(tgt is None) + '\n')
+      f.write('b mem ' + str(self.mem is None) + '\n')
+
+    assert mem is not None and tgt is not None
 
     msk_tgt = nn.Transformer.generate_square_subsequent_mask(
                              sz=tgt.shape[1]).to(mem.device)
-    msk_pad_mem = self.msk_pad_src
+    msk_pad_mem = self.msk_pad_mem
     msk_pad_tgt = self.msk_pad_tgt#(tgt == 0)
 
     tgt_sa = self.dec_att_tgt(tgt, tgt, tgt, attn_mask=msk_tgt, 
@@ -210,26 +231,33 @@ class StepLayer(nn.Module):
     return x
 # end layer
 
+
 class SerialNet(nn.Module):
   def __init__(self,encoding,local_steps=8,Tf=1.0,serial_nn=None,open_nn=None,close_nn=None):
     super(SerialNet, self).__init__()
     
     ## Step layer
     if serial_nn is None:
-      step_layer = lambda: StepLayer()
+      step_layer_enc = lambda: StepLayer_enc()
+      step_layer_dec = lambda: StepLayer_dec()
       numprocs = 1
-      parallel_nn = torchbraid.LayerParallel(MPI.COMM_SELF,step_layer,numprocs*local_steps,Tf,
+      parallel_nn_enc = torchbraid.LayerParallel(MPI.COMM_SELF,step_layer_enc,numprocs*local_steps,Tf,
         #max_levels=1,
         max_iters=1)
-      parallel_nn.setPrintLevel(0)
+      parallel_nn_dec = torchbraid.LayerParallel(MPI.COMM_SELF,step_layer_dec,numprocs*local_steps,Tf,
+        max_iters=1)
+      parallel_nn_enc.setPrintLevel(0)
+      parallel_nn_dec.setPrintLevel(0)
       
-      self.serial_nn = parallel_nn.buildSequentialOnRoot()
+      self.serial_nn_enc = parallel_nn_enc.buildSequentialOnRoot()
+      self.serial_nn_dec = parallel_nn_dec.buildSequentialOnRoot()
     else:
       self.serial_nn = serial_nn
+      raise Exception("shouldn't be here")
 
     ## Open layer
     if open_nn is None:
-      self.open_nn = OpenLayer(encoding, step_layer)
+      self.open_nn = OpenLayer(encoding)#, step_layer_enc, step_layer_dec)
     else:
       self.open_nn = open_nn
 
@@ -241,24 +269,45 @@ class SerialNet(nn.Module):
 
   def forward(self, x):
     x = self.open_nn(x)
-    x = self.serial_nn(x)
+    self.serial_nn_enc.msk_pad_src = self.open_nn.msk_pad_src
+    self.serial_nn_enc.msk_pad_mem = self.open_nn.msk_pad_mem
+    self.serial_nn_enc.msk_pad_tgt = self.open_nn.msk_pad_tgt
+    mem = self.serial_nn_enc(x)
+    self.serial_nn_dec.mem = mem
+    tgt = self.open_nn.tgt
+    self.serial_nn_dec.tgt = tgt
+    with open('../llog.txt', 'w') as f:
+      f.write('a tgt ' + str(tgt is None) + '\n')
+      f.write('a mem ' + str(mem is None) + '\n')
+    x = self.serial_nn_dec.forward(tgt)
     x = self.close_nn(x)
 
     return x
 # end SerialNet 
+
 
 class ParallelNet(nn.Module):
   def __init__(self,encoding,local_steps=8,Tf=1.0,max_levels=1,max_iters=1,fwd_max_iters=0,print_level=0,
     braid_print_level=0,cfactor=4,fine_fcf=False,skip_downcycle=True,fmg=False,relax_only_cg=0,):
     super(ParallelNet, self).__init__()
 
-    step_layer = lambda: StepLayer()
+    step_layer_enc = lambda: StepLayer_enc()
+    step_layer_dec = lambda: StepLayer_dec()
 
     numprocs = MPI.COMM_WORLD.Get_size()
 
-    self.parallel_nn = torchbraid.LayerParallel(
+    self.parallel_nn_enc = torchbraid.LayerParallel(
       MPI.COMM_WORLD,
-      step_layer,           #[step_layer  for i in range(numprocs)] ?
+      step_layer_enc,           #[step_layer  for i in range(numprocs)] ?
+      local_steps*numprocs, #[local_steps for i in range(numprocs)] ?
+      Tf,
+      max_fwd_levels=max_levels,
+      max_bwd_levels=max_levels,
+      max_iters=max_iters,
+    )
+    self.parallel_nn_dec = torchbraid.LayerParallel(
+      MPI.COMM_WORLD,
+      step_layer_dec,           #[step_layer  for i in range(numprocs)] ?
       local_steps*numprocs, #[local_steps for i in range(numprocs)] ?
       Tf,
       max_fwd_levels=max_levels,
@@ -268,27 +317,40 @@ class ParallelNet(nn.Module):
 
     if fwd_max_iters>0:
       print('fwd_max_iters',fwd_max_iters)
-      self.parallel_nn.setFwdMaxIters(fwd_max_iters)
-    self.parallel_nn.setPrintLevel(print_level,True)
-    self.parallel_nn.setPrintLevel(braid_print_level,False)
-    self.parallel_nn.setCFactor(cfactor)
-    self.parallel_nn.setSkipDowncycle(skip_downcycle)
+      self.parallel_nn_enc.setFwdMaxIters(fwd_max_iters)
+    self.parallel_nn_enc.setPrintLevel(print_level,True)
+    self.parallel_nn_enc.setPrintLevel(braid_print_level,False)
+    self.parallel_nn_enc.setCFactor(cfactor)
+    self.parallel_nn_enc.setSkipDowncycle(skip_downcycle)
+    # self.parallel_nn.setRelaxOnlyCG(relax_only_cg)
+    if fwd_max_iters>0:
+      print('fwd_max_iters',fwd_max_iters)
+      self.parallel_nn_dec.setFwdMaxIters(fwd_max_iters)
+    self.parallel_nn_dec.setPrintLevel(print_level,True)
+    self.parallel_nn_dec.setPrintLevel(braid_print_level,False)
+    self.parallel_nn_dec.setCFactor(cfactor)
+    self.parallel_nn_dec.setSkipDowncycle(skip_downcycle)
     # self.parallel_nn.setRelaxOnlyCG(relax_only_cg)
 
     if fmg:
-      self.parallel_nn.setFMG()
-    self.parallel_nn.setNumRelax(1)         # FCF elsewehre
+      self.parallel_nn_enc.setFMG()
+      self.parallel_nn_dec.setFMG()
+    self.parallel_nn_enc.setNumRelax(1)         # FCF elsewehre
+    self.parallel_nn_dec.setNumRelax(1)         # FCF elsewehre
     if not fine_fcf:
-      self.parallel_nn.setNumRelax(0,level=0) # F-Relaxation on the fine grid
+      self.parallel_nn_enc.setNumRelax(0,level=0) # F-Relaxation on the fine grid
+      self.parallel_nn_dec.setNumRelax(0,level=0) # F-Relaxation on the fine grid
     else:
-      self.parallel_nn.setNumRelax(1,level=0) # F-Relaxation on the fine grid
+      self.parallel_nn_enc.setNumRelax(1,level=0) # F-Relaxation on the fine grid
+      self.parallel_nn_dec.setNumRelax(1,level=0) # F-Relaxation on the fine grid
 
     # this object ensures that only the LayerParallel code runs on ranks!=0
-    compose = self.compose = self.parallel_nn.comp_op()
+    compose_enc = self.compose_enc = self.parallel_nn_enc.comp_op()
+    compose_dec = self.compose_dec = self.parallel_nn_dec.comp_op()
     
     # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels) 
     # on processors not equal to 0, these will be None (there are no parameters to train there)
-    self.open_nn = compose(OpenLayer, encoding, step_layer)
+    self.open_nn = compose(OpenLayer, encoding, step_layer_enc, step_layer_dec)
     self.close_nn = compose(CloseLayer)
     assert self.open_nn is not None
     assert self.close_nn is not None
@@ -306,15 +368,15 @@ class ParallelNet(nn.Module):
   def forward(self, x):
     # by passing this through 'o' (mean composition: e.g. self.open_nn o x) 
     # this makes sure this is run on only processor 0
-    mask = (x == 0)
     x = self.compose(self.open_nn,x)
 
-    self.parallel_nn.mask = mask
-    x = self.parallel_nn(x)
+    mem = self.parallel_nn_enc(x)
+    self.parallel_nn_dec.mem = mem
+    tgt = self.parallel_nn_dec.tgt
+    x = self.parallel_nn_dec(tgt)
     
-    self.close_nn.msk_pad_mem = mask
     x = self.compose(self.close_nn,x)
-    
+
     return x
 # end ParallelNet 
 
@@ -322,8 +384,8 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
   model.train()
   criterion = nn.CrossEntropyLoss(ignore_index=0)
   total_time = 0.0
-  batch_epochs = np.inf#args.epochs
-  # batch_epochs = 100
+  # batch_epochs = np.inf#args.epochs
+  batch_epochs = 10
   batch_ctr = 0
   forward_times, backward_times = [], []
   for batch_idx, (data, target) in enumerate(train_loader):
@@ -370,7 +432,10 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
           100. * batch_idx / len(train_loader), loss.item(),total_time/(batch_idx+1.0)))
 
     batch_ctr += 1
+    print('batch_ctr', batch_ctr)
+    print('batch_epochs', batch_epochs)
     if batch_ctr >= batch_epochs:
+      print('yes?')
       break
     # elif batch_ctr%(batch_epochs//4) == 0:
     #   for g in optimizer.param_groups:
@@ -426,6 +491,7 @@ def test(rank, args, model, test_loader, compose, device):
   test_loss = 0
   correct, total = 0, 0
   criterion = nn.CrossEntropyLoss(ignore_index=0)
+  batch_ctr = 0
   with torch.no_grad():
     for data, target in test_loader:#test_loader
       if data.shape[0] != args.batch_size:#64:#187
@@ -448,6 +514,9 @@ def test(rank, args, model, test_loader, compose, device):
       pred = output.reshape(-1, output.shape[-1]).argmax(dim=-1, keepdim=False)  # get the index of the max log-probability
       correct += ((pred == target.reshape(-1))*(target.reshape(-1) != 0)).sum().item()
       total += ((target.reshape(-1) != 0).sum()).item()
+
+      batch_ctr += 1
+      if batch_ctr == 10000: break
 
   accuracy = correct/total
 
@@ -575,7 +644,7 @@ def main():
                   '-- tf       = {}\n'
                   '-- steps    = {}'.format(procs,args.encoding,args.tf,args.steps))
 
-  vocs, sents = preproc.main()
+  vocs, sents = preproc.main(small=True)
   voc_de, voc_en = vocs
   sents_de_tr, sents_en_tr, sents_de_te, sents_en_te = sents
   # ds_tr, ds_te = (tuple(zip(sents)) for sents in [(sents_de_tr, sents_en_tr),

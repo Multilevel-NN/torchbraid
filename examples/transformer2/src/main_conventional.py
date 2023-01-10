@@ -181,6 +181,7 @@ def main():
   crit = nn.CrossEntropyLoss(ignore_index=0)
 
   for epoch in range(args.epochs):
+    batch_epochs, batch_ctr = 100, 0
     for (src, tgt) in dl_tr:
       tgt_in, tgt_out = tgt[:, :-1], tgt[:, 1:]
       src, tgt_in = src.to(dev), tgt_in.to(dev)
@@ -194,6 +195,31 @@ def main():
       opt.step()
 
       print(f'Loss_tr: {loss.item() :.4f}')
+
+      batch_ctr += 1
+      if batch_ctr >= batch_epochs:
+        break
+
+    model.eval()
+    with torch.no_grad():
+      corr, tot = 0, 0
+      for (src, tgt) in dl_te:
+        tgt_in, tgt_out = tgt[:, :-1], tgt[:, 1:]
+        src, tgt_in = src.to(dev), tgt_in.to(dev)
+        src, tgt_in, tgt_out = src.long(), tgt_in.long(), tgt_out.long()
+
+        out = model(src, tgt_in).cpu()
+        # loss = crit(out.transpose(1, 2), tgt_out)
+        pred = out.argmax(axis=-1)
+        corr += ((pred == tgt_out)*(tgt_out != 0)).sum()
+        tot += (tgt_out != 0).sum()
+
+        batch_ctr += 1
+        if batch_ctr == 10000: break
+
+      acc_te = corr/tot
+      print(f'Acc_te: {acc_te.item() : .4f}')
+    model.train()
       
 
 if __name__ == '__main__':

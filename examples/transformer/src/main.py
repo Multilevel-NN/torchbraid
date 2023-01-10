@@ -121,6 +121,8 @@ class StepLayer(nn.Module):
     # ContinuousBlock - dxdtEncoder1DBlock
     x0 = x
     x = self.ln1(x)     # also try to remove layernorm
+    with open('llog3.txt', 'w') as f:
+      f.write(str(self.mask is None))
     x, _ = self.att(x, x, x, self.mask)
     x1 = x
     x = x + x0
