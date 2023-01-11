@@ -65,6 +65,13 @@ from models import PositionalEncoding, PE_Alternative
 
 import time
 
+fn = '../log.txt'
+f = open(fn, 'w'); f.close()
+f = open('../llog3.txt', 'w'); f.close()
+def write_log(*x):
+  with open(fn, 'a') as f:
+    f.write(' '.join(str(i) for i in x) + '\n')
+
 def root_print(rank,s):
   if rank==0:
     print(s)
@@ -118,10 +125,21 @@ class StepLayer(nn.Module):
   def forward(self, x):
     # mask = d_extra['mask']
 
+    # write_log('d', x.shape)
+    ## y.shape[0] = x.shape[0]*128 + mask.shape[0]
+    ## x.shape[0] = mask.shape[0]
+    ## --> x.shape[0] = y.shape[0]/129
+    x_shape0 = x.shape[0]//129
+    x, mask = x[:x_shape0*128], x[x_shape0*128:]
+    x = x.reshape(x_shape0, x.shape[1], 128)
+    # write_log('e', x.shape)
+    # write_log('f', mask.shape)
+    self.mask = mask
+
     # ContinuousBlock - dxdtEncoder1DBlock
     x0 = x
     x = self.ln1(x)     # also try to remove layernorm
-    with open('llog3.txt', 'w') as f:
+    with open('../llog3.txt', 'a') as f:
       f.write(str(self.mask is None))
     x, _ = self.att(x, x, x, self.mask)
     x1 = x
@@ -134,6 +152,11 @@ class StepLayer(nn.Module):
     x = self.fc2(x)
     
     x = x + x1
+    # write_log('h', x.shape)
+
+    x = x.reshape(x.shape[0]*x.shape[2], x.shape[1])
+    x = torch.cat((x, self.mask), axis=0)
+    # write_log('h2', x.shape)
     return x
 # end layer
 
@@ -166,8 +189,21 @@ class SerialNet(nn.Module):
   def forward(self, x):
     mask = (x == 0)
     x = self.open_nn(x)
-    self.serial_nn.mask = mask
-    x = self.serial_nn(x)
+
+    # write_log('a', x.shape)
+    # write_log('b', mask.shape)
+    y = x.reshape(x.shape[0]*x.shape[2], x.shape[1])
+    y = torch.cat((y, mask), axis=0)
+    # write_log('c', y.shape)
+
+    # self.serial_nn.mask = mask
+    x = self.serial_nn(y)
+
+    x_shape0 = x.shape[0]//129
+    x = x[:x_shape0*128]
+    x = x.reshape(x_shape0, x.shape[1], 128)
+
+    # write_log('i', x.shape)
     x = self.close_nn(x)
     return x
 # end SerialNet 
