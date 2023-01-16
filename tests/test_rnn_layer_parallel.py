@@ -1,31 +1,31 @@
 #@HEADER
 # ************************************************************************
-# 
+#
 #                        Torchbraid v. 0.1
-# 
-# Copyright 2020 National Technology & Engineering Solutions of Sandia, LLC 
-# (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. 
+#
+# Copyright 2020 National Technology & Engineering Solutions of Sandia, LLC
+# (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 # Government retains certain rights in this software.
-# 
+#
 # Torchbraid is licensed under 3-clause BSD terms of use:
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
 # met:
-# 
+#
 # 1. Redistributions of source code must retain the above copyright
 # notice, this list of conditions and the following disclaimer.
-# 
+#
 # 2. Redistributions in binary form must reproduce the above copyright
 # notice, this list of conditions and the following disclaimer in the
 # documentation and/or other materials provided with the distribution.
-# 
-# 3. Neither the name National Technology & Engineering Solutions of Sandia, 
-# LLC nor the names of the contributors may be used to endorse or promote 
+#
+# 3. Neither the name National Technology & Engineering Solutions of Sandia,
+# LLC nor the names of the contributors may be used to endorse or promote
 # products derived from this software without specific prior written permission.
-# 
+#
 # Questions? Contact Eric C. Cyr (eccyr@sandia.gov)
-# 
+#
 # ************************************************************************
 #@HEADER
 
@@ -168,30 +168,31 @@ class TestRNNLayerParallel(unittest.TestCase):
   def test_backward_approx(self):
     self.backwardProp(max_levels=3,max_iters=20,sequence_length=27,tol=1e-5)
 
-  def copyParameterGradToRoot(self,m):
-    comm     = m.getMPIComm()
-    my_rank  = m.getMPIComm().Get_rank()
-    num_proc = m.getMPIComm().Get_size()
- 
-    params = [p.grad for p in list(m.parameters())]
+  # TODO: dead code?
+  # def copyParameterGradToRoot(self,m):
+  #   comm     = m.getMPIComm()
+  #   my_rank  = m.getMPIComm().Get_rank()
+  #   num_proc = m.getMPIComm().Get_size()
 
-    if len(params)==0:
-      return params
+  #   params = [p.grad for p in list(m.parameters())]
 
-    if my_rank==0:
-      for i in range(1,num_proc):
-        remote_p = comm.recv(source=i,tag=77)
-        remote_p = [p.to(device) for p in remote_p]
-        params.extend(remote_p)
+  #   if len(params)==0:
+  #     return params
 
-      return params
-    else:
-      params_cpu = [p.cpu() for p in params]
-      comm.send(params_cpu,dest=0,tag=77)
-      return None
-  # end copyParametersToRoot
+  #   if my_rank==0:
+  #     for i in range(1,num_proc):
+  #       remote_p = comm.recv(source=i,tag=77)
+  #       remote_p = [p.to(device) for p in remote_p]
+  #       params.extend(remote_p)
 
-  def forwardProp(self, 
+  #     return params
+  #   else:
+  #     params_cpu = [p.cpu() for p in params]
+  #     comm.send(params_cpu,dest=0,tag=77)
+  #     return None
+  # # end copyParametersToRoot
+
+  def forwardProp(self,
                   max_levels = 1, # for testing parallel rnn
                   max_iters = 1, # for testing parallel rnn
                   sequence_length = 28, # total number of time steps for each sequence
@@ -203,7 +204,7 @@ class TestRNNLayerParallel(unittest.TestCase):
     comm      = MPI.COMM_WORLD
     num_procs = comm.Get_size()
     my_rank   = comm.Get_rank()
-      
+
     my_device,my_host = getDevice(MPI.COMM_WORLD)
 
     Tf              = float(sequence_length)
@@ -216,23 +217,23 @@ class TestRNNLayerParallel(unittest.TestCase):
     num_batch = int(images / batch_size)
 
     if my_rank==0:
-      with torch.no_grad(): 
+      with torch.no_grad():
 
         torch.manual_seed(20)
         serial_rnn = nn.LSTM(input_size, hidden_size, num_layers,batch_first=True)
         serial_rnn = serial_rnn.to(my_device)
         num_blocks = 2 # equivalent to the num_procs variable used for parallel implementation
         image_all, x_block_all = preprocess_input_data_serial_test(num_blocks,num_batch,batch_size,channels,sequence_length,input_size,my_device)
-    
+
         for i in range(1):
-    
+
           y_serial_hn = torch.zeros(num_layers, image_all[i].size(0), hidden_size, device=my_device)
           y_serial_cn = torch.zeros(num_layers, image_all[i].size(0), hidden_size, device=my_device)
-    
+
           _, (y_serial_hn, y_serial_cn) = serial_rnn(image_all[i],(y_serial_hn,y_serial_cn))
           y_serial_hn = y_serial_hn.cpu()
           y_serial_cn = y_serial_cn.cpu()
-    # compute serial solution 
+    # compute serial solution
 
     # wait for serial processor
     comm.barrier()
@@ -243,23 +244,31 @@ class TestRNNLayerParallel(unittest.TestCase):
     # preprocess and distribute input data
     ###########################################
     x_block = preprocess_distribute_input_data_parallel(my_rank,num_procs,num_batch,batch_size,channels,sequence_length,input_size,comm,my_device)
-  
+
     num_steps = x_block[0].shape[1]
     # RNN_parallel.py -> RNN_Parallel() class
-    parallel_rnn = torchbraid.RNN_Parallel(comm,basic_block_parallel(),num_steps,hidden_size,num_layers,Tf,max_levels=max_levels,max_iters=max_iters)
+    parallel_rnn = torchbraid.RNN_Parallel(comm,
+                                           basic_block_parallel(),
+                                           num_steps,
+                                           hidden_size,
+                                           num_layers,
+                                           Tf,
+                                           max_fwd_levels=max_levels,
+                                           max_bwd_levels=max_levels,
+                                           max_iters=max_iters)
     parallel_rnn.to(my_device)
-  
+
     parallel_rnn.setPrintLevel(print_level)
     parallel_rnn.setSkipDowncycle(True)
     parallel_rnn.setCFactor(cfactor)
     parallel_rnn.setNumRelax(nrelax)
-  
+
     for i in range(1):
-  
+
       y_parallel_hn,y_parallel_cn = parallel_rnn(x_block[i])
- 
+
       comm.barrier()
-  
+
       # send the final inference step to root
       if comm.Get_size()>1 and my_rank == comm.Get_size()-1:
         comm.send(y_parallel_hn.cpu(),0)
@@ -280,7 +289,7 @@ class TestRNNLayerParallel(unittest.TestCase):
         self.assertTrue(torch.norm(y_serial_hn-parallel_hn).item()/torch.norm(y_serial_hn).item()<1e-6,'check hn')
   # forwardProp
 
-  def backwardProp(self, 
+  def backwardProp(self,
                    max_levels = 1, # for testing parallel rnn
                    max_iters = 1, # for testing parallel rnn
                    sequence_length = 6, # total number of time steps for each sequence
@@ -313,12 +322,20 @@ class TestRNNLayerParallel(unittest.TestCase):
 
     # preprocess and distribute input data
     x_block = preprocess_distribute_input_data_parallel(my_rank,num_procs,num_batch,batch_size,channels,sequence_length,input_size,comm,my_device)
-  
+
     num_steps = x_block[0].shape[1]
-  
+
     basic_block_parallel = lambda: RNN_build_block_with_dim(input_size, hidden_size, num_layers)
-    parallel_rnn = torchbraid.RNN_Parallel(comm,basic_block_parallel(),num_steps,hidden_size,num_layers,Tf,max_levels=max_levels,max_iters=max_iters)
-    parallel_rnn.to(my_device) 
+    parallel_rnn = torchbraid.RNN_Parallel(comm,
+                                           basic_block_parallel(),
+                                           num_steps,
+                                           hidden_size,
+                                           num_layers,
+                                           Tf,
+                                           max_fwd_levels=max_levels,
+                                           max_bwd_levels=max_levels,
+                                           max_iters=max_iters)
+    parallel_rnn.to(my_device)
     parallel_rnn.setPrintLevel(print_level)
     parallel_rnn.setSkipDowncycle(True)
     parallel_rnn.setCFactor(cfactor)
@@ -330,17 +347,17 @@ class TestRNNLayerParallel(unittest.TestCase):
     for i in range(applications):
       h_0 = torch.zeros(num_layers, x_block[i].size(0), hidden_size,requires_grad=True,device=my_device)
       c_0 = torch.zeros(num_layers, x_block[i].size(0), hidden_size,requires_grad=True,device=my_device)
-  
-      with torch.enable_grad(): 
+
+      with torch.enable_grad():
         y_parallel_hn,y_parallel_cn = parallel_rnn(x_block[i],(h_0,c_0))
-  
+
       comm.barrier()
 
       w_h = torch.zeros(y_parallel_hn.shape,device=my_device)
       w_c = torch.zeros(y_parallel_hn.shape,device=my_device)
 
       w_h[-1,:,:] = rand_w
-  
+
       y_parallel_hn.backward(w_h)
 
       if i<applications-1:
@@ -349,7 +366,7 @@ class TestRNNLayerParallel(unittest.TestCase):
             p += p.grad
         parallel_rnn.zero_grad()
 
-    # compute serial solution 
+    # compute serial solution
     #############################################
 
     if my_rank==0:
@@ -363,7 +380,7 @@ class TestRNNLayerParallel(unittest.TestCase):
         y_serial_hn_0 = torch.zeros(num_layers, image_all[i].size(0), hidden_size,requires_grad=True,device=my_device)
         y_serial_cn_0 = torch.zeros(num_layers, image_all[i].size(0), hidden_size,requires_grad=True,device=my_device)
 
-        with torch.enable_grad(): 
+        with torch.enable_grad():
           q, (y_serial_hn, y_serial_cn) = serial_rnn(image_all[i],(y_serial_hn_0,y_serial_cn_0))
 
         w_q = torch.zeros(q.shape,device=my_device)
@@ -385,7 +402,7 @@ class TestRNNLayerParallel(unittest.TestCase):
     if comm.Get_size()>1 and my_rank == comm.Get_size()-1:
       comm.send(y_parallel_hn.cpu(),0)
       comm.send(y_parallel_cn.cpu(),0)
-  
+
     if my_rank==0:
       y_serial_cn = y_serial_cn.cpu()
       y_serial_hn = y_serial_hn.cpu()

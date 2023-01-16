@@ -1,31 +1,31 @@
 #@HEADER
 # ************************************************************************
-# 
+#
 #                        Torchbraid v. 0.1
-# 
-# Copyright 2020 National Technology & Engineering Solutions of Sandia, LLC 
-# (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. 
+#
+# Copyright 2020 National Technology & Engineering Solutions of Sandia, LLC
+# (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
 # Government retains certain rights in this software.
-# 
+#
 # Torchbraid is licensed under 3-clause BSD terms of use:
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
 # met:
-# 
+#
 # 1. Redistributions of source code must retain the above copyright
 # notice, this list of conditions and the following disclaimer.
-# 
+#
 # 2. Redistributions in binary form must reproduce the above copyright
 # notice, this list of conditions and the following disclaimer in the
 # documentation and/or other materials provided with the distribution.
-# 
-# 3. Neither the name National Technology & Engineering Solutions of Sandia, 
-# LLC nor the names of the contributors may be used to endorse or promote 
+#
+# 3. Neither the name National Technology & Engineering Solutions of Sandia,
+# LLC nor the names of the contributors may be used to endorse or promote
 # products derived from this software without specific prior written permission.
-# 
+#
 # Questions? Contact Eric C. Cyr (eccyr@sandia.gov)
-# 
+#
 # ************************************************************************
 #@HEADER
 
@@ -46,25 +46,25 @@ from mpi4py import MPI
 
 class ForwardBraidApp(BraidApp):
 
-  def __init__(self,comm,RNN_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,abs_tol):
-    BraidApp.__init__(self,'RNN',
-                                   comm,
-                                   comm.Get_size()*local_num_steps,
-                                   Tf,
-                                   max_levels,
-                                   max_iters,
-                                   spatial_ref_pair=None,
-                                   require_storage=True,
-                                   abs_tol=abs_tol)
+  def __init__(self,comm,RNN_models,local_num_steps,Tf,max_levels,max_iters,timer_manager,user_mpi_buf=False):
+    BraidApp.__init__(self,'FWRNN',
+                      comm,
+                      comm.Get_size()*local_num_steps,
+                      Tf,
+                      max_levels,
+                      max_iters,
+                      spatial_ref_pair=None,
+                      user_mpi_buf=user_mpi_buf,
+                      require_storage=True)
 
     self.RNN_models = RNN_models
 
-    comm          = self.getMPIComm()
-    my_rank       = self.getMPIComm().Get_rank()
-    num_ranks     = self.getMPIComm().Get_size()
+    self.finalRelax()
 
-    # build up the core
-    self.py_core = self.initCore()
+    # set timing data output file
+    self.setTimerFile("braid_forward_timings")
+
+    self.my_rank = self.getMPIComm().Get_rank()
 
     self.timer_manager = timer_manager
     self.use_deriv = False
@@ -88,7 +88,7 @@ class ForwardBraidApp(BraidApp):
     This method handles a fast forward evaluation. If the user has not
     defined a RNN cell that can handle fast forward, a standard computation
     is performed. If the cell can handle the fast forward, then the reduced
-    version of the sequence is computed or pulled from a dictionary. If its 
+    version of the sequence is computed or pulled from a dictionary. If its
     computed, the computed reduced value of the sequence is stored for
     reuse. Regardless of it being computed or pulled from storage, the fastForward
     version of the RNNcell is called (which used the reduced version of the
@@ -126,28 +126,26 @@ class ForwardBraidApp(BraidApp):
     return self.seq_shapes
 
   def getDataVectorIndex(self,t):
-    shift = 0
-    if self.mpi_comm.Get_rank()>0:
-      shift = 1
+    shift = 1 if self.my_rank>0 else 0
 
     return self.getGlobalTimeIndex(t)-self.start_layer+shift
 
   def getSequenceVector(self,t):
     index = self.getDataVectorIndex(t)
-    if index<0: 
-      my_rank = self.mpi_comm.Get_rank()
+    if index<0:
+      my_rank = self.my_rank
       pre_str  = "\n{}: WARNING: getSequenceVector index negative at {}: {}\n".format(my_rank,t,index)
       pre_str += "\n{}:          step index = {}, start_layer = {}, stop_layer = {}\n".format(my_rank,self.getTimeStepIndex(),self.start_layer,self.end_layer)
       stack_str = utils.stack_string('{}: |- '.format(my_rank))
       print(pre_str+stack_str)
       sys.stdout.flush()
- 
+
     if index<self.x.shape[1]:
       value = self.x[:,index,:]
     else:
       # this is a sentinnel
       value = self.x[:,0,:].detach().clone()
-      
+
     return value
 
   def initializeVector(self,t,x):
@@ -175,9 +173,11 @@ class ForwardBraidApp(BraidApp):
 
 
   def run(self,x,h_c):
+    self.use_deriv = self.training
+
+    comm          = self.mpi_comm
     num_ranks     = self.mpi_comm.Get_size()
-    my_rank       = self.mpi_comm.Get_rank()
-    comm = self.mpi_comm
+    my_rank       = self.my_rank
 
     assert(x.shape[1]==self.local_num_steps)
 
@@ -185,17 +185,20 @@ class ForwardBraidApp(BraidApp):
     self.fastforward_calls = 0
     self.seq_x_reduced = dict()
 
+    # TODO: We're using the GPU -> CPU -> CPU -> GPU model here - might be a better way to reorganize
+    #   this with the same logic we're using for the rest of it.
+
     self.x = x.cpu()
     self.seq_shapes = [x[:,0,:].shape]
 
     with self.timer("run:precomm"):
-      # recive deta vector from the right 
+      # receive data vector from the right
       recv_request = None
       if my_rank<num_ranks-1:
         neighbor_x = torch.zeros(x[:,0,:].shape)
         recv_request = comm.Irecv(neighbor_x.numpy(),source=my_rank+1,tag=22)
 
-      # send deta vector to the left
+      # send data vector to the left
       send_request = None
       if my_rank>0:
         send_request = comm.Isend(np.ascontiguousarray(self.x[:,0,:].numpy()),dest=my_rank-1,tag=22)
@@ -206,12 +209,16 @@ class ForwardBraidApp(BraidApp):
 
       if send_request:
         send_request.Wait()
-    # end wit htimer
+    # end with timer
 
     self.x = self.x.to(x.device)
 
-    with self.timer("run:run"):
+    comm.Barrier()
+    with self.timer("run:runBraid"):
       y = self.runBraid(h_c)
+
+    # TODO: We're using the GPU -> CPU -> CPU -> GPU model here - might be a better way to reorganize
+    #   this with the same logic we're using for the rest of it.
 
     with self.timer("run:postcomm"):
       y_cpu = None
@@ -224,6 +231,11 @@ class ForwardBraidApp(BraidApp):
     return y
   # end forward
 
+  def parameters(self):
+    params = list(self.RNN_models.parameters())
+
+    return params
+
   def eval(self,g0,tstart,tstop,level,done):
     """
     Method called by "my_step" in braid. This is
@@ -232,7 +244,7 @@ class ForwardBraidApp(BraidApp):
     """
 
     with self.timer("eval"):
-  
+
       seq_x = g0.weightTensors()[0].to(self.x.device)
 
       # don't need derivatives or anything, just compute
@@ -252,16 +264,16 @@ class ForwardBraidApp(BraidApp):
         # store the fine level solution for reuse later in backprop
         if level==0:
           self.backpropped[tstart,tstop] = (u,y)
-  
+
       seq_x = self.getSequenceVector(tstop)
-  
+
       g0.addWeightTensors((seq_x,))
       for i,t in enumerate(y):
         g0.replaceTensor(t,i)
   # end eval
 
   def getPrimalWithGrad(self,tstart,tstop,level,done):
-    """ 
+    """
     Get the forward solution associated with this
     time step and also get its derivative. This is
     used by the BackwardApp in computation of the
@@ -270,12 +282,12 @@ class ForwardBraidApp(BraidApp):
     so it can be stored internally instead of
     being recomputed.
     """
-    
+
     # use the short cut precomputed (with derivatives)
     if level==0 and (tstart,tstop) in self.backpropped:
       with self.timer("getPrimalWithGrad-short"):
         u,y = self.backpropped[(tstart,tstop)]
-      return y,u
+      return y,u, self.RNN_models
 
     with self.timer("getPrimalWithGrad-long"):
       # extract the various vectors for this value from the fine level to linearize around
@@ -286,14 +298,14 @@ class ForwardBraidApp(BraidApp):
 
       for t in u:
         t.requires_grad = True
-  
+
       # evaluate the step
       with torch.enable_grad():
         y = self.computeStep(level,tstart,tstop,seq_x,u,allow_ff=self.has_fastforward)
 
     sys.stdout.flush()
-   
-    return y, u
+
+    return y, u, self.RNN_models
   # end getPrimalWithGrad
 
 # end ForwardBraidApp
@@ -302,24 +314,27 @@ class ForwardBraidApp(BraidApp):
 
 class BackwardBraidApp(BraidApp):
 
-  def __init__(self,fwd_app,timer_manager,abs_tol):
+  def __init__(self,fwd_app,timer_manager):
     # call parent constructor
-    BraidApp.__init__(self,'RNN',fwd_app.getMPIComm(),
+    BraidApp.__init__(self,'BWRNN',fwd_app.getMPIComm(),
                           fwd_app.getMPIComm().Get_size()*fwd_app.local_num_steps,
                           fwd_app.Tf,
                           fwd_app.max_levels,
-                          fwd_app.max_iters,spatial_ref_pair=None,require_storage=True,abs_tol=abs_tol)
+                          fwd_app.max_iters,spatial_ref_pair=None,require_storage=True)
 
     self.fwd_app = fwd_app
 
     # build up the core
-    self.py_core = self.initCore()
+    self.initCore()
 
     # reverse ordering for adjoint/backprop
     self.setRevertedRanks(1)
 
     # force evaluation of gradients at end of up-cycle
     self.finalRelax()
+
+    # set timing data output file
+    self.setTimerFile("braid_backward_timings")
 
     self.timer_manager = timer_manager
   # end __init__
@@ -341,16 +356,19 @@ class BackwardBraidApp(BraidApp):
 
     sys.stdout.flush()
     try:
-      self.RNN_models = self.fwd_app.RNN_models
-
       f = self.runBraid(x)
 
-      self.grads = [p.grad.detach().clone() if p.requires_grad else None for p in self.RNN_models.parameters()]
+      my_params = self.fwd_app.parameters()
+      self.grads = []
+      for item in my_params:
+        if item.grad is not None:
+          self.grads += [ item.grad.detach().clone() ]
+        else:
+          self.grads += [ None ]
 
       # required otherwise we will re-add the gradients
-      self.RNN_models.zero_grad() 
+      self.fwd_app.RNN_models.zero_grad()
 
-      self.RNN_models = None
     except:
       print('\n**** Torchbraid Internal Exception ****\n')
       traceback.print_exc()
@@ -367,17 +385,17 @@ class BackwardBraidApp(BraidApp):
     with self.timer("eval"):
       try:
 
+        # we need to adjust the time step values to reverse with the adjoint
+        # this is so that the renumbering used by the backward problem is properly adjusted
+        t_y,t_x,rnn_models = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level,done)
+
         # play with the parameter gradients to make sure they are on apprpriately,
         # store the initial state so we can revert them later
         required_grad_state = []
         if done!=1:
-          for p in self.RNN_models.parameters(): 
+          for p in rnn_models.parameters():
             required_grad_state += [p.requires_grad]
             p.requires_grad = False
-
-        # we need to adjust the time step values to reverse with the adjoint
-        # this is so that the renumbering used by the backward problem is properly adjusted
-        t_y,t_x = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,self.Tf-tstart,level,done)
 
         # perform adjoint computation
         t_w = w.tensors()
@@ -391,12 +409,12 @@ class BackwardBraidApp(BraidApp):
         # stored too long in this calculation (in particulcar setting
         # the grad to None after saving it and returning it to braid)
         for wv,xv in zip(t_w,t_x):
-          wv.copy_(xv.grad.detach()) 
+          wv.copy_(xv.grad.detach())
           xv.grad = None
 
         # revert the gradient state to where they started
         if done!=1:
-          for p,s in zip(self.RNN_models.parameters(),required_grad_state):
+          for p,s in zip(rnn_models.parameters(),required_grad_state):
             p.requires_grad = s
       except:
         print('\n**** Torchbraid Internal Exception ****\n')
