@@ -262,11 +262,6 @@ def main():
   global_steps = args.steps
 
   ##
-  # Load training and testing data, while reducing the number of samples (if desired) for faster execution
-  transform = transforms.Compose([transforms.ToTensor(),
-                                  transforms.Normalize((0.1307,), (0.3081,))
-                                  ])
-  ##
   # Load Tiny ImageNet
   if rank == 0:
     print('Using Tiny ImageNet...\n')
@@ -280,9 +275,6 @@ def main():
                                    std=[0.2023, 0.1994, 0.2010])
   train_dataset = datasets.ImageFolder(traindir,
                                        transforms.Compose([
-                                         # transforms.RandomResizedCrop(56),
-                                         # transforms.RandomHorizontalFlip(),
-                                         # transforms.Resize(64),
                                          transforms.RandomCrop(64, padding=4),
                                          transforms.RandomHorizontalFlip(),
                                          transforms.ToTensor(),
