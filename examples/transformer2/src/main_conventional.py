@@ -164,7 +164,7 @@ def main():
   dev = 'cuda' if torch.cuda.is_available() else 'cpu'
   torch.manual_seed(args.seed)
 
-  vocs, sents = preproc.main(small=True)
+  vocs, sents = preproc.main(small=False)#True)
   voc_de, voc_en = vocs
   sents_de_tr, sents_en_tr, sents_de_te, sents_en_te = sents
   # ds_tr, ds_te = (tuple(zip(sents)) for sents in [(sents_de_tr, sents_en_tr),

@@ -65,6 +65,51 @@ from models import PositionalEncoding, PE_Alternative
 
 import time
 
+L_mem, L_tgt = None, None
+
+fn = '../log.txt'
+f = open(fn, 'w'); f.close()
+# f = open('../llog3.txt', 'w'); f.close()
+def write_log(*x):
+  with open(fn, 'a') as f:
+    f.write(' '.join(str(i) + '\n' for i in x))
+
+
+def encode_encoder(x, mask):
+  y = x.reshape(x.shape[0]*x.shape[2], x.shape[1])
+  y = torch.cat((y, mask), axis=0)
+  return y
+
+def encode_decoder(mem, tgt, msk_pad_mem, msk_pad_tgt):
+  global L_mem, L_tgt
+  n, L_mem, d, L_tgt = *mem.shape, tgt.shape[1]
+  y = mem.reshape(n*d, L_mem)
+  y = torch.cat((y, msk_pad_mem), axis=0)
+  z = tgt.reshape(n*d, L_tgt)
+  z = torch.cat((z, msk_pad_tgt), axis=0)
+  t = torch.zeros(y.shape[0] + z.shape[0], max(L_mem, L_tgt),
+                  dtype=mem.dtype).to(mem.device)
+  t[:y.shape[0], :L_mem] = y
+  t[y.shape[0]:, :L_tgt] = z
+  return t
+
+def decode_encoder(x):
+  n = x.shape[0]//(128 + 1)
+  x, mask = x[:n*128], x[n*128:]
+  x = x.reshape(n, x.shape[1], 128)
+  return x, mask
+
+def decode_decoder(x):
+  n = x.shape[0]//(128+1+128+1)
+  mem, msk_pad_mem, tgt, msk_pad_tgt = x[:n*128], x[n*128:n*(128+1)], \
+                                x[n*(128+1):n*(128+1+128)], x[n*(128+1+128):]
+  mem, msk_pad_mem = mem[:, :L_mem], msk_pad_mem[:, :L_mem]
+  tgt, msk_pad_tgt = tgt[:, :L_tgt], msk_pad_tgt[:, :L_tgt]
+  mem = mem.reshape(n, mem.shape[1], 128)
+  tgt = tgt.reshape(n, tgt.shape[1], 128)
+  return mem, tgt, msk_pad_mem, msk_pad_tgt
+
+
 def root_print(rank,s):
   if rank==0:
     print(s)
@@ -137,10 +182,11 @@ class StepLayer_enc(nn.Module):
     self.enc_dout1 = nn.Dropout(.1)
     self.enc_dout2 = nn.Dropout(.1)
 
-  def forward(self, src):
+  def forward(self, y):
     # ContinuousBlock - dxdtEncoder1DBlock
     ## Encoder
-    msk_pad_src = self.msk_pad_src#(src == 0)
+    # msk_pad_src = self.msk_pad_src#(src == 0)
+    src, msk_pad_src = decode_encoder(y)
 
     x = src
 
@@ -154,7 +200,9 @@ class StepLayer_enc(nn.Module):
     x_ff = self.enc_dout2(x_ff)
     x = self.enc_ln2(x + x_ff)
 
-    return x
+    y = encode_encoder(x, msk_pad_src)
+
+    return y
 # end layer
 
 class StepLayer_dec(nn.Module):
@@ -190,37 +238,27 @@ class StepLayer_dec(nn.Module):
     self.dec_dout2 = nn.Dropout(.1)
     self.dec_dout3 = nn.Dropout(.1)
 
-  def forward(self, tgt):
+  def forward(self, y):
     # ContinuousBlock - dxdtEncoder1DBlock
 
-    with open('../llog.txt', 'a') as f:
-      f.write('b tgt ' + str(tgt is None) + '\n')
-      f.write('b mem ' + str(self.mem is None) + '\n')
-      f.write('b msk_pad_mem ' + str(self.msk_pad_mem is None) + '\n')
-      f.write('b msk_pad_tgt ' + str(self.msk_pad_tgt is None) + '\n')
+    mem, tgt, msk_pad_mem, msk_pad_tgt = decode_decoder(y)
+    msk_pad_mem = msk_pad_mem.bool()
+    msk_pad_tgt = msk_pad_tgt.bool()
 
     ## Decoder
-    mem = self.mem
-    tgt = self.tgt
-    with open('../llog2.txt', 'w') as f:
-      f.write('b tgt ' + str(tgt is None) + '\n')
-      f.write('b mem ' + str(self.mem is None) + '\n')
-
-    assert mem is not None and tgt is not None
-
     msk_tgt = nn.Transformer.generate_square_subsequent_mask(
                              sz=tgt.shape[1]).to(mem.device)
-    msk_pad_mem = self.msk_pad_mem
-    msk_pad_tgt = self.msk_pad_tgt#(tgt == 0)
+    # msk_pad_mem = self.msk_pad_mem
+    # msk_pad_tgt = self.msk_pad_tgt#(tgt == 0)
 
-    tgt_sa = self.dec_att_tgt(tgt, tgt, tgt, attn_mask=msk_tgt, 
+    tgt_sa, _ = self.dec_att_tgt(tgt, tgt, tgt, attn_mask=msk_tgt, 
                               key_padding_mask=msk_pad_tgt)
     tgt_sa = self.dec_dout1(tgt_sa)
     tgt = self.dec_ln1(tgt + tgt_sa)
 
-    x_mha = self.dec_att_mha(tgt, mem, mem, key_padding_mask=msk_pad_mem)
+    x_mha, _ = self.dec_att_mha(tgt, mem, mem, key_padding_mask=msk_pad_mem)
     x_mha = self.dec_dout2(x_mha)
-    x = self.dec_ln2(x + x_mha)
+    x = self.dec_ln2(tgt + x_mha)
 
     x_ff = self.dec_fc1(x).relu()
     x_ff = self.dec_dout(x_ff)
@@ -228,7 +266,9 @@ class StepLayer_dec(nn.Module):
     x_ff = self.dec_dout3(x_ff)
     x = self.dec_ln3(x + x_ff)
 
-    return x
+    y = encode_decoder(mem, x, msk_pad_mem, msk_pad_tgt)
+
+    return y
 # end layer
 
 
@@ -269,17 +309,28 @@ class SerialNet(nn.Module):
 
   def forward(self, x):
     x = self.open_nn(x)
-    self.serial_nn_enc.msk_pad_src = self.open_nn.msk_pad_src
-    self.serial_nn_enc.msk_pad_mem = self.open_nn.msk_pad_mem
-    self.serial_nn_enc.msk_pad_tgt = self.open_nn.msk_pad_tgt
-    mem = self.serial_nn_enc(x)
-    self.serial_nn_dec.mem = mem
     tgt = self.open_nn.tgt
-    self.serial_nn_dec.tgt = tgt
-    with open('../llog.txt', 'w') as f:
-      f.write('a tgt ' + str(tgt is None) + '\n')
-      f.write('a mem ' + str(mem is None) + '\n')
-    x = self.serial_nn_dec.forward(tgt)
+
+    ## Shapes:
+    ##    src           (btch, 102, 128)
+    ##    tgt           (btch, 101, 128)
+    ##    msk_pad_src   (btch, 102)
+    ##    msk_pad_mem   (btch, 102)
+    ##    msk_pad_tgt   (btch, 101)
+
+    # write_log(x.shape, tgt.shape, self.open_nn.msk_pad_src.shape, self.open_nn.msk_pad_mem.shape, self.open_nn.msk_pad_tgt.shape)
+    msk_pad_src = self.open_nn.msk_pad_src
+    msk_pad_mem = self.open_nn.msk_pad_mem
+    msk_pad_tgt = self.open_nn.msk_pad_tgt
+
+    y = encode_encoder(x, msk_pad_src)
+    y = self.serial_nn_enc(y)
+    mem, _ = decode_encoder(y)
+
+    z = encode_decoder(mem, tgt, msk_pad_mem, msk_pad_tgt)
+    z = self.serial_nn_dec(z)
+    _, x, _, _ = decode_decoder(z)
+
     x = self.close_nn(x)
 
     return x
@@ -350,7 +401,8 @@ class ParallelNet(nn.Module):
     
     # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels) 
     # on processors not equal to 0, these will be None (there are no parameters to train there)
-    self.open_nn = compose(OpenLayer, encoding, step_layer_enc, step_layer_dec)
+    self.open_nn = compose(OpenLayer, encoding, step_layer_enc, 
+                                                step_layer_dec)
     self.close_nn = compose(CloseLayer)
     assert self.open_nn is not None
     assert self.close_nn is not None
@@ -385,7 +437,7 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
   criterion = nn.CrossEntropyLoss(ignore_index=0)
   total_time = 0.0
   # batch_epochs = np.inf#args.epochs
-  batch_epochs = 10
+  batch_epochs = 10000
   batch_ctr = 0
   forward_times, backward_times = [], []
   for batch_idx, (data, target) in enumerate(train_loader):
@@ -393,6 +445,7 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
     # root_print(rank, f'data.shape {data.shape}')
     if data.shape[0] != args.batch_size:
       break
+    write_log('tr1', data.shape, target.shape)
     #root_print(rank, f'train data.shape {data.shape}')
     start_time = timer()
     optimizer.zero_grad()
@@ -400,6 +453,8 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
     target, tgt_inp = target[:, 1:], target[:, :-1] # task 2
     data, tgt_inp = data.to(device), tgt_inp.to(device) # task 2
     target = target.long()
+
+    write_log('tr2', data.shape, tgt_inp.shape, target.shape)
 
     ## Forward pass
     t0_forward = time.time()
@@ -496,13 +551,16 @@ def test(rank, args, model, test_loader, compose, device):
     for data, target in test_loader:#test_loader
       if data.shape[0] != args.batch_size:#64:#187
         break
+      write_log('te1', data.shape, target.shape)
       #root_print(rank, f'test data.shape {data.shape}')
       # data = data.to(device)  # task 1
       target, tgt_inp = target[:, 1:], target[:, :-1] # task 2
       data, tgt_inp = data.to(device), tgt_inp.to(device) # task 2
       target = target.long()
 
-      model.close_nn.tgt = tgt_inp
+      write_log('te2', data.shape, tgt_inp.shape, target.shape)
+
+      model.open_nn.tgt = tgt_inp
       output = model(data).cpu()
       test_loss += compose(
         criterion,
@@ -516,7 +574,7 @@ def test(rank, args, model, test_loader, compose, device):
       total += ((target.reshape(-1) != 0).sum()).item()
 
       batch_ctr += 1
-      if batch_ctr == 10000: break
+      if batch_ctr == 1000: break
 
   accuracy = correct/total
 
@@ -644,7 +702,7 @@ def main():
                   '-- tf       = {}\n'
                   '-- steps    = {}'.format(procs,args.encoding,args.tf,args.steps))
 
-  vocs, sents = preproc.main(small=True)
+  vocs, sents = preproc.main(small=False)#True)
   voc_de, voc_en = vocs
   sents_de_tr, sents_en_tr, sents_de_te, sents_en_te = sents
   # ds_tr, ds_te = (tuple(zip(sents)) for sents in [(sents_de_tr, sents_en_tr),
