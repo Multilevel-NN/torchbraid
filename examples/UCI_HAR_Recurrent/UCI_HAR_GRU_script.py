@@ -142,7 +142,10 @@ def main():
   # Make sure datasets are present (if already downloaded, this is not repeated)
   example_path = os.path.dirname(os.path.realpath(__file__))
   if rank == 0:
-      download_UCI_Data(example_path)
+    download_UCI_Data(example_path)
+
+  # Wait for the dataset download if needed
+  comm.Barrier()
 
   # Use device or CPU?
   use_cuda = not args.no_cuda and torch.cuda.is_available()

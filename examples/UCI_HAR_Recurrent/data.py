@@ -19,6 +19,8 @@ def download_UCI_Data(example_path):
     import urllib
     import shutil
 
+    print('downloading UCI HAR dataset...')
+
     # Link to the UCI database
     download_url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00240/UCI%20HAR%20Dataset.zip"
     # Download the zip
@@ -29,6 +31,8 @@ def download_UCI_Data(example_path):
     # Do some cleanup
     os.remove(download_filename)
     shutil.rmtree(example_path + '/__MACOSX')
+
+    print('download complete')
 
 
 def load_data(train, example_path):
