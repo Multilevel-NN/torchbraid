@@ -271,16 +271,20 @@ def main():
   # Load datasets
   traindir = './tiny-imagenet-200/new_train'
   valdir = './tiny-imagenet-200/new_test'
-  normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
-                                   std=[0.2023, 0.1994, 0.2010])
+  #normalize = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465],
+  #                                 std=[0.2023, 0.1994, 0.2010])
+  normalize = transforms.Normalize(mean=[0.5, 0.5, 0.5],
+                                   std=[0.5, 0.5, 0.5])
   train_dataset = datasets.ImageFolder(traindir,
                                        transforms.Compose([
-                                         transforms.RandomCrop(64, padding=4),
+                                         transforms.Resize(256),
+                                         transforms.RandomCrop(224,padding=4),
                                          transforms.RandomHorizontalFlip(),
                                          transforms.ToTensor(),
-                                         normalize, transforms.RandomErasing(0.25)]))
+                                         normalize, transforms.RandomErasing(0.5)]))
   test_dataset = datasets.ImageFolder(valdir, transforms.Compose([
-    transforms.Resize(64),
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
     transforms.ToTensor(),
     normalize]))
 
@@ -349,7 +353,7 @@ def main():
       f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
 
   if args.opt == 'SGD':
-    optimizer = optim.SGD(model.parameters(), lr=args.lr)  # , weight_decay=0.0001)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9 )#, weight_decay=0.0001)
   else:
     optimizer = optim.Adam(model.parameters(), lr=args.lr)  # , weight_decay=0.0001)
   compose = model.compose
@@ -361,6 +365,7 @@ def main():
 
   if args.lr_scheduler:
     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10, 30], gamma=0.1, verbose=(rank == 0))
+    # scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
   if args.load_model:
     root_print(rank, f'Loading from \"{args.model_dir}\"')

@@ -43,7 +43,7 @@ class OpenLayer(nn.Module):
     self.channels = channels
     self.pre = nn.Sequential(
       nn.Conv2d(3, channels, kernel_size=7, padding=3, stride=2,bias=False),
-      nn.BatchNorm2d(channels,track_running_stats=False),
+      nn.BatchNorm2d(channels,track_running_stats=True),
       nn.ReLU(inplace=True),
       nn.MaxPool2d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
     )
@@ -57,12 +57,10 @@ class CloseLayer(nn.Module):
   def __init__(self,channels):
     super(CloseLayer, self).__init__()
 
-    self.conv = nn.Conv2d(512, 4, kernel_size=1, stride=2, padding=1,bias=False)
-    self.avg  = nn.AdaptiveAvgPool2d((8,8))
-    self.fc   = nn.Linear(4*8*8, 200)
+    self.avg  = nn.AdaptiveAvgPool2d(1)
+    self.fc   = nn.Linear(512, 200)
 
   def forward(self, x):
-    x = self.conv(x)
     x = self.avg(x)
     out = torch.flatten(x.view(x.size(0),-1), 1)
     return self.fc(out)
@@ -77,7 +75,7 @@ class TransitionLayer(nn.Module):
     # Account for 64x64 image and 3 RGB channels
     self.pre = nn.Sequential(
       nn.Conv2d(channels, 2*channels, kernel_size=3, stride=2, padding=1,bias=False),
-      nn.BatchNorm2d(2*channels,track_running_stats=False),
+      nn.BatchNorm2d(2*channels,track_running_stats=True),
       nn.ReLU()
     )
 
@@ -93,7 +91,9 @@ class StepLayer(nn.Module):
     
     # Account for 3 RGB Channels
     self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1,bias=False)
+    self.bn1   = nn.BatchNorm2d(channels,track_running_stats=True)
     self.conv2 = nn.Conv2d(channels,channels,ker_width,padding=1,bias=False)
+    self.bn2   = nn.BatchNorm2d(channels,track_running_stats=True)
 
     if activation=='tanh':
       self.activation = nn.Tanh()
@@ -106,8 +106,10 @@ class StepLayer(nn.Module):
 
   def forward(self, x):
     y = self.conv1(x) 
+    y = self.bn1(y) 
     y = self.activation(y)
     y = self.conv2(y) 
+    y = self.bn2(y) 
     y = self.activation(y)
     return y 
 # end layer
