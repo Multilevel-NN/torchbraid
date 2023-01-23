@@ -76,7 +76,15 @@ class ForwardODENetApp(BraidApp):
     """
     self.layer_blocks,num_steps = self.buildLayerBlocks(layers)
 
-    BraidApp.__init__(self,'FWDApp',comm,num_steps,Tf,max_levels,max_iters,spatial_ref_pair=spatial_ref_pair,user_mpi_buf=user_mpi_buf,require_storage=True)
+    BraidApp.__init__(self,'FWDApp',
+                      comm,
+                      num_steps,
+                      Tf,
+                      max_levels,
+                      max_iters,
+                      spatial_ref_pair=spatial_ref_pair,
+                      user_mpi_buf=user_mpi_buf,
+                      require_storage=True)
 
     self.finalRelax()
 

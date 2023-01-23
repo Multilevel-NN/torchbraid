@@ -39,7 +39,5 @@ drivers/mnist/data
 
 examples/tiny_imagenet/tiny-imagenet-200
 examples/mnist/mnist_layerparallel_training.png
-examples/rnns/uci-har/UCI\ HAR\ Dataset/
-examples/rnns/uci-har/UCI\ HAR\ Dataset.zip
-examples/rnns/uci-har/__MACOSX
-
+examples/UCI_HAR_Recurrent/UCI\ HAR\ Dataset/
+examples/UCI_HAR_Recurrent/UCI-HAR_layerparallel_training.png

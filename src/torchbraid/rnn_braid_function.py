@@ -52,18 +52,28 @@ class BraidFunction(torch.autograd.Function):
 
   @staticmethod
   def forward(ctx, fwd_app, bwd_app, num_input_tensors, x, *input_and_param_tensors):
+    comm          = fwd_app.getMPIComm()
+    my_rank       = fwd_app.getMPIComm().Get_rank()
+    num_ranks     = fwd_app.getMPIComm().Get_size()
 
     fwd_app.setDevice(x.device)
     bwd_app.setDevice(x.device)
 
     # copy the input to all processors (ensure consistency)
-    comm = fwd_app.getMPIComm()
     with fwd_app.timer("func:precomm"):
       sizes = tuple([input_and_param_tensors[i].size() for i in range(num_input_tensors)])
       shape = list(comm.bcast(sizes,root=0))
 
     old_shape = fwd_app.getShape()
     adjusting = old_shape is not None and old_shape!=shape
+
+    # setup context
+    ctx.fwd_app = fwd_app
+    ctx.bwd_app = bwd_app
+    ctx.num_input_tensors = num_input_tensors
+    ctx.adjusting = adjusting
+    ctx.save_for_backward(x, *input_and_param_tensors)
+    ctx.device = x.device
 
     if adjusting:
       old_batch  = old_shape[0][1]
@@ -78,13 +88,6 @@ class BraidFunction(torch.autograd.Function):
 
       state = tuple([input_and_param_tensors[i] for i in range(num_input_tensors)])
 
-    # setup context
-    ctx.fwd_app = fwd_app
-    ctx.bwd_app = bwd_app
-    ctx.num_input_tensors = num_input_tensors
-    ctx.adjusting = adjusting
-    ctx.save_for_backward(x, *input_and_param_tensors)
-    ctx.device = x.device
 
     with fwd_app.timer("func:run"):
       result = fwd_app.run(x,state)
@@ -132,13 +135,14 @@ class BraidFunction(torch.autograd.Function):
     with ctx.bwd_app.timer("func:postrun"):
       # pack up the buffer, and then send it out
       buf_size = utils.buffer_size(ctx.bwd_app.grads)
-      src_buf = utils.pack_buffer([g.cpu() for g in ctx.bwd_app.grads])
+
+      src_buf = utils.pack_buffer([g.cpu() if g is not None else None for g in ctx.bwd_app.grads])
       dst_buf = np.zeros(buf_size)
 
       req = comm.Iallreduce(src_buf,dst_buf,MPI.SUM)
 
       # grad_input follows the input to forward: fwd_app, bwd_app, Num_input_tensors, x, params
-      grad_input = [None,None,None] 
+      grad_input = [None,None,None]
 
       if ctx.needs_input_grad[3]: grad_input += [ctx.fwd_app.x.grad]
       else: grad_input += [None] # x
@@ -146,14 +150,15 @@ class BraidFunction(torch.autograd.Function):
       grad_input += ctx.num_input_tensors*[None]
       if result is not None:
         for i,r in enumerate(result):
-          if ctx.needs_input_grad[4+i]: 
+          if ctx.needs_input_grad[4+i]:
             grad_input[4+i] = r
 
       # with for communication to complete
-      MPI.Request.Wait(req) 
-      grads_cpu = [g.cpu() for g in ctx.bwd_app.grads]
+      MPI.Request.Wait(req)
+
+      grads_cpu = [g.cpu() if g is not None else None for g in ctx.bwd_app.grads]
       utils.unpack_buffer(grads_cpu,dst_buf)
-      ctx.bwd_app.grads = [g.to(device) for g in grads_cpu]
+      ctx.bwd_app.grads = [g.to(device) if g is not None else None for g in grads_cpu]
 
       # setup the return value (perversely grad_input)
       for grad_needed,g in zip(ctx.needs_input_grad[5:],ctx.bwd_app.grads):
