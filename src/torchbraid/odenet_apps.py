@@ -205,8 +205,11 @@ class ForwardODENetApp(BraidApp):
     layer = self.layer_blocks[1][ind]()
     if self.layer_blocks[2][ind]==1:
       # if its just one time step, assume the user wants only a scalar
-      return self.PlainBlock(layer)
-    return self.ODEBlock(layer)
+      layer = self.PlainBlock(layer)
+    else:
+      layer = self.ODEBlock(layer)
+
+    return layer.to(self.device)
 
   def getTempLayer(self,t):
     """
