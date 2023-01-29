@@ -29,6 +29,8 @@
 # ************************************************************************
 #@HEADER
 
+from collections import OrderedDict # for 
+
 import torch
 import torch.nn as nn
 
@@ -134,7 +136,13 @@ class ForwardODENetApp(BraidApp):
     for layer_constr in self.layer_blocks[1]:
       # build the layer on the proper device
       layer = layer_constr()
-      self.parameter_shapes += [[p.data.size() for p in layer.parameters()]]
+      #self.parameter_shapes += [[p.data.size() for p in layer.parameters()]]
+
+      # sanity check
+      sd = layer.state_dict()
+      for k in sd:
+        assert isinstance(sd[k],torch.Tensor)
+      self.parameter_shapes += [[sd[k].size() for k in layer.state_dict()]]
 
     self.temp_layers = dict()
 
@@ -262,7 +270,9 @@ class ForwardODENetApp(BraidApp):
         layer = None
 
       if layer!=None:
-        weights = [p.data for p in layer.parameters()]
+        # weights = [p.data for p in layer.parameters()]
+        sd = layer.state_dict()
+        weights = [sd[k] for k in sd]
       else:
         weights = []
 
@@ -271,9 +281,17 @@ class ForwardODENetApp(BraidApp):
 
   def setLayerWeights(self,t,tf,level,weights):
     layer = self.getTempLayer(t)
+
     with torch.no_grad():
-      for dest_p,src_w in zip(list(layer.parameters()),weights):
-        dest_p.data = src_w
+      #for dest_p,src_w in zip(list(layer.parameters()),weights):
+      #  dest_p.data = src_w
+
+      sd = layer.state_dict()
+      keys = [k for k in sd]
+      assert len(keys)==len(weights)
+
+      pairs = zip(keys,weights)
+      layer.load_state_dict(OrderedDict(pairs))
   # end setLayerWeights
 
   def initializeVector(self,t,x):
