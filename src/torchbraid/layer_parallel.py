@@ -67,7 +67,7 @@ class FixDTBlock(nn.Module):
 
 class LayerParallel(LPModule):
 
-  def __init__(self,comm,layer_blocks,global_steps,Tf,max_fwd_levels=1,max_bwd_levels=1,max_iters=10,spatial_ref_pair=None,user_mpi_buf=False, nsplines=0, splinedegree=1, gpu_direct_commu=False):
+  def __init__(self,comm,layer_blocks,global_steps,Tf,max_fwd_levels=1,max_bwd_levels=1,max_iters=10,spatial_ref_pair=None,user_mpi_buf=False, nsplines=0, splinedegree=1):
     """
     This takes a number of arguments to construct a layer parallel list.
     The big piece here is layer_block and global_steps. If layer_block is a functor then those

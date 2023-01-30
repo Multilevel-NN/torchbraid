@@ -89,13 +89,8 @@ Take look at code in the examples directory.
 
 ## GPU direct communication
 
-The default communication scheme of torchbraid using GPU's and layer parallel is given by: 
-
-GPU0 -> CPU0 -> CPU1 -> GPU1
-
-Copying memory between the GPUs and CPUs can be expensive, so torchbraid also supports direct GPU communication, where 
-data is sent directly between GPUs without taking the longer route via CPUs. This feature can be enabled by a simple 
-flag, but requires a CUDA-aware MPI version ( see [here](https://developer.nvidia.com/blog/introduction-cuda-aware-mpi/)
+Torchbraid uses direct GPU communication when running simulations on GPUs. For this, Torchbraid requires a 
+CUDA-aware MPI version ( see [here](https://developer.nvidia.com/blog/introduction-cuda-aware-mpi/)
 or [here](https://www.open-mpi.org/faq/?category=runcuda) for more information). A simple first test to determine if 
 your system supports CUDA-aware MPI is to execute the command
 

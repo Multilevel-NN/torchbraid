@@ -55,7 +55,6 @@ class DummyApp:
     self.use_cuda = use_cuda
     self.user_mpi_buf = use_cuda
     self.device = device
-    self.gpu_direct_commu = True
     self.buffer = []
 
   def buildInit(self,t):

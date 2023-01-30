@@ -83,7 +83,7 @@ class ParallelNet(nn.Module):
   def __init__(self, channels=12, local_steps=8, Tf=1.0, max_levels=1, bwd_max_iters=1, 
                fwd_max_iters=2, print_level=0, braid_print_level=0, cfactor=4, 
                fine_fcf=False, skip_downcycle=True, fmg=False, relax_only_cg=0,
-               user_mpi_buf=False, gpu_direct_commu=False):
+               user_mpi_buf=False):
     super(ParallelNet, self).__init__()
 
     step_layer = lambda: StepLayer(channels)
@@ -91,8 +91,7 @@ class ParallelNet(nn.Module):
     
     self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD, step_layer, local_steps*numprocs, Tf,
                                                 max_fwd_levels=max_levels, max_bwd_levels=max_levels,
-                                                max_iters=2, user_mpi_buf=user_mpi_buf,
-                                                gpu_direct_commu=gpu_direct_commu)
+                                                max_iters=2, user_mpi_buf=user_mpi_buf)
     self.parallel_nn.setBwdMaxIters(bwd_max_iters)
     self.parallel_nn.setFwdMaxIters(fwd_max_iters)
     self.parallel_nn.setPrintLevel(print_level, True)
@@ -229,8 +228,6 @@ def parse_args():
                       help='Layer parallel use user-defined mpi buffers (default: False)')
   parser.add_argument('--lp-use-downcycle', action='store_true', default=False,
                       help='Layer parallel use downcycle on or off (default: False)')
-  parser.add_argument('--lp-gpu-direct-commu', action='store_true', default=False,
-                      help='Layer parallel GPU direct communication (default: False)')
 
   ##
   # Do some parameter checking

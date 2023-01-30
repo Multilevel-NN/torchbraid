@@ -176,7 +176,7 @@ class SerialNet(nn.Module):
 class ParallelNet(nn.Module):
   def __init__(self, channels=12, local_steps=8, Tf=1.0, max_levels=1, max_iters=1, fwd_max_iters=0, print_level=0,
                braid_print_level=0, cfactor=4, fine_fcf=False, skip_downcycle=True, fmg=False, relax_only_cg=0,
-               user_mpi_buf=False, gpu_direct_commu=False, comm=MPI.COMM_WORLD):
+               user_mpi_buf=False, comm=MPI.COMM_WORLD):
     super(ParallelNet, self).__init__()
 
     step_layer = lambda: StepLayer(channels)
@@ -186,8 +186,7 @@ class ParallelNet(nn.Module):
     self.parallel_nn = torchbraid.LayerParallel(comm=comm, layer_blocks=step_layer,
                                                 global_steps=local_steps * numprocs, Tf=Tf,
                                                 max_fwd_levels=max_levels, max_bwd_levels=max_levels,
-                                                max_iters=max_iters, user_mpi_buf=user_mpi_buf,
-                                                gpu_direct_commu=gpu_direct_commu)
+                                                max_iters=max_iters, user_mpi_buf=user_mpi_buf)
     if fwd_max_iters > 0:
       self.parallel_nn.setFwdMaxIters(fwd_max_iters)
     self.parallel_nn.setPrintLevel(print_level, True)
@@ -248,7 +247,7 @@ def train(args, model, train_loader, optimizer, epoch, compose, device, comm_dp,
     loss = compose(criterion, output, target)
     loss.backward()
     #get_grads(model=model, comm_dp=comm_dp, comm_lp=comm_lp)
-    dp_avg_grads(model=model, comm_dp=comm_dp, comm_lp=comm_lp, gpu_direct=args.lp_gpu_direct_commu)
+    dp_avg_grads(model=model, comm_dp=comm_dp, comm_lp=comm_lp)
     #get_grads(model=model, comm_dp=comm_dp, comm_lp=comm_lp)
 
     stop_time = timer()
@@ -384,22 +383,13 @@ def split_communicator(comm: MPI.Comm, splitting: int):
   return comm_dp, comm_lp
 
 
-def dp_avg_grads(model, comm_dp, comm_lp, gpu_direct):
+def dp_avg_grads(model, comm_dp, comm_lp):
   for param in model.parameters():
-    if gpu_direct:
-      send_buf = param.grad.data
-      recv_buf = torch.zeros_like(send_buf)
+    send_buf = param.grad.data
+    recv_buf = torch.zeros_like(send_buf)
+    comm_dp.Allreduce(send_buf, recv_buf, op=MPI.SUM)
+    param.grad.data = recv_buf / float(comm_dp.Get_size())
 
-      comm_dp.Allreduce(send_buf, recv_buf, op=MPI.SUM)
-
-      param.grad.data = recv_buf / float(comm_dp.Get_size())
-    else:
-      send_buf = param.grad.data.numpy()
-      recv_buf = np.copy(send_buf)
-
-      comm_dp.Allreduce(send_buf, recv_buf, op=MPI.SUM)
-
-      param.grad.data = torch.from_numpy(recv_buf) / float(comm_dp.Get_size())
 
 
 def main():
@@ -459,8 +449,6 @@ def main():
                       help='disables CUDA training')
   parser.add_argument('--lp-user-mpi-buf', action='store_true', default=False,
                       help='Layer parallel use user-defined mpi buffers (default: False)')
-  parser.add_argument('--lp-gpu-direct-commu', action='store_true', default=False,
-                      help='Layer parallel GPU direct communication (default: False)')
   parser.add_argument('--warm-up', action='store_true', default=False,
                       help='Warm up for GPU timings (default: False)')
   parser.add_argument('--dp-size', type=int, default=1, metavar='N',
@@ -573,7 +561,6 @@ def main():
                         fmg=args.lp_use_fmg, Tf=args.tf,
                         relax_only_cg=args.lp_use_relaxonlycg,
                         user_mpi_buf=args.lp_user_mpi_buf,
-                        gpu_direct_commu=args.lp_gpu_direct_commu,
                         comm=comm_lp).to(device)
 
     if args.serial_file is not None:
@@ -581,9 +568,9 @@ def main():
     compose = model.compose
 
     model.parallel_nn.fwd_app.setTimerFile(
-      f'b_fwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{size_lp}_gpuc_{args.lp_gpu_direct_commu}')
+      f'b_fwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{size_lp}')
     model.parallel_nn.bwd_app.setTimerFile(
-      f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{size_lp}_gpuc_{args.lp_gpu_direct_commu}')
+      f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{size_lp}')
   else:
     root_print(rank, 'Using SerialNet:')
     root_print(rank, '-- serial file = {}\n'.format(args.serial_file))

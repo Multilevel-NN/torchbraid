@@ -215,14 +215,13 @@ def main():
                   fmg=False, 
                   Tf=args.Tf,
                   relax_only_cg=False,
-                  user_mpi_buf=args.lp_user_mpi_buf,
-                  gpu_direct_commu=args.lp_gpu_direct_commu).to(device)
+                  user_mpi_buf=args.lp_user_mpi_buf).to(device)
 
   # Detailed XBraid timings are output to these files for the forward and backward phases
   model.parallel_nn.fwd_app.setTimerFile(
-    f'b_fwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}_gpuc_{args.lp_gpu_direct_commu}')
+    f'b_fwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
   model.parallel_nn.bwd_app.setTimerFile(
-    f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}_gpuc_{args.lp_gpu_direct_commu}')
+    f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
 
   # Declare optimizer  
   optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
