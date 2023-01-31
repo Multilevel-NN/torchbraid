@@ -80,16 +80,17 @@ class StepLayer(nn.Module):
 # local_steps: number of ResNet layers per processor
 # all other parameter definitions are in argument parser comments below
 class ParallelNet(nn.Module):
-  def __init__(self, channels=12, local_steps=8, Tf=1.0, max_levels=1, bwd_max_iters=1, 
-               fwd_max_iters=2, print_level=0, braid_print_level=0, cfactor=4, 
+  def __init__(self, channels=12, local_steps=8, Tf=1.0, max_levels=1, bwd_max_iters=1,
+               fwd_max_iters=2, print_level=0, braid_print_level=0, cfactor=4,
                fine_fcf=False, skip_downcycle=True, fmg=False, relax_only_cg=0,
-               user_mpi_buf=False):
+               user_mpi_buf=False, comm_lp=MPI.COMM_WORLD):
     super(ParallelNet, self).__init__()
 
     step_layer = lambda: StepLayer(channels)
-    numprocs = MPI.COMM_WORLD.Get_size()
-    
-    self.parallel_nn = torchbraid.LayerParallel(MPI.COMM_WORLD, step_layer, local_steps*numprocs, Tf,
+    self.comm_lp = comm_lp
+    numprocs = self.comm_lp.Get_size()
+
+    self.parallel_nn = torchbraid.LayerParallel(comm_lp, step_layer, local_steps*numprocs, Tf,
                                                 max_fwd_levels=max_levels, max_bwd_levels=max_levels,
                                                 max_iters=2, user_mpi_buf=user_mpi_buf)
     self.parallel_nn.setBwdMaxIters(bwd_max_iters)
@@ -102,7 +103,7 @@ class ParallelNet(nn.Module):
     self.parallel_nn.setFwdRelaxOnlyCG(relax_only_cg)
     if fmg:
       self.parallel_nn.setFMG()
-    
+
     self.parallel_nn.setNumRelax(1)  # FCF relaxation default on coarse levels
     if not fine_fcf:
       self.parallel_nn.setNumRelax(0, level=0)  # Set F-Relaxation only on the fine grid
@@ -120,7 +121,7 @@ class ParallelNet(nn.Module):
   def saveSerialNet(self, name):
     # Model can be reloaded in serial format with: model = torch.load(filename)
     serial_nn = self.parallel_nn.buildSequentialOnRoot()
-    if MPI.COMM_WORLD.Get_rank() == 0:
+    if self.comm_lp.Get_rank() == 0:
       s_net = SerialNet(-1, -1, -1, serial_nn=serial_nn, open_nn=self.open_nn, close_nn=self.close_nn)
       s_net.eval()
       torch.save(s_net, name)
@@ -175,16 +176,16 @@ def parse_args():
   """
   Return back an args dictionary based on a standard parsing of the command line inputs
   """
-  
+
   # Command line settings
   parser = argparse.ArgumentParser(description='MNIST example argument parser')
   parser.add_argument('--seed', type=int, default=1, metavar='S',
                       help='random seed (default: 1)')
   parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                       help='how many batches to wait before logging training status')
-  parser.add_argument('--dataset', default='digits', 
-                      help='if digits use digits MNIST, if fashion use fashion MNIST') 
-  
+  parser.add_argument('--dataset', default='digits',
+                      help='if digits use digits MNIST, if fashion use fashion MNIST')
+
   # artichtectural settings
   parser.add_argument('--steps', type=int, default=32, metavar='N',
                       help='Number of times steps in the resnet layer (default: 32)')
@@ -204,7 +205,7 @@ def parse_args():
                       help='number of epochs to train (default: 3)')
   parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                       help='learning rate (default: 0.01)')
-  
+
   # algorithmic settings (layer-parallel)
   parser.add_argument('--lp-max-levels', type=int, default=3, metavar='N',
                       help='Layer parallel max number of levels (default: 3)')
@@ -218,23 +219,34 @@ def parse_args():
                       help='Layer parallel braid print level (default: 0)')
   parser.add_argument('--lp-cfactor', type=int, default=4, metavar='N',
                       help='Layer parallel coarsening factor (default: 4)')
-  parser.add_argument('--lp-fine-fcf',action='store_true', default=False, 
+  parser.add_argument('--lp-fine-fcf',action='store_true', default=False,
                       help='Layer parallel fine FCF for forward solve, on or off (default: False)')
   parser.add_argument('--no-cuda', action='store_true', default=False,
                       help='disables CUDA training')
   parser.add_argument('--warm-up', action='store_true', default=False,
                       help='Warm up for GPU timings (default: False)')
-  parser.add_argument('--lp-user-mpi-buf',action='store_true', default=False, 
+  parser.add_argument('--lp-user-mpi-buf',action='store_true', default=False,
                       help='Layer parallel use user-defined mpi buffers (default: False)')
   parser.add_argument('--lp-use-downcycle', action='store_true', default=False,
                       help='Layer parallel use downcycle on or off (default: False)')
+
+  # data parallelism
+  parser.add_argument('--dp-size', type=int, default=1, metavar='N',
+                      help='Data parallelism (used if value != 1)')
 
   ##
   # Do some parameter checking
   rank  = MPI.COMM_WORLD.Get_rank()
   procs = MPI.COMM_WORLD.Get_size()
   args = parser.parse_args()
-  
+
+  if procs % args.dp_size != 0:
+    root_print(rank, 1, 1, 'Data parallel size must be an even multiple of the number of processors: %d %d'
+               % (procs, args.dp_size) )
+    sys.exit(0)
+  else:
+    procs_lp = int(procs / args.dp_size)
+
   ##
   # Compute number of parallel-in-time multigrid levels 
   def compute_levels(num_steps, min_coarse_size, cfactor):
@@ -250,10 +262,11 @@ def parse_args():
     min_coarse_size = 3
     args.lp_max_levels = compute_levels(args.steps, min_coarse_size, args.lp_cfactor)
 
-  if args.steps % procs != 0:
-    root_print(rank, 1, 1, 'Steps must be an even multiple of the number of processors: %d %d' % (args.steps, procs) )
+  if args.steps % procs_lp != 0:
+    root_print(rank, 1, 1, 'Steps must be an even multiple of the number of layer parallel processors: %d %d'
+               % (args.steps, procs_lp) )
     sys.exit(0)
-  
+
   return args
 
 

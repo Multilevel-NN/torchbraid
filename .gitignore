@@ -11,8 +11,15 @@ examples/mnist/fashion-data/
 
 makefile.inc
 
+# Jetbrains
+.idea/
+
+# Unit test
+.tox/
+
 .DS_Store
 .vscode
+.
 
 tests/build/
 tests/torchbraid_test.c
@@ -24,6 +31,8 @@ tests/test_cbs.html
 src/torchbraid.egg-info/
 src/torchbraid/braid.html
 src/torchbraid/build/
+src/torchbraid/test_fixtures/build/
+src/torchbraid/test_fixtures/test_cbs.html
 src/torchbraid/torchbraid_app.c
 src/torchbraid/torchbraid_app.*.so
 src/torchbraid/torchbraid_app.html
@@ -39,5 +48,6 @@ drivers/mnist/data
 
 examples/tiny_imagenet/tiny-imagenet-200
 examples/mnist/mnist_layerparallel_training.png
+examples/mnist/mnist_layerparallel_dataparallel_training_*.png
 examples/UCI_HAR_Recurrent/UCI\ HAR\ Dataset/
 examples/UCI_HAR_Recurrent/UCI-HAR_layerparallel_training.png
