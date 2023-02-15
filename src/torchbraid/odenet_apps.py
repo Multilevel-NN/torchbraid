@@ -227,7 +227,13 @@ class ForwardODENetApp(BraidApp):
     else:
       result = self.buildLayerBlock(i)
       self.temp_layers[ind] = result
-    
+
+    # set correct mode...neccessary for BatchNorm
+    if self.training:
+      result.train()
+    else:
+      result.eval()
+
     return result
 
   def getFeatureShapes(self,tidx,level):
