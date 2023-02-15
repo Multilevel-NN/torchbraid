@@ -32,7 +32,7 @@ def get_rev():
 # Related to:
 # https://arxiv.org/pdf/2002.09779.pdf
 
-track_running_stats = False
+track_running_stats = True
 
 ####################################################################################
 ####################################################################################
@@ -47,7 +47,7 @@ class OpenLayer(nn.Module):
     self.channels = channels
     self.pre = nn.Sequential(
       nn.Conv2d(3, channels, kernel_size=7, padding=3, stride=2,bias=False),
-      #nn.BatchNorm2d(channels,track_running_stats=track_running_stats),
+      nn.BatchNorm2d(channels,track_running_stats=track_running_stats),
       nn.ReLU(),
       nn.MaxPool2d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
     )
@@ -83,7 +83,7 @@ class TransitionLayer(nn.Module):
     # Account for 64x64 image and 3 RGB channels
     self.pre = nn.Sequential(
       nn.Conv2d(channels, 2*channels, kernel_size=3, stride=2, padding=1,bias=False),
-      #nn.BatchNorm2d(2*channels,track_running_stats=track_running_stats),
+      nn.BatchNorm2d(2*channels,track_running_stats=track_running_stats),
       nn.ReLU()
     )
 
@@ -93,7 +93,7 @@ class TransitionLayer(nn.Module):
 
 class StepLayer(nn.Module):
   ''' Single ODE-net layer will be parallelized in time ''' 
-  def __init__(self,channels,activation='tanh',seed=1):
+  def __init__(self,channels,activation='relu',seed=1):
     super(StepLayer, self).__init__()
     ker_width = 3
 
@@ -101,26 +101,19 @@ class StepLayer(nn.Module):
     
     # Account for 3 RGB Channels
     self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1,bias=False)
-    #self.bn1   = nn.BatchNorm2d(channels,track_running_stats=track_running_stats)
+    self.bn1   = nn.BatchNorm2d(channels,track_running_stats=track_running_stats)
     self.conv2 = nn.Conv2d(channels,channels,ker_width,padding=1,bias=False)
-    #self.bn2   = nn.BatchNorm2d(channels,track_running_stats=track_running_stats)
+    self.bn2   = nn.BatchNorm2d(channels,track_running_stats=track_running_stats)
 
-    if activation=='tanh':
-      self.activation = nn.Tanh()
-    elif activation=='relu':
-      self.activation1 = nn.ReLU()
-      self.activation2 = nn.ReLU()
-    elif activation=='leaky':
-      self.activation = nn.LeakyReLU()
-    else:
-      raise 'POO!'
+    self.activation1 = nn.ReLU()
+    self.activation2 = nn.ReLU()
 
   def forward(self, x):
     y = self.conv1(x) 
-    #y = self.bn1(y) 
+    y = self.bn1(y) 
     y = self.activation1(y)
     y = self.conv2(y) 
-    #y = self.bn2(y) 
+    y = self.bn2(y) 
     y = self.activation2(y)
     return y 
 # end layer
@@ -171,10 +164,10 @@ class SerialNet(nn.Module):
                      bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh',seed=1):
     super(SerialNet, self).__init__()
 
-    step_layer_1 = lambda: StepLayer(channels,activation,seed)
-    step_layer_2 = lambda: StepLayer(2*channels,activation,seed)
-    step_layer_3 = lambda: StepLayer(4*channels,activation,seed)
-    step_layer_4 = lambda: StepLayer(8*channels,activation,seed)
+    step_layer_1 = lambda: StepLayer(channels,seed)
+    step_layer_2 = lambda: StepLayer(2*channels,seed)
+    step_layer_3 = lambda: StepLayer(4*channels,seed)
+    step_layer_4 = lambda: StepLayer(8*channels,seed)
 
     open_layer    = lambda: OpenLayer(channels,seed)
     trans_layer_1 = lambda: TransitionLayer(channels,seed)
@@ -227,10 +220,10 @@ class ParallelNet(nn.Module):
                      bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh',seed=1):
     super(ParallelNet, self).__init__()
 
-    step_layer_1 = lambda: StepLayer(channels,activation,seed)
-    step_layer_2 = lambda: StepLayer(2*channels,activation,seed)
-    step_layer_3 = lambda: StepLayer(4*channels,activation,seed)
-    step_layer_4 = lambda: StepLayer(8*channels,activation,seed)
+    step_layer_1 = lambda: StepLayer(channels,seed)
+    step_layer_2 = lambda: StepLayer(2*channels,seed)
+    step_layer_3 = lambda: StepLayer(4*channels,seed)
+    step_layer_4 = lambda: StepLayer(8*channels,seed)
 
     open_layer = lambda: OpenLayer(channels,seed)
     trans_layer_1 = lambda: TransitionLayer(channels,seed)
