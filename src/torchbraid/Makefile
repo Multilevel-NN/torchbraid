@@ -7,7 +7,7 @@ MODULE_NAME=torchbraid
 all: libs utils
 
 libs: ${MODULE_NAME}_app.pyx ${MODULE_NAME}_callbacks.pyx
-	XBRAID_ROOT=$(XBRAID_ROOT) CC=$(CC) $(PYTHON) setup.py build_ext --inplace
+	XBRAID_ROOT=$(XBRAID_ROOT) CC=$(CC) LDSHARED=$(LDSHARED) $(PYTHON) setup.py build_ext --inplace
 
 utils:
 	make -C ./utils
