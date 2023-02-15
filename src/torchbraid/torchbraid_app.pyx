@@ -513,6 +513,9 @@ class BraidApp:
     except:
       output_exception('runBraid')
 
+    # make sure all the computationas are completed
+    torch.cuda.synchronize()
+
     return fin
 
   def getBraidStats(self):
