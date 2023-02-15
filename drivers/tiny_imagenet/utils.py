@@ -32,19 +32,23 @@ def get_rev():
 # Related to:
 # https://arxiv.org/pdf/2002.09779.pdf
 
+track_running_stats = False
 
 ####################################################################################
 ####################################################################################
 # Classes and functions that define the basic network types for MG/Opt and TorchBraid.
 class OpenLayer(nn.Module):
   ''' Opening layer (not ODE-net, not parallelized in time) '''
-  def __init__(self,channels):
+  def __init__(self,channels,seed):
     super(OpenLayer, self).__init__()
+
+    torch.manual_seed(seed)
+
     self.channels = channels
     self.pre = nn.Sequential(
       nn.Conv2d(3, channels, kernel_size=7, padding=3, stride=2,bias=False),
-      nn.BatchNorm2d(channels,track_running_stats=True),
-      nn.ReLU(inplace=True),
+      #nn.BatchNorm2d(channels,track_running_stats=track_running_stats),
+      nn.ReLU(),
       nn.MaxPool2d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
     )
 
@@ -54,8 +58,10 @@ class OpenLayer(nn.Module):
 
 class CloseLayer(nn.Module):
   ''' Closing layer (not ODE-net, not parallelized in time) '''
-  def __init__(self,channels):
+  def __init__(self,channels,seed):
     super(CloseLayer, self).__init__()
+
+    torch.manual_seed(seed)
 
     self.avg  = nn.AdaptiveAvgPool2d(1)
     self.fc   = nn.Linear(512, 200)
@@ -69,13 +75,15 @@ class CloseLayer(nn.Module):
 
 class TransitionLayer(nn.Module):
   ''' Closing layer (not ODE-net, not parallelized in time) '''
-  def __init__(self,channels):
+  def __init__(self,channels,seed):
     super(TransitionLayer, self).__init__()
+
+    torch.manual_seed(seed)
 
     # Account for 64x64 image and 3 RGB channels
     self.pre = nn.Sequential(
       nn.Conv2d(channels, 2*channels, kernel_size=3, stride=2, padding=1,bias=False),
-      nn.BatchNorm2d(2*channels,track_running_stats=True),
+      #nn.BatchNorm2d(2*channels,track_running_stats=track_running_stats),
       nn.ReLU()
     )
 
@@ -85,20 +93,23 @@ class TransitionLayer(nn.Module):
 
 class StepLayer(nn.Module):
   ''' Single ODE-net layer will be parallelized in time ''' 
-  def __init__(self,channels,activation='tanh'):
+  def __init__(self,channels,activation='tanh',seed=1):
     super(StepLayer, self).__init__()
     ker_width = 3
+
+    torch.manual_seed(seed)
     
     # Account for 3 RGB Channels
     self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1,bias=False)
-    self.bn1   = nn.BatchNorm2d(channels,track_running_stats=True)
+    #self.bn1   = nn.BatchNorm2d(channels,track_running_stats=track_running_stats)
     self.conv2 = nn.Conv2d(channels,channels,ker_width,padding=1,bias=False)
-    self.bn2   = nn.BatchNorm2d(channels,track_running_stats=True)
+    #self.bn2   = nn.BatchNorm2d(channels,track_running_stats=track_running_stats)
 
     if activation=='tanh':
       self.activation = nn.Tanh()
     elif activation=='relu':
-      self.activation = nn.ReLU()
+      self.activation1 = nn.ReLU()
+      self.activation2 = nn.ReLU()
     elif activation=='leaky':
       self.activation = nn.LeakyReLU()
     else:
@@ -106,11 +117,11 @@ class StepLayer(nn.Module):
 
   def forward(self, x):
     y = self.conv1(x) 
-    y = self.bn1(y) 
-    y = self.activation(y)
+    #y = self.bn1(y) 
+    y = self.activation1(y)
     y = self.conv2(y) 
-    y = self.bn2(y) 
-    y = self.activation(y)
+    #y = self.bn2(y) 
+    y = self.activation2(y)
     return y 
 # end layer
 
@@ -157,18 +168,18 @@ class SerialNet(nn.Module):
   def __init__(self, channels=8, global_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
                      print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
                      fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
-                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh'):
+                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh',seed=1):
     super(SerialNet, self).__init__()
 
-    step_layer_1 = lambda: StepLayer(channels,activation)
-    step_layer_2 = lambda: StepLayer(2*channels,activation)
-    step_layer_3 = lambda: StepLayer(4*channels,activation)
-    step_layer_4 = lambda: StepLayer(8*channels,activation)
+    step_layer_1 = lambda: StepLayer(channels,activation,seed)
+    step_layer_2 = lambda: StepLayer(2*channels,activation,seed)
+    step_layer_3 = lambda: StepLayer(4*channels,activation,seed)
+    step_layer_4 = lambda: StepLayer(8*channels,activation,seed)
 
-    open_layer    = lambda: OpenLayer(channels)
-    trans_layer_1 = lambda: TransitionLayer(channels)
-    trans_layer_2 = lambda: TransitionLayer(2*channels)
-    trans_layer_3 = lambda: TransitionLayer(4*channels)
+    open_layer    = lambda: OpenLayer(channels,seed)
+    trans_layer_1 = lambda: TransitionLayer(channels,seed)
+    trans_layer_2 = lambda: TransitionLayer(2*channels,seed)
+    trans_layer_3 = lambda: TransitionLayer(4*channels,seed)
 
     layers_temp = [open_layer,    step_layer_1, trans_layer_1,    step_layer_2,  trans_layer_2,step_layer_3, trans_layer_3, step_layer_4]
     num_steps   = [         1,  global_steps-1,             1,   global_steps-1, 1,            global_steps-1,           1, global_steps-1]
@@ -180,7 +191,7 @@ class SerialNet(nn.Module):
         layers += [SerialNet.ODEBlock(dt,l()) for i in range(n)]
       else:
         layers+= [l()]
-    layers += [CloseLayer(channels)]
+    layers += [CloseLayer(channels,seed)]
 
     self.serial_nn = nn.Sequential(*layers)
 
@@ -213,18 +224,18 @@ class ParallelNet(nn.Module):
   def __init__(self, channels=8, global_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
                      print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
                      fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
-                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh'):
+                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh',seed=1):
     super(ParallelNet, self).__init__()
 
-    step_layer_1 = lambda: StepLayer(channels,activation)
-    step_layer_2 = lambda: StepLayer(2*channels,activation)
-    step_layer_3 = lambda: StepLayer(4*channels,activation)
-    step_layer_4 = lambda: StepLayer(8*channels,activation)
+    step_layer_1 = lambda: StepLayer(channels,activation,seed)
+    step_layer_2 = lambda: StepLayer(2*channels,activation,seed)
+    step_layer_3 = lambda: StepLayer(4*channels,activation,seed)
+    step_layer_4 = lambda: StepLayer(8*channels,activation,seed)
 
-    open_layer = lambda: OpenLayer(channels)
-    trans_layer_1 = lambda: TransitionLayer(channels)
-    trans_layer_2 = lambda: TransitionLayer(2*channels)
-    trans_layer_3 = lambda: TransitionLayer(4*channels)
+    open_layer = lambda: OpenLayer(channels,seed)
+    trans_layer_1 = lambda: TransitionLayer(channels,seed)
+    trans_layer_2 = lambda: TransitionLayer(2*channels,seed)
+    trans_layer_3 = lambda: TransitionLayer(4*channels,seed)
 
     layers    = [open_layer,    step_layer_1, trans_layer_1,    step_layer_2,  trans_layer_2,step_layer_3, trans_layer_3, step_layer_4]
     num_steps = [         1,  global_steps-1,             1,   global_steps-1, 1,            global_steps-1,           1, global_steps-1]
@@ -264,7 +275,7 @@ class ParallelNet(nn.Module):
 
     # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels) 
     # on processors not equal to 0, these will be None (there are no parameters to train there)
-    self.close_nn = self.compose(CloseLayer,channels)
+    self.close_nn = self.compose(CloseLayer,channels,seed)
 
   def __repr__(self):
     return self.parallel_nn.repr_helper(self)

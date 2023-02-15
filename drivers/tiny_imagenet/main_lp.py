@@ -255,6 +255,9 @@ def main():
   procs = comm.Get_size()
   rank = comm.Get_rank()
 
+  torch.manual_seed(args.seed)
+  np.random.seed(args.seed)
+
   root_print(rank, 'TORCHBRAID REV: %s' % git_rev())
 
   my_device, my_host = getDevice(comm)
@@ -278,10 +281,12 @@ def main():
   train_dataset = datasets.ImageFolder(traindir,
                                        transforms.Compose([
                                          transforms.Resize(256),
-                                         transforms.RandomCrop(224,padding=4),
-                                         transforms.RandomHorizontalFlip(),
+                                         transforms.CenterCrop(224),
+                                   #      transforms.RandomCrop(224,padding=4),
+                                   #      transforms.RandomHorizontalFlip(),
                                          transforms.ToTensor(),
-                                         normalize, transforms.RandomErasing(0.5)]))
+                                         #normalize, transforms.RandomErasing(0.5)]))
+                                         normalize]))
   test_dataset = datasets.ImageFolder(valdir, transforms.Compose([
     transforms.Resize(256),
     transforms.CenterCrop(224),
@@ -295,13 +300,20 @@ def main():
   train_dataset = torch.utils.data.Subset(train_dataset, range(train_size))
   test_dataset = torch.utils.data.Subset(test_dataset, range(test_size))
 
+  # this is to ensure the seeds are consistent
+  gen_train = torch.Generator()
+  gen_train.manual_seed(args.seed)
+
   # Create data loaders
   train_loader = torch.utils.data.DataLoader(train_dataset,
-                                             batch_size=args.batch_size, shuffle=True,
-                                             pin_memory=True)
+                                             batch_size=args.batch_size,
+                                             shuffle=True,
+                                             pin_memory=True,
+                                             generator=gen_train)
   train_loader = parallel_loader(rank, train_loader, my_device)
   test_loader = torch.utils.data.DataLoader(test_dataset,
-                                            batch_size=args.batch_size, shuffle=False,
+                                            batch_size=args.batch_size,
+                                            shuffle=False,
                                             pin_memory=True)
   test_loader = parallel_loader(rank, test_loader, my_device)
   if rank == 0:
@@ -333,7 +345,8 @@ def main():
              'CWt': args.lp_use_crelax_wt,
              'fwd_finalrelax': args.lp_fwd_finalrelax,
              'diff_scale': args.diff_scale,
-             'activation': args.activation
+             'activation': args.activation,
+             'seed': args.seed
              }
 
   ##
@@ -352,6 +365,8 @@ def main():
     model.parallel_nn.bwd_app.setTimerFile(
       f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
 
+  torch.manual_seed(args.seed)
+  np.random.seed(args.seed)
   if args.opt == 'SGD':
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9 )#, weight_decay=0.0001)
   else:
@@ -363,6 +378,8 @@ def main():
 
   scheduler = None
 
+  torch.manual_seed(args.seed)
+  np.random.seed(args.seed)
   if args.lr_scheduler:
     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10, 30], gamma=0.1, verbose=(rank == 0))
     # scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
@@ -410,6 +427,9 @@ def main():
   test_result = test(rank, args, model, test_loader, epoch, compose, my_device)
   end_time = timer()
   test_times += [end_time - start_time]
+
+  torch.manual_seed(args.seed)
+  np.random.seed(args.seed)
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
