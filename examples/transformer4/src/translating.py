@@ -1,12 +1,11 @@
 # from training import *
 
+## REMAINING!!!!
+
 import torch
 
-def greedy_decode(model, src, src_mask, max_len, start_symbol, EOS_IDX_TGT, device, generate_square_subsequent_mask):
-    src = src.to(device)
-    src_mask = src_mask.to(device)
-
-    memory = model.encode(src, src_mask)
+def greedy_decode(model, src, max_len, start_symbol, EOS_IDX_TGT, device, generate_square_subsequent_mask):
+    memory = model.encode(src)
     ys = torch.ones(1, 1).fill_(start_symbol).type(torch.long).to(device)
     for i in range(max_len-1):
         memory = memory.to(device)
@@ -26,21 +25,15 @@ def greedy_decode(model, src, src_mask, max_len, start_symbol, EOS_IDX_TGT, devi
     return ys
 
 
-def translate(model, src, src_vocab, tgt_vocab, device, generate_square_subsequent_mask):
-  SOS_IDX_SRC, SOS_IDX_TGT = src_vocab['<sos>'], tgt_vocab['<sos>']
-  EOS_IDX_SRC, EOS_IDX_TGT = src_vocab['<eos>'], tgt_vocab['<eos>']
-  UNK_IDX_SRC = src_vocab['<unk>']
-
-  tgt_vocab_inv = {v: k for (k, v) in tgt_vocab.items()}
+def translate(model, prompt, voc, dev):
+  voc_src, voc_tgt = voc['de'], voc['en']
 
   model.eval()
-  tokens = [SOS_IDX_SRC] + [src_vocab.get(tok, UNK_IDX_SRC) for tok in src.strip().split()]+ [EOS_IDX_SRC]
-  num_tokens = len(tokens)
-  src = (torch.LongTensor(tokens).reshape(num_tokens, 1) )
-  src_mask = (torch.zeros(num_tokens, num_tokens)).type(torch.bool)
-  tgt_tokens = greedy_decode(model,  src, src_mask, max_len=num_tokens + 5, start_symbol=SOS_IDX_TGT, 
-    EOS_IDX_TGT=EOS_IDX_TGT, device=device, generate_square_subsequent_mask=generate_square_subsequent_mask).flatten()
-  # print(src, tgt_tokens)
+  src = [voc_src['<sos>']] + [voc_src[tok] for tok in prompt.strip().split()] \
+                                                         + [voc_src['<eos>']]
+  src = torch.tensor(src, dtype=torch.long).unsqueeze(dim=0).to(dev)
+  tgt_tokens = greedy_decode(model,  src, src_mask, num_tokens+5, voc, dev)#.flatten()
+  print(tgt_tokens.shape)
   return " ".join([tgt_vocab_inv[tok.item()] for tok in tgt_tokens]).replace("<sos>", "").replace("<eos>", "")
 
 
