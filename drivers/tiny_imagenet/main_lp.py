@@ -381,8 +381,15 @@ def main():
   torch.manual_seed(args.seed)
   np.random.seed(args.seed)
   if args.lr_scheduler:
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10, 30], gamma=0.1, verbose=(rank == 0))
+    # scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10, 30], gamma=0.1, verbose=(rank == 0))
     # scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
+    scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=args.lr_exp_gamma)
+
+    # The ReduceLROnPlataeu scheduler requires a metric to be passed into the step function
+    # In our case here, that would require a broadcase of the test_result to all ranks to maintain 
+    #   the same results for differing number of processors
+    # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, mode='max')
+
 
   if args.load_model:
     root_print(rank, f'Loading from \"{args.model_dir}\"')
@@ -403,6 +410,7 @@ def main():
 
   if rank == 0:
     print('===============SCHEDULER=============\n')
+    print(f'ExponentialLR: gamma={args.lr_exp_gamma}')
     print(scheduler)
 
   # Warm up gpu's (There has to be a cheaper way than calling a complete train call.
@@ -444,6 +452,7 @@ def main():
 
     if scheduler is not None:
       scheduler.step()
+      # scheduler.step(test_result)
 
     # output the serial and parallel models
     if args.save_model:

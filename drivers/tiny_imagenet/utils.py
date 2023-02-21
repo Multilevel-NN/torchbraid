@@ -346,6 +346,8 @@ def parse_args(mgopt_on=True):
                       help='number of samples as a ratio of the total number of samples')
   parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                       help='learning rate (default: 0.01)')
+  parser.add_argument('--lr-exp-gamma', type=float, default=0.9, metavar='N',
+                      help='per epoch factor to reduce the learning rate (multiplicative)')
   parser.add_argument('--lr-scheduler', action='store_true', default=False,
                       help='Turn on the learning rate scheduler')
   parser.add_argument('--opt', type=str, default='SGD',
