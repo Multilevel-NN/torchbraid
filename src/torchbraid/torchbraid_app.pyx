@@ -514,7 +514,8 @@ class BraidApp:
       output_exception('runBraid')
 
     # make sure all the computationas are completed
-    torch.cuda.synchronize()
+    if torch.cuda.is_available():
+      torch.cuda.synchronize()
 
     return fin
 
