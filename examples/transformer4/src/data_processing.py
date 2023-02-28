@@ -2,6 +2,8 @@
 ## Dataset taken from PyTorch website: https://torchtutorialstaging.z5.web.core.windows.net/beginner/translation_transformer.html
 
 import torch
+import torchtext
+from torchtext.data.utils import get_tokenizer
 from torchtext.utils import download_from_url, extract_archive
 
 class Voc:
@@ -21,7 +23,7 @@ class Voc:
     self.str2id[s] = len(self.str2id)
     self.id2str[len(self.id2str)] = s
 
-def build_ds(fn, voc, max_len, dev, extend):
+def build_ds(fn, voc, max_len, dev, tokenizer, extend):
   ds = []
   langs = ['de', 'en']
   f = {lang: open(fn[lang], 'r') for lang in langs}
@@ -31,11 +33,11 @@ def build_ds(fn, voc, max_len, dev, extend):
       for lang in langs: line[lang] = next(f[lang]).strip()
     except: break
     for lang in langs:
-      line[lang] = line[lang].lower()
-      for c in ['.', ',', ';', ':', '?', '!']:
-        line[lang] = line[lang].replace(c, f' {c}')
+      # line[lang] = line[lang].lower()
+      # for c in ['.', ',', ';', ':', '?', '!']:
+      #   line[lang] = line[lang].replace(c, f' {c}')
       sent = []
-      for tok in line[lang].split():
+      for tok in tokenizer[lang](line[lang]):#line[lang].split():
         if tok not in voc[lang].str2id and extend: voc[lang].extend(tok)
         sent.append(voc[lang].str2id.get(tok, voc[lang].str2id['<unk>']))
       for _ in range(max_len - len(sent)): sent.append(voc[lang].str2id['<pad>'])  # padding
@@ -57,11 +59,13 @@ def main(dev, max_len, batch_size):
   fn_te = dict(zip('de en'.split(), [extract_archive(download_from_url(url_base + url))[0] for url in url_te]))
 
   ## Build ds
-  voc = {'de': Voc(), 'en': Voc()}
   ds = {}
-  ds['tr'] = build_ds(fn_tr, voc, max_len, dev, True)
-  ds['va'] = build_ds(fn_va, voc, max_len, dev, False)
-  ds['te'] = build_ds(fn_te, voc, max_len, dev, False)
+  voc = {'de': Voc(), 'en': Voc()}
+  tokenizer = {'de': get_tokenizer('spacy', language='de_core_news_sm'),
+               'en': get_tokenizer('spacy', language='en_core_web_sm')}
+  ds['tr'] = build_ds(fn_tr, voc, max_len, dev, tokenizer, True)
+  ds['va'] = build_ds(fn_va, voc, max_len, dev, tokenizer, True)#False)
+  ds['te'] = build_ds(fn_te, voc, max_len, dev, tokenizer, True)#False)
 
   dl = {mod: torch.utils.data.DataLoader(ds[mod], batch_size=batch_size, 
     shuffle=True, drop_last=False) for mod in ('tr va te'.split())}
