@@ -75,17 +75,26 @@ class CloseLayer(nn.Module):
 
 class TransitionLayer(nn.Module):
   ''' Closing layer (not ODE-net, not parallelized in time) '''
-  def __init__(self,channels,seed):
+  def __init__(self,channels,seed,pooling=False):
     super(TransitionLayer, self).__init__()
 
     torch.manual_seed(seed)
 
     # Account for 64x64 image and 3 RGB channels
-    self.pre = nn.Sequential(
-      nn.Conv2d(channels, 2*channels, kernel_size=3, stride=2, padding=1,bias=False),
-      nn.BatchNorm2d(2*channels,track_running_stats=track_running_stats),
-      nn.ReLU()
-    )
+    if pooling:
+      self.pre = nn.Sequential(
+        nn.AvgPool2d(kernel_size=3, stride=1, padding=1),
+        nn.Conv2d(channels, 2*channels, kernel_size=3, stride=2, padding=1,bias=False),
+        nn.BatchNorm2d(2*channels,track_running_stats=track_running_stats),
+        nn.ReLU()
+      )
+    else:
+      self.pre = nn.Sequential(
+        nn.AvgPool2d(kernel_size=3, stride=1, padding=1),
+        nn.Conv2d(channels, 2*channels, kernel_size=3, stride=2, padding=1,bias=False),
+        nn.BatchNorm2d(2*channels,track_running_stats=track_running_stats),
+        nn.ReLU()
+      )
 
   def forward(self, x):
     return self.pre(x)
@@ -161,7 +170,8 @@ class SerialNet(nn.Module):
   def __init__(self, channels=8, global_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
                      print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
                      fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
-                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh',seed=1):
+                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh',
+                     pooling=False, seed=1):
     super(SerialNet, self).__init__()
 
     step_layer_1 = lambda: StepLayer(channels,seed)
@@ -170,9 +180,9 @@ class SerialNet(nn.Module):
     step_layer_4 = lambda: StepLayer(8*channels,seed)
 
     open_layer    = lambda: OpenLayer(channels,seed)
-    trans_layer_1 = lambda: TransitionLayer(channels,seed)
-    trans_layer_2 = lambda: TransitionLayer(2*channels,seed)
-    trans_layer_3 = lambda: TransitionLayer(4*channels,seed)
+    trans_layer_1 = lambda: TransitionLayer(channels,seed, pooling)
+    trans_layer_2 = lambda: TransitionLayer(2*channels,seed, pooling)
+    trans_layer_3 = lambda: TransitionLayer(4*channels,seed, pooling)
 
     layers_temp = [open_layer,    step_layer_1, trans_layer_1,    step_layer_2,  trans_layer_2,step_layer_3, trans_layer_3, step_layer_4]
     num_steps   = [         1,  global_steps-1,             1,   global_steps-1, 1,            global_steps-1,           1, global_steps-1]
@@ -217,7 +227,8 @@ class ParallelNet(nn.Module):
   def __init__(self, channels=8, global_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
                      print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
                      fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
-                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh',seed=1):
+                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh',
+                     pooling=False, seed=1):
     super(ParallelNet, self).__init__()
 
     step_layer_1 = lambda: StepLayer(channels,seed)
@@ -226,9 +237,9 @@ class ParallelNet(nn.Module):
     step_layer_4 = lambda: StepLayer(8*channels,seed)
 
     open_layer = lambda: OpenLayer(channels,seed)
-    trans_layer_1 = lambda: TransitionLayer(channels,seed)
-    trans_layer_2 = lambda: TransitionLayer(2*channels,seed)
-    trans_layer_3 = lambda: TransitionLayer(4*channels,seed)
+    trans_layer_1 = lambda: TransitionLayer(channels,seed,pooling)
+    trans_layer_2 = lambda: TransitionLayer(2*channels,seed.pooling)
+    trans_layer_3 = lambda: TransitionLayer(4*channels,seed,pooling)
 
     layers    = [open_layer,    step_layer_1, trans_layer_1,    step_layer_2,  trans_layer_2,step_layer_3, trans_layer_3, step_layer_4]
     num_steps = [         1,  global_steps-1,             1,   global_steps-1, 1,            global_steps-1,           1, global_steps-1]
@@ -336,6 +347,8 @@ def parse_args(mgopt_on=True):
                       help='Diffusion coefficient')
   parser.add_argument('--activation',type=str,default='relu',
                       help='Activation function')
+  parser.add_argument('--pooling', action='store true', default=False,
+                      help='Add an AvgPool2D to the transition layers')
 
   # algorithmic settings (gradient descent and batching)
   parser.add_argument('--batch-size', type=int, default=50, metavar='N',

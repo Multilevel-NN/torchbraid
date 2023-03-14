@@ -346,6 +346,7 @@ def main():
              'fwd_finalrelax': args.lp_fwd_finalrelax,
              'diff_scale': args.diff_scale,
              'activation': args.activation,
+             'pooling': args.pooling,
              'seed': args.seed
              }
 
