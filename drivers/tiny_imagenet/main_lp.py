@@ -65,7 +65,7 @@ import statistics as stats
 from torchvision import datasets, transforms
 from timeit import default_timer as timer
 
-from utils import parse_args, buildNet, ParallelNet, getComm, git_rev, getDevice
+from utils import parse_args, buildNet, ParallelNet, getComm, git_rev, getDevice, get_lr_scheduler
 
 
 def root_print(rank, s):
@@ -381,16 +381,9 @@ def main():
 
   torch.manual_seed(args.seed)
   np.random.seed(args.seed)
-  if args.lr_scheduler:
+  if args.lr_scheduler is not None:
     # scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10, 30], gamma=0.1, verbose=(rank == 0))
-    # scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
-    scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=args.lr_exp_gamma)
-
-    # The ReduceLROnPlataeu scheduler requires a metric to be passed into the step function
-    # In our case here, that would require a broadcase of the test_result to all ranks to maintain 
-    #   the same results for differing number of processors
-    # scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, mode='max')
-
+    scheduler = get_lr_scheduler(optimizer, args)
 
   if args.load_model:
     root_print(rank, f'Loading from \"{args.model_dir}\"')
@@ -411,7 +404,6 @@ def main():
 
   if rank == 0:
     print('===============SCHEDULER=============\n')
-    print(f'ExponentialLR: gamma={args.lr_exp_gamma}')
     print(scheduler)
 
   # Warm up gpu's (There has to be a cheaper way than calling a complete train call.
@@ -436,6 +428,8 @@ def main():
   test_result = test(rank, args, model, test_loader, epoch, compose, my_device)
   end_time = timer()
   test_times += [end_time - start_time]
+    
+  root_print(rank, f'Learning rate for epoch 1: {args.lr}')
 
   torch.manual_seed(args.seed)
   np.random.seed(args.seed)
@@ -452,8 +446,18 @@ def main():
     test_times += [end_time - start_time]
 
     if scheduler is not None:
-      scheduler.step()
-      # scheduler.step(test_result)
+      # The ReduceLROnPlataeu scheduler requires a metric to be passed into the step function
+      # In our case here, that requires a broadcase of the test_result to all ranks to maintain 
+      #   the same results for differing number of processors
+      if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+        test_result = comm.bcast(test_result, root=0)
+        scheduler.step(test_result)
+        last_lr = scheduler._last_lr[0]
+      else:
+        scheduler.step()
+        last_lr = scheduler.get_last_lr()[0]
+        
+      root_print(rank, f'Learning rate for epoch {epoch+1}: {last_lr}')
 
     # output the serial and parallel models
     if args.save_model:

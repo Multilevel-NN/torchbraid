@@ -47,7 +47,7 @@ class OpenLayer(nn.Module):
     self.channels = channels
     self.pre = nn.Sequential(
       nn.Conv2d(3, channels, kernel_size=7, padding=3, stride=2,bias=False),
-      nn.BatchNorm2d(channels,track_running_stats=track_running_stats),
+      nn.BatchNorm2d(channels,track_running_stats=track_running_stats, momentum=0.1),
       nn.ReLU(),
       nn.MaxPool2d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
     )
@@ -90,7 +90,6 @@ class TransitionLayer(nn.Module):
       )
     else:
       self.pre = nn.Sequential(
-        nn.AvgPool2d(kernel_size=3, stride=1, padding=1),
         nn.Conv2d(channels, 2*channels, kernel_size=3, stride=2, padding=1,bias=False),
         nn.BatchNorm2d(2*channels,track_running_stats=track_running_stats),
         nn.ReLU()
@@ -110,9 +109,9 @@ class StepLayer(nn.Module):
     
     # Account for 3 RGB Channels
     self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1,bias=False)
-    self.bn1   = nn.BatchNorm2d(channels,track_running_stats=track_running_stats)
+    self.bn1   = nn.BatchNorm2d(channels,track_running_stats=track_running_stats, momentum=0.1)
     self.conv2 = nn.Conv2d(channels,channels,ker_width,padding=1,bias=False)
-    self.bn2   = nn.BatchNorm2d(channels,track_running_stats=track_running_stats)
+    self.bn2   = nn.BatchNorm2d(channels,track_running_stats=track_running_stats, momentum=0.1)
 
     self.activation1 = nn.ReLU()
     self.activation2 = nn.ReLU()
@@ -359,9 +358,7 @@ def parse_args(mgopt_on=True):
                       help='number of samples as a ratio of the total number of samples')
   parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                       help='learning rate (default: 0.01)')
-  parser.add_argument('--lr-exp-gamma', type=float, default=0.9, metavar='N',
-                      help='per epoch factor to reduce the learning rate (multiplicative)')
-  parser.add_argument('--lr-scheduler', action='store_true', default=False,
+  parser.add_argument('--lr-scheduler', nargs='*',
                       help='Turn on the learning rate scheduler')
   parser.add_argument('--opt', type=str, default='SGD',
                       help='Optimizer, SGD or Adam')
@@ -460,6 +457,37 @@ def parse_args(mgopt_on=True):
 
   return args
 
+
+def get_lr_scheduler(optimizer, args):
+  if (len(args.lr_scheduler) == 0) or args.lr_scheduler[0] == 'step':
+    step_size = 7
+    gamma = 0.1
+    if len(args.lr_scheduler) > 1:
+      step_size = int(args.lr_scheduler[1])
+    if len(args.lr_scheduler) > 2:
+      gamma = float(args.lr_scheduler[2])
+          
+    return torch.optim.lr_scheduler.StepLR(optimizer, step_size, gamma=gamma)
+  
+  if args.lr_scheduler[0] == 'exp':
+    gamma = 0.9
+    if len(args.lr_scheduler) > 1:
+      gamma = float(args.lr_scheduler[1])
+        
+    return torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma)
+  
+  if args.lr_scheduler[0] == 'reduceonplateau':
+    patience = 10
+    factor = 0.1
+    if len(args.lr_scheduler) > 1:
+      patience = int(args.lr_scheduler[1])
+    if len(args.lr_scheduler) > 2:
+      factor = float(args.lr_scheduler[2])
+            
+    return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=patience, factor=factor)
+    
+    
+            
 
 ####################################################################################
 ####################################################################################
