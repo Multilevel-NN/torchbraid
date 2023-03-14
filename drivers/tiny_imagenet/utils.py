@@ -237,7 +237,7 @@ class ParallelNet(nn.Module):
 
     open_layer = lambda: OpenLayer(channels,seed)
     trans_layer_1 = lambda: TransitionLayer(channels,seed,pooling)
-    trans_layer_2 = lambda: TransitionLayer(2*channels,seed.pooling)
+    trans_layer_2 = lambda: TransitionLayer(2*channels,seed,pooling)
     trans_layer_3 = lambda: TransitionLayer(4*channels,seed,pooling)
 
     layers    = [open_layer,    step_layer_1, trans_layer_1,    step_layer_2,  trans_layer_2,step_layer_3, trans_layer_3, step_layer_4]
@@ -346,7 +346,7 @@ def parse_args(mgopt_on=True):
                       help='Diffusion coefficient')
   parser.add_argument('--activation',type=str,default='relu',
                       help='Activation function')
-  parser.add_argument('--pooling', action='store true', default=False,
+  parser.add_argument('--pooling', action='store_true', default=False,
                       help='Add an AvgPool2D to the transition layers')
 
   # algorithmic settings (gradient descent and batching)
