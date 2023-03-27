@@ -169,7 +169,7 @@ class SerialNet(nn.Module):
   def __init__(self, channels=8, global_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
                      print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
                      fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
-                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh',
+                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh', coarse_frelax_only=False,
                      pooling=False, seed=1):
     super(SerialNet, self).__init__()
 
@@ -226,7 +226,7 @@ class ParallelNet(nn.Module):
   def __init__(self, channels=8, global_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
                      print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
                      fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
-                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh',
+                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh', coarse_frelax_only=False,
                      pooling=False, seed=1):
     super(ParallelNet, self).__init__()
 
@@ -272,6 +272,10 @@ class ParallelNet(nn.Module):
       self.parallel_nn.setBwdNumRelax(0,level=0) # F-Relaxation on the fine grid for backward solve
     else:
       self.parallel_nn.setBwdNumRelax(1,level=0) # FCF-Relaxation on the fine grid for backward solve
+    
+    if coarse_frelax_only:
+      self.parallel_nn.setNumRelax(0)
+      self.parallel_nn.setNumRelax(0, level=0)
 
     # this object ensures that only the LayerParallel code runs on ranks!=0
     self.compose = self.parallel_nn.comp_op()
@@ -400,6 +404,8 @@ def parse_args(mgopt_on=True):
                       help='Layer parallel use relaxation only on coarse grid for forward cycle (default: False)')
   parser.add_argument('--lp-use-crelax-wt', type=float, default=1.0, metavar='CWt',
                       help='Layer parallel use weighted C-relaxation on backwards solve (default: 1.0).  Not used for coarsest braid level.')
+  parser.add_argument('--lp-coarse-frelax-only', action='store_true', default=False,
+                      help='Use F-relaxation only on the coarse grids.')
 
   if mgopt_on:
     parser.add_argument('--NIepochs', type=int, default=2, metavar='N',
@@ -484,7 +490,7 @@ def get_lr_scheduler(optimizer, args):
     if len(args.lr_scheduler) > 2:
       factor = float(args.lr_scheduler[2])
             
-    return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=patience, factor=factor)
+    return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=patience, factor=factor)
     
     
             

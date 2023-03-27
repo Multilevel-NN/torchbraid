@@ -346,6 +346,7 @@ def main():
              'fwd_finalrelax': args.lp_fwd_finalrelax,
              'diff_scale': args.diff_scale,
              'activation': args.activation,
+             'coarse_frelax_only': args.lp_coarse_frelax_only,
              'pooling': args.pooling,
              'seed': args.seed
              }
@@ -447,7 +448,7 @@ def main():
 
     if scheduler is not None:
       # The ReduceLROnPlataeu scheduler requires a metric to be passed into the step function
-      # In our case here, that requires a broadcase of the test_result to all ranks to maintain 
+      # In our case here, that requires a broadcast of the test_result to all ranks to maintain 
       #   the same results for differing number of processors
       if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
         test_result = comm.bcast(test_result, root=0)
