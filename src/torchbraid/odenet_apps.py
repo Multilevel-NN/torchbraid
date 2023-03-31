@@ -144,6 +144,8 @@ class ForwardODENetApp(BraidApp):
         assert isinstance(sd[k],torch.Tensor)
       self.parameter_shapes += [[sd[k].size() for k in layer.state_dict()]]
 
+    self.initial_guess = None
+
     self.temp_layers = dict()
 
     # If this is a SpliNet, create communicators for shared weights
@@ -236,6 +238,23 @@ class ForwardODENetApp(BraidApp):
 
     return result
 
+  def stateInitialGuess(self, initial_guess):
+    """ 
+    Add an initial guess object, that produces an 
+    initial guess for the state. 
+    
+    This object as the function `getState(self,time)`. 
+    The function is called every time an intial guess
+    is required. No assumption about consistency between
+    calls is made. This is particularly useful if the
+    initial guess may be different between batches.
+
+    To disable the initial guess once set, call this
+    method with intial_guess=None.
+    """
+    self.initial_guess = initial_guess
+  
+
   def getFeatureShapes(self,tidx,level):
     i = self.getFineTimeIndex(tidx,level)
     ind = bisect_right(self.layer_blocks[0],i)
@@ -305,6 +324,10 @@ class ForwardODENetApp(BraidApp):
 
   def initializeVector(self,t,x):
     self.setVectorWeights(t,x)
+
+    if  self.initial_guess is not None and t != 0.0:
+      x.replaceTensor(copy.deepcopy(self.initial_guess.getState(t)))
+        
 
   def run(self,x):
     # turn on derivative path (as requried)

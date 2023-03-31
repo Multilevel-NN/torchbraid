@@ -46,6 +46,31 @@ faulthandler.enable()
 
 from mpi4py import MPI
 
+class StateInitialGuess:
+  def __init__(self, rank, x0):
+    self.x0 = x0.clone()
+    self.rank = rank
+    self.mark = set()
+
+  def getState(self, time):
+    self.mark.add(time)
+    return time*torch.ones(self.x0.shape) 
+
+  def reduceMark(self, comm):
+    my_rank = comm.Get_rank()
+    num_proc = comm.Get_size()
+
+    if my_rank == 0:
+      marks = [self.mark]
+      for i in range(1, num_proc):
+        remote = comm.recv(source=i, tag=77)
+        marks += [remote]
+      return marks 
+    else:
+      comm.send(self.mark, dest=0, tag=77)
+      return []
+    
+
 class LinearBlock(nn.Module):
   def __init__(self,dim=10):
     super(LinearBlock, self).__init__()
@@ -196,6 +221,21 @@ class TestTorchBraid(unittest.TestCase):
     MPI.COMM_WORLD.barrier()
   # end test_reLUNet_Approx
 
+  def test_reLUNet_Approx_InitialGuess(self):
+    dim = 2
+    basic_block = lambda: ReLUBlock(dim)
+
+    x0 = 12.0*torch.ones(5, dim)
+    w0 = 3.0*torch.ones(5, dim)
+    max_levels = 3
+    max_iters = 8
+    rank = MPI.COMM_WORLD.Get_rank()
+    try:
+      self.backForwardProp(dim, basic_block, x0, w0, max_levels, max_iters, test_tol=1e-6, prefix='reLUNet_Approx', check_initial_guess=True, check_grad=False, num_steps=128)
+    except RuntimeError as err:
+      raise RuntimeError("proc=%d) reLUNet_Approx..failure" % rank) from err
+
+
   def test_variableCFactor(self):
     basic_block = lambda: ReLUBlock(2)
     cfactor = {0: 4, 1: 3, 2: 2}
@@ -268,6 +308,11 @@ class TestTorchBraid(unittest.TestCase):
 
     w0 = m.copyVectorFromRoot(w0)
 
+    initial_guess = None
+    if  check_initial_guess:
+      initial_guess = StateInitialGuess(m.getMPIComm().Get_rank(), x0)
+    m.setFwdInitialGuess(initial_guess)
+
     # test the getFineTimeIndex function (interrogates the app)
     #######################################
 
@@ -313,8 +358,18 @@ class TestTorchBraid(unittest.TestCase):
     # print time results
     timer_str = m.getTimersString() 
 
+    # check the initial guess
+    if  initial_guess is not None:
+      marks = initial_guess.reduceMark(m.getMPIComm())
+
     # check some values
     if m.getMPIComm().Get_rank()==0:
+
+      if  initial_guess is not None:
+        mark = marks[0]
+        for remote_mark in marks[1:]:
+          mark.update(remote_mark)
+        self.assertEqual(len(mark), int(m.getMPIComm().Get_size()*num_steps/cfactor))
 
       # this is too much to print out every test run, but I'd like to make sure the
       # code is execueted
@@ -359,6 +414,8 @@ class TestTorchBraid(unittest.TestCase):
           print('%s: p grad error (mean,stddev) = %.6e, %.6e' % (prefix,stats.mean(param_errors),stats.stdev(param_errors)))
 
       print('\n')
+    elif initial_guess is not None:
+      self.assertEqual(len(marks), 0)
   # forwardPropSerial
 
   import sys
