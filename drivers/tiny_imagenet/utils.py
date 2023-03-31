@@ -407,6 +407,10 @@ def parse_args(mgopt_on=True):
   parser.add_argument('--lp-coarse-frelax-only', action='store_true', default=False,
                       help='Use F-relaxation only on the coarse grids.')
 
+  # Mean Initial Guess Storage
+  parser.add_argument('--use-mig-storage', action='store_true', default=False,
+                      help='Use Mean Initial Guess Storage (default: False)')
+
   if mgopt_on:
     parser.add_argument('--NIepochs', type=int, default=2, metavar='N',
                         help='number of epochs per Nested Iteration (default: 2)')

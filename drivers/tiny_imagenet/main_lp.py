@@ -65,6 +65,7 @@ import statistics as stats
 from torchvision import datasets, transforms
 from timeit import default_timer as timer
 
+from torchbraid.utils import MeanInitialGuessStorage
 from utils import parse_args, buildNet, ParallelNet, getComm, git_rev, getDevice, get_lr_scheduler
 
 
@@ -74,7 +75,7 @@ def root_print(rank, s):
     sys.stdout.flush()
 
 
-def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
+def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mig_storage):
   log_interval = args.log_interval
   torch.enable_grad()
 
@@ -104,6 +105,12 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
     total_time_fp += timer() - start_time_fp
 
     fwd_itr, fwd_res = model.getFwdStats()
+
+    if  mig_storage is not None:
+      times, states = model.parallel_nn.getFineTimePoints()
+      for t, state in zip(times, states):
+        mig_storage.addState(t, state.tensors(), target)     
+    
 
     # compute loss
     start_time_cm = timer()
@@ -378,6 +385,12 @@ def main():
   epoch_times = []
   test_times = []
 
+  if  args.use_mig_storage:
+    mig_storage = MeanInitialGuessStorage(class_count=200, average_weight=0.1)
+  else:
+    mig_storage = None
+  
+
   scheduler = None
 
   torch.manual_seed(args.seed)
@@ -437,7 +450,7 @@ def main():
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
-    train(rank, args, model, train_loader, optimizer, epoch, compose, my_device)
+    train(rank, args, model, train_loader, optimizer, epoch, compose, my_device, mig_storage)
     end_time = timer()
     epoch_times += [end_time - start_time]
 
