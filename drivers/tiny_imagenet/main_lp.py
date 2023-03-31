@@ -106,7 +106,7 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mi
 
     fwd_itr, fwd_res = model.getFwdStats()
 
-    if  mig_storage is not None:
+    if mig_storage is not None:
       times, states = model.parallel_nn.getFineTimePoints()
       for t, state in zip(times, states):
         mig_storage.addState(t, state.tensors(), target)     
@@ -425,7 +425,7 @@ def main():
   if str(my_device).startswith('cuda'):
     warm_up_timer = timer()
     train(rank=rank, args=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=0,
-          compose=compose, device=my_device)
+          compose=compose, device=my_device, mig_storage=mig_storage)
     if not args.use_serial:
       model.parallel_nn.timer_manager.resetTimers()
       model.parallel_nn.fwd_app.resetBraidTimer()

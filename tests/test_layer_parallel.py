@@ -54,7 +54,7 @@ class StateInitialGuess:
 
   def getState(self, time):
     self.mark.add(time)
-    return time*torch.ones(self.x0.shape) 
+    return time*torch.ones(self.x0.shape).to(self.x0.device)
 
   def reduceMark(self, comm):
     my_rank = comm.Get_rank()
@@ -235,6 +235,8 @@ class TestTorchBraid(unittest.TestCase):
     except RuntimeError as err:
       raise RuntimeError("proc=%d) reLUNet_Approx..failure" % rank) from err
 
+    MPI.COMM_WORLD.barrier()
+
 
   def test_variableCFactor(self):
     basic_block = lambda: ReLUBlock(2)
@@ -309,7 +311,7 @@ class TestTorchBraid(unittest.TestCase):
     w0 = m.copyVectorFromRoot(w0)
 
     initial_guess = None
-    if  check_initial_guess:
+    if check_initial_guess:
       initial_guess = StateInitialGuess(m.getMPIComm().Get_rank(), x0)
     m.setFwdInitialGuess(initial_guess)
 
@@ -359,13 +361,13 @@ class TestTorchBraid(unittest.TestCase):
     timer_str = m.getTimersString() 
 
     # check the initial guess
-    if  initial_guess is not None:
+    if initial_guess is not None:
       marks = initial_guess.reduceMark(m.getMPIComm())
 
     # check some values
     if m.getMPIComm().Get_rank()==0:
 
-      if  initial_guess is not None:
+      if initial_guess is not None:
         mark = marks[0]
         for remote_mark in marks[1:]:
           mark.update(remote_mark)

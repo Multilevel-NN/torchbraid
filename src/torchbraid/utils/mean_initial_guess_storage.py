@@ -111,7 +111,8 @@ class MeanInitialGuessStorage:
     for i,s in enumerate(state):
       dtype = s.dtype
       shape = tuple([self.class_count]+list(s.shape[1:]))
-      zeros[i] = torch.zeros(shape,dtype=dtype)
+      device = s.device
+      zeros[i] = torch.zeros(shape, dtype=dtype, device=s.device)
 
     zeros = tuple(zeros)
 
