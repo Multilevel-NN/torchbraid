@@ -161,6 +161,12 @@ class LayerParallel(LPModule):
   def setFwdRelaxOnlyCG(self, flag):
     self.fwd_app.setRelaxOnlyCG(flag)
 
+  def setFwdCRelaxWt(self, CWt):
+    self.fwd_app.setCRelaxWt(CWt)
+
+  def setBwdCRelaxWt(self, CWt):
+    self.bwd_app.setCRelaxWt(CWt)
+
   def setCRelaxWt(self, CWt):
     self.bwd_app.setCRelaxWt(CWt)
     #
