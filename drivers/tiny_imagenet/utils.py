@@ -224,10 +224,10 @@ class SerialNet(nn.Module):
 class ParallelNet(nn.Module):
   ''' Full parallel ODE-net based on StepLayer,  will be parallelized in time ''' 
   def __init__(self, channels=8, global_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
-                     print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
-                     fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
-                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh', coarse_frelax_only=False,
-                     pooling=False, seed=1):
+                     print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, fine_bwd_fcf=False, 
+                     fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, bwd_relax_only_cg=0, 
+                     CWt=1.0, fwd_crelax_wt=1.0, fwd_finalrelax=False,diff_scale=0.0, activation='tanh', 
+                     coarse_frelax_only=False, pooling=False, seed=1):
     super(ParallelNet, self).__init__()
 
     step_layer_1 = lambda: StepLayer(channels,seed)
@@ -254,6 +254,7 @@ class ParallelNet(nn.Module):
     self.parallel_nn.setBwdRelaxOnlyCG(bwd_relax_only_cg)
     self.parallel_nn.setFwdRelaxOnlyCG(fwd_relax_only_cg)
     self.parallel_nn.setCRelaxWt(CWt)
+    self.parallel_nn.setFwdCRelaxWt(fwd_crelax_wt)
     self.parallel_nn.setMinCoarse(2)
 
     if fwd_finalrelax:
@@ -404,6 +405,8 @@ def parse_args(mgopt_on=True):
                       help='Layer parallel use relaxation only on coarse grid for forward cycle (default: False)')
   parser.add_argument('--lp-use-crelax-wt', type=float, default=1.0, metavar='CWt',
                       help='Layer parallel use weighted C-relaxation on backwards solve (default: 1.0).  Not used for coarsest braid level.')
+  parser.add_argument('--lp-fwd-crelax-wt', type=float, default=1.0,
+                      help='Layer parallel use weighted C-relatation on forwards solve (default: 1.0).  Not used for coarest braid level.')
   parser.add_argument('--lp-coarse-frelax-only', action='store_true', default=False,
                       help='Use F-relaxation only on the coarse grids.')
 
