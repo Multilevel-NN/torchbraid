@@ -170,7 +170,7 @@ class SerialNet(nn.Module):
                      print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
                      fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
                      bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh', coarse_frelax_only=False,
-                     pooling=False, seed=1):
+                     fwd_crelax_wt=1.0, pooling=False, seed=1):
     super(SerialNet, self).__init__()
 
     step_layer_1 = lambda: StepLayer(channels,seed)
