@@ -66,7 +66,7 @@ from torchvision import datasets, transforms
 from timeit import default_timer as timer
 
 from torchbraid.utils import MeanInitialGuessStorage
-from utils import parse_args, buildNet, ParallelNet, getComm, git_rev, getDevice, get_lr_scheduler
+from utils import parse_args, buildNet, ParallelNet, SerialNet, getComm, git_rev, getDevice, get_lr_scheduler
 
 
 def root_print(rank, s):
@@ -106,7 +106,7 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mi
 
     fwd_itr, fwd_res = model.getFwdStats()
 
-    if mig_storage is not None:
+    if mig_storage is not None and isinstance(model, ParallelNet):
       times, states = model.parallel_nn.getFineTimePoints()
       for t, state in zip(times, states):
         mig_storage.addState(t, state.tensors(), target)     
@@ -289,11 +289,11 @@ def main():
                                        transforms.Compose([
                                          transforms.Resize(256),
                                          transforms.CenterCrop(224),
-                                   #      transforms.RandomCrop(224,padding=4),
-                                   #      transforms.RandomHorizontalFlip(),
+                                         transforms.RandomCrop(224,padding=4),
+                                         transforms.RandomHorizontalFlip(),
                                          transforms.ToTensor(),
-                                         #normalize, transforms.RandomErasing(0.5)]))
-                                         normalize]))
+                                         normalize, transforms.RandomErasing(0.5)]))
+                                        #  normalize]))
   test_dataset = datasets.ImageFolder(valdir, transforms.Compose([
     transforms.Resize(256),
     transforms.CenterCrop(224),
