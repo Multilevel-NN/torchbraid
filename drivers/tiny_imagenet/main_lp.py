@@ -288,7 +288,7 @@ def main():
   train_dataset = datasets.ImageFolder(traindir,
                                        transforms.Compose([
                                          transforms.Resize(256),
-                                         transforms.CenterCrop(224),
+                                        #  transforms.CenterCrop(224),
                                          transforms.RandomCrop(224,padding=4),
                                          transforms.RandomHorizontalFlip(),
                                          transforms.ToTensor(),
@@ -386,11 +386,10 @@ def main():
   epoch_times = []
   test_times = []
 
-  if  args.use_mig_storage:
-    mig_storage = MeanInitialGuessStorage(class_count=200, average_weight=0.1)
-  else:
-    mig_storage = None
-  
+  mig_storage = None
+
+  if args.mig_storage is not None:
+    mig_storage = MeanInitialGuessStorage(class_count=200, average_weight=args.mig_storage)
 
   scheduler = None
 
