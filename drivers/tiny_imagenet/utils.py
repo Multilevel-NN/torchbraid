@@ -381,9 +381,9 @@ def parse_args(mgopt_on=True):
                       help='Layer parallel internal print level (default: 0)')
   parser.add_argument('--lp-braid-print', type=int, default=0, metavar='N',
                       help='Layer parallel braid print level (default: 0)')
-  parser.add_argument('--lp-fwd-cfactor', type=int, default=4, metavar='N',
+  parser.add_argument('--lp-fwd-cfactor', type=int, default=4, metavar='N', nargs='*',
                       help='Layer parallel coarsening factor for forward solve (default: 4)')
-  parser.add_argument('--lp-bwd-cfactor', type=int, default=4, metavar='N',
+  parser.add_argument('--lp-bwd-cfactor', type=int, default=4, metavar='N', nargs='*',
                       help='Layer parallel coarsening factor for backward solve (default: 4)')
   parser.add_argument('--lp-fwd-nrelax-coarse', type=int, default=1, metavar='N',
                       help='Layer parallel relaxation steps on coarse grids for forward solve (default: 1)')
@@ -456,6 +456,20 @@ def parse_args(mgopt_on=True):
   if args.steps % procs!=0:
     root_print(rank, 1, 1, 'Steps must be an even multiple of the number of processors: %d %d' % (args.steps,procs) )
     sys.exit(0)
+
+  if len(args.lp_fwd_cfactor) == 0:
+    root_print(rank, 1, 1, 'The lp_fwd_cfactor argument was given without a value, specify a value.')
+    sys.exit(0)
+  elif len(args.lp_fwd_cfactor) > 1:
+    # build the dictionary to match levels with cfactor
+    args.lp_fwd_cfactor = {i: cfact for i, cfact in enumerate(args.lp_fwd_cfactor)}
+  
+  if len(args.lp_bwd_cfactor) == 0:
+    root_print(rank, 1, 1, 'The lp_bwd_cfactor argument was given without a value, specify a value.')
+    sys.exit(0)
+  elif len(args.lp_bwd_cfactor) > 1:
+    # build the dictionary to match levels with cfactor
+    args.lp_bwd_cfactor = {i: cfact for i, cfact in enumerate(args.lp_bwd_cfactor)}
   
   if mgopt_on:
     ni_levels = args.ni_levels
