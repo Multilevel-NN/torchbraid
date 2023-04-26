@@ -463,6 +463,9 @@ def parse_args(mgopt_on=True):
   elif len(args.lp_fwd_cfactor) > 1:
     # build the dictionary to match levels with cfactor
     args.lp_fwd_cfactor = {i: cfact for i, cfact in enumerate(args.lp_fwd_cfactor)}
+  else:
+    args.lp_fwd_cfactor = args.lp_fwd_cfactor[0]
+
   
   if len(args.lp_bwd_cfactor) == 0:
     root_print(rank, 1, 1, 'The lp_bwd_cfactor argument was given without a value, specify a value.')
@@ -470,6 +473,8 @@ def parse_args(mgopt_on=True):
   elif len(args.lp_bwd_cfactor) > 1:
     # build the dictionary to match levels with cfactor
     args.lp_bwd_cfactor = {i: cfact for i, cfact in enumerate(args.lp_bwd_cfactor)}
+  else:
+    args.lp_bwd_cfactor = args.lp_bwd_cfactor[0]
   
   if mgopt_on:
     ni_levels = args.ni_levels
