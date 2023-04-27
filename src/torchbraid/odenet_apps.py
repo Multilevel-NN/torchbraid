@@ -325,7 +325,7 @@ class ForwardODENetApp(BraidApp):
   def initializeVector(self,t,x):
     self.setVectorWeights(t,x)
 
-    if  self.initial_guess is not None and t != 0.0:
+    if self.initial_guess is not None and t != 0.0:
       x.replaceTensor(copy.deepcopy(self.initial_guess.getState(t)))
         
 
