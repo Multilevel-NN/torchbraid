@@ -36,18 +36,6 @@ class MeanInitialGuessStorage:
   A class that stores the average state value at each time step 
   for different classes.
   """
-  class InitialGuess:
-    """
-    Utility class to go into the neural network to set the intial
-    guess for the state.
-    """
-
-    def __init__(self,parent,classes):
-      self.parent = parent
-      self.classes = classes
-
-    def getState(self,t):
-      return self.parent.getState(t,self.classes)
 
   @torch.no_grad()
   def __init__(self,class_count,average_weight):
@@ -66,12 +54,6 @@ class MeanInitialGuessStorage:
     self.class_count = class_count
     self.average_weight = average_weight
     self.state_map = dict()
-
-  def initialGuess(self,classes):
-    """
-    Create a convenience class that changes the initial guess.
-    """
-    return MeanInitialGuessStorage.InitialGuess(self,classes)
 
   def getTimeStamps(self):
     return self.state_map.keys()

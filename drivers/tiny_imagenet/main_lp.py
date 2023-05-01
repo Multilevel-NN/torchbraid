@@ -98,9 +98,6 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mi
 
     start_time = timer()
 
-    if epoch>1 and mig_storage is not None:
-      model.parallel_nn.setFwdInitialGuess(mig_storage.initialGuess(target))
-
     # compute forward
     optimizer.zero_grad()
     start_time_fp = timer()
@@ -113,6 +110,7 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mi
       times, states = model.parallel_nn.getFineTimePoints()
       for t, state in zip(times, states):
         mig_storage.addState(t, state.tensors(), target)     
+    
 
     # compute loss
     start_time_cm = timer()
