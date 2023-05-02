@@ -179,13 +179,12 @@ cdef int my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
       #v_mem = ten_U.clone()
 
       tensors = [t.detach().clone() for t in ten_U.tensor_data_]
-      cl = BraidVector(tensors,ten_U.send_flag_)
+      v = BraidVector(tensors,ten_U.send_flag_)
       if len(ten_U.weight_tensor_data_)>0:
-        cl.weight_tensor_data_ = [t.detach() for t in ten_U.weight_tensor_data_]
+        v.weight_tensor_data_ = [t.detach() for t in ten_U.weight_tensor_data_]
 
-      v_mem = cl
-      Py_INCREF(v_mem) # why do we need this?
-      v_ptr[0] = <braid_Vector> v_mem
+      Py_INCREF(v) # why do we need this?
+      v_ptr[0] = <braid_Vector> v
   except:
     output_exception("my_clone")
 
@@ -399,35 +398,41 @@ cdef int my_bufunpack_cpu(braid_App app, void *buffer, braid_Vector *u_ptr,int t
 
 cdef int my_coarsen(braid_App app, braid_Vector fu, braid_Vector *cu_ptr, braid_CoarsenRefStatus status):
   cdef int level = -1
-
   pyApp  = <object> app
+
   with pyApp.timer("coarsen"):
-    ten_fu =  (<object> fu).tensor()
+    ten_fu =  <object> fu
 
     braid_CoarsenRefStatusGetLevel(status,&level)
 
-    cu_mem = pyApp.spatial_coarse(ten_fu,level)
-    cu_vec = BraidVector(cu_mem)
-    Py_INCREF(cu_vec) # why do we need this?
+    tensors = [pyApp.spatial_coarse(t.detach(), level) for t in ten_fu.tensor_data_]
+    cu = BraidVector(tensors,ten_fu.send_flag_)
+    if len(ten_fu.weight_tensor_data_)>0:
+      cu.weight_tensor_data_ = [t.detach() for t in ten_fu.weight_tensor_data_]
 
-    cu_ptr[0] = <braid_Vector> cu_vec
+    Py_INCREF(cu) # why do we need this?
+    cu_ptr[0] = <braid_Vector> cu
 
   return 0
 
 cdef int my_refine(braid_App app, braid_Vector cu, braid_Vector *fu_ptr, braid_CoarsenRefStatus status):
   cdef int level = -1
-
   pyApp  = <object> app
+
   with pyApp.timer("refine"):
-    ten_cu =  (<object> cu).tensor()
+    ten_cu =  <object> cu
 
-    braid_CoarsenRefStatusGetNRefine(status,&level)
+    braid_CoarsenRefStatusGetLevel(status,&level)
 
-    fu_mem = pyApp.spatial_refine(ten_cu,level)
-    fu_vec = BraidVector(fu_mem)
-    Py_INCREF(fu_vec) # why do we need this?
+    tensors = [pyApp.spatial_refine(t.detach(), level) for t in ten_cu.tensor_data_]
+    fu = BraidVector(tensors,ten_cu.send_flag_)
+    if len(ten_cu.weight_tensor_data_)>0:
+      fu.weight_tensor_data_ = [t.detach() for t in ten_cu.weight_tensor_data_]
+    # fu_mem = pyApp.spatial_refine(ten_cu,level)
+    # fu_vec = BraidVector(fu_mem)
 
-    fu_ptr[0] = <braid_Vector> fu_vec
+    Py_INCREF(fu)
+    fu_ptr[0] = <braid_Vector> fu
 
   return 0
 

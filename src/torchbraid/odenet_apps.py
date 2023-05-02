@@ -98,6 +98,13 @@ class ForwardODENetApp(BraidApp):
     num_ranks     = self.getMPIComm().Get_size()
     self.my_rank = my_rank
 
+    # need access to the user's coarsen function to coarsen state vectors
+    # from the fine level in getPrimalWithGrad
+    if spatial_ref_pair is not None:
+      self.spatial_coarsen = spatial_ref_pair[0]
+    else:
+      self.spatial_coarsen = None
+
     # If this is a SpliNet, create spline basis and overwrite local self.start_layer/end_layer 
     self.splinet = False
     if nsplines>0:
@@ -361,7 +368,7 @@ class ForwardODENetApp(BraidApp):
     self.setVectorWeights(tstop,y)
   # end eval
 
-  def getPrimalWithGrad(self,tstart,tstop):
+  def getPrimalWithGrad(self,tstart,tstop,level):
     """ 
     Get the forward solution associated with this
     time step and also get its derivative. This is
@@ -382,6 +389,12 @@ class ForwardODENetApp(BraidApp):
       layer = self.layer_models[ts_index]
     
     t_x = b_x.tensor()
+
+    # call the user's coarsen function on every level lower than this one
+    if self.spatial_coarsen:
+      for l in range(level):
+        t_x = self.spatial_coarsen(t_x, l)
+
     x = t_x.detach()
     y = t_x.detach().clone()
 
@@ -510,7 +523,8 @@ class BackwardODENetApp(BraidApp):
         # we need to adjust the time step values to reverse with the adjoint
         # this is so that the renumbering used by the backward problem is properly adjusted
         (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,
-                                                         self.Tf-tstart)
+                                                         self.Tf-tstart,
+                                                         level)
                                                          
         # print(self.fwd_app.my_rank, "--> FWD with layer ", [p.data for p in layer.parameters()])
 
