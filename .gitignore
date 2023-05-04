@@ -6,6 +6,7 @@ braid.out.cycle
 .ipynb_checkpoints/
 __pycache__/
 examples/modelnet/data/
+examples/modelnet/models/
 examples/mnist/data/
 examples/mnist/digit-data/
 examples/mnist/fashion-data/
