@@ -73,7 +73,7 @@ class ForwardODENetApp(BraidApp):
       return self.layer(x)
   # end ODEBlock
 
-  def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None,user_mpi_buf=False,nsplines=0, splinedegree=1):
+  def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None,levels_to_coarsen=None,user_mpi_buf=False,nsplines=0, splinedegree=1):
     """
     """
     self.layer_blocks,num_steps = self.buildLayerBlocks(layers)
@@ -102,8 +102,10 @@ class ForwardODENetApp(BraidApp):
     # from the fine level in getPrimalWithGrad
     if spatial_ref_pair is not None:
       self.spatial_coarsen = spatial_ref_pair[0]
+      self.levels_to_coarsen = levels_to_coarsen
     else:
       self.spatial_coarsen = None
+      self.levels_to_coarsen = None
 
     # If this is a SpliNet, create spline basis and overwrite local self.start_layer/end_layer 
     self.splinet = False
@@ -246,7 +248,21 @@ class ForwardODENetApp(BraidApp):
   def getFeatureShapes(self,tidx,level):
     i = self.getFineTimeIndex(tidx,level)
     ind = bisect_right(self.layer_blocks[0],i)
-    return [self.shape0[ind],]
+    shape = self.shape0[ind]
+
+    if level > 0 and self.levels_to_coarsen is not None:
+      cshape = list(shape)
+      # coarsen shape
+      for l in range(level):
+        if l in self.levels_to_coarsen:
+          # assume coarsening by 2 in each direction
+          cshape[2:] = [s//2 for s in cshape[2:]]
+      
+      print(f"coarsening shape {shape} to {cshape}")
+      shape = torch.Size(cshape)
+
+    # return [self.shape0[ind],]
+    return [shape,]
 
   def getParameterShapes(self,tidx,level):
     if len(self.parameter_shapes)<=0:

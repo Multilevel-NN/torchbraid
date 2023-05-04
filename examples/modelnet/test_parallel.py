@@ -51,11 +51,16 @@ rank  = MPI.COMM_WORLD.Get_rank()
 procs = MPI.COMM_WORLD.Get_size()
 args = parser.parse_args()
 
+# get device
+device, host = torchbraid.utils.getDevice(comm=comm)
+device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
+print(f'Run info rank: {rank}: Torch version: {torch.__version__} | Device: {device} | Host: {host}')
+
 # Set seed for reproducibility
 torch.manual_seed(1)
 
 # load the model
-channels, steps, state_dict = torch.load("models/nx31_nt128.pt")
+channels, steps, state_dict = torch.load("models/nx31_nt128_ml1_scNone.pt", map_location=torch.device('cpu'))
 
 # Compute number of steps per processor
 local_steps = int(steps / procs)
@@ -119,10 +124,6 @@ if args.lp_sc_levels == -1:
 else:
     sc_levels = args.lp_sc_levels
 
-# get device
-device, host = torchbraid.utils.getDevice(comm=comm)
-device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
-print(f'Run info rank: {rank}: Torch version: {torch.__version__} | Device: {device} | Host: {host}')
 
 # Create layer-parallel network
 model = ParallelNet(
