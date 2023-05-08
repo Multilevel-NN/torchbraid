@@ -168,7 +168,7 @@ class SerialNet(nn.Module):
 
   def __init__(self, channels=8, global_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
                      print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
-                     fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
+                     fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_fwd_downcycle=True, skip_bwd_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
                      bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh', coarse_frelax_only=False,
                      fwd_crelax_wt=1.0, pooling=False, seed=1):
     super(SerialNet, self).__init__()
@@ -225,7 +225,7 @@ class ParallelNet(nn.Module):
   ''' Full parallel ODE-net based on StepLayer,  will be parallelized in time ''' 
   def __init__(self, channels=8, global_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
                      print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, fine_bwd_fcf=False, 
-                     fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, bwd_relax_only_cg=0, 
+                     fwd_nrelax=1, bwd_nrelax=1, skip_fwd_downcycle=True, skip_bwd_downcycle=True, fmg=False, fwd_relax_only_cg=0, bwd_relax_only_cg=0, 
                      CWt=1.0, fwd_crelax_wt=1.0, fwd_finalrelax=False,diff_scale=0.0, activation='tanh', 
                      coarse_frelax_only=False, pooling=False, seed=1):
     super(ParallelNet, self).__init__()
@@ -250,7 +250,8 @@ class ParallelNet(nn.Module):
     self.parallel_nn.setPrintLevel(braid_print_level,False)
     self.parallel_nn.setFwdCFactor(fwd_cfactor)
     self.parallel_nn.setBwdCFactor(bwd_cfactor)
-    self.parallel_nn.setSkipDowncycle(skip_downcycle)
+    self.parallel_nn.setSkipFwdDowncycle(skip_fwd_downcycle)
+    self.parallel_nn.setSkipBwdDowncycle(skip_bwd_downcycle)
     self.parallel_nn.setBwdRelaxOnlyCG(bwd_relax_only_cg)
     self.parallel_nn.setFwdRelaxOnlyCG(fwd_relax_only_cg)
     self.parallel_nn.setCRelaxWt(CWt)
@@ -396,7 +397,11 @@ def parse_args(mgopt_on=True):
   parser.add_argument('--lp-fwd-finalrelax',action='store_true', default=False, 
                       help='Layer parallel do final FC relax after forward cycle ends (always on for backward). (default: False)')
   parser.add_argument('--lp-use-downcycle',action='store_true', default=False, 
-                      help='Layer parallel use downcycle on or off (default: False)')
+                      help='Layer parallel use backward and forward downcycle on or off (default: False). Overrides the lp-use-fwd-downcycle and lp-use-bwd-downcycle options')
+  parser.add_argument('--lp-use-bwd-downcycle',action='store_true', default=False, 
+                      help='Layer parallel use backward downcycle on or off (default: False)')
+  parser.add_argument('--lp-use-fwd-downcycle',action='store_true', default=False, 
+                      help='Layer parallel use forward downcycle on or off (default: False)')
   parser.add_argument('--lp-use-fmg',action='store_true', default=False, 
                       help='Layer parallel use FMG for one cycle (default: False)')
   parser.add_argument('--lp-bwd-relaxonlycg',action='store_true', default=0, 
@@ -476,6 +481,12 @@ def parse_args(mgopt_on=True):
   else:
     args.lp_bwd_cfactor = args.lp_bwd_cfactor[0]
   
+
+  # lp_use_downcycle overrides the fwd and backward options
+  if args.lp_use_downcycle:
+    args.lp_use_fwd_downcycle = True
+    args.lp_use_bwd_downcycle = True
+
   if mgopt_on:
     ni_levels = args.ni_levels
     ni_rfactor = args.ni_rfactor
