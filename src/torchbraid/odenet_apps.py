@@ -146,6 +146,7 @@ class ForwardODENetApp(BraidApp):
 
     self.initial_guess = None
 
+    self.backpropped = dict()
     self.temp_layers = dict()
 
     # If this is a SpliNet, create communicators for shared weights
@@ -369,28 +370,49 @@ class ForwardODENetApp(BraidApp):
     condition x. The level is defined by braid
     """
 
-    self.setLayerWeights(tstart,tstop,level,y.weightTensors())
-    layer = self.getTempLayer(tstart)
+    record = False
+    layer = None
+    if level==0:
+      ts_index = self.getGlobalTimeIndex(tstart)-self.start_layer
+      #assert(ts_index<len(self.layer_models))
+      #assert(ts_index >= 0)
+      if ts_index<len(self.layer_models) and ts_index >= 0:
+        layer = self.layer_models[ts_index]
+        record = True
+ 
+    if layer==None:
+      self.setLayerWeights(tstart,tstop,level,y.weightTensors())
+      layer = self.getTempLayer(tstart)
 
     t_y = y.tensor().detach()
 
     # no gradients are necessary here, so don't compute them
     dt = tstop-tstart
-    with torch.no_grad():
-      ny = layer(dt,t_y)
-      y.replaceTensor(ny) 
+    if record:
+      with torch.enable_grad():
+        t_y.requires_grad = True
+        ny = layer(dt,t_y)
+        y.replaceTensor(ny.detach().clone()) 
+
+      self.backpropped[tstart,tstop] = (t_y,ny)
+    else:
+      with torch.no_grad():
+        ny = layer(dt,t_y)
+        y.replaceTensor(ny) 
+
 
     # This connects weights at tstop with the vector y. For a SpliNet, the weights at tstop are evaluated using the spline basis function. 
     self.setVectorWeights(tstop,y)
   # end eval
 
-  def getPrimalWithGrad(self,tstart,tstop):
+  def getPrimalWithGrad(self,tstart,tstop,level):
     """ 
     Get the forward solution associated with this
     time step and also get its derivative. This is
     used by the BackwardApp in computation of the
     adjoint (backprop) state and parameter derivatives.
     """
+
 
     b_x = self.getUVector(0,tstart)
 
@@ -403,6 +425,10 @@ class ForwardODENetApp(BraidApp):
       assert(ts_index<len(self.layer_models))
       assert(ts_index >= 0)
       layer = self.layer_models[ts_index]
+
+      if level==0 and (tstart,tstop) in self.backpropped:
+        x,y = self.backpropped[(tstart,tstop)]
+        return (y,x), layer
     
     t_x = b_x.tensor()
     x = t_x.detach()
@@ -533,12 +559,12 @@ class BackwardODENetApp(BraidApp):
         # we need to adjust the time step values to reverse with the adjoint
         # this is so that the renumbering used by the backward problem is properly adjusted
         (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,
-                                                         self.Tf-tstart)
+                                                         self.Tf-tstart,level)
                                                          
         # print(self.fwd_app.my_rank, "--> FWD with layer ", [p.data for p in layer.parameters()])
 
         # t_x should have no gradient (for memory reasons)
-        assert(t_x.grad is None)
+        # assert(t_x.grad is None)
 
         # we are going to change the required gradient, make sure they return
         # to where they started!
@@ -557,7 +583,7 @@ class BackwardODENetApp(BraidApp):
         # perform adjoint computations
         t_w = w.tensor()
         t_w.requires_grad = False
-        t_y.backward(t_w)
+        t_y.backward(t_w,retain_graph=(level==0))
 
         # The above set's the gradient of the layer.parameters(), which, in case of SpliNet, is the templayer -> need to spread those sensitivities to the layer_models
         if self.fwd_app.splinet and done==1:
@@ -585,6 +611,7 @@ class BackwardODENetApp(BraidApp):
         # stored too long in this calculation (in particulcar setting
         # the grad to None after saving it and returning it to braid)
         w.replaceTensor(t_x.grad.detach().clone()) 
+        t_x.grad = None
 
         for p,s in zip(layer.parameters(),required_grad_state):
           p.requires_grad = s
