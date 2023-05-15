@@ -60,7 +60,8 @@ print(f'Run info rank: {rank}: Torch version: {torch.__version__} | Device: {dev
 torch.manual_seed(1)
 
 # load the model
-channels, steps, state_dict = torch.load("models/nx31_nt128_ml1_scNone.pt", map_location=torch.device('cpu'))
+channels, steps, state_dict = torch.load("models/nx31_nt128_ml1_scNone.pt", map_location=device)
+# channels, steps, state_dict = torch.load("models/nx31_nt128_ml3_sc0.pt", map_location=device)
 
 # Compute number of steps per processor
 local_steps = int(steps / procs)
