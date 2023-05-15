@@ -38,7 +38,7 @@
 # $ mpirun -np 4 python3 ModelNet_script.py
 #
 # Run in serial with the following
-# $ mpirun -np 4 python3 ModelNet_script.py --lp-max-levels 1
+# $ python3 ModelNet_script.py --lp-max-levels 1
 #
 # Many options are available, see
 # $ python3 ModelNet_script.py --help
