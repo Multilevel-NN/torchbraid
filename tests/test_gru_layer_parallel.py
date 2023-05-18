@@ -97,7 +97,7 @@ class LSTMBlock(nn.Module):
 
     return (torch.stack(hn), torch.stack(cn))
 
-def RNN_build_block_with_dim(input_size, hidden_size, num_layers):
+def GRU_build_block_with_dim(input_size, hidden_size, num_layers):
   b = LSTMBlock(input_size, hidden_size, num_layers) # channels = hidden_size
   return b
 
@@ -152,7 +152,7 @@ def preprocess_distribute_input_data_parallel(rank,num_procs,num_batch,batch_siz
     return x_block
 # end preprocess_distr
 
-class TestRNNLayerParallel(unittest.TestCase):
+class TestGRULayerParallel(unittest.TestCase):
   def test_forward_exact(self):
     self.forwardProp(max_levels=1,max_iters=1,sequence_length=28)
 
@@ -238,7 +238,7 @@ class TestRNNLayerParallel(unittest.TestCase):
     # wait for serial processor
     comm.barrier()
 
-    basic_block_parallel = lambda: RNN_build_block_with_dim(input_size, hidden_size, num_layers)
+    basic_block_parallel = lambda: GRU_build_block_with_dim(input_size, hidden_size, num_layers)
     num_procs = comm.Get_size()
 
     # preprocess and distribute input data
@@ -246,8 +246,8 @@ class TestRNNLayerParallel(unittest.TestCase):
     x_block = preprocess_distribute_input_data_parallel(my_rank,num_procs,num_batch,batch_size,channels,sequence_length,input_size,comm,my_device)
 
     num_steps = x_block[0].shape[1]
-    # RNN_parallel.py -> RNN_Parallel() class
-    parallel_rnn = torchbraid.RNN_Parallel(comm,
+    # GRU_parallel.py -> GRU_Parallel() class
+    parallel_rnn = torchbraid.GRU_Parallel(comm,
                                            basic_block_parallel(),
                                            num_steps,
                                            hidden_size,
@@ -325,8 +325,8 @@ class TestRNNLayerParallel(unittest.TestCase):
 
     num_steps = x_block[0].shape[1]
 
-    basic_block_parallel = lambda: RNN_build_block_with_dim(input_size, hidden_size, num_layers)
-    parallel_rnn = torchbraid.RNN_Parallel(comm,
+    basic_block_parallel = lambda: GRU_build_block_with_dim(input_size, hidden_size, num_layers)
+    parallel_rnn = torchbraid.GRU_Parallel(comm,
                                            basic_block_parallel(),
                                            num_steps,
                                            hidden_size,

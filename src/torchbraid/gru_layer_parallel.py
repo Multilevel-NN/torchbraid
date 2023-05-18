@@ -38,26 +38,26 @@ from mpi4py import MPI
 
 import copy
 
-from torchbraid.rnn_braid_function import BraidFunction
+from torchbraid.gru_braid_function import BraidFunction
 from torchbraid.utils import ContextTimerManager
 
-import torchbraid.rnn_apps as apps
+import torchbraid.gru_apps as apps
 from torchbraid.lp_module import LPModule
 
 import numpy as np
 
-class RNN_Serial(nn.Module):
+class GRU_Serial(nn.Module):
   """
-  Helper class to build a serial RNN from the parallel version.
+  Helper class to build a serial GRU from the parallel version.
   This makes comparison to the serial version easier
   """
-  def __init__(self,RNN_model,num_layers,hidden_size,dt=1.0):
-    super(RNN_Serial,self).__init__()
+  def __init__(self,GRU_model,num_layers,hidden_size,dt=1.0):
+    super(GRU_Serial,self).__init__()
     self.num_layers  = num_layers
     self.hidden_size = hidden_size
     self.dt          = dt
 
-    self.RNN_model = RNN_model
+    self.GRU_model = GRU_model
   # end __init__
 
   def forward(self,x,h_c=None):
@@ -70,14 +70,14 @@ class RNN_Serial(nn.Module):
 
     num_steps = x.shape[1]
     for i in range(num_steps):
-      h_c = self.RNN_model(0,0.0,self.dt,x[:,i,:],h_c)
+      h_c = self.GRU_model(0,0.0,self.dt,x[:,i,:],h_c)
 
     if len(h_c)==1:
       return h_c[0]
     return h_c
-# end RNN_Serial
+# end Serial
 
-class RNN_Parallel(LPModule):
+class GRU_Parallel(LPModule):
 
   ##################################################
 
@@ -86,15 +86,15 @@ class RNN_Parallel(LPModule):
 
     self.num_layers  = num_layers
     self.hidden_size = hidden_size
-    self.RNN_models  = basic_block
+    self.GRU_models  = basic_block
 
-    # RNN_torchbraid_apps.py -> ForwardBraidApp
-    self.fwd_app = apps.ForwardBraidApp(comm,self.RNN_models,num_steps,Tf,max_fwd_levels,max_iters,self.timer_manager)
+    # GRU_torchbraid_apps.py -> ForwardBraidApp
+    self.fwd_app = apps.ForwardBraidApp(comm,self.GRU_models,num_steps,Tf,max_fwd_levels,max_iters,self.timer_manager)
     self.bwd_app = apps.BackwardBraidApp(self.fwd_app,self.timer_manager)
   # end __init__
 
   def zero_grad(self):
-    self.RNN_models.zero_grad()
+    self.GRU_models.zero_grad()
 
   def getFastForwardInfo(self):
     return self.fwd_app.getFastForwardInfo()
@@ -118,7 +118,7 @@ class RNN_Parallel(LPModule):
 
   def buildInit(self,t):
     # prefix_rank  = self.comm.Get_rank()
-    # print("Rank %d RNN_Parallel -> buildInit() - start" % prefix_rank)
+    # print("Rank %d GRU_Parallel -> buildInit() - start" % prefix_rank)
 
     g = self.g0.clone()
     if t>0:
@@ -126,7 +126,7 @@ class RNN_Parallel(LPModule):
       t_h[:] = 0.0
       t_c[:] = 0.0
 
-    # print("Rank %d RNN_Parallel -> buildInit() - end" % prefix_rank)
+    # print("Rank %d GRU_Parallel -> buildInit() - end" % prefix_rank)
     return g
 
-# end RNN_Parallel
+# end GRU_Parallel

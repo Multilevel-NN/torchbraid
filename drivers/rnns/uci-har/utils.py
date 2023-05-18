@@ -264,7 +264,7 @@ def preprocess_dataset_parallel(comm,dataset):
 
   return local_dataset
 
-class ParallelRNNDataLoader(torch.utils.data.DataLoader):
+class ParallelGRUDataLoader(torch.utils.data.DataLoader):
   def __init__(self,comm,dataset,batch_size,shuffle=False):
     self.dataset = dataset 
     self.shuffle = shuffle
@@ -390,7 +390,7 @@ class ParallelNet(nn.Module):
     self.Tf = Tf
     self.dt = Tf/float(num_steps*MPI.COMM_WORLD.Get_size())
 
-    self.parallel_rnn = torchbraid.RNN_Parallel(MPI.COMM_WORLD,
+    self.parallel_rnn = torchbraid.GRU_Parallel(MPI.COMM_WORLD,
                                                 self.RNN_model,
                                                 num_steps,hidden_size,num_layers,
                                                 Tf,

@@ -45,7 +45,7 @@ class LPModule(nn.Module):
   """
   Class abstraction for layer parallel modules
 
-  This is code which is shared between the LayerParallel and RNN_Parallel classes
+  This is code which is shared between the LayerParallel and GRU_Parallel classes
   """
   class ExecLP:
     """Helper class for btorchuilding composite neural network modules
