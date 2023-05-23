@@ -29,9 +29,9 @@ def imp_gru_cell_fast(dt : float, x_red_r : torch.Tensor, x_red_z : torch.Tensor
                       h : torch.Tensor, lin_rh_W : torch.Tensor, lin_zh_W : torch.Tensor,
                       lin_nr_W : torch.Tensor, lin_nr_b : torch.Tensor) -> torch.Tensor:
 
-  r   =    torch.sigmoid(x_red_r +     F.linear(h,lin_rh_W))
-  n   =    torch.   tanh(x_red_n + r * F.linear(h,lin_nr_W, lin_nr_b))
-  dtz = dt*torch.sigmoid(x_red_z +     F.linear(h,lin_zh_W))
+  r   =       torch.sigmoid(x_red_r +     F.linear(h,lin_rh_W))
+  n   =       torch.   tanh(x_red_n + r * F.linear(h,lin_nr_W, lin_nr_b))
+  dtz = dt*(1-torch.sigmoid(x_red_z +     F.linear(h,lin_zh_W)))
 
   return torch.div(torch.addcmul(h,dtz,n),1.0+dtz)
 
@@ -41,9 +41,9 @@ def imp_gru_cell(dt : float, x : torch.Tensor, h : torch.Tensor,
                  lin_nx_W : torch.Tensor, lin_nx_b : torch.Tensor, lin_nr_W : torch.Tensor, 
                  lin_nr_b : torch.Tensor) -> torch.Tensor:
 
-  r   =      torch.sigmoid(F.linear(x, lin_rx_W, lin_rx_b) +     F.linear(h, lin_rh_W))
-  n   =      torch.   tanh(F.linear(x, lin_nx_W, lin_nx_b) + r * F.linear(h, lin_nr_W,lin_nr_b))
-  dtz = dt * torch.sigmoid(F.linear(x, lin_zx_W, lin_zx_b) +     F.linear(h, lin_zh_W))
+  r   =         torch.sigmoid(F.linear(x, lin_rx_W, lin_rx_b) +     F.linear(h, lin_rh_W))
+  n   =         torch.   tanh(F.linear(x, lin_nx_W, lin_nx_b) + r * F.linear(h, lin_nr_W,lin_nr_b))
+  dtz = dt * (1-torch.sigmoid(F.linear(x, lin_zx_W, lin_zx_b) +     F.linear(h, lin_zh_W)))
 
   return torch.div(torch.addcmul(h, dtz, n), 1.0 + dtz)
 
