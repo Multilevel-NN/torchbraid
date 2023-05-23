@@ -423,15 +423,15 @@ class BraidApp:
 
     Returns
     ----------
-    A list of pairs. Each pair contains (fine_index,src_proc) where fine_index is
-    the fine level layer weights to be recived, and src_proc is the source processor
+    A list of pairs. Each pair contains (fine_index,dest_proc) where fine_index is
+    the fine level layer weights to be recived, and dest_proc is the destinitation processor
     """
     my_rank = self.getMPIComm().Get_rank()
     num_steps = self.num_steps
     max_levels = self.max_levels
   
     def build_send(level):
-      procs = [self.getTimePointProc(level=level,index=i) for i in range(self.getNumLevelSteps(level)+1)]
+      procs = [self.getTimePointProc(level=level,index=i) for i in range(self.getLevelNumSteps(level)+1)]
   
       ind = bisect_right(procs,my_rank)
       if ind>=len(procs):
@@ -466,7 +466,7 @@ class BraidApp:
     num_steps = self.num_steps
     max_levels = self.max_levels
     def build_recv(level):
-      procs = [self.getTimePointProc(level=level,index=i) for i in range(self.getNumLevelSteps(level)+1)]
+      procs = [self.getTimePointProc(level=level,index=i) for i in range(self.getLevelNumSteps(level)+1)]
   
       ind = bisect_left(procs,my_rank)
       if ind<=0 or ind>=len(procs):

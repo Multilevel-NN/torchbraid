@@ -123,6 +123,23 @@ class ForwardODENetApp(BraidApp):
           layer = ForwardODENetApp.ODEBlock(layer)
     
         return layer.to(device)
+
+      def sendRecvLayers(self,comm,recv_layers_list,send_layers_list,layer_dict,device):
+        requests = []
+        for fine_index,src_proc in recv_layers_list:
+          # allocate space if layer doesn't exit
+          if fine_index not in layer_dict:
+            layer_dict[fine_index] = self.buildLayer(fine_index,device)
+
+          layer = layer_dict[fine_index]
+
+          req = comm.Irecv(layer,source=src_proc)
+          requests += [req]
+
+        for fine_index,dest_proc in send_layers_list:
+          assert fine_index in layer_dict
+
+          comm.Isend(layer_dict[fine_index],dest=dest_proc)
   # end class LayersDataStructure
 
   def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None,user_mpi_buf=False,nsplines=0, splinedegree=1):
@@ -177,7 +194,9 @@ class ForwardODENetApp(BraidApp):
       owned_layers -= 1
 
     # Now creating the trainable layers
-    self.layer_models = [self.layers_data_structure.buildLayer(self.start_layer+i,self.device) for i in range(owned_layers)]
+    #self.layer_dict = { i: self.layers_data_structure.buildLayer(self.start_layer+i,self.device) for i in range(owned_layers)} 
+    self.layer_dict = { i: self.layers_data_structure.buildLayer(i,self.device) for i in range(self.start_layer,self.start_layer+owned_layers) }
+    self.layer_models = [ self.layer_dict[i] for i in range(self.start_layer,self.start_layer+owned_layers) ]
 
     if self.use_cuda:
       torch.cuda.synchronize()
@@ -307,23 +326,25 @@ class ForwardODENetApp(BraidApp):
         # Add up sum over p+1 non-zero splines(t) times weights coeffients, l=0,\dots,p
         l = 0 # first one here, because I didn't know how to set the shape of 'weights' correctly...
         layermodel_localID = k + l - self.start_layer
-        assert layermodel_localID >= 0 and layermodel_localID < len(self.layer_models)
-        layer = self.layer_models[layermodel_localID]
+        assert layermodel_localID >= 0 and layermodel_localID < len(self.layer_dict)
+        layer = self.layer_dict[layermodel_localID]
         weights = [splines[l] * p.data for p in layer.parameters()] # l=0
         # others: l=1,dots, p
         for l in range(1,len(splines)):
           layermodel_localID = k + l - self.start_layer
           if t== self.Tf and l==len(splines)-1: # There is one more spline at Tf, which is zero at Tf and therefore it is not stored. Skip. 
             continue
-          assert layermodel_localID >= 0 and layermodel_localID < len(self.layer_models)
-          layer = self.layer_models[layermodel_localID]
+          assert layermodel_localID >= 0 and layermodel_localID < len(self.layer_dict)
+          layer = self.layer_dict[layermodel_localID]
           for dest_w, src_p in zip(weights, list(layer.parameters())):  
               dest_w.add_(src_p.data, alpha=splines[l])
 
     else: 
-      layer_index = self.getGlobalTimeIndex(t) - self.start_layer
-      if layer_index<len(self.layer_models) and layer_index>=0:
-        layer = self.layer_models[layer_index]
+      #layer_index = self.getGlobalTimeIndex(t) - self.start_layer
+      layer_index = self.getGlobalTimeIndex(t) 
+      #if layer_index<len(self.layer_dict) and layer_index>=0:
+      if layer_index in self.layer_dict:
+        layer = self.layer_dict[layer_index]
       else:
         layer = None
 
@@ -360,6 +381,13 @@ class ForwardODENetApp(BraidApp):
         
 
   def run(self,x):
+    #requests = self.layers_data_structure.sendRecvLayers(self.getMPIComm(),
+    #                               self.buildLayersRecvList(),
+    #                               self.buildLayersSendList(),
+    #                               self.layer_dict,
+    #                               self.device)
+    #MPI.Request.Waitall(requests)
+
     # turn on derivative path (as requried)
     self.use_deriv = self.training
     
@@ -402,9 +430,11 @@ class ForwardODENetApp(BraidApp):
     record = False
     layer = None
     if level==0 and done:
-      ts_index = self.getGlobalTimeIndex(tstart)-self.start_layer
-      if ts_index<len(self.layer_models) and ts_index >= 0:
-        layer = self.layer_models[ts_index]
+      #ts_index = self.getGlobalTimeIndex(tstart)-self.start_layer
+      #if ts_index<len(self.layer_dict) and ts_index >= 0:
+      ts_index = self.getGlobalTimeIndex(tstart)
+      if ts_index in self.layer_dict:
+        layer = self.layer_dict[ts_index]
         record = True
  
     if layer==None:
@@ -447,10 +477,12 @@ class ForwardODENetApp(BraidApp):
       self.setLayerWeights(tstart,tstop,0,b_x.weightTensors())
       layer = self.getTempLayer(tstart)
     else:
-      ts_index = self.getGlobalTimeIndex(tstart)-self.start_layer
-      assert(ts_index<len(self.layer_models))
-      assert(ts_index >= 0)
-      layer = self.layer_models[ts_index]
+      #ts_index = self.getGlobalTimeIndex(tstart)-self.start_layer
+      #assert(ts_index<len(self.layer_dict))
+      #assert(ts_index >= 0)
+      ts_index = self.getGlobalTimeIndex(tstart)
+      assert ts_index in self.layer_dict
+      layer = self.layer_dict[ts_index]
 
       if level==0 and (tstart,tstop) in self.backpropped:
         x,y = self.backpropped[(tstart,tstop)]
@@ -530,7 +562,7 @@ class BackwardODENetApp(BraidApp):
           if splinecomm != MPI.COMM_NULL: 
             # print(splinecomm.Get_rank(), ": I will pack spline ", i)
             # pack the spline into a buffer and initiate non-blocking allredude
-            splinelayer = self.fwd_app.layer_models[i - self.fwd_app.start_layer]
+            splinelayer = self.fwd_app.layer_dict[i - self.fwd_app.start_layer]
             buf = torchbraid.utils.pack_buffer([p.grad for p in splinelayer.parameters()])
             req=splinecomm.Iallreduce(MPI.IN_PLACE, buf, MPI.SUM)
 
@@ -622,8 +654,8 @@ class BackwardODENetApp(BraidApp):
               layermodel_localID = k + l - self.fwd_app.start_layer
               if (self.Tf-tstop == 0.0) and l==len(splines)-1: # There is one more spline at Tf, which is zero at Tf and therefore it is not stored. Skip. 
                 continue
-              assert layermodel_localID >= 0 and layermodel_localID < len(self.fwd_app.layer_models)
-              layer_out = self.fwd_app.layer_models[layermodel_localID]
+              assert layermodel_localID >= 0 and layermodel_localID < len(self.fwd_app.layer_dict)
+              layer_out = self.fwd_app.layer_dict[layermodel_localID]
 
               # Update the gradient of this layer
               for dest, src in zip(list(layer_out.parameters()), list(layer.parameters())):  
