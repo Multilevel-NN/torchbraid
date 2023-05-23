@@ -363,6 +363,15 @@ cdef extern from "_braid.h":
                        int          index,
                        int *proc_ptr)
 
+    ##
+    # Returns the processor that owns 'index' in a blocked data distribution
+    # (returns -1 if index is out of range)
+    int _braid_GetBlockDistProc(int   npoints,
+                                int   nprocs,
+                                int   index,
+                                int   periodic,
+                                int  *proc_ptr)
+
 cdef extern from "util.h":
     ## Switch for displaying the XBraid actions. Used for debugging only.
     int _braid_SetVerbosity(braid_Core  core,
