@@ -76,7 +76,7 @@ class ForwardODENetApp(BraidApp):
   def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None,user_mpi_buf=False,nsplines=0, splinedegree=1):
     """
     """
-    self.layer_blocks,num_steps = self.buildLayerBlocks(layers)
+    self.layer_blocks_ds,num_steps = self.buildLayerBlocksDataStructure(layers)
 
     BraidApp.__init__(self,'FWDApp',
                       comm,
@@ -133,10 +133,9 @@ class ForwardODENetApp(BraidApp):
     self.use_deriv = False
 
     self.parameter_shapes = []
-    for layer_constr in self.layer_blocks[1]:
+    for layer_constr in self.layer_blocks_ds[1]:
       # build the layer on the proper device
       layer = layer_constr()
-      #self.parameter_shapes += [[p.data.size() for p in layer.parameters()]]
 
       # sanity check
       sd = layer.state_dict()
@@ -183,7 +182,7 @@ class ForwardODENetApp(BraidApp):
   def buildShapes(self,x):
     """Do a dry run to determine all the shapes that need to be built."""
     shapes = [x.shape]
-    for layer_constr in self.layer_blocks[1]:
+    for layer_constr in self.layer_blocks_ds[1]:
       # build the layer on the proper device
       layer = layer_constr().to(self.device) 
        
@@ -192,22 +191,58 @@ class ForwardODENetApp(BraidApp):
 
     return shapes
 
-  def buildLayerBlocks(self,layers):
+  def buildLayerBlocksDataStructure(self,layers):
+    """
+    Build a data structure that to help construct all the layers.
+
+    Parameters
+    ----------
+
+    layers : list,list
+      Two lists. The first contains the count for each type of layer.  
+      The second contains a functor to construct that layer. 
+
+    Returns
+    -------
+   
+    A tuple of tuples: (layer_indices,layer_functors,counts),num_steps
+
+       layer_indices : list[int] 
+         Starting index for the associated layer_block. There is a final sentinal value         
+         that contains the total number of steps
+
+       layer_functors : list[functor]
+         Functors for constructing the layer
+
+       counts : list[int]
+         the count (repeatitions) of each layer
+
+       num_steps :  int 
+         The sum over the counts        
+
+    Note
+    -------
+    
+    The layer_indices and layer_functors describe the data structure. The use
+    is typically search layer_indices for a time step index, and use the offset
+    to access the right layer_block
+    """
+
     # this block of code prepares the data for easy sorting
-    [counts,layer_blocks] = list(zip(*layers))
+    [counts,layer_functors] = list(zip(*layers))
     layer_indices = list(itertools.accumulate(counts))
 
     num_steps = layer_indices[-1]
-    return (layer_indices,layer_blocks,counts),num_steps
+    return (layer_indices,layer_functors,counts),num_steps
 
   def buildLayerBlock(self,i):
     """
-    This function returns a block (e.g. a lambda that constructs the layer).
+    This function returns a layer properly wrapped with a PlanBlock or ODE block
     """
-    ind = bisect_right(self.layer_blocks[0],i)
-    layer = self.layer_blocks[1][ind]()
-    if self.layer_blocks[2][ind]==1:
-      # if its just one time step, assume the user wants only a scalar
+    ind = bisect_right(self.layer_blocks_ds[0],i)
+    layer = self.layer_blocks_ds[1][ind]()
+    if self.layer_blocks_ds[2][ind]==1:
+      # if its just one time step, assume the does not want an ODE layer
       layer = self.PlainBlock(layer)
     else:
       layer = self.ODEBlock(layer)
@@ -222,7 +257,7 @@ class ForwardODENetApp(BraidApp):
     is of a different type.
     """
     i = self.getGlobalTimeIndex(t)
-    ind = bisect_right(self.layer_blocks[0],i)
+    ind = bisect_right(self.layer_blocks_ds[0],i)
 
     # using a dictionary to cache previously built temp layers
     if ind in self.temp_layers:
@@ -258,14 +293,14 @@ class ForwardODENetApp(BraidApp):
 
   def getFeatureShapes(self,tidx,level):
     i = self.getFineTimeIndex(tidx,level)
-    ind = bisect_right(self.layer_blocks[0],i)
+    ind = bisect_right(self.layer_blocks_ds[0],i)
     return [self.shape0[ind],]
 
   def getParameterShapes(self,tidx,level):
     if len(self.parameter_shapes)<=0:
       return []
     i = self.getFineTimeIndex(tidx,level)
-    ind = bisect_right(self.layer_blocks[0],i)
+    ind = bisect_right(self.layer_blocks_ds[0],i)
 
     return self.parameter_shapes[ind]
 
@@ -410,7 +445,6 @@ class ForwardODENetApp(BraidApp):
     used by the BackwardApp in computation of the
     adjoint (backprop) state and parameter derivatives.
     """
-
 
     b_x = self.getUVector(0,tstart)
 
