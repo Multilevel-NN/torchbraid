@@ -73,10 +73,63 @@ class ForwardODENetApp(BraidApp):
       return self.layer(x)
   # end ODEBlock
 
+  class LayersDataStructure:
+      """This helper class handles the layer construction and communication."""
+  
+      def __init__(self,layers):
+        """
+        Build a data structure that to help construct all the layers.
+    
+        Parameters
+        ----------
+    
+        layers : list,list
+          Two lists. The first contains the count for each type of layer.  
+          The second contains a functor to construct that layer. 
+    
+        Members
+        -------
+       
+           indices : list[int] 
+             Starting index for the associated layer_block. There is a final sentinal value         
+             that contains the total number of steps
+    
+           functors : list[functor]
+             Functors for constructing the layer
+    
+           counts : list[int]
+             the count (repeatitions) of each layer
+        """
+    
+        # this block of code prepares the data for easy sorting
+        [self.counts,self.functors] = list(zip(*layers))
+        self.indices = list(itertools.accumulate(self.counts))
+
+      def getNumLayers(self):
+        """Get the global number of layers of concern for layer-parallel."""
+        # the sentinel entry is the total number of layers
+        return self.indices[-1]
+
+      def buildLayer(self,global_index,device):
+        """
+        This function returns a layer properly wrapped with a PlanBlock or ODE block
+        """
+        ind = bisect_right(self.indices,global_index)
+        layer = self.functors[ind]()
+        if self.counts[ind]==1:
+          # if its just one time step, assume the does not want an ODE layer
+          layer = ForwardODENetApp.PlainBlock(layer)
+        else:
+          layer = ForwardODENetApp.ODEBlock(layer)
+    
+        return layer.to(device)
+  # end class LayersDataStructure
+
   def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None,user_mpi_buf=False,nsplines=0, splinedegree=1):
     """
     """
-    self.layer_blocks_ds,num_steps = self.buildLayerBlocksDataStructure(layers)
+    self.layers_data_structure = ForwardODENetApp.LayersDataStructure(layers)
+    num_steps = self.layers_data_structure.getNumLayers()
 
     BraidApp.__init__(self,'FWDApp',
                       comm,
@@ -124,7 +177,7 @@ class ForwardODENetApp(BraidApp):
       owned_layers -= 1
 
     # Now creating the trainable layers
-    self.layer_models = [self.buildLayerBlock(self.start_layer+i) for i in range(owned_layers)]
+    self.layer_models = [self.layers_data_structure.buildLayer(self.start_layer+i,self.device) for i in range(owned_layers)]
 
     if self.use_cuda:
       torch.cuda.synchronize()
@@ -133,7 +186,7 @@ class ForwardODENetApp(BraidApp):
     self.use_deriv = False
 
     self.parameter_shapes = []
-    for layer_constr in self.layer_blocks_ds[1]:
+    for layer_constr in self.layers_data_structure.functors:
       # build the layer on the proper device
       layer = layer_constr()
 
@@ -182,7 +235,7 @@ class ForwardODENetApp(BraidApp):
   def buildShapes(self,x):
     """Do a dry run to determine all the shapes that need to be built."""
     shapes = [x.shape]
-    for layer_constr in self.layer_blocks_ds[1]:
+    for layer_constr in self.layers_data_structure.functors:
       # build the layer on the proper device
       layer = layer_constr().to(self.device) 
        
@@ -190,64 +243,6 @@ class ForwardODENetApp(BraidApp):
       shapes += [x.shape]
 
     return shapes
-
-  def buildLayerBlocksDataStructure(self,layers):
-    """
-    Build a data structure that to help construct all the layers.
-
-    Parameters
-    ----------
-
-    layers : list,list
-      Two lists. The first contains the count for each type of layer.  
-      The second contains a functor to construct that layer. 
-
-    Returns
-    -------
-   
-    A tuple of tuples: (layer_indices,layer_functors,counts),num_steps
-
-       layer_indices : list[int] 
-         Starting index for the associated layer_block. There is a final sentinal value         
-         that contains the total number of steps
-
-       layer_functors : list[functor]
-         Functors for constructing the layer
-
-       counts : list[int]
-         the count (repeatitions) of each layer
-
-       num_steps :  int 
-         The sum over the counts        
-
-    Note
-    -------
-    
-    The layer_indices and layer_functors describe the data structure. The use
-    is typically search layer_indices for a time step index, and use the offset
-    to access the right layer_block
-    """
-
-    # this block of code prepares the data for easy sorting
-    [counts,layer_functors] = list(zip(*layers))
-    layer_indices = list(itertools.accumulate(counts))
-
-    num_steps = layer_indices[-1]
-    return (layer_indices,layer_functors,counts),num_steps
-
-  def buildLayerBlock(self,i):
-    """
-    This function returns a layer properly wrapped with a PlanBlock or ODE block
-    """
-    ind = bisect_right(self.layer_blocks_ds[0],i)
-    layer = self.layer_blocks_ds[1][ind]()
-    if self.layer_blocks_ds[2][ind]==1:
-      # if its just one time step, assume the does not want an ODE layer
-      layer = self.PlainBlock(layer)
-    else:
-      layer = self.ODEBlock(layer)
-
-    return layer.to(self.device)
 
   def getTempLayer(self,t):
     """
@@ -257,13 +252,13 @@ class ForwardODENetApp(BraidApp):
     is of a different type.
     """
     i = self.getGlobalTimeIndex(t)
-    ind = bisect_right(self.layer_blocks_ds[0],i)
+    ind = bisect_right(self.layers_data_structure.indices,i)
 
     # using a dictionary to cache previously built temp layers
     if ind in self.temp_layers:
       result = self.temp_layers[ind]
     else:
-      result = self.buildLayerBlock(i)
+      result = self.layers_data_structure.buildLayer(i,self.device)
       self.temp_layers[ind] = result
 
     # set correct mode...neccessary for BatchNorm
@@ -289,18 +284,17 @@ class ForwardODENetApp(BraidApp):
     method with intial_guess=None.
     """
     self.initial_guess = initial_guess
-  
 
   def getFeatureShapes(self,tidx,level):
     i = self.getFineTimeIndex(tidx,level)
-    ind = bisect_right(self.layer_blocks_ds[0],i)
+    ind = bisect_right(self.layers_data_structure.indices,i)
     return [self.shape0[ind],]
 
   def getParameterShapes(self,tidx,level):
     if len(self.parameter_shapes)<=0:
       return []
     i = self.getFineTimeIndex(tidx,level)
-    ind = bisect_right(self.layer_blocks_ds[0],i)
+    ind = bisect_right(self.layers_data_structure.indices,i)
 
     return self.parameter_shapes[ind]
 
