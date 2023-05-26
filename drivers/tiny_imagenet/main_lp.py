@@ -130,7 +130,7 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mi
     stop_time = timer()
     optimizer.step()
 
-    total_data += len(data)
+    total_data += batch_size(data)
     total_time += stop_time - start_time
 
     cumulative_stop_time = timer()
@@ -194,8 +194,8 @@ def test(rank, args, model, test_loader, epoch, compose, device, prefix=''):
       pred = compose(torch.argmax, output, dim=1, keepdim=True)
       stop_time = timer()
 
+      total_data += batch_size(data)
       total_time += stop_time - start_time
-      total_data += len(data)
 
       # only accumulate the correct values on the root
       if rank == 0:
@@ -219,39 +219,61 @@ def test(rank, args, model, test_loader, epoch, compose, device, prefix=''):
 
 
 class FakeIter:
-  def __init__(self, cnt, elmt):
+  def __init__(self, cnt, elmt, last_elmt):
     self.cnt = cnt
     self.elmt = elmt
+    self.last_elmt = last_elmt
 
   def __iter__(self):
     return self
 
   def __next__(self):
-    if self.cnt > 0:
+    if self.cnt > 1:
       self.cnt -= 1
       return self.elmt
+    elif self.cnt == 1:
+      self.cnt -= 1
+      return self.last_elmt
     else:
       raise StopIteration
 
+def batch_size(ten):
+  """
+  This convenience function is used in conjunction with the data loader (and FakeLoader used
+  in parallel) to extract a batch size. This is then used internally within torchbraid to optimize
+  the computation of shapes.
+  """
+  if ten.dim()==0:
+    return int(ten.item())
+  return ten.shape[0]
 
 class FakeLoader:
-  def __init__(self, cnt, device):
-    self.cnt = cnt
+  def __init__(self, batches, items,batch_size, device):
+    self.batches = batches
 
-    elmt = torch.tensor((), device=device)
+    elmt = torch.tensor((batch_size), device=device)
     self.elmt = (elmt, elmt)
 
-    self.dataset = cnt * [None]
+    # the last batch size can be the actual batchsize,
+    # or some smaller fraction 
+    if items % batch_size==0:
+      last_batch = batch_size
+    else:
+      last_batch = items % batch_size
+
+    last_elmt = torch.tensor((last_batch), device=device)
+    self.last_elmt = (last_elmt, last_elmt)
+
+    self.dataset = batches * [None]
 
   def __iter__(self):
-    return FakeIter(self.cnt, self.elmt)
-
+    return FakeIter(self.batches, self.elmt,self.last_elmt)
 
 def parallel_loader(rank, loader, device):
   if rank == 0:
     return loader
   batches = len(loader)
-  return FakeLoader(batches, device)
+  return FakeLoader(batches, len(loader.dataset), loader.batch_size, device)
 
 
 def main():

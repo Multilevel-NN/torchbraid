@@ -219,6 +219,7 @@ class ForwardODENetApp(BraidApp):
 
     self.backpropped = dict()
     self.temp_layers = dict()
+    self.state_shapes = dict()
 
     # If this is a SpliNet, create communicators for shared weights
     if self.splinet:
@@ -251,15 +252,44 @@ class ForwardODENetApp(BraidApp):
   def __del__(self):
     pass
 
+  @staticmethod 
+  def batchSize(ten):
+    if ten.dim()==0:
+      return int(ten.item())
+    return ten.shape[0]
+
   def buildShapes(self,x):
-    """Do a dry run to determine all the shapes that need to be built."""
-    shapes = [x.shape]
-    for layer_constr in self.layers_data_structure.functors:
-      # build the layer on the proper device
-      layer = layer_constr().to(self.device) 
-       
-      x = layer(x)
-      shapes += [x.shape]
+    """
+    Do a dry run to determine the shapes of the state tensors that need
+    to be built.
+
+    This implementation requires parallel communication for different
+    different values of batch size, using the first dimension size, or
+    for off proeccosr elements x with be a zero-d array with the batch
+    size included.
+    """
+
+    batch_size = ForwardODENetApp.batchSize(x)
+
+    if batch_size in self.state_shapes: 
+      return self.state_shapes[batch_size]
+
+    if self.getMPIComm().Get_rank()==0:
+      shapes = [x.shape]
+      for layer_constr in self.layers_data_structure.functors:
+        # build the layer on the proper device
+        layer = layer_constr().to(self.device) 
+     
+        x = layer(x)
+          
+        shapes += [x.shape]
+    else:
+      shapes = None
+
+    shapes = self.getMPIComm().bcast(shapes,root=0)
+    # end if Get_rank
+
+    self.state_shapes[batch_size] = shapes
 
     return shapes
 
