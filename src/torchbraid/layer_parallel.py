@@ -119,6 +119,22 @@ class LayerParallel(LPModule):
       l.zero_grad()
     self.local_layers.zero_grad()
 
+  def setFwdInitialGuess(self, intitial_guess):
+    """
+    Add an initial guess object, that produces an 
+    initial guess for the forward state. 
+    
+    This object as the function `getState(self,time)`. 
+    The function is called every time an intial guess
+    is required. No assumption about consistency between
+    calls is made. This is particularly useful if the
+    initial guess may be different between batches.
+
+    To disable the initial guess once set, call this
+    method with intial_guess=None.
+    """
+    self.fwd_app.stateInitialGuess(intitial_guess)
+
   def setFwdStorage(self, storage):
     self.fwd_app.setStorage(storage)
 
@@ -144,6 +160,12 @@ class LayerParallel(LPModule):
 
   def setFwdRelaxOnlyCG(self, flag):
     self.fwd_app.setRelaxOnlyCG(flag)
+
+  def setFwdCRelaxWt(self, CWt):
+    self.fwd_app.setCRelaxWt(CWt)
+
+  def setBwdCRelaxWt(self, CWt):
+    self.bwd_app.setCRelaxWt(CWt)
 
   def setCRelaxWt(self, CWt):
     self.bwd_app.setCRelaxWt(CWt)

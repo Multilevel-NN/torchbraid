@@ -190,6 +190,12 @@ class LPModule(nn.Module):
     self.fwd_app.setSkipDowncycle(skip)
     self.bwd_app.setSkipDowncycle(skip)
 
+  def setSkipFwdDowncycle(self, skip):
+    self.fwd_app.setSkipDowncycle(skip)
+
+  def setSkipBwdDowncycle(self, skip):
+    self.bwd_app.setSkipDowncycle(skip)
+
   def getMPIComm(self):
     return self.fwd_app.getMPIComm()
 

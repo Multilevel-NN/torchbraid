@@ -168,9 +168,9 @@ class SerialNet(nn.Module):
 
   def __init__(self, channels=8, global_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
                      print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
-                     fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
-                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh',
-                     pooling=False, seed=1):
+                     fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_fwd_downcycle=True, skip_bwd_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
+                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh', coarse_frelax_only=False,
+                     fwd_crelax_wt=1.0, pooling=False, seed=1):
     super(SerialNet, self).__init__()
 
     step_layer_1 = lambda: StepLayer(channels,seed)
@@ -224,10 +224,10 @@ class SerialNet(nn.Module):
 class ParallelNet(nn.Module):
   ''' Full parallel ODE-net based on StepLayer,  will be parallelized in time ''' 
   def __init__(self, channels=8, global_steps=8, Tf=1.0, max_fwd_levels=1, max_bwd_levels=1, max_iters=1, max_fwd_iters=0, 
-                     print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, 
-                     fine_bwd_fcf=False, fwd_nrelax=1, bwd_nrelax=1, skip_downcycle=True, fmg=False, fwd_relax_only_cg=0, 
-                     bwd_relax_only_cg=0, CWt=1.0, fwd_finalrelax=False,diff_scale=0.0,activation='tanh',
-                     pooling=False, seed=1):
+                     print_level=0, braid_print_level=0, fwd_cfactor=4, bwd_cfactor=4, fine_fwd_fcf=False, fine_bwd_fcf=False, 
+                     fwd_nrelax=1, bwd_nrelax=1, skip_fwd_downcycle=True, skip_bwd_downcycle=True, fmg=False, fwd_relax_only_cg=0, bwd_relax_only_cg=0, 
+                     CWt=1.0, fwd_crelax_wt=1.0, fwd_finalrelax=False,diff_scale=0.0, activation='tanh', 
+                     coarse_frelax_only=False, pooling=False, seed=1):
     super(ParallelNet, self).__init__()
 
     step_layer_1 = lambda: StepLayer(channels,seed)
@@ -250,10 +250,12 @@ class ParallelNet(nn.Module):
     self.parallel_nn.setPrintLevel(braid_print_level,False)
     self.parallel_nn.setFwdCFactor(fwd_cfactor)
     self.parallel_nn.setBwdCFactor(bwd_cfactor)
-    self.parallel_nn.setSkipDowncycle(skip_downcycle)
+    self.parallel_nn.setSkipFwdDowncycle(skip_fwd_downcycle)
+    self.parallel_nn.setSkipBwdDowncycle(skip_bwd_downcycle)
     self.parallel_nn.setBwdRelaxOnlyCG(bwd_relax_only_cg)
     self.parallel_nn.setFwdRelaxOnlyCG(fwd_relax_only_cg)
     self.parallel_nn.setCRelaxWt(CWt)
+    self.parallel_nn.setFwdCRelaxWt(fwd_crelax_wt)
     self.parallel_nn.setMinCoarse(2)
 
     if fwd_finalrelax:
@@ -272,6 +274,10 @@ class ParallelNet(nn.Module):
       self.parallel_nn.setBwdNumRelax(0,level=0) # F-Relaxation on the fine grid for backward solve
     else:
       self.parallel_nn.setBwdNumRelax(1,level=0) # FCF-Relaxation on the fine grid for backward solve
+    
+    if coarse_frelax_only:
+      self.parallel_nn.setNumRelax(0)
+      self.parallel_nn.setNumRelax(0, level=0)
 
     # this object ensures that only the LayerParallel code runs on ranks!=0
     self.compose = self.parallel_nn.comp_op()
@@ -376,9 +382,9 @@ def parse_args(mgopt_on=True):
                       help='Layer parallel internal print level (default: 0)')
   parser.add_argument('--lp-braid-print', type=int, default=0, metavar='N',
                       help='Layer parallel braid print level (default: 0)')
-  parser.add_argument('--lp-fwd-cfactor', type=int, default=4, metavar='N',
+  parser.add_argument('--lp-fwd-cfactor', type=int, default=4, metavar='N', nargs='*',
                       help='Layer parallel coarsening factor for forward solve (default: 4)')
-  parser.add_argument('--lp-bwd-cfactor', type=int, default=4, metavar='N',
+  parser.add_argument('--lp-bwd-cfactor', type=int, default=4, metavar='N', nargs='*',
                       help='Layer parallel coarsening factor for backward solve (default: 4)')
   parser.add_argument('--lp-fwd-nrelax-coarse', type=int, default=1, metavar='N',
                       help='Layer parallel relaxation steps on coarse grids for forward solve (default: 1)')
@@ -391,7 +397,11 @@ def parse_args(mgopt_on=True):
   parser.add_argument('--lp-fwd-finalrelax',action='store_true', default=False, 
                       help='Layer parallel do final FC relax after forward cycle ends (always on for backward). (default: False)')
   parser.add_argument('--lp-use-downcycle',action='store_true', default=False, 
-                      help='Layer parallel use downcycle on or off (default: False)')
+                      help='Layer parallel use backward and forward downcycle on or off (default: False). Overrides the lp-use-fwd-downcycle and lp-use-bwd-downcycle options')
+  parser.add_argument('--lp-use-bwd-downcycle',action='store_true', default=False, 
+                      help='Layer parallel use backward downcycle on or off (default: False)')
+  parser.add_argument('--lp-use-fwd-downcycle',action='store_true', default=False, 
+                      help='Layer parallel use forward downcycle on or off (default: False)')
   parser.add_argument('--lp-use-fmg',action='store_true', default=False, 
                       help='Layer parallel use FMG for one cycle (default: False)')
   parser.add_argument('--lp-bwd-relaxonlycg',action='store_true', default=0, 
@@ -400,6 +410,14 @@ def parse_args(mgopt_on=True):
                       help='Layer parallel use relaxation only on coarse grid for forward cycle (default: False)')
   parser.add_argument('--lp-use-crelax-wt', type=float, default=1.0, metavar='CWt',
                       help='Layer parallel use weighted C-relaxation on backwards solve (default: 1.0).  Not used for coarsest braid level.')
+  parser.add_argument('--lp-fwd-crelax-wt', type=float, default=1.0,
+                      help='Layer parallel use weighted C-relatation on forwards solve (default: 1.0).  Not used for coarest braid level.')
+  parser.add_argument('--lp-coarse-frelax-only', action='store_true', default=False,
+                      help='Use F-relaxation only on the coarse grids.')
+
+  # Mean Initial Guess Storage
+  parser.add_argument('--mig-storage', default=None, nargs='?', const=0.1, type=float,
+                      help='Use Mean Initial Guess Storage (default: False)')
 
   if mgopt_on:
     parser.add_argument('--NIepochs', type=int, default=2, metavar='N',
@@ -443,7 +461,32 @@ def parse_args(mgopt_on=True):
   if args.steps % procs!=0:
     root_print(rank, 1, 1, 'Steps must be an even multiple of the number of processors: %d %d' % (args.steps,procs) )
     sys.exit(0)
+
+  if len(args.lp_fwd_cfactor) == 0:
+    root_print(rank, 1, 1, 'The lp_fwd_cfactor argument was given without a value, specify a value.')
+    sys.exit(0)
+  elif len(args.lp_fwd_cfactor) > 1:
+    # build the dictionary to match levels with cfactor
+    args.lp_fwd_cfactor = {i: cfact for i, cfact in enumerate(args.lp_fwd_cfactor)}
+  else:
+    args.lp_fwd_cfactor = args.lp_fwd_cfactor[0]
+
   
+  if len(args.lp_bwd_cfactor) == 0:
+    root_print(rank, 1, 1, 'The lp_bwd_cfactor argument was given without a value, specify a value.')
+    sys.exit(0)
+  elif len(args.lp_bwd_cfactor) > 1:
+    # build the dictionary to match levels with cfactor
+    args.lp_bwd_cfactor = {i: cfact for i, cfact in enumerate(args.lp_bwd_cfactor)}
+  else:
+    args.lp_bwd_cfactor = args.lp_bwd_cfactor[0]
+  
+
+  # lp_use_downcycle overrides the fwd and backward options
+  if args.lp_use_downcycle:
+    args.lp_use_fwd_downcycle = True
+    args.lp_use_bwd_downcycle = True
+
   if mgopt_on:
     ni_levels = args.ni_levels
     ni_rfactor = args.ni_rfactor
@@ -484,7 +527,7 @@ def get_lr_scheduler(optimizer, args):
     if len(args.lr_scheduler) > 2:
       factor = float(args.lr_scheduler[2])
             
-    return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=patience, factor=factor)
+    return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=patience, factor=factor)
     
     
             

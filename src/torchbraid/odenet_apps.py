@@ -155,6 +155,9 @@ class ForwardODENetApp(BraidApp):
         assert isinstance(sd[k],torch.Tensor)
       self.parameter_shapes += [[sd[k].size() for k in layer.state_dict()]]
 
+    self.initial_guess = None
+
+    self.backpropped = dict()
     self.temp_layers = dict()
 
     # If this is a SpliNet, create communicators for shared weights
@@ -247,6 +250,23 @@ class ForwardODENetApp(BraidApp):
 
     return result
 
+  def stateInitialGuess(self, initial_guess):
+    """ 
+    Add an initial guess object, that produces an 
+    initial guess for the state. 
+    
+    This object as the function `getState(self,time)`. 
+    The function is called every time an intial guess
+    is required. No assumption about consistency between
+    calls is made. This is particularly useful if the
+    initial guess may be different between batches.
+
+    To disable the initial guess once set, call this
+    method with intial_guess=None.
+    """
+    self.initial_guess = initial_guess
+  
+
   def getFeatureShapes(self,tidx,level):
     i = self.getFineTimeIndex(tidx,level)
     ind = bisect_right(self.layer_blocks[0],i)
@@ -332,6 +352,10 @@ class ForwardODENetApp(BraidApp):
   def initializeVector(self,t,x):
     self.setVectorWeights(t,x)
 
+    if  self.initial_guess is not None and t != 0.0:
+      x.replaceTensor(copy.deepcopy(self.initial_guess.getState(t)))
+        
+
   def run(self,x):
     # turn on derivative path (as requried)
     self.use_deriv = self.training
@@ -372,16 +396,34 @@ class ForwardODENetApp(BraidApp):
     condition x. The level is defined by braid
     """
 
-    self.setLayerWeights(tstart,tstop,level,y.weightTensors())
-    layer = self.getTempLayer(tstart)
+    record = False
+    layer = None
+    if level==0 and done:
+      ts_index = self.getGlobalTimeIndex(tstart)-self.start_layer
+      if ts_index<len(self.layer_models) and ts_index >= 0:
+        layer = self.layer_models[ts_index]
+        record = True
+ 
+    if layer==None:
+      self.setLayerWeights(tstart,tstop,level,y.weightTensors())
+      layer = self.getTempLayer(tstart)
 
     t_y = y.tensor().detach()
 
     # no gradients are necessary here, so don't compute them
     dt = tstop-tstart
-    with torch.no_grad():
-      ny = layer(dt,t_y)
-      y.replaceTensor(ny) 
+    if record:
+      with torch.enable_grad():
+        t_y.requires_grad = True
+        ny = layer(dt,t_y)
+        y.replaceTensor(ny.detach().clone()) 
+
+      self.backpropped[tstart,tstop] = (t_y,ny)
+    else:
+      with torch.no_grad():
+        ny = layer(dt,t_y)
+        y.replaceTensor(ny) 
+
 
     # This connects weights at tstop with the vector y. For a SpliNet, the weights at tstop are evaluated using the spline basis function. 
     self.setVectorWeights(tstop,y)
@@ -395,6 +437,7 @@ class ForwardODENetApp(BraidApp):
     adjoint (backprop) state and parameter derivatives.
     """
 
+
     b_x = self.getUVector(0,tstart)
 
     # Set the layer at tstart. For a SpliNet, get the layer weights from x at tstart, otherwise, get layer and weights from storage.
@@ -406,6 +449,10 @@ class ForwardODENetApp(BraidApp):
       assert(ts_index<len(self.layer_models))
       assert(ts_index >= 0)
       layer = self.layer_models[ts_index]
+
+      if level==0 and (tstart,tstop) in self.backpropped:
+        x,y = self.backpropped[(tstart,tstop)]
+        return (y,x), layer
     
     t_x = b_x.tensor()
 
@@ -548,7 +595,7 @@ class BackwardODENetApp(BraidApp):
         # print(self.fwd_app.my_rank, "--> FWD with layer ", [p.data for p in layer.parameters()])
 
         # t_x should have no gradient (for memory reasons)
-        assert(t_x.grad is None)
+        # assert(t_x.grad is None)
 
         # we are going to change the required gradient, make sure they return
         # to where they started!
@@ -567,7 +614,7 @@ class BackwardODENetApp(BraidApp):
         # perform adjoint computations
         t_w = w.tensor()
         t_w.requires_grad = False
-        t_y.backward(t_w)
+        t_y.backward(t_w,retain_graph=(level==0))
 
         # The above set's the gradient of the layer.parameters(), which, in case of SpliNet, is the templayer -> need to spread those sensitivities to the layer_models
         if self.fwd_app.splinet and done==1:
@@ -595,6 +642,7 @@ class BackwardODENetApp(BraidApp):
         # stored too long in this calculation (in particulcar setting
         # the grad to None after saving it and returning it to braid)
         w.replaceTensor(t_x.grad.detach().clone()) 
+        t_x.grad = None
 
         for p,s in zip(layer.parameters(),required_grad_state):
           p.requires_grad = s

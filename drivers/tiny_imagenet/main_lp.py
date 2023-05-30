@@ -65,7 +65,8 @@ import statistics as stats
 from torchvision import datasets, transforms
 from timeit import default_timer as timer
 
-from utils import parse_args, buildNet, ParallelNet, getComm, git_rev, getDevice, get_lr_scheduler
+from torchbraid.utils import MeanInitialGuessStorage
+from utils import parse_args, buildNet, ParallelNet, SerialNet, getComm, git_rev, getDevice, get_lr_scheduler
 
 
 def root_print(rank, s):
@@ -74,7 +75,7 @@ def root_print(rank, s):
     sys.stdout.flush()
 
 
-def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
+def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mig_storage):
   log_interval = args.log_interval
   torch.enable_grad()
 
@@ -104,6 +105,12 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device):
     total_time_fp += timer() - start_time_fp
 
     fwd_itr, fwd_res = model.getFwdStats()
+
+    if mig_storage is not None and isinstance(model, ParallelNet):
+      times, states = model.parallel_nn.getFineTimePoints()
+      for t, state in zip(times, states):
+        mig_storage.addState(t, state.tensors(), target)     
+    
 
     # compute loss
     start_time_cm = timer()
@@ -281,12 +288,12 @@ def main():
   train_dataset = datasets.ImageFolder(traindir,
                                        transforms.Compose([
                                          transforms.Resize(256),
-                                         transforms.CenterCrop(224),
-                                   #      transforms.RandomCrop(224,padding=4),
-                                   #      transforms.RandomHorizontalFlip(),
+                                        #  transforms.CenterCrop(224),
+                                         transforms.RandomCrop(224,padding=4),
+                                         transforms.RandomHorizontalFlip(),
                                          transforms.ToTensor(),
-                                         #normalize, transforms.RandomErasing(0.5)]))
-                                         normalize]))
+                                         normalize, transforms.RandomErasing(0.5)]))
+                                        #  normalize]))
   test_dataset = datasets.ImageFolder(valdir, transforms.Compose([
     transforms.Resize(256),
     transforms.CenterCrop(224),
@@ -338,14 +345,17 @@ def main():
              'fine_bwd_fcf': args.lp_bwd_finefcf,
              'fwd_nrelax': args.lp_fwd_nrelax_coarse,
              'bwd_nrelax': args.lp_bwd_nrelax_coarse,
-             'skip_downcycle': not args.lp_use_downcycle,
+             'skip_fwd_downcycle': not args.lp_use_fwd_downcycle,
+             'skip_bwd_downcycle': not args.lp_use_bwd_downcycle,
              'fmg': args.lp_use_fmg,
              'fwd_relax_only_cg': args.lp_fwd_relaxonlycg,
              'bwd_relax_only_cg': args.lp_bwd_relaxonlycg,
              'CWt': args.lp_use_crelax_wt,
+             'fwd_crelax_wt': args.lp_fwd_crelax_wt,
              'fwd_finalrelax': args.lp_fwd_finalrelax,
              'diff_scale': args.diff_scale,
              'activation': args.activation,
+             'coarse_frelax_only': args.lp_coarse_frelax_only,
              'pooling': args.pooling,
              'seed': args.seed
              }
@@ -376,6 +386,11 @@ def main():
 
   epoch_times = []
   test_times = []
+
+  mig_storage = None
+
+  if args.mig_storage is not None:
+    mig_storage = MeanInitialGuessStorage(class_count=200, average_weight=args.mig_storage)
 
   scheduler = None
 
@@ -411,7 +426,7 @@ def main():
   if str(my_device).startswith('cuda'):
     warm_up_timer = timer()
     train(rank=rank, args=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=0,
-          compose=compose, device=my_device)
+          compose=compose, device=my_device, mig_storage=mig_storage)
     if not args.use_serial:
       model.parallel_nn.timer_manager.resetTimers()
       model.parallel_nn.fwd_app.resetBraidTimer()
@@ -436,7 +451,7 @@ def main():
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
-    train(rank, args, model, train_loader, optimizer, epoch, compose, my_device)
+    train(rank, args, model, train_loader, optimizer, epoch, compose, my_device, mig_storage)
     end_time = timer()
     epoch_times += [end_time - start_time]
 
@@ -447,7 +462,7 @@ def main():
 
     if scheduler is not None:
       # The ReduceLROnPlataeu scheduler requires a metric to be passed into the step function
-      # In our case here, that requires a broadcase of the test_result to all ranks to maintain 
+      # In our case here, that requires a broadcast of the test_result to all ranks to maintain 
       #   the same results for differing number of processors
       if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
         test_result = comm.bcast(test_result, root=0)

@@ -54,10 +54,10 @@ extension = [Extension(
 install_requires = [
   'setuptools',
   'mpi4py',
-  'cython',
+  'cython==0.29.32',
   'numpy',
-  'torch',
-  'torchvision',
+  'torch==1.13.1',
+  'torchvision==0.14.1',
   'matplotlib'
 ]
 
