@@ -95,4 +95,4 @@ class ModelNet(Dataset):
     
 
 if __name__ == "__main__":
-    downloadModelNet(nx=31, train=False)
+    downloadModelNet(nx=31, train=True)

@@ -246,6 +246,10 @@ def main():
   validat_correct_counts = []
 
   sc_str = ','.join([f'{l}' for l in args.lp_sc_levels]) if args.lp_sc_levels is not None else None
+  if args.filename is None:
+    filename = f"nx{args.numx}_nt{args.steps}_ml{args.lp_max_levels}_sc{sc_str}"
+  else:
+    filename = args.filename
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
@@ -263,12 +267,12 @@ def main():
     # save checkpoint
     if rank == 0:
       contents = (args.channels, args.steps, model.state_dict())
-      torch.save(contents, f"models/nx{args.numx}_nt{args.steps}_ml{args.lp_max_levels}_sc{sc_str}.pt")
+      torch.save(contents, f"models/{filename}.pt")
 
   # write training history to file
   if rank == 0:
-    np.savetxt(f"models/training_history/nx{args.numx}_nt{args.steps}_ml{args.lp_max_levels}_sc{sc_str}_losses.csv", batch_losses, delimiter=",")
-    np.savetxt(f"models/training_history/nx{args.numx}_nt{args.steps}_ml{args.lp_max_levels}_sc{sc_str}_accuracies.csv", np.array(validat_correct_counts)/len(test_loader.dataset), delimiter=",")
+    np.savetxt(f"models/training_history/{filename}_losses.csv", batch_losses, delimiter=",")
+    np.savetxt(f"models/training_history/{filename}_accuracies.csv", np.array(validat_correct_counts)/len(test_loader.dataset), delimiter=",")
   
   # Print out Braid internal timings, if desired
   #timer_str = model.parallel_nn.getTimersString()

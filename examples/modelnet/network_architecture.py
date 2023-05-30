@@ -221,6 +221,8 @@ def parse_args():
                       help='random seed (default: 1)')
   parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                       help='how many batches to wait before logging training status')
+  parser.add_argument('--filename', type=str, default=None,
+                      help='filename for saving the trained model')
 
   # architectural settings
   parser.add_argument('--steps', type=int, default=128, metavar='N',

@@ -11,6 +11,8 @@ from ModelNet_script import root_print
 
 # command line arguments
 parser = argparse.ArgumentParser(description='ModelNet evaluation')
+parser.add_argument('--filename', type=str, default=None,
+                    help='filename of saved model to be loaded')
 
 # algorithmic settings (batching)
 parser.add_argument('--percent-data', type=float, default=0.1, metavar='N',
@@ -44,9 +46,6 @@ parser.add_argument('--lp-use-downcycle', action='store_true', default=False,
 parser.add_argument('--lp-sc-levels', type=int, nargs='+', default=None,
                     help='Layer parallel spatial coarsening levels (default: None)')
 
-parser.add_argument('--retrained-network', action='store_true', default=False,
-                    help='Use network trained using LP/SC (default: False)')
-
 comm = MPI.COMM_WORLD
 rank  = MPI.COMM_WORLD.Get_rank()
 procs = MPI.COMM_WORLD.Get_size()
@@ -61,10 +60,10 @@ print(f'Run info rank: {rank}: Torch version: {torch.__version__} | Device: {dev
 torch.manual_seed(1)
 
 # load the model
-if args.retrained_network:
-  channels, steps, state_dict = torch.load("models/nx31_nt128_ml3_sc0_78percent.pt", map_location=device)
-else:
+if args.filename is None:
   channels, steps, state_dict = torch.load("models/nx31_nt128_ml1_scNone.pt", map_location=device)
+else:
+  channels, steps, state_dict = torch.load(f"models/{args.filename}.pt", map_location=device)
 
 # Compute number of steps per processor
 local_steps = int(steps / procs)
