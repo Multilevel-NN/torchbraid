@@ -33,7 +33,6 @@
 # Train network for ModelNet10 dataset
 # Network architecture is Opening Layer + ResNet + CloseLayer
 #
-#
 # Run with the following
 # $ mpirun -np 4 python3 ModelNet_script.py
 #
@@ -46,7 +45,6 @@
 # For example, 
 # $ mpirun -np 4 python3 ModelNet_script.py --steps 24 --channels 8 --percent-data 0.25 --batch-size 100 --epochs 5 
 # trains on 25% of ModelNet10 with 24 steps in the ResNet, 8 channels, 100 models per batch over 5 epochs 
-
 
 from __future__ import print_function
 

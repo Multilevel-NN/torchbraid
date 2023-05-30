@@ -104,12 +104,22 @@ class ParallelNet(nn.Module):
       else:
         return img.clone()
 
+    # this function is used to compute the shape of the coarsened image
+    # input is a tuple of integers and the integer level, output is a tuple of integers
+    def sp_coarsen_shape(shape, level):
+      if level in self.levels_to_coarsen:
+        # only coarsening each channel, not coarsening in channel dimension
+        shape[2:] = [s//2 for s in shape[2:]]
+        return shape
+      else:
+        return shape
+
     if sc_levels is None:
       self.levels_to_coarsen = []
-      sp_pair = None
+      sp_funcs = None
     else:
       self.levels_to_coarsen = sc_levels
-      sp_pair = (sp_coarsen, sp_refine)
+      sp_funcs = (sp_coarsen, sp_refine, sp_coarsen_shape)
 
     self.numx = numx
 
@@ -119,7 +129,7 @@ class ParallelNet(nn.Module):
 
     self.parallel_nn = torchbraid.LayerParallel(comm_lp, step_layer, local_steps*numprocs, Tf,
                                                 max_fwd_levels=max_levels, max_bwd_levels=max_levels,
-                                                max_iters=2, user_mpi_buf=user_mpi_buf, spatial_ref_pair=sp_pair,
+                                                max_iters=2, user_mpi_buf=user_mpi_buf, spatial_ref_funcs=sp_funcs,
                                                 levels_to_coarsen=self.levels_to_coarsen)
     self.parallel_nn.setBwdMaxIters(bwd_max_iters)
     self.parallel_nn.setFwdMaxIters(fwd_max_iters)
