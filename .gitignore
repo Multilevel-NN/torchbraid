@@ -23,6 +23,7 @@ makefile.inc
 .vscode
 .
 
+build/
 tests/build/
 tests/torchbraid_test.c
 tests/torchbraid_test.*.so

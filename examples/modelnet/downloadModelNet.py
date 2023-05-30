@@ -25,7 +25,7 @@ def process(datadir, processed_dir, file, nx):
     
 
 # download the dataset, generate the labels, and preprocess the data
-def downloadModelNet(nx=31):
+def downloadModelNet(nx=31, train=True):
     modelnet_url = "http://vision.princeton.edu/projects/2014/3DShapeNets/ModelNet10.zip"
     if not os.path.isfile("data/ModelNet10.zip"):
         print("Downloading ModelNet10.zip")
@@ -46,7 +46,10 @@ def downloadModelNet(nx=31):
         os.makedirs(processed_dir)
 
     classes = ["bathtub", "bed", "chair", "desk", "dresser", "monitor", "night_stand", "sofa", "table", "toilet"]
-    groups = ["train", "test"]
+    if train:
+        groups = ["train", "test"]
+    else:
+        groups = ["test"]
 
     for group in groups:
         with open(f"data/{group}_labels.csv", "w") as label_file:
@@ -90,3 +93,6 @@ class ModelNet(Dataset):
            out = self.transform(out)
         return out, self.labels[idx]
     
+
+if __name__ == "__main__":
+    downloadModelNet(nx=31, train=False)
