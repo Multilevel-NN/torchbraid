@@ -40,7 +40,11 @@ def build_ds(fn, voc, max_len, dev, tokenizer, extend):
       for tok in tokenizer[lang](line[lang]):#line[lang].split():
         if tok not in voc[lang].str2id and extend: voc[lang].extend(tok)
         sent.append(voc[lang].str2id.get(tok, voc[lang].str2id['<unk>']))
-      for _ in range(max_len - len(sent)): sent.append(voc[lang].str2id['<pad>'])  # padding
+      if lang == langs[-1]: 
+        sent.insert(0, voc[lang]['<sos>'])
+        sent.append(voc[lang]['<eos>'])
+      for _ in range(max_len - len(sent)): 
+        sent.append(voc[lang].str2id['<pad>'])  # padding
       tensor[lang] = torch.tensor(sent, dtype=torch.long, device=dev)
     ds.append((tensor['de'], tensor['en']))
   return ds
@@ -49,14 +53,18 @@ def main(dev, max_len, batch_size):
   torch.manual_seed(0)
   # torch.use_deterministic_algorithms(True)
 
-  url_base = 'https://raw.githubusercontent.com/multi30k/dataset/master/data/task1/raw/'
+  url_base = 'https://raw.githubusercontent.com/multi30k/dataset/master/data/' \
+                                                                + 'task1/raw/'
   url_tr = ('train.de.gz', 'train.en.gz')
   url_va = ('val.de.gz', 'val.en.gz')
   url_te = ('test_2016_flickr.de.gz', 'test_2016_flickr.en.gz')
 
-  fn_tr = dict(zip('de en'.split(), [extract_archive(download_from_url(url_base + url))[0] for url in url_tr]))
-  fn_va = dict(zip('de en'.split(), [extract_archive(download_from_url(url_base + url))[0] for url in url_va]))
-  fn_te = dict(zip('de en'.split(), [extract_archive(download_from_url(url_base + url))[0] for url in url_te]))
+  fn_tr = dict(zip('de en'.split(), [extract_archive(download_from_url(
+                               url_base + url))[0] for url in url_tr]))
+  fn_va = dict(zip('de en'.split(), [extract_archive(download_from_url(
+                               url_base + url))[0] for url in url_va]))
+  fn_te = dict(zip('de en'.split(), [extract_archive(download_from_url(
+                               url_base + url))[0] for url in url_te]))
 
   ## Build ds
   ds = {}

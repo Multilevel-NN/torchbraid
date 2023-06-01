@@ -1,7 +1,3 @@
-# from training import *
-
-## REMAINING!!!!
-
 import torch
 
 def greedy_decode(model, src, max_len, start_symbol, EOS_IDX_TGT, device, generate_square_subsequent_mask):
@@ -24,10 +20,8 @@ def greedy_decode(model, src, max_len, start_symbol, EOS_IDX_TGT, device, genera
           break
     return ys
 
-
 def translate(model, prompt, voc, dev):
   voc_src, voc_tgt = voc['de'], voc['en']
-
   model.eval()
   src = [voc_src['<sos>']] + [voc_src[tok] for tok in prompt.strip().split()] \
                                                          + [voc_src['<eos>']]
@@ -35,8 +29,6 @@ def translate(model, prompt, voc, dev):
   tgt_tokens = greedy_decode(model,  src, src_mask, num_tokens+5, voc, dev)#.flatten()
   print(tgt_tokens.shape)
   return " ".join([tgt_vocab_inv[tok.item()] for tok in tgt_tokens]).replace("<sos>", "").replace("<eos>", "")
-
-
 
 
 
