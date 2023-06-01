@@ -36,8 +36,11 @@ class BraidFunction(torch.autograd.Function):
 
   @staticmethod
   def padForBatchChange(old_batch,temp_batch,ten,batch_dim):
+    if ten.dim()==0:
+      return ten
+
     shape = ten.size()
-    assert(len(shape)>batch_dim)
+    assert len(shape)>batch_dim
 
     padding = []
     for i in range(len(shape)-batch_dim-1):
@@ -55,11 +58,8 @@ class BraidFunction(torch.autograd.Function):
     bwd_app.setDevice(x.device)
 
     # copy the input to all processors (ensure consistency)
-    if my_rank==0:
+    with fwd_app.timer("forward-buildshapes"):
       shape = fwd_app.buildShapes(x)
-    else: 
-      shape = None
-    shape = comm.bcast(shape,root=0)
 
     old_shape = fwd_app.getShape()
     adjusting = old_shape is not None and old_shape!=shape
@@ -81,16 +81,17 @@ class BraidFunction(torch.autograd.Function):
       ctx.old_batch = old_batch
       ctx.temp_batch = temp_batch
   
-      shape = old_shape[0]
+      shape = old_shape
     else:
       fwd_app.setShape(shape)
       bwd_app.setShape(shape)
 
-    if my_rank!=num_ranks-1:
-      result = torch.zeros(shape[-1],device=x.device)
-      fwd_app.run(x)
-    else:
-      result = fwd_app.run(x)
+    with fwd_app.timer("forward-buildshapes"):
+      if my_rank!=num_ranks-1:
+        result = torch.zeros(shape[-1],device=x.device)
+        fwd_app.run(x)
+      else:
+        result = fwd_app.run(x)
 
     # broadcast the output of the last layer
     comm.Bcast(result, root=num_ranks - 1)

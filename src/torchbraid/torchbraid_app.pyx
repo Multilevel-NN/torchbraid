@@ -39,6 +39,7 @@ import traceback
 from typing import Union
 from libc.stdio cimport FILE, stdout
 from torchbraid.braid_vector import BraidVector
+from bisect import bisect_left, bisect_right
 
 cimport mpi4py.MPI as MPI
 
@@ -247,6 +248,35 @@ class BraidApp:
 
     return tidx
 
+  def getLevelNumSteps(self,level):
+    """
+    Compute the number of time steps on the specified evel.    
+
+    This uses the stored coarsening factors to compute the 
+    number of fine time steps.
+
+    Parameters
+    ----------
+
+    level : int
+      The level to compute the number of steps on
+    """
+
+    if isinstance(self.cfactor,int):
+      return int(self.num_steps/self.cfactor**level)
+
+    # the coarsening factor is different on each level
+    assert(isinstance(self.cfactor,dict))
+
+    # build a list containing levels from top to bottom
+    cfactors = [self.cfactor[l] for l in range(level-1,-1,-1)]
+
+    cnt = 1
+    for cf in cfactors:
+      cnt = cf * cnt
+
+    return int(self.num_steps/cnt) 
+
 
   def setCFactor(self,cfactor : Union[int, dict]):
     """
@@ -385,6 +415,77 @@ class BraidApp:
     if self.use_cuda:
       self.user_mpi_buf = True
       braid_SetBufAllocFree(core, b_bufalloc, b_buffree)
+
+  def buildLayersSendList(self):
+    """
+    Build a vector of MPI_Recv communication patterns for all layers requiring
+    communication. This covers all levels of the MGRIT hierarchy
+
+    Returns
+    ----------
+    A list of pairs. Each pair contains (fine_index,dest_proc) where fine_index is
+    the fine level layer weights to be recived, and dest_proc is the destinitation processor
+    """
+    my_rank = self.getMPIComm().Get_rank()
+    num_steps = self.num_steps
+    max_levels = self.max_levels
+  
+    def build_send(level):
+      procs = [self.getTimePointProc(level=level,index=i) for i in range(self.getLevelNumSteps(level)+1)]
+  
+      ind = bisect_right(procs,my_rank)
+      if ind>=len(procs):
+        return None
+  
+      p = procs[ind]
+      if procs[ind-1]!=my_rank:
+        return None
+  
+      fine_index = self.getFineTimeIndex(ind-1,level)
+      return fine_index,p # send global fine_index to processor p
+    # build send 
+  
+    sends = []
+    for l in range(max_levels+1):
+      s = build_send(l)
+      if s is not None:
+        sends += [s]
+    return list(set(sends))
+
+  def buildLayersRecvList(self):
+    """
+    Build a vector of MPI_Recv communication patterns for all layers requiring
+    communication. This covers all levels of the MGRIT hierarchy
+
+    Returns
+    ----------
+    A list of pairs. Each pair contains (fine_index,src_proc) where fine_index is
+    the fine level layer weights to be recived, and src_proc is the source processor
+    """
+    my_rank = self.getMPIComm().Get_rank()
+    num_steps = self.num_steps
+    max_levels = self.max_levels
+    def build_recv(level):
+      procs = [self.getTimePointProc(level=level,index=i) for i in range(self.getLevelNumSteps(level)+1)]
+  
+      ind = bisect_left(procs,my_rank)
+      if ind<=0 or ind>=len(procs):
+        return None
+  
+      p = procs[ind-1]
+      if procs[ind]!=my_rank:
+        return None
+  
+      fine_index = self.getFineTimeIndex(ind-1,level)
+      return fine_index,p # recv global fine_index to processor p
+    # end build recv
+  
+    recvs = []
+    for l in range(max_levels+1):
+      r = build_recv(l)
+      if r is not None:
+        recvs += [r]
+    return list(set(recvs))
 
   def diagnostics(self,enable):
     """
@@ -714,18 +815,29 @@ class BraidApp:
     _braid_GetDistribution(core, &ilower,&iupper)
     return ilower,iupper
 
-  def getTimePoints(self):
+  def getTimePointProc(self,level,index):
+    """
+    A reimplementation of the GetProc in XBraid
+    """
+    cdef int proc
+    for i in range(level):
+      index = self.cfactor * index
+    npoints = self.num_steps+1
+    nprocs = self.getMPIComm().Get_size()
+    periodic = 0
+    _braid_GetBlockDistProc(npoints,nprocs,index,periodic,&proc)
+    return proc
+
+  def getTimePoints(self,level=0):
     cdef braid_BaseVector bv 
     cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()
 
-
-    
     times  = []
     values = []
-    for i in range(core.grids[0].ilower,core.grids[0].iupper+1):
-      _braid_UGetVectorRef(core, 0, i, &bv)
+    for i in range(core.grids[level].ilower,core.grids[level].iupper+1):
+      _braid_UGetVectorRef(core, level, i, &bv)
      
-      times  += [core.grids[0].ta[i-core.grids[0].ilower]]
+      times  += [core.grids[level].ta[i-core.grids[level].ilower]]
       values += [(<object> bv.userVector).clone()]
 
     return times,values
