@@ -49,6 +49,7 @@
 from __future__ import print_function
 
 import statistics as stats
+import os
 from timeit import default_timer as timer
 
 import matplotlib.pyplot as plt
@@ -251,6 +252,12 @@ def main():
   else:
     filename = args.filename
 
+  if not os.path.exists('models'):
+    os.makedirs('models')
+  
+  if not os.path.exists('models/training_history'):
+    os.makedirs('models/training_history')
+
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
     [losses, train_times] = train(rank=rank, params=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=epoch,
@@ -263,6 +270,7 @@ def main():
     validate_correct, validate_size, validate_loss = test(rank=rank, model=model, test_loader=test_loader, compose=model.compose, device=device)
     test_times += [timer() - start_time]
     validat_correct_counts += [validate_correct]
+
 
     # save checkpoint
     if rank == 0:
