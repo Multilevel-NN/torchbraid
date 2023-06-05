@@ -60,21 +60,18 @@ class GRU_Serial(nn.Module):
     self.GRU_model = GRU_model
   # end __init__
 
-  def forward(self,x,h_c=None):
-    if h_c is None:
-      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size, x.device)
-      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size, x.device)
-      h_c = (h,c)
-    elif isinstance(h_c,torch.Tensor):
-      h_c = (h_c,)
+  def forward(self,x,h=None):
+    if h is None:
+      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size, device=x.device)
 
+    if isinstance(h, torch.Tensor):
+      h = (h,)
+        
     num_steps = x.shape[1]
     for i in range(num_steps):
-      h_c = self.GRU_model(0,0.0,self.dt,x[:,i,:],h_c)
+      h = self.GRU_model(0,0.0,self.dt,x[:,i,:],h)
 
-    if len(h_c)==1:
-      return h_c[0]
-    return h_c
+    return h[0]
 # end Serial
 
 class GRU_Parallel(LPModule):
@@ -88,7 +85,7 @@ class GRU_Parallel(LPModule):
     self.hidden_size = hidden_size
     self.GRU_models  = basic_block
 
-    # GRU_torchbraid_apps.py -> ForwardBraidApp
+    # gru_apps.py -> ForwardBraidApp
     self.fwd_app = apps.ForwardBraidApp(comm,self.GRU_models,num_steps,Tf,max_fwd_levels,max_iters,self.timer_manager)
     self.bwd_app = apps.BackwardBraidApp(self.fwd_app,self.timer_manager)
   # end __init__
@@ -99,34 +96,16 @@ class GRU_Parallel(LPModule):
   def getFastForwardInfo(self):
     return self.fwd_app.getFastForwardInfo()
 
-  def forward(self,x,h_c=None):
+  def forward(self,x,h=None):
     # we are doing this to take adavtage of
     # pytorch's autograd which functions "naturally"
     # with the torch.autograd.function
 
-    if h_c is None:
+    if h is None:
       h = torch.zeros(self.num_layers, x.size(0), self.hidden_size,device=x.device)
-      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size,device=x.device)
-      h_c = (h,c)
 
     params = list(self.parameters())
-    if isinstance(h_c, torch.Tensor):
-      return BraidFunction.apply(self.fwd_app,self.bwd_app,1,x,h_c,*params)
-    else:
-      return BraidFunction.apply(self.fwd_app,self.bwd_app,len(h_c),x,*h_c,*params)
+    return BraidFunction.apply(self.fwd_app,self.bwd_app,x,h,*params)
   # end forward
-
-  def buildInit(self,t):
-    # prefix_rank  = self.comm.Get_rank()
-    # print("Rank %d GRU_Parallel -> buildInit() - start" % prefix_rank)
-
-    g = self.g0.clone()
-    if t>0:
-      t_h,t_c = g.tensors()
-      t_h[:] = 0.0
-      t_c[:] = 0.0
-
-    # print("Rank %d GRU_Parallel -> buildInit() - end" % prefix_rank)
-    return g
 
 # end GRU_Parallel

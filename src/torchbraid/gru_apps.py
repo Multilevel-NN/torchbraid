@@ -172,7 +172,7 @@ class ForwardBraidApp(BraidApp):
       traceback.print_exc()
 
 
-  def run(self,x,h_c):
+  def run(self,x,h):
     self.use_deriv = self.training
 
     comm          = self.mpi_comm
@@ -215,7 +215,7 @@ class ForwardBraidApp(BraidApp):
 
     comm.Barrier()
     with self.timer("run:runBraid"):
-      y = self.runBraid(h_c)
+      y = self.runBraid(h)
 
     # TODO: We're using the GPU -> CPU -> CPU -> GPU model here - might be a better way to reorganize
     #   this with the same logic we're using for the rest of it.

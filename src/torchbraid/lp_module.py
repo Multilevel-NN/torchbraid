@@ -36,10 +36,9 @@ import torch.nn as nn
 
 from mpi4py import MPI
 
-import copy
-
-from torchbraid.braid_function import BraidFunction
 from torchbraid.utils import ContextTimerManager
+
+import numpy as np
 
 class LPModule(nn.Module):
   """
