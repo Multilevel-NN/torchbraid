@@ -379,7 +379,8 @@ def main():
              'activation': args.activation,
              'coarse_frelax_only': args.lp_coarse_frelax_only,
              'pooling': args.pooling,
-             'seed': args.seed
+             'seed': args.seed,
+             'keep_all_features': args.keep_all_features
              }
 
   ##
