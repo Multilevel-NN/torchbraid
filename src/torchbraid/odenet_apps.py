@@ -142,7 +142,7 @@ class ForwardODENetApp(BraidApp):
           comm.Isend(layer_dict[fine_index],dest=dest_proc)
   # end class LayersDataStructure
 
-  def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_funcs=None,user_mpi_buf=False,nsplines=0, splinedegree=1):
+  def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_funcs=None,levels_to_coarsen=None,user_mpi_buf=False,nsplines=0, splinedegree=1):
     """
     """
     self.layers_data_structure = ForwardODENetApp.LayersDataStructure(layers)
