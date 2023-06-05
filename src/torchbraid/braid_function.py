@@ -86,12 +86,11 @@ class BraidFunction(torch.autograd.Function):
       fwd_app.setShape(shape)
       bwd_app.setShape(shape)
 
-    with fwd_app.timer("forward-buildshapes"):
-      if my_rank!=num_ranks-1:
-        result = torch.zeros(shape[-1],device=x.device)
-        fwd_app.run(x)
-      else:
-        result = fwd_app.run(x)
+    if my_rank!=num_ranks-1:
+      result = torch.zeros(shape[-1],device=x.device)
+      fwd_app.run(x)
+    else:
+      result = fwd_app.run(x)
 
     # broadcast the output of the last layer
     comm.Bcast(result, root=num_ranks - 1)
