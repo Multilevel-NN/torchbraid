@@ -61,12 +61,13 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 import statistics as stats
+import time
 
 from torchvision import datasets, transforms
 from timeit import default_timer as timer
 
 from torchbraid.utils import MeanInitialGuessStorage
-from utils import parse_args, buildNet, ParallelNet, SerialNet, getComm, git_rev, getDevice, get_lr_scheduler
+from utils import parse_args, buildNet, ParallelNet, SerialNet, getComm, git_rev, getDevice, get_lr_scheduler, MPI
 
 
 def root_print(rank, s):
@@ -460,6 +461,11 @@ def main():
     root_print(rank, f'Warm up timer {timer() - warm_up_timer}')
 
   print(f'Run info rank: {rank}: Torch version: {torch.__version__} | Device: {my_device} | Host: {my_host}')
+
+  if args.lp_print >= 2:
+      MPI.COMM_WORLD.Barrier()
+      model.parallel_nn.fwd_app.start_time = time.time()
+      model.parallel_nn.bwd_app.start_time = time.time()
 
   epoch = 0
   start_time = timer()
