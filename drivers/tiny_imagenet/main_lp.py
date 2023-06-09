@@ -462,7 +462,7 @@ def main():
 
   print(f'Run info rank: {rank}: Torch version: {torch.__version__} | Device: {my_device} | Host: {my_host}')
 
-  if args.lp_print >= 2:
+  if args.lp_print >= 2 and not args.use_serial:
       MPI.COMM_WORLD.Barrier()
       model.parallel_nn.fwd_app.start_time = time.time()
       model.parallel_nn.bwd_app.start_time = time.time()

@@ -43,13 +43,13 @@ def parseOutputFile(path, procs, run):
         rank = int(content[2])
         t_start = float(content[4])
         t_stop = float(content[6])
-        type = content[10]
         if op == 'runBraid':
           if run == run_counter[rank]:
             rectangles_r.append(["", mpatch.Rectangle((t_start, rank - .25), t_stop - t_start,
                                                       .5, color='black', fc='white'), True])
             min_time[rank] = t_start
             max_time[rank] = t_stop
+            type = content[10]
           run_counter[rank] += 1
   with open(path) as file:
     for line in file:
