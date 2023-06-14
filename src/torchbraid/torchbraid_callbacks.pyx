@@ -101,6 +101,7 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
       braid_StepStatusGetDone(status, &done)
 
       u = <object> vec_u
+      u.syncStream()
 
       # modify the state vector in place
       pyApp.eval(u,tstart,tstop,level,done)
@@ -161,6 +162,9 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
     with pyApp.timer("sum"):
       bv_X = <object> x
       bv_Y = <object> y
+
+      bv_X.syncStream()
+      bv_Y.syncStream()
 
       for ten_X,ten_Y in zip(bv_X.tensors(),bv_Y.tensors()):
         ten_Y.mul_(float(beta))
@@ -342,34 +346,38 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,int 
   try:
     pyApp = <object> app
     with pyApp.timer("bufunpack"):
-      addr = <uintptr_t> buffer
-      app_buffer = pyApp.getBuffer(addr = addr)
-
-      size_vt = pyApp.getFeatureShapes(tidx,level)
-      size_wt = pyApp.getParameterShapes(tidx,level)
-
-      vt = []
-      start = 0
-      for s in size_vt:
-        size = s.numel()
-        vt.append(torch.reshape(app_buffer[start:start+size].detach().clone(), s))
-        start += size
-
-      wt = []
-      for s in size_wt:
-        size = s.numel()
-        wt.append(torch.reshape(app_buffer[start:start+size].detach().clone(), s))
-        start += size
-
-      u_obj = BraidVector(tensor = vt, send_flag = True)
-      u_obj.weight_tensor_data_ = wt
-      Py_INCREF(u_obj)
-
-      # set the pointer for output
-      u_ptr[0] = <braid_Vector> u_obj
+      strm = torch.cuda.Stream(device=pyApp.device)
+      with torch.cuda.stream(strm):
+        addr = <uintptr_t> buffer
+        app_buffer = pyApp.getBuffer(addr = addr)
+  
+        size_vt = pyApp.getFeatureShapes(tidx,level)
+        size_wt = pyApp.getParameterShapes(tidx,level)
+  
+        vt = []
+        start = 0
+        for s in size_vt:
+          size = s.numel()
+          vt.append(torch.reshape(app_buffer[start:start+size].detach().clone(), s))
+          start += size
+  
+        wt = []
+        for s in size_wt:
+          size = s.numel()
+          wt.append(torch.reshape(app_buffer[start:start+size].detach().clone(), s))
+          start += size
+  
+        u_obj = BraidVector(tensor = vt, send_flag = True)
+        u_obj.weight_tensor_data_ = wt
+        Py_INCREF(u_obj)
+  
+        # set the pointer for output
+        u_ptr[0] = <braid_Vector> u_obj
 
       # finish data movement (this one might not be neccessary)
-      torch.cuda.synchronize()
+      u_obj.setStream(strm)
+      u_obj.syncStream()
+      #strm.synchronize()
   except:
     output_exception("my_bufunpack_gpu")
 
@@ -452,17 +460,21 @@ cdef int my_bufalloc(braid_App app, void **buffer, int nbytes, braid_BufferStatu
 
   pyApp = <object>app
   start = time.time() - pyApp.start_time
-  if pyApp.use_cuda:
-    # convert nbytes to number of elements
-    elements = math.ceil(nbytes / get_bytes(__float_alloc_type__))
 
-    addr = pyApp.addBufferEntry(tensor=torch.empty(elements, dtype=__float_alloc_type__, device='cuda'))
+  with pyApp.timer("bufalloc"):
+    if pyApp.use_cuda:
+      # convert nbytes to number of elements
+      elements = math.ceil(nbytes / get_bytes(__float_alloc_type__))
 
-    buffer[0]=<void *> addr
+      strm = torch.cuda.Stream(device=pyApp.device)
+      with torch.cuda.stream(strm):
+        addr = pyApp.addBufferEntry(tensor=torch.empty(elements, dtype=__float_alloc_type__, device=pyApp.device))
 
-    torch.cuda.synchronize()
-  else:
-    buffer[0] = malloc(nbytes)
+        buffer[0]=<void *> addr
+
+      strm.synchronize()
+    else:
+      buffer[0] = malloc(nbytes)
   pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time() - pyApp.start_time, method=f'my_bufalloc')
   return 0
 
@@ -470,13 +482,15 @@ cdef int my_buffree(braid_App app, void **buffer):
   cdef uintptr_t addr
 
   pyApp = <object> app
-  start = time.time() - pyApp.start_time
-  if pyApp.use_cuda:
-    addr = <uintptr_t> buffer[0]
-    pyApp.removeBufferEntry(addr=addr)
+  with pyApp.timer("buffree"):
 
-  else:
-    free(buffer[0])
-    buffer[0] = NULL
+    start = time.time() - pyApp.start_time
+    if pyApp.use_cuda:
+      addr = <uintptr_t> buffer[0]
+      pyApp.removeBufferEntry(addr=addr)
+
+    else:
+      free(buffer[0])
+      buffer[0] = NULL
   pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time() - pyApp.start_time, method=f'my_buffree')
   return 0
