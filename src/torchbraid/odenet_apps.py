@@ -567,8 +567,7 @@ class BackwardODENetApp(BraidApp):
       # preserve the layerwise structure, to ease communication
       # - note the prection of the 'None' case, this is so that individual layers
       # - can have gradient's turned off
-      my_params = self.fwd_app.parameters()
-      for sublist in my_params:
+      for sublist in self.fwd_app.parameters():
         sub_gradlist = [] 
         for item in sublist:
           if item.grad is not None:
@@ -578,7 +577,6 @@ class BackwardODENetApp(BraidApp):
 
         self.grads += [ sub_gradlist ]
       # end for sublist
-      # print(self.getMPIComm().Get_rank(), " self.grads=", self.grads)
 
       for l in self.fwd_app.layer_models:
          if l==None: continue
