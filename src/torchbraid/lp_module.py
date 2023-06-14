@@ -217,14 +217,19 @@ class LPModule(nn.Module):
     if num_ranks==1:
       return vec
 
+    if vec.device.type=='cuda':
+      torch.cuda.synchronize()
+
     # send the output of the last layer to the root
     if my_rank==0:
       remote_final = comm.recv(source=num_ranks-1,tag=build_seq_tag)
       remote_final = remote_final.to(vec.device)
       return remote_final
     elif my_rank==num_ranks-1:
-      final = vec
-      comm.send(final.cpu(),dest=0,tag=build_seq_tag)
+      comm.send(vec.cpu(),dest=0,tag=build_seq_tag)
+
+    if vec.device.type=='cuda':
+      torch.cuda.synchronize()
 
     return None
 
