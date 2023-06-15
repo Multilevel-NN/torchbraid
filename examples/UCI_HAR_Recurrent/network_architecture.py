@@ -49,10 +49,11 @@ def imp_gru_cell(dt : float, x : torch.Tensor, h : torch.Tensor,
 
 
 class ImplicitGRUBlock(nn.Module):
-  def __init__(self, input_size, hidden_size):
+  def __init__(self, input_size, hidden_size, seed = 20):
     super(ImplicitGRUBlock, self).__init__()
 
-    #
+    # This is the easiest way to distribute the same GRU across ranks
+    torch.manual_seed(seed)
 
     self.lin_rx = [None,None]
     self.lin_rh = [None,None]
