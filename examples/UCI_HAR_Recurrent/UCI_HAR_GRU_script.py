@@ -191,6 +191,7 @@ def main():
 
   # Create layer-parallel network
   # Note this can be done on only one processor, but will be slow
+  torch.manual_seed(args.seed)
   model = ParallelNet(hidden_size=args.hidden_size,
                       Tf=None, # None to have it be calculated "correctly" based on other arguments
                       num_layers=args.num_layers,

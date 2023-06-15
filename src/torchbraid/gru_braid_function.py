@@ -51,7 +51,7 @@ class BraidFunction(torch.autograd.Function):
     return pad(ten,tuple(padding),'constant',0.0)
 
   @staticmethod
-  def forward(ctx, fwd_app, bwd_app, x, *input_and_param_tensors):
+  def forward(ctx, fwd_app, bwd_app, num_input_tensors, x, *input_and_param_tensors):
     comm          = fwd_app.getMPIComm()
     my_rank       = fwd_app.getMPIComm().Get_rank()
     num_ranks     = fwd_app.getMPIComm().Get_size()
@@ -61,8 +61,7 @@ class BraidFunction(torch.autograd.Function):
 
     # copy the input to all processors (ensure consistency)
     with fwd_app.timer("func:precomm"):
-      # sizes = tuple([input_and_param_tensors[i].size() for i in range(num_input_tensors)])
-      sizes = (input_and_param_tensors[0].size(),)
+      sizes = tuple([input_and_param_tensors[i].size() for i in range(num_input_tensors)])
       shape = list(comm.bcast(sizes,root=0))
 
     old_shape = fwd_app.getShape()
@@ -71,7 +70,7 @@ class BraidFunction(torch.autograd.Function):
     # setup context
     ctx.fwd_app = fwd_app
     ctx.bwd_app = bwd_app
-    ctx.num_input_tensors = 1
+    ctx.num_input_tensors = num_input_tensors
     ctx.adjusting = adjusting
     ctx.save_for_backward(x, *input_and_param_tensors)
     ctx.device = x.device
@@ -87,13 +86,12 @@ class BraidFunction(torch.autograd.Function):
       fwd_app.setShape(shape)
       bwd_app.setShape(shape)
 
-      state = (input_and_param_tensors[0],)
-
+      state = tuple([input_and_param_tensors[i] for i in range(num_input_tensors)])
 
     with fwd_app.timer("func:run"):
       result = fwd_app.run(x,state)
-
-    result = result[0]
+    if num_input_tensors==1:
+      result = result[0]
 
     if adjusting:
       return result[:,0:temp_batch,:]

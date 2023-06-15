@@ -63,15 +63,17 @@ class GRU_Serial(nn.Module):
   def forward(self,x,h=None):
     if h is None:
       h = torch.zeros(self.num_layers, x.size(0), self.hidden_size, device=x.device)
-
-    if isinstance(h, torch.Tensor):
       h = (h,)
-        
+    elif isinstance(h, torch.Tensor):
+      h = (h,)
+
     num_steps = x.shape[1]
     for i in range(num_steps):
       h = self.GRU_model(0,0.0,self.dt,x[:,i,:],h)
 
-    return h[0]
+    if len(h)==1:
+      return h[0]
+    return h
 # end Serial
 
 class GRU_Parallel(LPModule):
@@ -103,9 +105,14 @@ class GRU_Parallel(LPModule):
 
     if h is None:
       h = torch.zeros(self.num_layers, x.size(0), self.hidden_size,device=x.device)
+      h = (h,)
 
     params = list(self.parameters())
-    return BraidFunction.apply(self.fwd_app,self.bwd_app,x,h,*params)
+    if isinstance(h, torch.Tensor):
+      return BraidFunction.apply(self.fwd_app, self.bwd_app, 1, x, h, *params)
+    else:
+      return BraidFunction.apply(self.fwd_app, self.bwd_app, len(h), x, *h, *params)
+    
   # end forward
 
 # end GRU_Parallel
