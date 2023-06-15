@@ -115,21 +115,21 @@ class ImplicitGRUBlock(nn.Module):
 
     return (x_red_r, x_red_z, x_red_n)
 
-  def fastForward(self, level, tstart, tstop, x_red, h_prev):
-    dt = tstop-tstart
+  # def fastForward(self, level, tstart, tstop, x_red, h_prev):
+  #   dt = tstop-tstart
 
-    h_prev = h_prev[0]
-    h0 = imp_gru_cell_fast(dt, *x_red, h_prev[0],
-                           self.lin_rh[0].weight,
-                           self.lin_zh[0].weight,
-                           self.lin_nr[0].weight, self.lin_nr[0].bias)
-    h1 = imp_gru_cell(dt, h0, h_prev[1],
-                      self.lin_rx[1].weight, self.lin_rx[1].bias, self.lin_rh[1].weight,
-                      self.lin_zx[1].weight, self.lin_zx[1].bias, self.lin_zh[1].weight,
-                      self.lin_nx[1].weight, self.lin_nx[1].bias, self.lin_nr[1].weight, self.lin_nr[1].bias)
+  #   h_prev = h_prev[0]
+  #   h0 = imp_gru_cell_fast(dt, *x_red, h_prev[0],
+  #                          self.lin_rh[0].weight,
+  #                          self.lin_zh[0].weight,
+  #                          self.lin_nr[0].weight, self.lin_nr[0].bias)
+  #   h1 = imp_gru_cell(dt, h0, h_prev[1],
+  #                     self.lin_rx[1].weight, self.lin_rx[1].bias, self.lin_rh[1].weight,
+  #                     self.lin_zx[1].weight, self.lin_zx[1].bias, self.lin_zh[1].weight,
+  #                     self.lin_nx[1].weight, self.lin_nx[1].bias, self.lin_nr[1].weight, self.lin_nr[1].bias)
 
-    # Note: we return a tuple with a single element
-    return (torch.stack((h0, h1)),)
+  #   # Note: we return a tuple with a single element
+  #   return (torch.stack((h0, h1)),)
 
 
   def forward(self, level, tstart, tstop, x, h_prev):
@@ -148,51 +148,51 @@ class ImplicitGRUBlock(nn.Module):
     # Note: we return a tuple with a single element
     return (torch.stack((h0, h1)),)
 
-def generate_fake_data(dataset_size, sequence_length, input_size, hidden_size, device):
+def generate_fake_data(dataset_size, sequence_length, input_size, hidden_size):
   torch.manual_seed(20)
   x = torch.randn(dataset_size, sequence_length, input_size)
   y = torch.randn(dataset_size, hidden_size)
-  return x.to(device),y.to(device)
+  return x,y
 
 def test_args(comm):
-    args = dict()
-    args['images'] = 10
-    args['image_size'] = 28
-    args['sequence_length'] = 32
-    args['print_level'] = 0
-    args['nrelax'] = 1
-    args['cfactor'] = 2
-    args['Tf'] = float(args['sequence_length'])
-    args['input_size'] = args['image_size']
-    args['hidden_size'] = 20
-    args['num_layers'] = 2
-    args['batch_size'] = 1
-    args['max_iters'] = 1
-    args['max_levels'] = 1
-    args['skip_downcycle'] = True
-    args['local_steps'] = int(args['sequence_length']/comm.Get_size())
-    args['dt'] = args['Tf'] / args['sequence_length']
-    return args
+  args = dict()
+  args['num_data'] = 10
+  args['input_size'] = 28
+  args['sequence_length'] = 32
+  args['print_level'] = 0
+  args['nrelax'] = 1
+  args['cfactor'] = 2
+  args['Tf'] = float(args['sequence_length'])
+  args['hidden_size'] = 20
+  args['num_layers'] = 2
+  args['batch_size'] = 1
+  args['max_iters'] = 1
+  args['max_levels'] = 1
+  args['skip_downcycle'] = True
+  args['local_steps'] = int(args['sequence_length']/comm.Get_size())
+  args['dt'] = args['Tf'] / args['sequence_length']
+  args['seed'] = 42
+  return args
     
 def test_args_small(comm):
-    args = dict()
-    args['images'] = 5
-    args['image_size'] = 6
-    args['sequence_length'] = 4
-    args['print_level'] = 0
-    args['nrelax'] = 1
-    args['cfactor'] = 2
-    args['Tf'] = float(args['sequence_length'])
-    args['input_size'] = args['image_size']
-    args['hidden_size'] = 3
-    args['num_layers'] = 2
-    args['batch_size'] = 1
-    args['max_iters'] = 1
-    args['max_levels'] = 1
-    args['skip_downcycle'] = True
-    args['local_steps'] = int(args['sequence_length']/comm.Get_size())
-    args['dt'] = args['Tf'] / args['sequence_length']
-    return args
+  args = dict()
+  args['num_data'] = 5
+  args['input_size'] = 2
+  args['sequence_length'] = 4
+  args['print_level'] = 0
+  args['nrelax'] = 1
+  args['cfactor'] = 2
+  args['Tf'] = float(args['sequence_length'])
+  args['hidden_size'] = 3
+  args['num_layers'] = 2
+  args['batch_size'] = 1
+  args['max_iters'] = 1
+  args['max_levels'] = 1
+  args['skip_downcycle'] = True
+  args['local_steps'] = int(args['sequence_length']/comm.Get_size())
+  args['dt'] = args['Tf'] / args['sequence_length']
+  args['seed'] = 42
+  return args
 
 def get_parallel_gru(gru_model, args):
   parallel_gru = torchbraid.GRU_Parallel(comm = MPI.COMM_WORLD,
@@ -214,6 +214,34 @@ def get_parallel_gru(gru_model, args):
   parallel_gru.setBwdNumRelax(0, level=0) # F-Relax on fine grid
   return parallel_gru 
 
+def distribute_input_data(x_global, y_global, comm):
+  rank = comm.Get_rank()
+  num_procs = comm.Get_size()
+  x_block = [[] for _ in range(num_procs)]
+  y_block = [[] for _ in range(num_procs)]
+  if rank == 0:
+    sz = len(x_global)
+    for i in range(sz):
+      x = x_global[i]
+      y = y_global[i]
+      x_split = torch.chunk(x, num_procs, dim = 0) 
+      y_split = num_procs*[y]
+
+      for p, (x_in, y_in) in enumerate(zip(x_split, y_split)):
+        x_block[p].append(x_in)
+        y_block[p].append(y_in)
+      
+    for p, (x, y) in enumerate(zip(x_block, y_block)):
+      x_block[p] = torch.stack(x)
+      y_block[p] = torch.stack(y)
+
+  comm.barrier()
+  
+  x_local = comm.scatter(x_block, root=0)
+  y_local = comm.scatter(y_block, root=0)
+  return x_local, y_local
+
+
 class TestGRULayerParallel(unittest.TestCase):
   def test_gru_serial_forward(self):
     comm = MPI.COMM_WORLD
@@ -228,24 +256,29 @@ class TestGRULayerParallel(unittest.TestCase):
     comm.barrier()
     
   def gru_serial_forward_device(self, device):
-    "Tests the gru_serial implementation for functionality"
-    args = test_args(MPI.COMM_WORLD)
+    """
+    Tests the gru_serial implementation for functionality
+    This should only be run on one processor
+    """
+    comm = MPI.COMM_WORLD
+    args = test_args(comm)
+    torch.manual_seed(args['seed'])
     gru_model = ImplicitGRUBlock(args['input_size'], args['hidden_size']).to(device)
     serial_gru = torchbraid.GRU_Serial(gru_model, args['num_layers'], args['hidden_size'], args['dt']).to(device)
 
-    x, _ = generate_fake_data(args['images'], args['sequence_length'], args['input_size'], args['hidden_size'], device)
+    x, y = generate_fake_data(args['num_data'], args['sequence_length'], args['input_size'], args['hidden_size'], device)
     h = torch.zeros(args['num_layers'], x.size(0), args['hidden_size']).to(device)
 
     # Test the forward with an initial hidden state
     yhat_1 = serial_gru(x, h)
     self.assertTrue(yhat_1.shape[0] == args['num_layers'])
-    self.assertTrue(yhat_1.shape[1] == args['images'])
+    self.assertTrue(yhat_1.shape[1] == args['num_data'])
     self.assertTrue(yhat_1.shape[2] == args['hidden_size'])
 
     # Test the forward without an initial hidden state
     yhat_2 = serial_gru(x)
     self.assertTrue(yhat_2.shape[0] == args['num_layers'])
-    self.assertTrue(yhat_2.shape[1] == args['images'])
+    self.assertTrue(yhat_2.shape[1] == args['num_data'])
     self.assertTrue(yhat_2.shape[2] == args['hidden_size'])
 
     # Check that the outputs match
@@ -268,40 +301,54 @@ class TestGRULayerParallel(unittest.TestCase):
   def gru_parallel_forward_device(self, device):
     "Tests the gru_serial implementation for functionality"
     comm = MPI.COMM_WORLD
-    args = test_args(comm)
+    args = test_args_small(comm)
+    rank = comm.Get_rank()
+    n_procs = comm.Get_size()
+    torch.manual_seed(args['seed'])
     gru_model = ImplicitGRUBlock(args['input_size'], args['hidden_size']).to(device)
 
     # Set up the parallel GRU
-    parallel_gru = get_parallel_gru(gru_model, args)
+    parallel_gru = get_parallel_gru(gru_model, args).to(device)
 
-    x, _ = generate_fake_data(args['images'], args['sequence_length'], args['input_size'], args['hidden_size'], device)
+    if rank == 0:
+      x_global, y_global = generate_fake_data(args['num_data'], args['sequence_length'], args['input_size'], args['hidden_size'])
+    else:
+      x_global, y_global = (None, None)
+
+    x, y = distribute_input_data(x_global, y_global, comm)
+    x = x.to(device)
+    y = y.to(device)
+
     h = torch.zeros(args['num_layers'], x.size(0), args['hidden_size']).to(device)
+
+    if rank == 0:
+        print(f'x_global = \n{x_global}')
+    print(f'rank {rank}, x = \n{x}')
 
     # Test the forward with an initial hidden state
     yhat_1 = parallel_gru(x, h)
     self.assertTrue(yhat_1.shape[0] == args['num_layers'])
-    self.assertTrue(yhat_1.shape[1] == args['images'])
+    self.assertTrue(yhat_1.shape[1] == args['num_data'])
     self.assertTrue(yhat_1.shape[2] == args['hidden_size'])
 
 
     # Test the forward without an initial hidden state
     yhat_2 = parallel_gru(x)
     self.assertTrue(yhat_2.shape[0] == args['num_layers'])
-    self.assertTrue(yhat_2.shape[1] == args['images'])
+    self.assertTrue(yhat_2.shape[1] == args['num_data'])
     self.assertTrue(yhat_2.shape[2] == args['hidden_size'])
 
-    # # Check that the outputs match
+    # Check that the outputs match
     self.assertEqual(torch.norm(yhat_1 - yhat_2), 0)
 
-    # Check the output is as expected:
-    # Compare to serial version
-    if comm.Get_rank() == 0:
+    # Run the serial case and compare results
+    if rank == 0:
+      # Compare to serial version
       serial_gru = torchbraid.GRU_Serial(gru_model, args['num_layers'], args['hidden_size'], args['dt']).to(device)
-      serial_yhat = serial_gru(x)
-    
-    self.assertEqual(torch.norm(yhat_1 - serial_yhat), 0)
-      
+      yhat_serial = serial_gru(x_global)
 
+      self.assertEqual(torch.norm(yhat_2 - yhat_serial), 0)
+        
   # def test_forward_exact(self):
   #   self.forwardProp(max_levels=1,max_iters=1,sequence_length=28)
 
