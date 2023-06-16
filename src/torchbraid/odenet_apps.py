@@ -125,36 +125,6 @@ class ForwardODENetApp(BraidApp):
     
         return layer.to(device)
 
-      def layerWeights(self,layer):
-        sd = layer.state_dict()
-        return [sd[k] for k in sd]
-
-      @torch.no_grad()
-      def sendRecvLayers(self,comm,recv_layers_list,send_layers_list,layer_dict,device):
-        tag_shift = 1e4
-        requests = []
-        for fine_index,src_proc in recv_layers_list:
-          # allocate space if layer doesn't exit
-          if fine_index not in layer_dict:
-            layer_dict[fine_index] = self.buildLayer(fine_index,device)
-
-          layer = layer_dict[fine_index]
-
-          params = self.layerWeights(layer)
-          for ind,p in enumerate(params):
-            if p is not None:
-              req = comm.Irecv(p,source=src_proc,tag=int(fine_index+tag_shift*ind))
-              requests += [req]
-
-        for fine_index,dest_proc in send_layers_list:
-          assert fine_index in layer_dict
-
-          params = self.layerWeights(layer_dict[fine_index])
-          for ind,p in enumerate(params):
-            if p is not None:
-              comm.Isend(p,dest=dest_proc,tag=int(fine_index+tag_shift*ind))
-
-        return requests
   # end class LayersDataStructure
 
   def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None,user_mpi_buf=False,nsplines=0, splinedegree=1):
@@ -392,7 +362,6 @@ class ForwardODENetApp(BraidApp):
       layer_index = self.getGlobalTimeIndex(t) 
       if layer_index in self.layer_dict:
         layer = self.layer_dict[layer_index]
-        #sd = layer.state_dict()
         weights = list(ForwardODENetApp.layerDataGen(layer))
       else:
         weights = []
@@ -412,17 +381,9 @@ class ForwardODENetApp(BraidApp):
 
     if  self.initial_guess is not None and t != 0.0:
       x.replaceTensor(copy.deepcopy(self.initial_guess.getState(t)))
-        
+  # end initializeVector 
 
   def run(self,x):
-    #requests = self.layers_data_structure.sendRecvLayers(self.getMPIComm(),
-    #                               self.buildLayersRecvList(),
-    #                               self.buildLayersSendList(),
-    #                               self.layer_dict,
-    #                               self.device)
-    #with self.timer("runBraid-waitall"):
-    #  MPI.Request.Waitall(requests)
-
     # turn on derivative path (as requried)
     self.use_deriv = self.training
     
@@ -464,13 +425,6 @@ class ForwardODENetApp(BraidApp):
 
     record = False
     layer = None
-    ## long test
-    #ts_index = self.getGlobalTimeIndex(tstart)
-    #if ts_index in self.layer_dict:
-    #  layer = self.layer_dict[ts_index]
-    #  if level==0 and done:
-    #    record = True
-
     if level==0 and done:
       ts_index = self.getGlobalTimeIndex(tstart)
       if ts_index in self.layer_dict:
