@@ -88,7 +88,7 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mi
   total_time_cm = 0.0
 
   switched = False
-  format_str = 'Train Epoch: {:2d} [{:6d}/{:6d}]\tLoss: {:.3e}\tTime Per Batch {:.6f}/{:.6f} - F{:2d}/{:.2e}, B{:2d}/{:.2e}'
+  format_str = 'Train Epoch: {:2d} [{:6d}/{:6d}]\tLoss: {:.9e}\tTime Per Batch {:.6f}/{:.6f} - F{:2d}/{:.2e}, B{:2d}/{:.2e}'
   total_data = 0
 
   cumulative_start_time = timer()
@@ -435,7 +435,7 @@ def main():
 
   if rank == 0:
     print('===============MODEL=============\n')
-  print(model)
+  #print(model)
 
   if rank == 0:
     print('===============OPTIMIZER=============\n')
