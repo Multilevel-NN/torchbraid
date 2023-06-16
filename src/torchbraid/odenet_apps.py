@@ -45,6 +45,7 @@ import traceback
 import resource
 import copy
 
+
 from bisect import bisect_right
 from mpi4py import MPI
 
@@ -226,7 +227,7 @@ class ForwardODENetApp(BraidApp):
       sd = layer.state_dict()
       for k in sd:
         assert isinstance(sd[k],torch.Tensor)
-      self.parameter_shapes += [[sd[k].size() for k in layer.state_dict()]]
+      self.parameter_shapes += [list([d.size() for d in ForwardODENetApp.layerDataGen(layer)])]
 
     self.initial_guess = None
 
@@ -270,6 +271,11 @@ class ForwardODENetApp(BraidApp):
     if ten.dim()==0:
       return int(ten.item())
     return ten.shape[0]
+
+  @staticmethod 
+  def layerDataGen(layer):
+      return itertools.chain((p.data for p in layer.parameters()),
+                             (b      for b in layer.buffers()))
 
   def buildShapes(self,x):
     """
@@ -386,8 +392,8 @@ class ForwardODENetApp(BraidApp):
       layer_index = self.getGlobalTimeIndex(t) 
       if layer_index in self.layer_dict:
         layer = self.layer_dict[layer_index]
-        sd = layer.state_dict()
-        weights = [sd[k] for k in sd]
+        #sd = layer.state_dict()
+        weights = list(ForwardODENetApp.layerDataGen(layer))
       else:
         weights = []
 
@@ -396,12 +402,9 @@ class ForwardODENetApp(BraidApp):
 
   def setLayerWeights(self,layer,weights):
     with torch.no_grad():
-      sd = layer.state_dict()
-      keys = [k for k in sd]
-      assert len(keys)==len(weights)
-
-      pairs = zip(keys,weights)
-      layer.load_state_dict(OrderedDict(pairs))
+      dest = ForwardODENetApp.layerDataGen(layer)
+      for d,w in zip(dest,weights):
+        d.copy_(w)
   # end setLayerWeights
 
   def initializeVector(self,t,x):
