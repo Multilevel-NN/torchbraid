@@ -67,7 +67,7 @@ class BraidVector:
     return self.stream is not None
 
   def syncStream(self):
-    if self.hasStream():
+    if self.stream is not None:
       self.stream.synchronize()
       self.stream = None
 
