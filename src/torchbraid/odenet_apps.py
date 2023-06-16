@@ -330,9 +330,9 @@ class ForwardODENetApp(BraidApp):
       self.temp_layers[ind] = result
 
     # set correct mode...neccessary for BatchNorm
-    if self.training:
+    if self.training and not result.training:
       result.train()
-    else:
+    elif not self.training:
       result.eval()
 
     return result
