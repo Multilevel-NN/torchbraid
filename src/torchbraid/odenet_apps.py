@@ -208,7 +208,6 @@ class ForwardODENetApp(BraidApp):
       owned_layers -= 1
 
     # Now creating the trainable layers
-    #self.layer_dict = { i: self.layers_data_structure.buildLayer(self.start_layer+i,self.device) for i in range(owned_layers)} 
     self.layer_dict = { i: self.layers_data_structure.buildLayer(i,self.device) for i in range(self.start_layer,self.start_layer+owned_layers) }
     self.layer_models = [ self.layer_dict[i] for i in range(self.start_layer,self.start_layer+owned_layers) ]
 
@@ -384,16 +383,9 @@ class ForwardODENetApp(BraidApp):
               dest_w.add_(src_p.data, alpha=splines[l])
 
     else: 
-      #layer_index = self.getGlobalTimeIndex(t) - self.start_layer
       layer_index = self.getGlobalTimeIndex(t) 
-      #if layer_index<len(self.layer_dict) and layer_index>=0:
       if layer_index in self.layer_dict:
         layer = self.layer_dict[layer_index]
-      else:
-        layer = None
-
-      if layer!=None:
-        # weights = [p.data for p in layer.parameters()]
         sd = layer.state_dict()
         weights = [sd[k] for k in sd]
       else:
