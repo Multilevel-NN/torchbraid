@@ -62,6 +62,7 @@ import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 import statistics as stats
 import time
+import cProfile
 
 from torchvision import datasets, transforms
 from timeit import default_timer as timer
@@ -525,4 +526,13 @@ def main():
 
 
 if __name__ == '__main__':
+  pr = cProfile.Profile()
+  pr.enable()
   main()
+  pr.disable()
+
+  comm = getComm()
+
+  # Dump results:
+  # - for binary dump
+  pr.dump_stats('rank_%d.prof' % comm.Get_rank())
