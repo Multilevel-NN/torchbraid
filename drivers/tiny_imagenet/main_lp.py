@@ -526,13 +526,13 @@ def main():
 
 
 if __name__ == '__main__':
-  pr = cProfile.Profile()
-  pr.enable()
+  #pr = cProfile.Profile()
+  #pr.enable()
   main()
-  pr.disable()
+  #pr.disable()
 
-  comm = getComm()
+  #comm = getComm()
 
   # Dump results:
   # - for binary dump
-  pr.dump_stats('rank_%d.prof' % comm.Get_rank())
+  #pr.dump_stats('rank_%d.prof' % comm.Get_rank())
