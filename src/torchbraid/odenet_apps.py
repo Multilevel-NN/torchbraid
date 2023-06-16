@@ -454,6 +454,13 @@ class ForwardODENetApp(BraidApp):
 
     record = False
     layer = None
+    ## long test
+    #ts_index = self.getGlobalTimeIndex(tstart)
+    #if ts_index in self.layer_dict:
+    #  layer = self.layer_dict[ts_index]
+    #  if level==0 and done:
+    #    record = True
+
     if level==0 and done:
       ts_index = self.getGlobalTimeIndex(tstart)
       if ts_index in self.layer_dict:
