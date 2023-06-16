@@ -455,8 +455,6 @@ class ForwardODENetApp(BraidApp):
     record = False
     layer = None
     if level==0 and done:
-      #ts_index = self.getGlobalTimeIndex(tstart)-self.start_layer
-      #if ts_index<len(self.layer_dict) and ts_index >= 0:
       ts_index = self.getGlobalTimeIndex(tstart)
       if ts_index in self.layer_dict:
         layer = self.layer_dict[ts_index]
@@ -502,9 +500,6 @@ class ForwardODENetApp(BraidApp):
       layer = self.getTempLayer(tstart)
       self.setLayerWeights(layer,b_x.weightTensors())
     else:
-      #ts_index = self.getGlobalTimeIndex(tstart)-self.start_layer
-      #assert(ts_index<len(self.layer_dict))
-      #assert(ts_index >= 0)
       ts_index = self.getGlobalTimeIndex(tstart)
       assert ts_index in self.layer_dict
       layer = self.layer_dict[ts_index]
