@@ -388,13 +388,8 @@ class ForwardODENetApp(BraidApp):
     x.addWeightTensors(weights)
   # end setVectorWeights
 
-  def setLayerWeights(self,t,tf,level,weights):
-    layer = self.getTempLayer(t)
-
+  def setLayerWeights(self,layer,weights):
     with torch.no_grad():
-      #for dest_p,src_w in zip(list(layer.parameters()),weights):
-      #  dest_p.data = src_w
-
       sd = layer.state_dict()
       keys = [k for k in sd]
       assert len(keys)==len(weights)
@@ -468,8 +463,8 @@ class ForwardODENetApp(BraidApp):
         record = True
  
     if layer==None:
-      self.setLayerWeights(tstart,tstop,level,y.weightTensors())
       layer = self.getTempLayer(tstart)
+      self.setLayerWeights(layer,y.weightTensors())
 
     t_y = y.tensor().detach()
 
@@ -504,8 +499,8 @@ class ForwardODENetApp(BraidApp):
 
     # Set the layer at tstart. For a SpliNet, get the layer weights from x at tstart, otherwise, get layer and weights from storage.
     if self.splinet:
-      self.setLayerWeights(tstart,tstop,0,b_x.weightTensors())
       layer = self.getTempLayer(tstart)
+      self.setLayerWeights(layer,b_x.weightTensors())
     else:
       #ts_index = self.getGlobalTimeIndex(tstart)-self.start_layer
       #assert(ts_index<len(self.layer_dict))
