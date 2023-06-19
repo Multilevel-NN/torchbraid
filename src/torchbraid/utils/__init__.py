@@ -39,6 +39,8 @@ from .gittools import git_rev
 # import bufpackunpack tools
 from .bufpackunpack import buffer_size, pack_buffer, unpack_buffer
 
+from .lp_batchnorm import LPBatchNorm2d
+
 try:
   # use the global one
   from mpi4py import MPI
