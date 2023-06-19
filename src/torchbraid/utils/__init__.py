@@ -39,6 +39,8 @@ from .gittools import git_rev
 # import bufpackunpack tools
 from .bufpackunpack import buffer_size, pack_buffer, unpack_buffer
 
+# import custom LP modules and support
+from .done_flag import DoneFlag, DoneFlagMixin
 from .lp_batchnorm import LPBatchNorm2d
 
 try:
