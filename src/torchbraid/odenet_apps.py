@@ -37,7 +37,7 @@ import torch.nn as nn
 from .braid_vector import BraidVector
 from torchbraid.torchbraid_app import BraidApp
 from torchbraid.bsplines import BsplineBasis
-import torchbraid.utils
+import torchbraid.utils as tb_utils
 import itertools
 
 import sys
@@ -100,11 +100,20 @@ class ForwardODENetApp(BraidApp):
     
            counts : list[int]
              the count (repeatitions) of each layer
+
+           done_flag : tensor for indicating that "done" is being called
         """
     
         # this block of code prepares the data for easy sorting
         [self.counts,self.functors] = list(zip(*layers))
         self.indices = list(itertools.accumulate(self.counts))
+        self.done_flag = tb_utils.DoneFlag.allocate()
+
+      def updateLayerDoneFlag(self,new_state):
+        tb_utils.DoneFlag.update(self.done_flag,new_state)
+
+      def registerLayerDoneFlag(self,layer):
+        tb_utils.DoneFlag.module_register(layer,self.done_flag)
 
       def getNumLayers(self):
         """Get the global number of layers of concern for layer-parallel."""
@@ -123,7 +132,9 @@ class ForwardODENetApp(BraidApp):
         else:
           layer = ForwardODENetApp.ODEBlock(layer)
     
-        return layer.to(device)
+        layer = layer.to(device)
+        tb_utils.DoneFlag.module_register(layer,self.done_flag)
+        return layer
 
   # end class LayersDataStructure
 
@@ -230,11 +241,16 @@ class ForwardODENetApp(BraidApp):
         # Finally create the communicator and store it. 
         thiscomm = comm.Create(newgroup) # This will be MPI.COMM_NULL on all processors that are excluded
         self.spline_comm_vec.append(thiscomm)  
-      
   # end __init__
 
   def __del__(self):
     pass
+
+  def to(self, *args, **kwargs):
+    # make sure all the layers have registered the done flag
+    # this makes sure the any poijnter sharing is preserved
+    for l in self.layer_dict.values():
+      self.layers_data_structure.registerLayerDoneFlag(l)
 
   @staticmethod 
   def batchSize(ten):
@@ -554,12 +570,12 @@ class BackwardODENetApp(BraidApp):
             # print(splinecomm.Get_rank(), ": I will pack spline ", i)
             # pack the spline into a buffer and initiate non-blocking allredude
             splinelayer = self.fwd_app.layer_dict[i - self.fwd_app.start_layer]
-            buf = torchbraid.utils.pack_buffer([p.grad for p in splinelayer.parameters()])
+            buf = tb_utils.pack_buffer([p.grad for p in splinelayer.parameters()])
             req=splinecomm.Iallreduce(MPI.IN_PLACE, buf, MPI.SUM)
 
             # Finish up communication. TODO: Queue all requests.
             MPI.Request.Wait(req)
-            torchbraid.utils.unpack_buffer([p.grad for p in splinelayer.parameters()], buf)
+            tb_utils.unpack_buffer([p.grad for p in splinelayer.parameters()], buf)
       # end splinet
 
       self.grads = []

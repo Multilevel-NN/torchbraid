@@ -190,6 +190,11 @@ class LayerParallel(LPModule):
     return BraidFunction.apply(self.fwd_app,self.bwd_app,x,*params) 
   # end forward
 
+  def to(self, *args, **kwargs):
+    result = super().to(*args,**kwargs)
+    self.fwd_app.to(*args,**kwargs)
+    return result
+
   def getFineTimePoints(self):
     return self.fwd_app.getTimePoints()
 
@@ -221,6 +226,4 @@ class LayerParallel(LPModule):
       comm.send(ode_layers_cpu,dest=0,tag=build_seq_tag)
       return None
   # end buildSequentialOnRoot
-
-
 # end LayerParallel
