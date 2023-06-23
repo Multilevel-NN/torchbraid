@@ -36,16 +36,19 @@ class LPBatchNorm2d(DoneFlagMixin,nn.Module):
 
   def forward(self,x):
     if self.done_flag and self.training:
-        bn_train_mode = True
-        mean = self.mean
-        var = self.var
+      bn_train_mode = True
+      mean = self.mean
+      var = self.var
+      print('TRAIN-DONE')
     elif not self.done_flag and self.training:
-        bn_train_mode = True
-        mean = self.mean.clone()
-        var = self.var.clone()
+      bn_train_mode = True
+      mean = self.mean.clone()
+      var = self.var.clone()
+      print('TRAIN-FIX')
     else:
-        bn_train_mode = False
-        mean = self.mean
-        var = self.var
+      bn_train_mode = False
+      mean = self.mean
+      var = self.var
+      print('EVAL')
  
     return F.batch_norm(x,mean,var,None,None,bn_train_mode,self.momentum,self.eps)

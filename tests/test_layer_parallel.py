@@ -41,6 +41,7 @@ import torchbraid
 import faulthandler
 
 from torchbraid.utils import getDevice
+from torchbraid.utils import LPBatchNorm2d
 
 faulthandler.enable()
 
@@ -80,24 +81,29 @@ class LinearBlock(nn.Module):
 # end layer
 
 class ReLUBlock(nn.Module):
-  def __init__(self,dim=10):
+  def __init__(self,dim=10,with_bn=False):
     super(ReLUBlock, self).__init__()
     self.lin = nn.Linear(dim, dim,bias=True)
+    self.with_bn = with_bn
 
-    w = torch.randn(dim,dim)
     w = 2.3*torch.ones(dim,dim)
     self.lin.weight = torch.nn.Parameter(w)
 
-    b = torch.randn(dim)
     b = -1.22*torch.ones(dim)
     self.lin.bias = torch.nn.Parameter(b)
 
+    if with_bn:
+      #self.bn = nn.BatchNorm1d(dim)
+      self.bn = LPBatchNorm2d(dim)
+
   def forward(self, x):
+    if self.with_bn:
+      x = self.bn(x)
     return F.relu(self.lin(x))
 # end layer
 
 class ConvBlock(nn.Module):
-  def __init__(self,dim,num_ch):
+  def __init__(self,dim,num_ch,with_bn=False):
     super(ConvBlock, self).__init__()
     self.lin = nn.Conv1d(num_ch,num_ch,kernel_size=3,padding=1,bias=False)
 
@@ -156,6 +162,62 @@ class TestTorchBraid(unittest.TestCase):
 
     MPI.COMM_WORLD.barrier()
   # end test_reLUNet_Exact
+
+  def test_reLUNetBN_Exact(self):
+    dim = 2
+    basic_block = lambda: ReLUBlock(dim,True)
+
+    torch.manual_seed(434442321)
+    x0 = 1.0*torch.rand(5,dim) # forward initial cond
+    w0 = 3.0*torch.ones(5,dim) # adjoint initial cond
+    max_levels = 1
+    max_iters = 1
+
+    # this catch block, augments the 
+    rank = MPI.COMM_WORLD.Get_rank()
+    try:
+      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-16,prefix='reLUNetBN_Exact')
+    except RuntimeError as err:
+      raise RuntimeError("proc=%d) reLUNetBN_Exact..failure" % rank) from err
+
+    MPI.COMM_WORLD.barrier()
+  # end test_reLUNet_Exact
+
+  def test_reLUNetBN_Approx(self):
+    dim = 2
+    basic_block = lambda: ReLUBlock(dim,True)
+
+    torch.manual_seed(434442321)
+    x0 = 1.0*torch.rand(5,dim) # forward initial cond
+    w0 = 3.0*torch.ones(5,dim) # adjoint initial cond
+    max_levels = 1
+    max_iters = 1
+
+    # this catch block, augments the 
+    rank = MPI.COMM_WORLD.Get_rank()
+    try:
+      m_parallel,m_serial = self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-16,prefix='reLUNetBN_Approx')
+    except RuntimeError as err:
+      raise RuntimeError("proc=%d) reLUNetBN_Approx..failure" % rank) from err
+
+    bn_parallel = [l for l in m_parallel.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
+    self.assertTrue(len(bn_parallel)>0)
+    if m_serial!=None:
+      bn_serial = [l for l in m_serial.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
+      serial = ''
+      for ind,bn in enumerate(bn_serial):
+        n = [b for b in bn.buffers()]
+        serial += f'ser {ind:02d} {n}\n'
+        
+      print(serial)
+
+    parallel = ''
+    for ind,bn in enumerate(bn_parallel):
+      n = [b for b in bn.buffers()]
+      parallel += f'{rank:3d} {ind:02d} {n}\n'
+
+    MPI.COMM_WORLD.Barrier()
+    print(parallel)
 
   def test_convNet_Approx_coarse_ref(self):
     dim = 128
@@ -344,6 +406,7 @@ class TestTorchBraid(unittest.TestCase):
     xm = x0.clone()
     xm.requires_grad = check_grad
 
+    m.train()
     wm = m(xm)
 
     times,uvals = m.getFineTimePoints()
@@ -382,6 +445,7 @@ class TestTorchBraid(unittest.TestCase):
       xf = x0.clone()
       xf.requires_grad = check_grad
       
+      f.train()
       wf = f(xf)
  
       # compare the solutions
@@ -403,12 +467,10 @@ class TestTorchBraid(unittest.TestCase):
         param_errors = []
         for pf,pm_grad in zip(list(f.parameters()),m_param_grad):
           self.assertTrue(not pm_grad is None)
-   
+
           # accumulate parameter errors for testing purposes
           param_errors += [(torch.norm(pf.grad-pm_grad)/torch.norm(pf.grad)).item()]
 
-          #print(param_errors[-1],torch.norm(pf.grad),pf.grad.shape,torch.norm(pm_grad))
-   
           # check the error conditions
           self.assertTrue(torch.norm(pf.grad-pm_grad)<=test_tol)
    
@@ -418,6 +480,8 @@ class TestTorchBraid(unittest.TestCase):
       print('\n')
     elif initial_guess is not None:
       self.assertEqual(len(marks), 0)
+
+    return m,f
   # forwardPropSerial
 
   import sys

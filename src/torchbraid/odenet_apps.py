@@ -110,6 +110,7 @@ class ForwardODENetApp(BraidApp):
         self.done_flag = tb_utils.DoneFlag.allocate()
 
       def updateLayerDoneFlag(self,new_state):
+        print(f'UPDATE {new_state}')
         tb_utils.DoneFlag.update(self.done_flag,new_state)
 
       def registerLayerDoneFlag(self,layer):
@@ -439,6 +440,8 @@ class ForwardODENetApp(BraidApp):
     condition x. The level is defined by braid
     """
 
+    self.layers_data_structure.updateLayerDoneFlag(done)
+
     record = False
     layer = None
     if level==0 and done:
@@ -466,7 +469,6 @@ class ForwardODENetApp(BraidApp):
       with torch.no_grad():
         ny = layer(dt,t_y)
         y.replaceTensor(ny) 
-
 
     # This connects weights at tstop with the vector y. For a SpliNet, the weights at tstop are evaluated using the spline basis function. 
     self.setVectorWeights(tstop,y)
@@ -498,6 +500,8 @@ class ForwardODENetApp(BraidApp):
     t_x = b_x.tensor()
     x = t_x.detach()
     y = t_x.detach().clone()
+
+    self.layers_data_structure.updateLayerDoneFlag(level==0)
 
     x.requires_grad = True 
     dt = tstop-tstart
