@@ -200,8 +200,11 @@ class TestTorchBraid(unittest.TestCase):
     except RuntimeError as err:
       raise RuntimeError("proc=%d) reLUNetBN_Approx..failure" % rank) from err
 
-    x0 = 1.0*torch.rand(5,dim) # forward initial cond
-    w0 = 1.0*torch.rand(5,dim) # forward initial cond
+    # figure out the whole GPU situation
+    my_device,my_host = getDevice(MPI.COMM_WORLD) 
+
+    x0 = 1.0*torch.rand(5,dim,device=my_device) # forward initial cond
+    w0 = 1.0*torch.rand(5,dim,device=my_device) # forward initial cond
     m_parallel.train()
     y = m_parallel(x0)
     y.backward(w0)
@@ -212,25 +215,25 @@ class TestTorchBraid(unittest.TestCase):
 
 # TODO: Turn this into a test
 #
-#    if m_serial!=None:
-#      bn_serial = [l for l in m_serial.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
-#      serial = ''
-#      for ind,bn in enumerate(bn_serial):
-#        n = [b for b in bn.buffers()]
-#        serial += f'ser {ind:02d} {n}\n'
-#        
-#      print(serial)
-#    # end serial
-#
-#    bn_parallel = [l for l in m_parallel.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
-#    self.assertTrue(len(bn_parallel)>0)
-#    parallel = ''
-#    for ind,bn in enumerate(bn_parallel):
-#      n = [b for b in bn.buffers()]
-#      parallel += f'{rank:3d} {ind:02d} {n}\n'
-#
-#    MPI.COMM_WORLD.Barrier()
-#    print(parallel)
+    if m_serial!=None:
+      bn_serial = [l for l in m_serial.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
+      serial = ''
+      for ind,bn in enumerate(bn_serial):
+        n = [b for b in bn.buffers()]
+        serial += f'ser {ind:02d} {n}\n'
+        
+      print(serial)
+    # end serial
+ 
+    bn_parallel = [l for l in m_parallel.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
+    self.assertTrue(len(bn_parallel)>0)
+    parallel = ''
+    for ind,bn in enumerate(bn_parallel):
+      n = [b for b in bn.buffers()]
+      parallel += f'{rank:3d} {ind:02d} {n}\n'
+ 
+    MPI.COMM_WORLD.Barrier()
+    print(parallel)
 
   def test_convNet_Approx_coarse_ref(self):
     dim = 128

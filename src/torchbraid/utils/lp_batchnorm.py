@@ -35,8 +35,10 @@ class LPBatchNorm2d(DoneFlagMixin,nn.Module):
     self.register_buffer("done_flag",done_flag)
 
     # add parameters
-    self.weight = torch.ones(self.channels)
-    self.bias = torch.zeros(self.channels)
+    weight = nn.parameter.Parameter(torch.ones(self.channels))
+    bias = nn.parameter.Parameter(torch.zeros(self.channels))
+    self.register_parameter("weight",weight)
+    self.register_parameter("bias",bias)
 
   def reset_running_stats(self):
     self.mean.zero_()
