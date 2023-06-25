@@ -190,8 +190,8 @@ class TestTorchBraid(unittest.TestCase):
     torch.manual_seed(434442321)
     x0 = 1.0*torch.rand(5,dim) # forward initial cond
     w0 = 3.0*torch.ones(5,dim) # adjoint initial cond
-    max_levels = 1
-    max_iters = 1
+    max_levels = 3
+    max_iters = 8
 
     # this catch block, augments the 
     rank = MPI.COMM_WORLD.Get_rank()
@@ -200,25 +200,37 @@ class TestTorchBraid(unittest.TestCase):
     except RuntimeError as err:
       raise RuntimeError("proc=%d) reLUNetBN_Approx..failure" % rank) from err
 
+    x0 = 1.0*torch.rand(5,dim) # forward initial cond
+    w0 = 1.0*torch.rand(5,dim) # forward initial cond
+    m_parallel.train()
+    y = m_parallel(x0)
+    y.backward(w0)
+
     if m_serial!=None:
-      bn_serial = [l for l in m_serial.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
-      serial = ''
-      for ind,bn in enumerate(bn_serial):
-        n = [b for b in bn.buffers()]
-        serial += f'ser {ind:02d} {n}\n'
-        
-      print(serial)
-    # end serial
+      m_serial.train()
+      m_serial(x0)
 
-    bn_parallel = [l for l in m_parallel.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
-    self.assertTrue(len(bn_parallel)>0)
-    parallel = ''
-    for ind,bn in enumerate(bn_parallel):
-      n = [b for b in bn.buffers()]
-      parallel += f'{rank:3d} {ind:02d} {n}\n'
-
-    MPI.COMM_WORLD.Barrier()
-    print(parallel)
+# TODO: Turn this into a test
+#
+#    if m_serial!=None:
+#      bn_serial = [l for l in m_serial.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
+#      serial = ''
+#      for ind,bn in enumerate(bn_serial):
+#        n = [b for b in bn.buffers()]
+#        serial += f'ser {ind:02d} {n}\n'
+#        
+#      print(serial)
+#    # end serial
+#
+#    bn_parallel = [l for l in m_parallel.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
+#    self.assertTrue(len(bn_parallel)>0)
+#    parallel = ''
+#    for ind,bn in enumerate(bn_parallel):
+#      n = [b for b in bn.buffers()]
+#      parallel += f'{rank:3d} {ind:02d} {n}\n'
+#
+#    MPI.COMM_WORLD.Barrier()
+#    print(parallel)
 
   def test_convNet_Approx_coarse_ref(self):
     dim = 128

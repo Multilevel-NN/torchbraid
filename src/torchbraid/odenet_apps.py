@@ -473,7 +473,7 @@ class ForwardODENetApp(BraidApp):
     self.setVectorWeights(tstop,y)
   # end eval
 
-  def getPrimalWithGrad(self,tstart,tstop,level):
+  def getPrimalWithGrad(self,tstart,tstop,level,done):
     """ 
     Get the forward solution associated with this
     time step and also get its derivative. This is
@@ -500,7 +500,7 @@ class ForwardODENetApp(BraidApp):
     x = t_x.detach()
     y = t_x.detach().clone()
 
-    self.layers_data_structure.updateLayerDoneFlag(level==0)
+    self.layers_data_structure.updateLayerDoneFlag(level==0 and done)
 
     x.requires_grad = True 
     dt = tstop-tstart
@@ -625,7 +625,7 @@ class BackwardODENetApp(BraidApp):
         # we need to adjust the time step values to reverse with the adjoint
         # this is so that the renumbering used by the backward problem is properly adjusted
         (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,
-                                                         self.Tf-tstart,level)
+                                                         self.Tf-tstart,level,done)
                                                          
         # print(self.fwd_app.my_rank, "--> FWD with layer ", [p.data for p in layer.parameters()])
 
