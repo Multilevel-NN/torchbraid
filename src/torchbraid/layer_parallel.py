@@ -202,6 +202,12 @@ class LayerParallel(LPModule):
   # This method copies the layer parameters and can be used for verification
   def buildSequentialOnRoot(self):
     ode_layers    = [FixDTBlock(copy.deepcopy(l),self.dt) for l in self.layer_models]
+
+    # reset running stats
+    for l in nn.Sequential(*ode_layers).modules():
+      if hasattr(l,'reset_running_stats'):
+        l.reset_running_stats()
+
     remote_layers = ode_layers
     build_seq_tag = 12         # this 
     comm          = self.getMPIComm()

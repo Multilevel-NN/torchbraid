@@ -200,8 +200,6 @@ class TestTorchBraid(unittest.TestCase):
     except RuntimeError as err:
       raise RuntimeError("proc=%d) reLUNetBN_Approx..failure" % rank) from err
 
-    bn_parallel = [l for l in m_parallel.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
-    self.assertTrue(len(bn_parallel)>0)
     if m_serial!=None:
       bn_serial = [l for l in m_serial.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
       serial = ''
@@ -210,7 +208,10 @@ class TestTorchBraid(unittest.TestCase):
         serial += f'ser {ind:02d} {n}\n'
         
       print(serial)
+    # end serial
 
+    bn_parallel = [l for l in m_parallel.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
+    self.assertTrue(len(bn_parallel)>0)
     parallel = ''
     for ind,bn in enumerate(bn_parallel):
       n = [b for b in bn.buffers()]

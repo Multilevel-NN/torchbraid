@@ -110,7 +110,6 @@ class ForwardODENetApp(BraidApp):
         self.done_flag = tb_utils.DoneFlag.allocate()
 
       def updateLayerDoneFlag(self,new_state):
-        print(f'UPDATE {new_state}')
         tb_utils.DoneFlag.update(self.done_flag,new_state)
 
       def registerLayerDoneFlag(self,layer):
@@ -464,7 +463,7 @@ class ForwardODENetApp(BraidApp):
         ny = layer(dt,t_y)
         y.replaceTensor(ny.detach().clone()) 
 
-      self.backpropped[tstart,tstop] = (t_y,ny)
+      self.backpropped[ts_index] = (t_y,ny)
     else:
       with torch.no_grad():
         ny = layer(dt,t_y)
@@ -493,8 +492,8 @@ class ForwardODENetApp(BraidApp):
       assert ts_index in self.layer_dict
       layer = self.layer_dict[ts_index]
 
-      if level==0 and (tstart,tstop) in self.backpropped:
-        x,y = self.backpropped[(tstart,tstop)]
+      if level==0 and ts_index in self.backpropped:
+        x,y = self.backpropped[ts_index]
         return (y,x), layer
     
     t_x = b_x.tensor()
