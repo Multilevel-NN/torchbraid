@@ -34,6 +34,10 @@ class LPBatchNorm2d(DoneFlagMixin,nn.Module):
     self.register_buffer("var",var)
     self.register_buffer("done_flag",done_flag)
 
+    # add parameters
+    self.weight = torch.ones(self.channels)
+    self.bias = torch.zeros(self.channels)
+
   def reset_running_stats(self):
     self.mean.zero_()
     self.var.fill_(1)
@@ -55,4 +59,4 @@ class LPBatchNorm2d(DoneFlagMixin,nn.Module):
       var = self.var
       #print('EVAL')
  
-    return F.batch_norm(x,mean,var,None,None,bn_train_mode,self.momentum,self.eps)
+    return F.batch_norm(x,mean,var,self.weight,self.bias,bn_train_mode,self.momentum,self.eps)
