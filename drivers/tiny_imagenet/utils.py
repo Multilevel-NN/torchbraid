@@ -14,6 +14,7 @@ import torch.optim as optim
 
 import torchbraid
 import torchbraid.utils
+from torchbraid.utils import LPBatchNorm2d
 
 from torchbraid.mgopt import root_print, compute_levels
 
@@ -32,8 +33,6 @@ def get_rev():
 # Related to:
 # https://arxiv.org/pdf/2002.09779.pdf
 
-track_running_stats = True
-
 ####################################################################################
 ####################################################################################
 # Classes and functions that define the basic network types for MG/Opt and TorchBraid.
@@ -47,7 +46,7 @@ class OpenLayer(nn.Module):
     self.channels = channels
     self.pre = nn.Sequential(
       nn.Conv2d(3, channels, kernel_size=7, padding=3, stride=2,bias=False),
-      nn.BatchNorm2d(channels,track_running_stats=track_running_stats, momentum=0.1),
+      LPBatchNorm2d(channels,momentum=0.1),
       nn.ReLU(),
       nn.MaxPool2d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
     )
@@ -87,13 +86,13 @@ class TransitionLayer(nn.Module):
       self.pre = nn.Sequential(
         nn.AvgPool2d(kernel_size=3, stride=1, padding=1),
         nn.Conv2d(channels, out_channels, kernel_size=3, stride=2, padding=1,bias=False),
-        nn.BatchNorm2d(out_channels,track_running_stats=track_running_stats),
+        LPBatchNorm2d(out_channels),
         nn.ReLU()
       )
     else:
       self.pre = nn.Sequential(
         nn.Conv2d(channels, out_channels, kernel_size=3, stride=2, padding=1,bias=False),
-        nn.BatchNorm2d(out_channels, track_running_stats=track_running_stats),
+        LPBatchNorm2d(out_channels),
         nn.ReLU()
       )
 
@@ -111,9 +110,9 @@ class StepLayer(nn.Module):
     
     # Account for 3 RGB Channels
     self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1,bias=False)
-    self.bn1   = nn.BatchNorm2d(channels,track_running_stats=track_running_stats, momentum=0.1)
+    self.bn1   = LPBatchNorm2d(channels, momentum=0.1)
     self.conv2 = nn.Conv2d(channels,channels,ker_width,padding=1,bias=False)
-    self.bn2   = nn.BatchNorm2d(channels,track_running_stats=track_running_stats, momentum=0.1)
+    self.bn2   = LPBatchNorm2d(channels, momentum=0.1)
 
     self.activation1 = nn.ReLU()
     self.activation2 = nn.ReLU()
