@@ -199,12 +199,19 @@ class TestTorchBraid(unittest.TestCase):
       m_parallel,m_serial = self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-16,prefix='reLUNetBN_Approx')
     except RuntimeError as err:
       raise RuntimeError("proc=%d) reLUNetBN_Approx..failure" % rank) from err
+ 
+    # evaluate more times to make sure the batchnorm is correct
+    ########################################################
 
     # figure out the whole GPU situation
     my_device,my_host = getDevice(MPI.COMM_WORLD) 
 
     x0 = 1.0*torch.rand(5,dim,device=my_device) # forward initial cond
     w0 = 1.0*torch.rand(5,dim,device=my_device) # forward initial cond
+
+    m_parallel.eval() # evaluation should result in no buffer changes
+    y = m_parallel(x0)
+
     m_parallel.train()
     y = m_parallel(x0)
     y.backward(w0)
@@ -213,27 +220,16 @@ class TestTorchBraid(unittest.TestCase):
       m_serial.train()
       m_serial(x0)
 
-# TODO: Turn this into a test
-#
-    if m_serial!=None:
-      bn_serial = [l for l in m_serial.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
-      serial = ''
-      for ind,bn in enumerate(bn_serial):
-        n = [b for b in bn.buffers()]
-        serial += f'ser {ind:02d} {n}\n'
-        
-      print(serial)
-    # end serial
- 
-    bn_parallel = [l for l in m_parallel.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
-    self.assertTrue(len(bn_parallel)>0)
-    parallel = ''
-    for ind,bn in enumerate(bn_parallel):
-      n = [b for b in bn.buffers()]
-      parallel += f'{rank:3d} {ind:02d} {n}\n'
- 
-    MPI.COMM_WORLD.Barrier()
-    print(parallel)
+    # test the buffers
+    parallel_buffers = self.copyBuffersToRoot(m_parallel,my_device)
+    if rank==0:
+      serial_buffers = list(m_serial.buffers())
+
+      for s,p in zip(serial_buffers,parallel_buffers):
+        if s.dtype==torch.bool: 
+          continue
+       
+        self.assertTrue(torch.norm(s-p).item()/torch.norm(s).item() < 1.e-15)
 
   def test_convNet_Approx_coarse_ref(self):
     dim = 128
@@ -344,6 +340,32 @@ class TestTorchBraid(unittest.TestCase):
 
     fine_tidx = m.fwd_app.getFineTimeIndex(tidx=23,level=1)
     self.assertEqual(fine_tidx,23*cfactor[0])
+
+  def copyBuffersToRoot(self,m,device):
+    comm     = m.getMPIComm()
+    my_rank  = m.getMPIComm().Get_rank()
+    num_proc = m.getMPIComm().Get_size()
+ 
+    bn_mods = [l for l in m.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
+    params = []
+    for l in bn_mods:
+      params.extend(list(l.buffers()))
+
+    if len(params)==0:
+      return params
+
+    if my_rank==0:
+      for i in range(1,num_proc):
+        remote_p = comm.recv(source=i,tag=77)
+        remote_p = [p.to(device) for p in remote_p]
+        params.extend(remote_p)
+
+      return params
+    else:
+      params_cpu = [p.cpu() for p in params]
+      comm.send(params_cpu,dest=0,tag=77)
+      return None
+  # end copyParametersToRoot
 
   def copyParameterGradToRoot(self,m,device):
     comm     = m.getMPIComm()
