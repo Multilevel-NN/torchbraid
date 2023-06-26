@@ -305,14 +305,13 @@ class ForwardODENetApp(BraidApp):
     that any parallel communication is correctly handled even if the layer
     is of a different type.
     """
-    i = self.getGlobalTimeIndex(t)
-    ind = bisect_right(self.layers_data_structure.indices,i)
+    ind = self.getGlobalTimeIndex(t)
 
     # using a dictionary to cache previously built temp layers
     if ind in self.temp_layers:
       result = self.temp_layers[ind]
     else:
-      result = self.layers_data_structure.buildLayer(i,self.device)
+      result = self.layers_data_structure.buildLayer(ind,self.device)
       self.temp_layers[ind] = result
 
     # set correct mode...neccessary for BatchNorm
