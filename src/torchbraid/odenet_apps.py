@@ -298,21 +298,18 @@ class ForwardODENetApp(BraidApp):
 
     return shapes
 
-  def getTempLayer(self,t):
+  def getTempLayer(self,ind):
     """
     This function returns a pytorch layer module. A dictionary is used
     to cache the construction and search. These will be used to make sure
     that any parallel communication is correctly handled even if the layer
     is of a different type.
     """
-    ind = self.getGlobalTimeIndex(t)
-
     # using a dictionary to cache previously built temp layers
-    if ind in self.temp_layers:
-      result = self.temp_layers[ind]
-    else:
-      result = self.layers_data_structure.buildLayer(ind,self.device)
-      self.temp_layers[ind] = result
+    if ind not in self.temp_layers:
+      self.temp_layers[ind] = self.layers_data_structure.buildLayer(ind,self.device)
+
+    result = self.temp_layers[ind]
 
     # set correct mode...neccessary for BatchNorm
     if self.training and not result.training:
@@ -440,16 +437,14 @@ class ForwardODENetApp(BraidApp):
 
     self.layers_data_structure.updateLayerDoneFlag(done)
 
-    record = False
-    layer = None
-    if level==0 and done:
-      ts_index = self.getGlobalTimeIndex(tstart)
-      if ts_index in self.layer_dict:
-        layer = self.layer_dict[ts_index]
-        record = True
- 
-    if layer==None:
-      layer = self.getTempLayer(tstart)
+    ts_index = self.getGlobalTimeIndex(tstart)
+    if level==0 and done and ts_index in self.layer_dict:
+      layer = self.layer_dict[ts_index]
+      record = True
+    else:
+      layer = self.getTempLayer(ts_index)
+      record = False
+
       self.setLayerWeights(layer,y.weightTensors())
 
     t_y = y.tensor().detach()
