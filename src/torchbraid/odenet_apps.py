@@ -190,6 +190,7 @@ class ForwardODENetApp(BraidApp):
       owned_layers -= 1
 
     # Now creating the trainable layers
+    self.layer_owned = { i for i in range(self.start_layer,self.start_layer+owned_layers) }
     self.layer_dict = { i: self.layers_data_structure.buildLayer(i,self.device) for i in range(self.start_layer,self.start_layer+owned_layers) }
     self.layer_models = [ self.layer_dict[i] for i in range(self.start_layer,self.start_layer+owned_layers) ]
 
@@ -438,9 +439,12 @@ class ForwardODENetApp(BraidApp):
     self.layers_data_structure.updateLayerDoneFlag(done)
 
     ts_index = self.getGlobalTimeIndex(tstart)
-    if level==0 and done and ts_index in self.layer_dict:
+    if level==0 and done and ts_index in self.layer_owned:
       layer = self.layer_dict[ts_index]
       record = True
+    elif ts_index in self.layer_owned:
+      layer = self.layer_dict[ts_index]
+      record = False
     else:
       layer = self.getTempLayer(ts_index)
       record = False
