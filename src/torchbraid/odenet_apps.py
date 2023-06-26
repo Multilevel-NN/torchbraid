@@ -317,7 +317,7 @@ class ForwardODENetApp(BraidApp):
     # set correct mode...neccessary for BatchNorm
     if self.training and not result.training:
       result.train()
-    elif not self.training:
+    elif not self.training and result.training:
       result.eval()
 
     return result
