@@ -214,7 +214,6 @@ class ForwardODENetApp(BraidApp):
     self.initial_guess = None
 
     self.backpropped = dict()
-    self.temp_layers = dict()
     self.state_shapes = dict()
 
     # If this is a SpliNet, create communicators for shared weights
@@ -299,7 +298,7 @@ class ForwardODENetApp(BraidApp):
 
     return shapes
 
-  def getTempLayer(self,ind):
+  def getLayer(self,ind):
     """
     This function returns a pytorch layer module. A dictionary is used
     to cache the construction and search. These will be used to make sure
@@ -307,10 +306,10 @@ class ForwardODENetApp(BraidApp):
     is of a different type.
     """
     # using a dictionary to cache previously built temp layers
-    if ind not in self.temp_layers:
-      self.temp_layers[ind] = self.layers_data_structure.buildLayer(ind,self.device)
+    if ind not in self.layer_dict:
+      self.layer_dict[ind] = self.layers_data_structure.buildLayer(ind,self.device)
 
-    result = self.temp_layers[ind]
+    result = self.layer_dict[ind]
 
     # set correct mode...neccessary for BatchNorm
     if self.training and not result.training:
@@ -446,7 +445,7 @@ class ForwardODENetApp(BraidApp):
       layer = self.layer_dict[ts_index]
       record = False
     else:
-      layer = self.getTempLayer(ts_index)
+      layer = self.getLayer(ts_index)
       record = False
 
       self.setLayerWeights(layer,y.weightTensors())
@@ -483,7 +482,8 @@ class ForwardODENetApp(BraidApp):
 
     # Set the layer at tstart. For a SpliNet, get the layer weights from x at tstart, otherwise, get layer and weights from storage.
     if self.splinet:
-      layer = self.getTempLayer(tstart)
+      assert False
+      layer = self.getLayer(tstart)
       self.setLayerWeights(layer,b_x.weightTensors())
     else:
       ts_index = self.getGlobalTimeIndex(tstart)
