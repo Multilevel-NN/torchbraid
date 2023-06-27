@@ -132,6 +132,8 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mi
     stop_time = timer()
     optimizer.step()
 
+    model.startStateCommunication() 
+
     total_data += batch_size(data)
     total_time += stop_time - start_time
 

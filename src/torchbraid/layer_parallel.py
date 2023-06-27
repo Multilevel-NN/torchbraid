@@ -174,6 +174,12 @@ class LayerParallel(LPModule):
     # in "mixing" adjoint data.
     #self.fwd_app.setCFactor(CWt)
 
+  def startStateCommunication(self):
+    self.fwd_app.beginUpdateWeights()
+
+  def endStateCommunication(self):
+    self.fwd_app.endUpdateWeights()
+
   def forward(self,x):
     # we are doing this to take adavtage of
     # pytorch's autograd which functions "naturally"

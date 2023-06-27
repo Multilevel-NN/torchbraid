@@ -381,55 +381,16 @@ class ForwardODENetApp(BraidApp):
 
     return self.parameter_shapes[ind]
 
-  def setVectorWeights(self,t,x):
-
-    if self.splinet: 
-      # Evaluate the splines at time t and get interval k such that t \in [\tau_k, \tau_k+1] for splineknots \tau
-      with torch.no_grad():
-        splines, k = self.splinebasis.eval(t)
-        # Add up sum over p+1 non-zero splines(t) times weights coeffients, l=0,\dots,p
-        l = 0 # first one here, because I didn't know how to set the shape of 'weights' correctly...
-        layermodel_localID = k + l - self.start_layer
-        assert layermodel_localID >= 0 and layermodel_localID < len(self.layer_dict)
-        layer = self.layer_dict[layermodel_localID]
-        weights = [splines[l] * p.data for p in layer.parameters()] # l=0
-        # others: l=1,dots, p
-        for l in range(1,len(splines)):
-          layermodel_localID = k + l - self.start_layer
-          if t== self.Tf and l==len(splines)-1: # There is one more spline at Tf, which is zero at Tf and therefore it is not stored. Skip. 
-            continue
-          assert layermodel_localID >= 0 and layermodel_localID < len(self.layer_dict)
-          layer = self.layer_dict[layermodel_localID]
-          for dest_w, src_p in zip(weights, list(layer.parameters())):  
-              dest_w.add_(src_p.data, alpha=splines[l])
-
-    else: 
-      layer_index = self.getGlobalTimeIndex(t) 
-      if layer_index in self.layer_dict:
-        layer = self.layer_dict[layer_index]
-        weights = list(ForwardODENetApp.layerDataGen(layer))
-      else:
-        weights = []
-
-    x.addWeightTensors(weights)
-  # end setVectorWeights
-
-  def setLayerWeights(self,layer,weights):
-    with torch.no_grad():
-      dest = ForwardODENetApp.layerDataGen(layer)
-      for d,w in zip(dest,weights):
-        d.copy_(w)
-  # end setLayerWeights
-
   def initializeVector(self,t,x):
-    # self.setVectorWeights(t,x)
-
     if  self.initial_guess is not None and t != 0.0:
       x.replaceTensor(copy.deepcopy(self.initial_guess.getState(t)))
   # end initializeVector 
 
   def beginUpdateWeights(self):
     with self.timer("beginUpdateWeights"):
+      if self.use_cuda:
+        torch.cuda.synchronize()
+
       # don't recommunicate the layer parameters
       if self.requests is None:
         self.requests = self.layers_data_structure.sendRecvLayers(self.getMPIComm(),
@@ -441,7 +402,6 @@ class ForwardODENetApp(BraidApp):
   def endUpdateWeights(self):
     with self.timer("endUpdateWeights"):
       if self.requests is not None:
-        torch.cuda.synchronize()
         MPI.Request.Waitall(self.requests)
         self.requests = None
 
@@ -501,8 +461,6 @@ class ForwardODENetApp(BraidApp):
       layer = self.getLayer(ts_index)
       record = False
 
-      #self.setLayerWeights(layer,y.weightTensors())
-
     t_y = y.tensor().detach()
 
     # no gradients are necessary here, so don't compute them
@@ -518,9 +476,6 @@ class ForwardODENetApp(BraidApp):
       with torch.no_grad():
         ny = layer(dt,t_y)
         y.replaceTensor(ny) 
-
-    # This connects weights at tstop with the vector y. For a SpliNet, the weights at tstop are evaluated using the spline basis function. 
-    # self.setVectorWeights(tstop,y)
   # end eval
 
   def getPrimalWithGrad(self,tstart,tstop,level,done):
@@ -537,7 +492,7 @@ class ForwardODENetApp(BraidApp):
     if self.splinet:
       assert False
       layer = self.getLayer(tstart)
-      self.setLayerWeights(layer,b_x.weightTensors())
+      # self.setLayerWeights(layer,b_x.weightTensors())
     else:
       ts_index = self.getGlobalTimeIndex(tstart)
       assert ts_index in self.layer_dict

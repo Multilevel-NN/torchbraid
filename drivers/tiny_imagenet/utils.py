@@ -221,6 +221,9 @@ class SerialNet(nn.Module):
   def loadParams(self,rank,model_dir):
     self.load_state_dict(torch.load(f'{model_dir}/serial_model.{rank}.mdl'))
 
+  def startStateCommunication(self):
+    pass # no-op
+
 
 class ParallelNet(nn.Module):
   ''' Full parallel ODE-net based on StepLayer,  will be parallelized in time ''' 
@@ -310,6 +313,9 @@ class ParallelNet(nn.Module):
 
   def loadParams(self,rank,model_dir):
     self.load_state_dict(torch.load(f'{model_dir}/parallel_model.{rank}.mdl'))
+
+  def startStateCommunication(self):
+    self.parallel_nn.startStateCommunication() 
 
 # end ParallelNet 
 ####################################################################################
