@@ -136,6 +136,37 @@ class ForwardODENetApp(BraidApp):
         tb_utils.DoneFlag.module_register(layer,self.done_flag)
         return layer
 
+      def layerWeights(self,layer):
+        return layer.parameters()
+
+      @torch.no_grad()
+      def sendRecvLayers(self,comm,recv_layers_list,send_layers_list,layer_dict,device):
+        tag_shift = 1e4
+        requests = []
+        for fine_index,src_proc in recv_layers_list:
+          # allocate space if layer doesn't exit
+          if fine_index not in layer_dict:
+            layer_dict[fine_index] = self.buildLayer(fine_index,device)
+
+          layer = layer_dict[fine_index]
+
+          params = self.layerWeights(layer)
+          for ind,p in enumerate(params):
+            if p is not None:
+              req = comm.Irecv(p.data,source=src_proc,tag=int(fine_index+tag_shift*ind))
+              requests += [req]
+
+        for fine_index,dest_proc in send_layers_list:
+          assert fine_index in layer_dict
+
+          params = self.layerWeights(layer_dict[fine_index])
+          for ind,p in enumerate(params):
+            if p is not None:
+              comm.Isend(p.data,dest=dest_proc,tag=int(fine_index+tag_shift*ind))
+
+        return requests
+  # end class LayersDataStructure
+
   # end class LayersDataStructure
 
   def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None,user_mpi_buf=False,nsplines=0, splinedegree=1):
@@ -193,6 +224,7 @@ class ForwardODENetApp(BraidApp):
     self.layer_owned = { i for i in range(self.start_layer,self.start_layer+owned_layers) }
     self.layer_dict = { i: self.layers_data_structure.buildLayer(i,self.device) for i in range(self.start_layer,self.start_layer+owned_layers) }
     self.layer_models = [ self.layer_dict[i] for i in range(self.start_layer,self.start_layer+owned_layers) ]
+    self.requests = None
 
     if self.use_cuda:
       torch.cuda.synchronize()
@@ -395,7 +427,27 @@ class ForwardODENetApp(BraidApp):
       x.replaceTensor(copy.deepcopy(self.initial_guess.getState(t)))
   # end initializeVector 
 
+  def beginUpdateWeights(self):
+    with self.timer("beginUpdateWeights"):
+      # don't recommunicate the layer parameters
+      if self.requests is None:
+        self.requests = self.layers_data_structure.sendRecvLayers(self.getMPIComm(),
+                                                                  self.buildLayersRecvList(),
+                                                                  self.buildLayersSendList(),
+                                                                  self.layer_dict,
+                                                                  self.device)
+
+  def endUpdateWeights(self):
+    with self.timer("endUpdateWeights"):
+      if self.requests is not None:
+        torch.cuda.synchronize()
+        MPI.Request.Waitall(self.requests)
+        self.requests = None
+
   def run(self,x):
+    self.beginUpdateWeights()
+    self.endUpdateWeights()
+
     # turn on derivative path (as requried)
     self.use_deriv = self.training
     
