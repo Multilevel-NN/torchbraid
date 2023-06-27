@@ -373,6 +373,7 @@ class ForwardODENetApp(BraidApp):
     return [self.shape0[ind],]
 
   def getParameterShapes(self,tidx,level):
+    return []
     if len(self.parameter_shapes)<=0:
       return []
     i = self.getFineTimeIndex(tidx,level)
@@ -421,7 +422,7 @@ class ForwardODENetApp(BraidApp):
   # end setLayerWeights
 
   def initializeVector(self,t,x):
-    self.setVectorWeights(t,x)
+    # self.setVectorWeights(t,x)
 
     if  self.initial_guess is not None and t != 0.0:
       x.replaceTensor(copy.deepcopy(self.initial_guess.getState(t)))
@@ -500,7 +501,7 @@ class ForwardODENetApp(BraidApp):
       layer = self.getLayer(ts_index)
       record = False
 
-      self.setLayerWeights(layer,y.weightTensors())
+      #self.setLayerWeights(layer,y.weightTensors())
 
     t_y = y.tensor().detach()
 
@@ -519,7 +520,7 @@ class ForwardODENetApp(BraidApp):
         y.replaceTensor(ny) 
 
     # This connects weights at tstop with the vector y. For a SpliNet, the weights at tstop are evaluated using the spline basis function. 
-    self.setVectorWeights(tstop,y)
+    # self.setVectorWeights(tstop,y)
   # end eval
 
   def getPrimalWithGrad(self,tstart,tstop,level,done):
