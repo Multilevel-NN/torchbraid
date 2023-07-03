@@ -24,21 +24,24 @@ from torchbraid.utils import MPI, git_rev, getDevice
 
 __all__ = [ 'parse_args', 'ParallelNet' ]
 
+# Related to:
+# https://arxiv.org/pdf/2002.09779.pdf
+
 def getComm():
   return MPI.COMM_WORLD
 
-def get_rev():
-  return torchbraid.utils.git_rev()
-
-# Related to:
-# https://arxiv.org/pdf/2002.09779.pdf
+def batch_norm(lp_batch_norm,*args,**kwargs):
+  if lp_batch_norm:
+    return LPBatchNorm2d(*args,**kwargs)
+  else:
+    return nn.BatchNorm2d(*args,**kwargs)
 
 ####################################################################################
 ####################################################################################
 # Classes and functions that define the basic network types for MG/Opt and TorchBraid.
 class OpenLayer(nn.Module):
   ''' Opening layer (not ODE-net, not parallelized in time) '''
-  def __init__(self,channels,seed):
+  def __init__(self,channels,seed,lp_batch_norm=False):
     super(OpenLayer, self).__init__()
 
     torch.manual_seed(seed)
@@ -46,7 +49,7 @@ class OpenLayer(nn.Module):
     self.channels = channels
     self.pre = nn.Sequential(
       nn.Conv2d(3, channels, kernel_size=7, padding=3, stride=2,bias=False),
-      LPBatchNorm2d(channels,momentum=0.1),
+      batch_norm(lp_batch_norm,channels,momentum=0.1),
       nn.ReLU(),
       nn.MaxPool2d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
     )
@@ -74,7 +77,7 @@ class CloseLayer(nn.Module):
 
 class TransitionLayer(nn.Module):
   ''' Closing layer (not ODE-net, not parallelized in time) '''
-  def __init__(self,channels,seed,pooling=False, keep_all_features=False):
+  def __init__(self,channels,seed,pooling=False, keep_all_features=False,lp_batch_norm=False):
     super(TransitionLayer, self).__init__()
 
     torch.manual_seed(seed)
@@ -86,13 +89,13 @@ class TransitionLayer(nn.Module):
       self.pre = nn.Sequential(
         nn.AvgPool2d(kernel_size=3, stride=1, padding=1),
         nn.Conv2d(channels, out_channels, kernel_size=3, stride=2, padding=1,bias=False),
-        LPBatchNorm2d(out_channels),
+        batch_norm(lp_batch_norm,out_channels),
         nn.ReLU()
       )
     else:
       self.pre = nn.Sequential(
         nn.Conv2d(channels, out_channels, kernel_size=3, stride=2, padding=1,bias=False),
-        LPBatchNorm2d(out_channels),
+        batch_norm(lp_batch_norm,out_channels),
         nn.ReLU()
       )
 
@@ -102,7 +105,7 @@ class TransitionLayer(nn.Module):
 
 class StepLayer(nn.Module):
   ''' Single ODE-net layer will be parallelized in time ''' 
-  def __init__(self,channels,activation='relu',seed=1):
+  def __init__(self,channels,activation='relu',seed=1,lp_batch_norm=False):
     super(StepLayer, self).__init__()
     ker_width = 3
 
@@ -110,9 +113,9 @@ class StepLayer(nn.Module):
     
     # Account for 3 RGB Channels
     self.conv1 = nn.Conv2d(channels,channels,ker_width,padding=1,bias=False)
-    self.bn1   = LPBatchNorm2d(channels, momentum=0.1)
+    self.bn1   = batch_norm(lp_batch_norm,channels, momentum=0.1)
     self.conv2 = nn.Conv2d(channels,channels,ker_width,padding=1,bias=False)
-    self.bn2   = LPBatchNorm2d(channels, momentum=0.1)
+    self.bn2   = batch_norm(lp_batch_norm,channels, momentum=0.1)
 
     self.activation1 = nn.ReLU()
     self.activation2 = nn.ReLU()
@@ -234,15 +237,15 @@ class ParallelNet(nn.Module):
                      coarse_frelax_only=False, pooling=False, seed=1, keep_all_features=False):
     super(ParallelNet, self).__init__()
 
-    step_layer_1 = lambda: StepLayer(channels,seed)
-    step_layer_2 = lambda: (StepLayer(2*channels,seed) if not keep_all_features else StepLayer(4*channels, seed))
-    step_layer_3 = lambda: (StepLayer(4*channels,seed) if not keep_all_features else StepLayer(16*channels, seed))
-    step_layer_4 = lambda: (StepLayer(8*channels,seed) if not keep_all_features else StepLayer(64*channels, seed))
+    step_layer_1 = lambda: StepLayer(channels,seed,lp_batch_norm=True)
+    step_layer_2 = lambda: (StepLayer(2*channels,seed,lp_batch_norm=True) if not keep_all_features else StepLayer(4*channels, seed,lp_batch_norm=True))
+    step_layer_3 = lambda: (StepLayer(4*channels,seed,lp_batch_norm=True) if not keep_all_features else StepLayer(16*channels, seed,lp_batch_norm=True))
+    step_layer_4 = lambda: (StepLayer(8*channels,seed,lp_batch_norm=True) if not keep_all_features else StepLayer(64*channels, seed,lp_batch_norm=True))
 
-    open_layer = lambda: OpenLayer(channels,seed)
-    trans_layer_1 = lambda: TransitionLayer(channels,seed, pooling, keep_all_features)
-    trans_layer_2 = lambda: (TransitionLayer(2*channels,seed, pooling, keep_all_features) if not keep_all_features else TransitionLayer(4*channels, seed, pooling, keep_all_features))
-    trans_layer_3 = lambda: (TransitionLayer(4*channels,seed, pooling, keep_all_features) if not keep_all_features else TransitionLayer(16*channels, seed, pooling, keep_all_features))
+    open_layer = lambda: OpenLayer(channels,seed,lp_batch_norm=True)
+    trans_layer_1 = lambda: TransitionLayer(channels,seed, pooling, keep_all_features,lp_batch_norm=True)
+    trans_layer_2 = lambda: (TransitionLayer(2*channels,seed, pooling, keep_all_features,lp_batch_norm=True) if not keep_all_features else TransitionLayer(4*channels, seed, pooling, keep_all_features,lp_batch_norm=True))
+    trans_layer_3 = lambda: (TransitionLayer(4*channels,seed, pooling, keep_all_features,lp_batch_norm=True) if not keep_all_features else TransitionLayer(16*channels, seed, pooling, keep_all_features,lp_batch_norm=True))
 
     layers    = [open_layer,    step_layer_1, trans_layer_1,    step_layer_2,  trans_layer_2,step_layer_3, trans_layer_3, step_layer_4]
     num_steps = [         1,  global_steps-1,             1,   global_steps-1, 1,            global_steps-1,           1, global_steps-1]
@@ -538,8 +541,5 @@ def get_lr_scheduler(optimizer, args):
             
     return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=patience, factor=factor)
     
-    
-            
-
 ####################################################################################
 ####################################################################################
