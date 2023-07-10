@@ -155,45 +155,47 @@ def generate_fake_data(dataset_size, sequence_length, input_size, hidden_size, s
   y = torch.randn(dataset_size, hidden_size)
   return x,y
 
-def test_args(comm):
+def test_args(comm,
+              num_data = 10,
+              input_size = 28,
+              sequence_length=30,
+              print_level = 0,
+              nrelax=1,
+              cfactor = 2,
+              Tf = None,
+              hidden_size = 20,
+              num_layers = 2,
+              batch_size = 1,
+              max_iters = 1,
+              max_levels = 1,
+              skip_downcycle = True,
+              seed = 42):
   args = dict()
-  args['num_data'] = 10
-  args['input_size'] = 28
-  args['sequence_length'] = 30
-  args['print_level'] = 0
-  args['nrelax'] = 1
-  args['cfactor'] = 2
-  args['Tf'] = float(args['sequence_length'])
-  args['hidden_size'] = 20
-  args['num_layers'] = 2
-  args['batch_size'] = 1
-  args['max_iters'] = 1
-  args['max_levels'] = 1
-  args['skip_downcycle'] = True
+  args['num_data'] = num_data
+  args['input_size'] = input_size
+  args['sequence_length'] = sequence_length
+  args['print_level'] = print_level
+  args['nrelax'] = nrelax
+  args['cfactor'] = cfactor
+  args['hidden_size'] = hidden_size
+  args['num_layers'] = num_layers
+  args['batch_size'] = batch_size
+  args['max_iters'] = max_iters
+  args['max_levels'] = max_levels
+  args['skip_downcycle'] = skip_downcycle
+  args['seed'] = seed
+
+  if Tf is None:
+    args['Tf'] = float(args['sequence_length'])
+  else:
+    args['Tf'] = Tf
+
   args['local_steps'] = int(args['sequence_length']/comm.Get_size())
   args['dt'] = args['Tf'] / args['sequence_length']
-  args['seed'] = 42
   return args
     
 def test_args_small(comm):
-  args = dict()
-  args['num_data'] = 5
-  args['input_size'] = 2
-  args['sequence_length'] = 4
-  args['print_level'] = 0
-  args['nrelax'] = 1
-  args['cfactor'] = 2
-  args['Tf'] = float(args['sequence_length'])
-  args['hidden_size'] = 3
-  args['num_layers'] = 2
-  args['batch_size'] = 1
-  args['max_iters'] = 1
-  args['max_levels'] = 1
-  args['skip_downcycle'] = True
-  args['local_steps'] = int(args['sequence_length']/comm.Get_size())
-  args['dt'] = args['Tf'] / args['sequence_length']
-  args['seed'] = 42
-  return args
+  return test_args(comm, num_data=5, input_size=2, sequence_length=4, hidden_size=3)
 
 def get_parallel_gru(gru_model, args):
   parallel_gru = torchbraid.GRU_Parallel(comm = MPI.COMM_WORLD,
@@ -243,70 +245,64 @@ def distribute_input_data(x_global, y_global, comm):
   return x_local, y_local
 
 
-class TestGRULayerParallel(unittest.TestCase):
-  def test_gru_serial_forward(self):
-    comm = MPI.COMM_WORLD
-    my_rank = comm.Get_rank()
-    
-    if my_rank == 0:
-      self.gru_serial_forward_device('cpu')
 
-      my_device, my_host = getDevice(comm) 
-      if my_device.type != 'cpu':
-        self.gru_serial_forward_device(my_device) 
-    comm.barrier()
-    
-  def gru_serial_forward_device(self, device):
+class TestGRULayerParallel(unittest.TestCase):
+  def devices_test(self,func):
     """
-    Tests the gru_serial implementation for functionality
-    This should only be run on one processor
+    Test function func on cpu and gpu (if available)
+
+    func should accept a single argument: the device on which to run the function
     """
     comm = MPI.COMM_WORLD
     args = test_args(comm)
-    gru_model = ImplicitGRUBlock(args['input_size'], args['hidden_size'], args['seed']).to(device)
-    serial_gru = torchbraid.GRU_Serial(gru_model, args['num_layers'], args['hidden_size'], args['dt']).to(device)
-
-    x, y = generate_fake_data(args['num_data'], args['sequence_length'], args['input_size'], args['hidden_size'], args['seed'])
-    x = x.to(device)
-    y = y.to(device)
-    h = torch.zeros(args['num_layers'], x.size(0), args['hidden_size']).to(device)
-
-    # Test the forward with an initial hidden state
-    yhat_1 = serial_gru(x, h)
-    self.assertTrue(yhat_1.shape[0] == args['num_layers'])
-    self.assertTrue(yhat_1.shape[1] == args['num_data'])
-    self.assertTrue(yhat_1.shape[2] == args['hidden_size'])
-
-    # Test the forward without an initial hidden state
-    yhat_2 = serial_gru(x)
-    self.assertTrue(yhat_2.shape[0] == args['num_layers'])
-    self.assertTrue(yhat_2.shape[1] == args['num_data'])
-    self.assertTrue(yhat_2.shape[2] == args['hidden_size'])
-
-    # Check that the outputs match
-    self.assertEqual(torch.norm(yhat_1 - yhat_2), 0)
-
-    # Check the output is as expected:
-    h = torch.zeros(args['num_layers'], x.size(0), args['hidden_size']).to(device)
-    for i in range(args['sequence_length']):
-      h = gru_model(0,0.0,args['dt'],x[:,i,:], h)
-
-    self.assertEqual(torch.norm(yhat_2 - h[0]), 0)
-    
-  def test_gru_parallel_forward(self):
-    comm = MPI.COMM_WORLD
-    self.gru_parallel_forward_device('cpu')
-    comm.barrier()
-
-    my_device, my_host = getDevice(comm) 
+    func(args, 'cpu')
+    my_device, my_host = getDevice(comm)
     if my_device.type != 'cpu':
-      self.gru_parallel_forward_device(my_device) 
+      func(args, my_device)
     comm.barrier()
+        
+  def test_gru_forward(self):
+    self.devices_test(self.gru_serial_forward_device)
+    self.devices_test(self.gru_parallel_forward_device)
+    self.devices_test(self.gru_parallel_fastforward_device)
+    
+  def gru_serial_forward_device(self, args, device):
+    """ Tests the gru_serial implementation for functionality """
+    comm = MPI.COMM_WORLD
+    if comm.Get_rank() == 0:
+      gru_model = ImplicitGRUBlock(args['input_size'], args['hidden_size'], args['seed']).to(device)
+      serial_gru = torchbraid.GRU_Serial(gru_model, args['num_layers'], args['hidden_size'], args['dt']).to(device)
 
-  def gru_parallel_forward_device(self, device):
+      x, y = generate_fake_data(args['num_data'], args['sequence_length'], args['input_size'], args['hidden_size'], args['seed'])
+      x = x.to(device)
+      y = y.to(device)
+      h = torch.zeros(args['num_layers'], x.size(0), args['hidden_size']).to(device)
+
+      # Test the forward with an initial hidden state
+      yhat_1 = serial_gru(x, h)
+      self.assertTrue(yhat_1.shape[0] == args['num_layers'])
+      self.assertTrue(yhat_1.shape[1] == args['num_data'])
+      self.assertTrue(yhat_1.shape[2] == args['hidden_size'])
+
+      # Test the forward without an initial hidden state
+      yhat_2 = serial_gru(x)
+      self.assertTrue(yhat_2.shape[0] == args['num_layers'])
+      self.assertTrue(yhat_2.shape[1] == args['num_data'])
+      self.assertTrue(yhat_2.shape[2] == args['hidden_size'])
+
+      # Check that the outputs match
+      self.assertEqual(torch.norm(yhat_1 - yhat_2), 0)
+
+      # Check the output is as expected:
+      h = torch.zeros(args['num_layers'], x.size(0), args['hidden_size']).to(device)
+      for i in range(args['sequence_length']):
+        h = gru_model(0,0.0,args['dt'],x[:,i,:], h)
+
+      self.assertEqual(torch.norm(yhat_2 - h[0]), 0)
+    
+  def gru_parallel_forward_device(self, args, device):
     "Tests the gru_serial implementation for functionality"
     comm = MPI.COMM_WORLD
-    args = test_args(comm)
     rank = comm.Get_rank()
     n_procs = comm.Get_size()
     gru_model = ImplicitGRUBlock(args['input_size'], args['hidden_size'], args['seed']).to(device)
@@ -349,18 +345,9 @@ class TestGRULayerParallel(unittest.TestCase):
 
       self.assertEqual(torch.norm(yhat_2 - yhat_serial), 0)
 
-  def test_gru_parallel_fastforward(self):
-    comm = MPI.COMM_WORLD
-    self.gru_parallel_fastforward_device('cpu')
-
-    my_device, my_host = getDevice(comm) 
-    if my_device.type != 'cpu':
-      self.gru_parallel_fastforward_device(my_device) 
-
-  def gru_parallel_fastforward_device(self, device):
+  def gru_parallel_fastforward_device(self, args, device):
     "Test that the forward and fastward paths give the same result"
     comm = MPI.COMM_WORLD
-    args = test_args(comm)
     rank = comm.Get_rank()
     n_procs = comm.Get_size()
     gru_model = ImplicitGRUBlock(args['input_size'], args['hidden_size'], args['seed']).to(device)
