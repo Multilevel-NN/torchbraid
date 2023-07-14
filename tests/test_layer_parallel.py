@@ -80,6 +80,22 @@ class LinearBlock(nn.Module):
     return x
 # end layer
 
+class ExtraLinearBlock(nn.Module):
+  def __init__(self,dim=10):
+    super(ExtraLinearBlock, self).__init__()
+
+  def forward(self, x, *args,**kwargs):
+    assert len(args)==2
+    assert args[0]=='horse'
+    assert args[1]=='dog'
+
+    assert len(kwargs)==3
+    assert kwargs['a0']=='cat'
+    assert kwargs['a1']=='monkey'
+    assert kwargs['a2']=='donkey'
+    return x
+# end layer
+
 class ReLUBlock(nn.Module):
   def __init__(self,dim=10,with_bn=False):
     super(ReLUBlock, self).__init__()
@@ -118,6 +134,27 @@ class ConvBlock(nn.Module):
 # end layer
 
 class TestTorchBraid(unittest.TestCase):
+
+  def test_extra_linearNet_Exact(self):
+    dim = 2
+    basic_block = lambda: ExtraLinearBlock(dim)
+
+    # figure out the whole GPU situation
+    my_device,my_host = getDevice(MPI.COMM_WORLD) 
+
+    x0 = torch.randn(5,dim) # forward initial cond
+
+    x0 = x0.to(my_device)
+
+    m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,3*MPI.COMM_WORLD.Get_size(),2.0,max_fwd_levels=1,max_bwd_levels=1,max_iters=1)
+    m.setPrintLevel(0)
+    m = m.to(my_device)
+
+    MPI.COMM_WORLD.barrier()
+
+    m(x0,'horse','dog',a0='cat',a1='monkey',a2='donkey')
+  # end test_linearNet_Exact
+
   def test_linearNet_Exact(self):
     dim = 2
     basic_block = lambda: LinearBlock(dim)
@@ -390,7 +427,8 @@ class TestTorchBraid(unittest.TestCase):
       return None
   # end copyParametersToRoot
 
-  def backForwardProp(self,dim, basic_block,x0,w0,max_levels,max_iters,test_tol,prefix,ref_pair=None,check_grad=True,num_steps=4,print_level=0,check_initial_guess=False):
+  def backForwardProp(self,dim, basic_block,x0,w0,max_levels,max_iters,test_tol,prefix,
+                      ref_pair=None,check_grad=True,num_steps=4,print_level=0,check_initial_guess=False,extra_args=list(),extra_kwargs=dict()):
     Tf = 2.0
     cfactor = 2 
 
@@ -445,7 +483,7 @@ class TestTorchBraid(unittest.TestCase):
     xm.requires_grad = check_grad
 
     m.train()
-    wm = m(xm)
+    wm = m(xm,*extra_args,**extra_kwargs)
 
     times,uvals = m.getFineTimePoints()
 

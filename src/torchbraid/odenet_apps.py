@@ -57,8 +57,8 @@ class ForwardODENetApp(BraidApp):
 
       self.layer = layer
 
-    def forward(self,dt, x):
-      y = dt*self.layer(x)
+    def forward(self,dt, x,*args,**kwargs):
+      y = dt*self.layer(x,*args,**kwargs)
       y.add_(x)
       return y
   # end ODEBlock
@@ -70,8 +70,8 @@ class ForwardODENetApp(BraidApp):
 
       self.layer = layer
 
-    def forward(self,dt, x):
-      return self.layer(x)
+    def forward(self,dt, x,*args,**kwargs):
+      return self.layer(x,*args,**kwargs)
   # end ODEBlock
 
   class LayersDataStructure:
@@ -295,7 +295,7 @@ class ForwardODENetApp(BraidApp):
       return itertools.chain((p.data for p in layer.parameters()),
                              (b      for b in layer.buffers()))
 
-  def buildShapes(self,x):
+  def buildShapes(self,x,extra_args,extra_kwargs):
     """
     Do a dry run to determine the shapes of the state tensors that need
     to be built.
@@ -317,7 +317,7 @@ class ForwardODENetApp(BraidApp):
         # build the layer on the proper device
         layer = layer_constr().to(self.device) 
      
-        x = layer(x)
+        x = layer(x,*extra_args,**extra_kwargs)
           
         shapes += [x.shape]
     else:
@@ -405,7 +405,7 @@ class ForwardODENetApp(BraidApp):
         MPI.Request.Waitall(self.requests)
         self.requests = None
 
-  def run(self,x):
+  def run(self,x,extra_args,extra_kwargs):
     self.beginUpdateWeights()
     self.endUpdateWeights()
 
@@ -415,6 +415,9 @@ class ForwardODENetApp(BraidApp):
     # instead of doing runBraid, can execute tests
     #self.testBraid(x)
 
+    self.extra_args = extra_args
+    self.extra_kwargs = extra_kwargs
+
     # run the braid solver
     self.getMPIComm().Barrier()
     with self.timer("runBraid"):
@@ -423,6 +426,9 @@ class ForwardODENetApp(BraidApp):
 
       # reset derivative papth
       self.use_deriv = False
+
+    self.extra_args = list()
+    self.extra_kwargs = dict()
 
     if y is not None:
       return y[0]
@@ -441,7 +447,7 @@ class ForwardODENetApp(BraidApp):
 
     return params
 
-  def eval(self,y,tstart,tstop,level,done,x=None):
+  def eval(self,y,tstart,tstop,level,done):
     """
     Method called by "my_step" in braid. This is
     required to propagate from tstart to tstop, with the initial
@@ -468,13 +474,13 @@ class ForwardODENetApp(BraidApp):
     if record:
       with torch.enable_grad():
         t_y.requires_grad = True
-        ny = layer(dt,t_y)
+        ny = layer(dt,t_y,*self.extra_args,**self.extra_kwargs)
         y.replaceTensor(ny.detach().clone()) 
 
       self.backpropped[ts_index] = (t_y,ny)
     else:
       with torch.no_grad():
-        ny = layer(dt,t_y)
+        ny = layer(dt,t_y,*self.extra_args,**self.extra_kwargs)
         y.replaceTensor(ny) 
   # end eval
 
@@ -511,7 +517,7 @@ class ForwardODENetApp(BraidApp):
     x.requires_grad = True 
     dt = tstop-tstart
     with torch.enable_grad():
-      y = layer(dt,x)
+      y = layer(dt,x,*self.extra_args,**self.extra_kwargs)
     return (y, x), layer
   # end getPrimalWithGrad
 
@@ -558,15 +564,21 @@ class BackwardODENetApp(BraidApp):
   def timer(self,name):
     return self.timer_manager.timer("BckWD::"+name)
 
-  def run(self,x):
+  def run(self,x,extra_args,extra_kwargs):
     
     # instead of doing runBraid, can execute tests
     #self.testBraid(x)
 
     try:
 
+      self.fwd_app.extra_args = extra_args
+      self.fwd_app.extra_kwargs = extra_kwargs
+
       with self.timer("runBraid"):
         f = self.runBraid(x)
+
+      self.fwd_app.extra_args = list()
+      self.fwd_app.extra_kwargs = dict()
 
       if f is not None:
         f = f[0]

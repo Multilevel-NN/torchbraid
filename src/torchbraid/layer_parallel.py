@@ -180,7 +180,7 @@ class LayerParallel(LPModule):
   def endStateCommunication(self):
     self.fwd_app.endUpdateWeights()
 
-  def forward(self,x):
+  def forward(self,x,*extra_args,**extra_kwargs):
     # we are doing this to take adavtage of
     # pytorch's autograd which functions "naturally"
     # with the torch.autograd.function
@@ -193,7 +193,7 @@ class LayerParallel(LPModule):
       self.fwd_app.evalNetwork()
       self.bwd_app.evalNetwork()
 
-    return BraidFunction.apply(self.fwd_app,self.bwd_app,x,*params) 
+    return BraidFunction.apply(self.fwd_app,self.bwd_app,extra_args,extra_kwargs,x,*params) 
   # end forward
 
   def to(self, *args, **kwargs):

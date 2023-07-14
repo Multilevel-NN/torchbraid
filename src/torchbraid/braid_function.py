@@ -49,7 +49,7 @@ class BraidFunction(torch.autograd.Function):
     return F.pad(ten,tuple(padding),'constant',0.0)
 
   @staticmethod
-  def forward(ctx, fwd_app, bwd_app, x, *params):
+  def forward(ctx, fwd_app, bwd_app, extra_args,extra_kwargs, x, *params):
     comm          = fwd_app.getMPIComm()
     my_rank       = fwd_app.getMPIComm().Get_rank()
     num_ranks     = fwd_app.getMPIComm().Get_size()
@@ -59,7 +59,7 @@ class BraidFunction(torch.autograd.Function):
 
     # copy the input to all processors (ensure consistency)
     with fwd_app.timer("forward-buildshapes"):
-      shape = fwd_app.buildShapes(x)
+      shape = fwd_app.buildShapes(x,extra_args,extra_kwargs)
 
     old_shape = fwd_app.getShape()
     adjusting = old_shape is not None and old_shape!=shape
@@ -72,6 +72,8 @@ class BraidFunction(torch.autograd.Function):
     ctx.fwd_app = fwd_app
     ctx.bwd_app = bwd_app
     ctx.adjusting = adjusting
+    ctx.extra_args = extra_args
+    ctx.extra_kwargs = extra_kwargs
     ctx.save_for_backward(None, *params)
 
     if adjusting:
@@ -88,9 +90,9 @@ class BraidFunction(torch.autograd.Function):
 
     if my_rank!=num_ranks-1:
       result = torch.zeros(shape[-1],device=x.device)
-      fwd_app.run(x)
+      fwd_app.run(x,extra_args,extra_kwargs)
     else:
-      result = fwd_app.run(x)
+      result = fwd_app.run(x,extra_args,extra_kwargs)
 
     # broadcast the output of the last layer
     if num_ranks>1:
@@ -124,12 +126,12 @@ class BraidFunction(torch.autograd.Function):
     if my_rank==num_ranks-1:
       if ctx.adjusting:
         grad_output = BraidFunction.padForBatchChange(ctx.old_batch,ctx.temp_batch,grad_output,0)
-      result = ctx.bwd_app.run(grad_output)
+      result = ctx.bwd_app.run(grad_output,ctx.extra_args,ctx.extra_kwargs)
     else:
-      result = ctx.bwd_app.run(None)
+      result = ctx.bwd_app.run(None,ctx.extra_args,ctx.extra_kwargs)
 
-    # grad_input follows the input to forward: fwd_app, bwd_app, x, params
-    grad_input = (None,None) 
+    # grad_input follows the input to forward: fwd_app, bwd_app, extra_args,extra_kwargs, x, params
+    grad_input = (None,None,None,None) 
     grad_input += (result,)
 
     grads = ctx.bwd_app.grads
@@ -137,7 +139,7 @@ class BraidFunction(torch.autograd.Function):
     # flatten the grads array
     grads = [g for sublist in grads for g in sublist]
 
-    for grad_needed,param in zip(ctx.needs_input_grad[3:],grads):
+    for grad_needed,param in zip(ctx.needs_input_grad[5:],grads):
       if grad_needed:
         grad_input += (param,)
       else:
