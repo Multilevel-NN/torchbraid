@@ -540,6 +540,24 @@ def get_lr_scheduler(optimizer, args):
       factor = float(args.lr_scheduler[2])
             
     return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=patience, factor=factor)
+
+  if args.lr_scheduler[0] == 'cycliclr':
+    base_lr = 1e-4
+    max_lr = 0.1
+    step_size_up = 2000
+    step_size_down = None
+    if len(args.lr_scheduler) > 1:
+      base_lr = float(args.lr_scheduler[1])
+    if len(args.lr_scheduler) > 2:
+      max_lr = float(args.lr_scheduler[2])
+    if len(args.lr_scheduler) > 3:
+      mode = args.lr_scheduler[3]
+    if len(args.lr_scheduler) > 4:
+      step_size_up = int(args.lr_scheduler[4])
+    if len(args.lr_scheduler) > 5:
+      step_size_down = int(args.lr_scheduler[5])
+
+    return torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr, max_lr, step_size_up=step_size_up, step_size_down=step_size_down, mode=mode)
     
 ####################################################################################
 ####################################################################################
