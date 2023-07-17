@@ -408,16 +408,19 @@ class TestGRULayerParallel(unittest.TestCase):
     comm = MPI.COMM_WORLD
     args = test_args_backprop(comm) # one-level, one-iteration
     self.devices_test(args, self.gru_parallel_backward_device)
+    self.devices_test(args, self.gru_parallel_backward_fastforward_device)
 
   def test_gru_backward_multiple(self):
     comm = MPI.COMM_WORLD
     args = test_args_backprop(comm, num_data=8) # one-level, one-iteration
     self.devices_test(args, self.gru_parallel_backward_device)
+    self.devices_test(args, self.gru_parallel_backward_fastforward_device)
 
   def test_gru_backward_approx(self):
     comm = MPI.COMM_WORLD
     args = test_args_backprop(comm, num_data = 8, max_levels=3, max_iters=20, sequence_length=27, tol=1e-5)
     self.devices_test(args, self.gru_parallel_backward_device)
+    self.devices_test(args, self.gru_parallel_backward_fastforward_device)
 
   def gru_parallel_backward_device(self, args, device):
     """ Tests the gru_serial implementation for functionality """
@@ -482,9 +485,6 @@ class TestGRULayerParallel(unittest.TestCase):
       # Make sure outputs match
       self.assertTrue(get_rel_error(yhat_serial, yhat_parallel) < args['tol'])
 
-      # Make sure the gradients of the original hidden state match
-      self.assertTrue(get_rel_error(h_serial.grad, h_parallel.grad) < 1e1*args['tol'])
-
       # get the parameter gradients for the serial case:
       root_grads = [p.grad for p in serial_gru.parameters()]
     else:
@@ -501,6 +501,89 @@ class TestGRULayerParallel(unittest.TestCase):
       else:
         self.assertTrue(get_rel_error(pa_grad, pb.grad) < 1e1*args['tol'])
       
+  def gru_parallel_backward_fastforward_device(self, args, device):
+    """ Tests the gru_serial implementation for functionality """
+    comm = MPI.COMM_WORLD
+
+    # Parallel gru stuff first
+    rank = comm.Get_rank()
+    gru_model = ImplicitGRUBlock(args['input_size'], args['hidden_size'], args['seed']).to(device)
+    parallel_gru = get_parallel_gru(gru_model, args).to(device)
+
+    # Generate data
+    if rank == 0:
+      x_global, y_global = generate_fake_data(args['num_data'], args['sequence_length'], args['input_size'], args['hidden_size'], args['seed'])
+    else:
+      x_global, y_global = (None, None)
+
+    # Distribute data among ranks
+    x, y = distribute_input_data(x_global, y_global, comm)
+    x = x.to(device)
+    y = y.to(device)
+
+    # Set up the hidden state, tracking the gradient
+    h_parallel = torch.zeros(args['num_layers'], x.size(0), args['hidden_size'], requires_grad=True).to(device)
+
+    # Run the forward
+    with torch.enable_grad():
+      yhat_parallel = parallel_gru(x, h_parallel)
+
+    # Wait for all processors to catch up
+    comm.barrier()
+
+    # Need a random vector to compute gradient w.r.t.
+    rand_w = torch.randn(yhat_parallel.shape)
+
+    # Copy the value
+    w_h_parallel = rand_w
+
+    # Run the backwards pass
+    yhat_parallel.backward(w_h_parallel)
+
+    # Now construct and run the serial gru
+    if rank == 0:
+      gru_model = ImplicitGRUBlock(args['input_size'], args['hidden_size'], args['seed']).to(device)
+      serial_gru = torchbraid.GRU_Serial(gru_model, args['num_layers'], args['hidden_size'], args['dt']).to(device)
+
+      # Create the initial hidden state
+      h_serial = torch.zeros(args['num_layers'], x_global.size(0), args['hidden_size'], requires_grad=True).to(device)
+
+      # Run the forward pass with the default zero initial hidden state
+      with torch.enable_grad():
+        yhat_serial = serial_gru(x_global.to(device), h_serial)
+
+      # Copy the same random vector used for the parallel gru
+      w_h_serial = rand_w.detach().clone()
+
+      # Run the backward pass
+      yhat_serial.backward(w_h_serial)
+
+      # Make sure outputs match
+      self.assertTrue(get_rel_error(yhat_serial, yhat_parallel) < args['tol'])
+
+      # Make sure the gradients of the original hidden state match
+      self.assertTrue(get_rel_error(h_serial.grad, h_parallel.grad) < 1e1*args['tol'])
+
+      # get the parameter gradients for the serial case:
+      root_grads = [p.grad for p in serial_gru.parameters()]
+    else:
+      root_grads = None
+
+    # broadcast the serial gradients
+    ref_grads = comm.bcast(root_grads, root=0)
+
+    # Since we are testing with fastforward, the forward pass will not interact with rx[0], zx[0], nx[0], so those gradients aren't
+    # expected to match, hence we don't compare them
+    grads_to_ignore = [0, 1, 6, 7, 12, 13]
+
+    # Compare the serial and parallel gradients
+    for i, (pa_grad, pb) in enumerate(zip(ref_grads, parallel_gru.parameters())):
+      if i not in grads_to_ignore:
+        # Can't use relative error if the serial grad is zero, use abs error instead
+        if torch.norm(pa_grad).item() == 0.0:
+          self.assertTrue(torch.norm(pa_grad - pb.grad).item() < 1e1*args['tol'])
+        else:
+          self.assertTrue(get_rel_error(pa_grad, pb.grad) < 1e1*args['tol'])
 
 if __name__ == '__main__':
   unittest.main()
