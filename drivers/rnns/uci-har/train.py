@@ -55,7 +55,7 @@ import numpy                    as np
 from torchvision import datasets, transforms
 from timeit      import default_timer as timer
 from mpi4py      import MPI
-from utils       import root_print, load_data, ParallelRNNDataLoader, SerialNet, ParallelNet, ImplicitSerialNet
+from utils       import root_print, load_data, ParallelGRUDataLoader, SerialNet, ParallelNet, ImplicitSerialNet
 from math        import log, floor
 
 #from matplotlib  import pyplot
@@ -197,7 +197,7 @@ def buildParallelNet(config,
                                                 config['lp_fwd_tol'],
                                                 config['lp_fwd_tol'],
                                                 not config['lp_use_downcycle']))
-  # ATTENTION: Modified a ParallelNet for RNN
+  # ATTENTION: Modified a ParallelNet for GRU
   model = ParallelNet(input_size=input_size,
                       hidden_size=hidden_size,
                       num_layers=num_layers,
@@ -383,7 +383,7 @@ def run_training(args):
   train_set = TensorDataset(x_train_data,y_train_data)
 
   # build loaders
-  train_loader_parallel = ParallelRNNDataLoader(comm,dataset=train_set,batch_size=args.batch_size,shuffle=True)
+  train_loader_parallel = ParallelGRUDataLoader(comm,dataset=train_set,batch_size=args.batch_size,shuffle=True)
   train_loader_serial = train_loader_parallel.getSerialDataLoader()
 
   # Load UCI HAR test dataset
@@ -399,7 +399,7 @@ def run_training(args):
   test_set = TensorDataset(x_test_data,y_test_data)
 
   # build loaders
-  test_loader_parallel = ParallelRNNDataLoader(comm,dataset=test_set,batch_size=args.batch_size,shuffle=False)
+  test_loader_parallel = ParallelGRUDataLoader(comm,dataset=test_set,batch_size=args.batch_size,shuffle=False)
   test_loader_serial   = test_loader_parallel.getSerialDataLoader()
 
   ############################################

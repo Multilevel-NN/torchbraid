@@ -29,9 +29,9 @@ def imp_gru_cell_fast(dt : float, x_red_r : torch.Tensor, x_red_z : torch.Tensor
                       h : torch.Tensor, lin_rh_W : torch.Tensor, lin_zh_W : torch.Tensor,
                       lin_nr_W : torch.Tensor, lin_nr_b : torch.Tensor) -> torch.Tensor:
 
-  r   =    torch.sigmoid(x_red_r +     F.linear(h,lin_rh_W))
-  n   =    torch.   tanh(x_red_n + r * F.linear(h,lin_nr_W, lin_nr_b))
-  dtz = dt*torch.sigmoid(x_red_z +     F.linear(h,lin_zh_W))
+  r   =       torch.sigmoid(x_red_r +     F.linear(h,lin_rh_W))
+  n   =       torch.   tanh(x_red_n + r * F.linear(h,lin_nr_W, lin_nr_b))
+  dtz = dt*(1-torch.sigmoid(x_red_z +     F.linear(h,lin_zh_W)))
 
   return torch.div(torch.addcmul(h,dtz,n),1.0+dtz)
 
@@ -41,18 +41,19 @@ def imp_gru_cell(dt : float, x : torch.Tensor, h : torch.Tensor,
                  lin_nx_W : torch.Tensor, lin_nx_b : torch.Tensor, lin_nr_W : torch.Tensor, 
                  lin_nr_b : torch.Tensor) -> torch.Tensor:
 
-  r   =      torch.sigmoid(F.linear(x, lin_rx_W, lin_rx_b) +     F.linear(h, lin_rh_W))
-  n   =      torch.   tanh(F.linear(x, lin_nx_W, lin_nx_b) + r * F.linear(h, lin_nr_W,lin_nr_b))
-  dtz = dt * torch.sigmoid(F.linear(x, lin_zx_W, lin_zx_b) +     F.linear(h, lin_zh_W))
+  r   =         torch.sigmoid(F.linear(x, lin_rx_W, lin_rx_b) +     F.linear(h, lin_rh_W))
+  n   =         torch.   tanh(F.linear(x, lin_nx_W, lin_nx_b) + r * F.linear(h, lin_nr_W,lin_nr_b))
+  dtz = dt * (1-torch.sigmoid(F.linear(x, lin_zx_W, lin_zx_b) +     F.linear(h, lin_zh_W)))
 
   return torch.div(torch.addcmul(h, dtz, n), 1.0 + dtz)
 
 
 class ImplicitGRUBlock(nn.Module):
-  def __init__(self, input_size, hidden_size):
+  def __init__(self, input_size, hidden_size, seed = 20):
     super(ImplicitGRUBlock, self).__init__()
 
-    #
+    # This is the easiest way to distribute the same GRU across ranks
+    torch.manual_seed(seed)
 
     self.lin_rx = [None,None]
     self.lin_rh = [None,None]
@@ -137,7 +138,7 @@ class CloseLayer(nn.Module):
 
 ####################################################################################
 ####################################################################################
-# Parallel network class, primarily builds a RNN_Parallel network object
+# Parallel network class, primarily builds a GRU_Parallel network object
 # num_layers: number of layers per processor
 # for definitions of layer-parallel (and other parameters) see more advanced scripts and notebooks
 class ParallelNet(nn.Module):
@@ -157,15 +158,15 @@ class ParallelNet(nn.Module):
                skip_downcycle=True):
     super(ParallelNet, self).__init__()
 
-    self.RNN_model = ImplicitGRUBlock(input_size, hidden_size)
+    self.GRU_model = ImplicitGRUBlock(input_size, hidden_size)
 
     if Tf==None:
       Tf = float(num_steps) * MPI.COMM_WORLD.Get_size() # when using an implicit method with GRU
     self.Tf = Tf
     self.dt = Tf / float(num_steps * MPI.COMM_WORLD.Get_size())
 
-    self.parallel_rnn = torchbraid.RNN_Parallel(MPI.COMM_WORLD,
-                                                self.RNN_model,
+    self.parallel_gru = torchbraid.GRU_Parallel(MPI.COMM_WORLD,
+                                                self.GRU_model,
                                                 num_steps,hidden_size,num_layers,
                                                 Tf,
                                                 max_fwd_levels=max_levels,
@@ -173,31 +174,31 @@ class ParallelNet(nn.Module):
                                                 max_iters=max_iters)
 
     if fwd_max_iters > 0:
-      self.parallel_rnn.setFwdMaxIters(fwd_max_iters)
+      self.parallel_gru.setFwdMaxIters(fwd_max_iters)
 
-    self.parallel_rnn.setPrintLevel(print_level)
+    self.parallel_gru.setPrintLevel(print_level)
 
     cfactor_dict = dict()
     cfactor_dict[-1] = cfactor
-    self.parallel_rnn.setCFactor(cfactor_dict)
-    self.parallel_rnn.setSkipDowncycle(skip_downcycle)
-    self.parallel_rnn.setNumRelax(1)            # FCF on all levels, by default
-    self.parallel_rnn.setFwdNumRelax(1, level=0) # F-Relaxation on the fine grid (by default)
-    self.parallel_rnn.setBwdNumRelax(0, level=0) # F-Relaxation on the fine grid (by default)
+    self.parallel_gru.setCFactor(cfactor_dict)
+    self.parallel_gru.setSkipDowncycle(skip_downcycle)
+    self.parallel_gru.setNumRelax(1)            # FCF on all levels, by default
+    self.parallel_gru.setFwdNumRelax(1, level=0) # F-Relaxation on the fine grid (by default)
+    self.parallel_gru.setBwdNumRelax(0, level=0) # F-Relaxation on the fine grid (by default)
 
-    # this object ensures that only the RNN_Parallel code runs on ranks!=0
-    compose = self.compose = self.parallel_rnn.comp_op()
+    # this object ensures that only the GRU_Parallel code runs on ranks!=0
+    compose = self.compose = self.parallel_gru.comp_op()
 
-    self.close_rnn = compose(CloseLayer, hidden_size, num_classes)
+    self.close_gru = compose(CloseLayer, hidden_size, num_classes)
 
     self.hidden_size = hidden_size
     self.num_layers = num_layers
 
   def forward(self, x):
     h = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
-    hn = self.parallel_rnn(x, h)
+    hn = self.parallel_gru(x, h)
 
-    x = self.compose(self.close_rnn,hn[-1,:,:])
+    x = self.compose(self.close_gru,hn[-1,:,:])
 
     return x
 

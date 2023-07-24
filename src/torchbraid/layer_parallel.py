@@ -31,7 +31,6 @@
 
 import inspect
 
-import torch
 import torch.nn as nn
 
 from mpi4py import MPI
@@ -39,12 +38,9 @@ from mpi4py import MPI
 import copy
 
 from torchbraid.braid_function import BraidFunction
-from torchbraid.utils import ContextTimerManager
 
 import torchbraid.odenet_apps as apps
 from torchbraid.lp_module import LPModule
-
-import numpy as np
 
 ##
 # Define your Python Braid Vector

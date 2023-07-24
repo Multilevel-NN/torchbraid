@@ -442,7 +442,7 @@ else:
 	
 	num_steps = sequence_length
 
-	parallel_nn = torchbraid.RNN_Parallel(comm,basic_block_parallel(),num_steps,hidden_size,num_layers,Tf,max_levels=max_levels,max_iters=max_iters)
+	parallel_nn = torchbraid.GRU_Parallel(comm,basic_block_parallel(),num_steps,hidden_size,num_layers,Tf,max_levels=max_levels,max_iters=max_iters)
 
 	parallel_nn.setPrintLevel(print_level)
 	parallel_nn.setSkipDowncycle(True)

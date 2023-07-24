@@ -88,7 +88,6 @@ class BraidFunction(torch.autograd.Function):
 
       state = tuple([input_and_param_tensors[i] for i in range(num_input_tensors)])
 
-
     with fwd_app.timer("func:run"):
       result = fwd_app.run(x,state)
     if num_input_tensors==1:
@@ -111,16 +110,19 @@ class BraidFunction(torch.autograd.Function):
       if num_ranks>1:
         if my_rank==num_ranks-1: 
           grad_state = torch.stack(grad_state)
-          req = comm.Irecv(grad_state.cpu().numpy(),source=0,tag=22)
+          grad_state = grad_state.cpu().numpy()
+          req = comm.Irecv(grad_state,source=0,tag=22)
           req.Wait()
+          grad_state = torch.tensor(grad_state).to(device)
+          torch.cuda.synchronize()
 
         if my_rank==0:
           grad_state = torch.stack(grad_state)
           grad_state_cpu = grad_state.cpu()
           comm.Isend(grad_state_cpu.numpy(),dest=num_ranks-1,tag=22)
-          grad_state = grad_state_cpu.to(device)
 
         grad_state = tuple([grad_state[i] for i in range(len(grad_state))])
+
       # end if num_ranks
     # end with
 
@@ -131,6 +133,7 @@ class BraidFunction(torch.autograd.Function):
         result = ctx.bwd_app.run(grad_state)
       else:
         result = ctx.bwd_app.run(None)
+
 
     with ctx.bwd_app.timer("func:postrun"):
       # pack up the buffer, and then send it out
