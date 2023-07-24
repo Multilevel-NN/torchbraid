@@ -328,7 +328,7 @@ class TestGRULayerParallel(unittest.TestCase):
       self.assertTrue(get_rel_error(h[0], yhat_2) < args['tol'])
     
   def gru_parallel_forward_device(self, args, device):
-    "Tests the gru_serial implementation for functionality"
+    "Tests the parallel gru implementation for functionality in the forward pass"
     return
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -376,7 +376,7 @@ class TestGRULayerParallel(unittest.TestCase):
       self.assertTrue(get_rel_error(yhat_serial, yhat_2) < args['tol'])
 
   def gru_parallel_fastforward_device(self, args, device):
-    "Test that the forward and fastward paths give the same result"
+    "Test that the forward and fastward paths give the same result for the forward pass"
     return
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -407,27 +407,28 @@ class TestGRULayerParallel(unittest.TestCase):
       self.assertTrue(get_rel_error(yhat_off, yhat_on) < args['tol'])
 
   def test_gru_backward_exact(self):
+    "Test the exact backward pass of parallel gru by comparing to the serial"
     comm = MPI.COMM_WORLD
-    args = test_args_backprop(comm) # one-level, one-iteration
+    args = test_args_backprop(comm) # one-level, one-iteration, one data point
     self.devices_test(args, self.gru_parallel_backward_device)
-    #self.devices_test(args, self.gru_parallel_backward_fastforward_device)
+    self.devices_test(args, self.gru_parallel_backward_fastforward_device)
 
   def test_gru_backward_multiple(self):
-    return
+    "Test the exact backward pass of parallel gru by comparing to the serial on a batch of 8"
     comm = MPI.COMM_WORLD
     args = test_args_backprop(comm, num_data=8) # one-level, one-iteration
     self.devices_test(args, self.gru_parallel_backward_device)
     self.devices_test(args, self.gru_parallel_backward_fastforward_device)
 
   def test_gru_backward_approx(self):
-    return
+    "Test the approximate backward pass of parallel gru by comparing to the serial using more levels and iterations"
     comm = MPI.COMM_WORLD
     args = test_args_backprop(comm, num_data = 8, max_levels=3, max_iters=20, sequence_length=27, tol=1e-5)
     self.devices_test(args, self.gru_parallel_backward_device)
     self.devices_test(args, self.gru_parallel_backward_fastforward_device)
 
   def gru_parallel_backward_device(self, args, device):
-    """ Tests the gru_serial implementation for functionality """
+    """ Tests the parallel gru implementation for backward pass by comparing to the serial version"""
     comm = MPI.COMM_WORLD
 
     # Parallel gru stuff first
@@ -447,7 +448,7 @@ class TestGRULayerParallel(unittest.TestCase):
     y = y.to(device)
 
     # Set up the hidden state, tracking the gradient
-    h_parallel = torch.zeros(args['num_layers'], x.size(0), args['hidden_size'], requires_grad=True).to(device)
+    h_parallel = torch.zeros(args['num_layers'], x.size(0), args['hidden_size'], requires_grad=True, device=device)
 
     # Turn off the fastforward since the serial version doesn't have it
     parallel_gru.fwd_app.has_fastforward = False
@@ -463,10 +464,12 @@ class TestGRULayerParallel(unittest.TestCase):
     rand_w = torch.randn(yhat_parallel.shape)
 
     # Copy the value
-    w_h_parallel = rand_w.to(device)
+    w_h_parallel = rand_w.detach().clone().to(device)
 
     # Run the backwards pass
     yhat_parallel.backward(w_h_parallel)
+
+    comm.barrier()
 
     # Now construct and run the serial gru
     if rank == 0:
@@ -474,7 +477,7 @@ class TestGRULayerParallel(unittest.TestCase):
       serial_gru = torchbraid.GRU_Serial(gru_model, args['num_layers'], args['hidden_size'], args['dt']).to(device)
 
       # Create the initial hidden state
-      h_serial = torch.zeros(args['num_layers'], x_global.size(0), args['hidden_size'], requires_grad=True).to(device)
+      h_serial = torch.zeros(args['num_layers'], x_global.size(0), args['hidden_size'], requires_grad=True, device=device)
 
       # Run the forward pass with the default zero initial hidden state
       with torch.enable_grad():
@@ -483,30 +486,35 @@ class TestGRULayerParallel(unittest.TestCase):
       # Copy the same random vector used for the parallel gru
       w_h_serial = rand_w.detach().clone().to(device)
 
+      # Make sure we're taking the derivative w.r.t. the same vector
+      self.assertTrue(torch.norm(w_h_parallel - w_h_serial) == 0.0)
+
       # Run the backward pass
       yhat_serial.backward(w_h_serial)
 
       # Make sure outputs match
       self.assertTrue(get_rel_error(yhat_serial, yhat_parallel) < args['tol'])
 
+      # Make sure the gradients of the initial hidden state match
+      self.assertTrue(get_rel_error(h_serial.grad, h_parallel.grad) < args['tol'])
+
       # get the parameter gradients for the serial case:
-      root_grads = [p.grad.cpu() for p in serial_gru.parameters()]
+      root_grads = [p.grad for p in serial_gru.parameters()]
 
       # Get the parallel gradients
-      parallel_grads = [p.grad.cpu() for p in parallel_gru.parameters()]
+      parallel_grads = [p.grad for p in parallel_gru.parameters()]
 
       for i, (pa_grad, pb_grad) in enumerate(zip(root_grads, parallel_grads)):
         # Can't use relative error if the serial grad is zero, use abs error instead
         if torch.norm(pa_grad).item() == 0.0:
-          print(rank, i, "abs error", torch.norm(pa_grad - pb_grad).item())
           self.assertTrue(torch.norm(pa_grad - pb_grad).item() < 1e1*args['tol'])
         else:
           if get_rel_error(pa_grad, pb_grad) > 1e1*args['tol']:
             print(rank, i, "rel_error", get_rel_error(pa_grad, pb_grad))
-            self.assertTrue(get_rel_error(pa_grad, pb_grad) < 1e1*args['tol'])
+          self.assertTrue(get_rel_error(pa_grad, pb_grad) < 1e1*args['tol'])
       
   def gru_parallel_backward_fastforward_device(self, args, device):
-    """ Tests the gru_serial implementation for functionality """
+    """ Tests the parallel gru implementation for backward pass by comparing to the serial version. Fastforwarding enabled"""
     comm = MPI.COMM_WORLD
 
     # Parallel gru stuff first
@@ -526,7 +534,7 @@ class TestGRULayerParallel(unittest.TestCase):
     y = y.to(device)
 
     # Set up the hidden state, tracking the gradient
-    h_parallel = torch.zeros(args['num_layers'], x.size(0), args['hidden_size'], requires_grad=True).to(device)
+    h_parallel = torch.zeros(args['num_layers'], x.size(0), args['hidden_size'], requires_grad=True, device=device)
 
     # Run the forward
     with torch.enable_grad():
@@ -539,10 +547,12 @@ class TestGRULayerParallel(unittest.TestCase):
     rand_w = torch.randn(yhat_parallel.shape)
 
     # Copy the value
-    w_h_parallel = rand_w.to(device)
+    w_h_parallel = rand_w.detach().clone().to(device)
 
     # Run the backwards pass
     yhat_parallel.backward(w_h_parallel)
+
+    comm.barrier()
 
     # Now construct and run the serial gru
     if rank == 0:
@@ -550,7 +560,7 @@ class TestGRULayerParallel(unittest.TestCase):
       serial_gru = torchbraid.GRU_Serial(gru_model, args['num_layers'], args['hidden_size'], args['dt']).to(device)
 
       # Create the initial hidden state
-      h_serial = torch.zeros(args['num_layers'], x_global.size(0), args['hidden_size'], requires_grad=True).to(device)
+      h_serial = torch.zeros(args['num_layers'], x_global.size(0), args['hidden_size'], requires_grad=True, device=device)
 
       # Run the forward pass with the default zero initial hidden state
       with torch.enable_grad():
@@ -559,38 +569,38 @@ class TestGRULayerParallel(unittest.TestCase):
       # Copy the same random vector used for the parallel gru
       w_h_serial = rand_w.detach().clone().to(device)
 
+      # Make sure we're taking the derivative w.r.t. the same vector
+      self.assertTrue(torch.norm(w_h_parallel - w_h_serial) == 0.0)
+
       # Run the backward pass
       yhat_serial.backward(w_h_serial)
 
       # Make sure outputs match
       self.assertTrue(get_rel_error(yhat_serial, yhat_parallel) < args['tol'])
 
+      # Make sure the gradients of the initial hidden state match
+      self.assertTrue(get_rel_error(h_serial.grad, h_parallel.grad) < args['tol'])
+
       # get the parameter gradients for the serial case:
-      root_grads = [p.grad.cpu() for p in serial_gru.parameters()]
-    else:
-      root_grads = None
+      root_grads = [p.grad for p in serial_gru.parameters()]
 
-    # broadcast the serial gradients
-    ref_grads = comm.bcast(root_grads, root=0)
+      # Get the parallel gradients
+      parallel_grads = [p.grad for p in parallel_gru.parameters()]
 
-    # Copy the parallel gradients to the cpu to be able to compare them
-    parallel_grads = [p.grad.cpu() for p in parallel_gru.parameters()]
-
-    # Since we are testing with fastforward, the forward pass will not interact with rx[0], zx[0], nx[0], so those gradients aren't
-    # expected to match, hence we don't compare them
-    # NOTE: Change these if changing the ImplicitGRUBlock above
-    grads_to_ignore = [0, 1, 6, 7, 12, 13]
-
-    for i, (pa_grad, pb_grad) in enumerate(zip(ref_grads, parallel_grads)):
-      if i not in grads_to_ignore:
-        # Can't use relative error if the serial grad is zero, use abs error instead
-        if torch.norm(pa_grad).item() == 0.0:
-          print(rank, i, torch.norm(pa_grad - pb_grad).item())
-          self.assertTrue(torch.norm(pa_grad - pb_grad).item() < 1e1*args['tol'])
-        else:
-          if get_rel_error(pa_grad, pb_grad) > 1e1*args['tol']:
-            print(rank, i, "rel_error", get_rel_error(pa_grad, pb_grad))
-            # self.assertTrue(get_rel_error(pa_grad, pb_grad) < 1e1*args['tol'])
+      # Since we are testing with fastforward, the forward pass will not interact with rx[0], zx[0], nx[0], so those gradients aren't
+      # expected to match, hence we don't compare them
+      # NOTE: Change these if changing the ImplicitGRUBlock above
+      grads_to_ignore = [0, 1, 6, 7, 12, 13]
+  
+      for i, (pa_grad, pb_grad) in enumerate(zip(root_grads, parallel_grads)):
+        if i not in grads_to_ignore:
+          # Can't use relative error if the serial grad is zero, use abs error instead
+          if torch.norm(pa_grad).item() == 0.0:
+            self.assertTrue(torch.norm(pa_grad - pb_grad).item() < 1e1*args['tol'])
+          else:
+            if get_rel_error(pa_grad, pb_grad) > 1e1*args['tol']:
+              print(rank, i, "rel_error", get_rel_error(pa_grad, pb_grad))
+            self.assertTrue(get_rel_error(pa_grad, pb_grad) < 1e1*args['tol'])
 
 if __name__ == '__main__':
   unittest.main()
