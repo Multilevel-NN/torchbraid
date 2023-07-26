@@ -1,6 +1,6 @@
 # torchbraid
 
-A braid interface to pytorch
+XBraid interface to PyTorch
 
 ## Build torchbraid (pip):
 
