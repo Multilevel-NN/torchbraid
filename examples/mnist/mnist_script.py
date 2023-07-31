@@ -94,13 +94,13 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device):
     train_times.append(stop_time - start_time)
     losses.append(loss.item())
     if batch_idx % params.log_interval == 0:
-      root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
+      root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
         epoch, batch_idx * len(data), len(train_loader.dataset),
-               100. * batch_idx / len(train_loader), loss.item(), total_time / (batch_idx + 1.0)))
+               100. * batch_idx / len(train_loader), loss.item()))
 
-  root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
+  root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
     epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
-           100. * (batch_idx + 1) / len(train_loader), loss.item(), total_time / (batch_idx + 1.0)))
+           100. * (batch_idx + 1) / len(train_loader), loss.item()))
   return losses, train_times
 
 
@@ -262,21 +262,20 @@ def main():
   #timer_str = model.parallel_nn.getTimersString()
   #root_print(rank, timer_str)
 
-  root_print(rank,
-             f'TIME PER EPOCH: {"{:.2f}".format(stats.mean(epoch_times))} '
-             f'{("(1 std dev " + "{:.2f}".format(stats.mean(epoch_times))) if len(epoch_times) > 1 else ""}')
-  root_print(rank,
-             f'TIME PER TEST:  {"{:.2f}".format(stats.mean(test_times))} '
-             f'{("(1 std dev " + "{:.2f}".format(stats.mean(test_times))) if len(test_times) > 1 else ""}')
+  # Note: the MNIST example is not meant to exhibit performance
+  #root_print(rank,
+  #           f'TIME PER EPOCH: {"{:.2f}".format(stats.mean(epoch_times))} '
+  #           f'{("(1 std dev " + "{:.2f}".format(stats.mean(epoch_times))) if len(epoch_times) > 1 else ""}')
 
   if args.serial_file is not None:
     # Model can be reloaded in serial format with: model = torch.load(filename)
     model.saveSerialNet(args.serial_file)
 
-  # Plot the loss, validation 
-  root_print(rank, f'\nMin batch time:   {"{:.3f}".format(np.min(batch_times))} ')
-  root_print(rank, f'Mean batch time:  {"{:.3f}".format(stats.mean(batch_times))} ')
+  # Note: the MNIST example is not meant to exhibit performance
+  #root_print(rank, f'\nMin batch time:   {"{:.3f}".format(np.min(batch_times))} ')
+  #root_print(rank, f'Mean batch time:  {"{:.3f}".format(stats.mean(batch_times))} ')
 
+  # Plot the loss, validation
   if rank == 0:
     fig, ax1 = plt.subplots()
     plt.title('MNIST %s dataset'%(args.dataset), fontsize=15)
