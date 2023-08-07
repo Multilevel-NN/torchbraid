@@ -114,7 +114,8 @@ class BraidFunction(torch.autograd.Function):
           req = comm.Irecv(grad_state,source=0,tag=22)
           req.Wait()
           grad_state = torch.tensor(grad_state).to(device)
-          torch.cuda.synchronize()
+          if ctx.fwd_app.use_cuda:
+            torch.cuda.synchronize()
 
         if my_rank==0:
           grad_state = torch.stack(grad_state)
