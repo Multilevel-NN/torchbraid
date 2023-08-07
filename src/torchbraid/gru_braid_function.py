@@ -120,7 +120,8 @@ class BraidFunction(torch.autograd.Function):
         if my_rank==0:
           grad_state = torch.stack(grad_state)
           grad_state_cpu = grad_state.cpu()
-          comm.Isend(grad_state_cpu.numpy(),dest=num_ranks-1,tag=22)
+          req = comm.Isend(grad_state_cpu.numpy(),dest=num_ranks-1,tag=22)
+          req.Wait()
 
         grad_state = tuple([grad_state[i] for i in range(len(grad_state))])
 

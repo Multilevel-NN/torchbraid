@@ -162,7 +162,8 @@ class ForwardODENetApp(BraidApp):
           params = self.layerWeights(layer_dict[fine_index])
           for ind,p in enumerate(params):
             if p is not None:
-              comm.Isend(p.data,dest=dest_proc,tag=int(fine_index+tag_shift*ind))
+              req = comm.Isend(p.data,dest=dest_proc,tag=int(fine_index+tag_shift*ind))
+              requests += [req]
 
         return requests
   # end class LayersDataStructure

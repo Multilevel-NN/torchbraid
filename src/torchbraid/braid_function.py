@@ -97,7 +97,8 @@ class BraidFunction(torch.autograd.Function):
     # broadcast the output of the last layer
     if num_ranks>1:
       if my_rank==num_ranks-1:
-        comm.Isend(result,dest=0)
+        req = comm.Isend(result,dest=0)
+        req.Wait()
       elif my_rank==0:
         req = comm.Irecv(result,source=num_ranks-1)
         req.Wait()
@@ -118,7 +119,8 @@ class BraidFunction(torch.autograd.Function):
       if my_rank==0:
         if ctx.fwd_app.use_cuda:
           torch.cuda.synchronize()
-        comm.Isend(grad_output,dest=num_ranks-1)
+        req = comm.Isend(grad_output,dest=num_ranks-1)
+        req.Wait()
       elif my_rank==num_ranks-1: 
         req = comm.Irecv(grad_output,source=0)
         req.Wait()
