@@ -137,7 +137,7 @@ class ForwardODENetApp(BraidApp):
         return layer
 
       def layerWeights(self,layer):
-        return layer.parameters()
+        return [p.data if p is not None else None for p in layer.parameters()] +[b for b in layer.buffers()]
 
       @torch.no_grad()
       def sendRecvLayers(self,comm,recv_layers_list,send_layers_list,layer_dict,device):
@@ -152,8 +152,8 @@ class ForwardODENetApp(BraidApp):
 
           params = self.layerWeights(layer)
           for ind,p in enumerate(params):
-            if p is not None:
-              req = comm.Irecv(p.data,source=src_proc,tag=int(fine_index+tag_shift*ind))
+            if p is not None and p.dtype!=torch.bool:
+              req = comm.Irecv(p,source=src_proc,tag=int(fine_index+tag_shift*ind))
               requests += [req]
 
         for fine_index,dest_proc in send_layers_list:
@@ -161,8 +161,8 @@ class ForwardODENetApp(BraidApp):
 
           params = self.layerWeights(layer_dict[fine_index])
           for ind,p in enumerate(params):
-            if p is not None:
-              req = comm.Isend(p.data,dest=dest_proc,tag=int(fine_index+tag_shift*ind))
+            if p is not None and p.dtype!=torch.bool:
+              req = comm.Isend(p,dest=dest_proc,tag=int(fine_index+tag_shift*ind))
               requests += [req]
 
         return requests
@@ -231,18 +231,6 @@ class ForwardODENetApp(BraidApp):
       torch.cuda.synchronize()
 
     self.timer_manager = timer_manager
-    self.use_deriv = False
-
-    self.parameter_shapes = []
-    for layer_constr in self.layers_data_structure.functors:
-      # build the layer on the proper device
-      layer = layer_constr()
-
-      # sanity check
-      sd = layer.state_dict()
-      for k in sd:
-        assert isinstance(sd[k],torch.Tensor)
-      self.parameter_shapes += [list([d.size() for d in ForwardODENetApp.layerDataGen(layer)])]
 
     self.initial_guess = None
 
@@ -290,11 +278,6 @@ class ForwardODENetApp(BraidApp):
     if ten.dim()==0:
       return int(ten.item())
     return ten.shape[0]
-
-  @staticmethod 
-  def layerDataGen(layer):
-      return itertools.chain((p.data for p in layer.parameters()),
-                             (b      for b in layer.buffers()))
 
   def buildShapes(self,x,extra_args,extra_kwargs):
     """
@@ -375,12 +358,6 @@ class ForwardODENetApp(BraidApp):
 
   def getParameterShapes(self,tidx,level):
     return []
-    if len(self.parameter_shapes)<=0:
-      return []
-    i = self.getFineTimeIndex(tidx,level)
-    ind = bisect_right(self.layers_data_structure.indices,i)
-
-    return self.parameter_shapes[ind]
 
   def initializeVector(self,t,x):
     if  self.initial_guess is not None and t != 0.0:
@@ -410,12 +387,6 @@ class ForwardODENetApp(BraidApp):
     self.beginUpdateWeights()
     self.endUpdateWeights()
 
-    # turn on derivative path (as requried)
-    self.use_deriv = self.training
-    
-    # instead of doing runBraid, can execute tests
-    #self.testBraid(x)
-
     self.extra_args = extra_args
     self.extra_kwargs = extra_kwargs
 
@@ -424,9 +395,6 @@ class ForwardODENetApp(BraidApp):
     with self.timer("runBraid"):
 
       y = self.runBraid(x)
-
-      # reset derivative papth
-      self.use_deriv = False
 
     self.extra_args = list()
     self.extra_kwargs = dict()
@@ -472,7 +440,7 @@ class ForwardODENetApp(BraidApp):
 
     # no gradients are necessary here, so don't compute them
     dt = tstop-tstart
-    if record:
+    if record and self.training:
       with torch.enable_grad():
         t_y.requires_grad = True
         ny = layer(dt,t_y,*self.extra_args,**self.extra_kwargs)
