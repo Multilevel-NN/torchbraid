@@ -34,6 +34,7 @@ jobs:
         run: |
           pip install .
           pip install tox
+          pip install tox-direct
 
       - name: Test with tox / nose
         run: |
