@@ -329,7 +329,6 @@ class TestGRULayerParallel(unittest.TestCase):
     
   def gru_parallel_forward_device(self, args, device):
     "Tests the parallel gru implementation for functionality in the forward pass"
-    return
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     gru_model = ImplicitGRUBlock(args['input_size'], args['hidden_size'], args['seed']).to(device)
@@ -377,7 +376,6 @@ class TestGRULayerParallel(unittest.TestCase):
 
   def gru_parallel_fastforward_device(self, args, device):
     "Test that the forward and fastward paths give the same result for the forward pass"
-    return
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     n_procs = comm.Get_size()
