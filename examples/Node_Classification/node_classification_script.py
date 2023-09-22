@@ -70,6 +70,8 @@ import graphOps as GO
 from network_architecture import parse_args, ParallelGraphNet
 from mpi4py import MPI
 
+def index_op(lhs,index):
+    return lhs[index]
 
 # Train model for one epoch
 # Return values: per batch losses and training times, model parameters updated in-place
@@ -79,7 +81,6 @@ def train(rank, params, model, data, optimizer, epoch, compose, device):
     
     start_time = timer()
     data= data.to(device)
-
     # clear (zero out) the gradients of all the parameters 
     # optimized by the optimizer. Usually used before .backward() called
     optimizer.zero_grad()
@@ -126,16 +127,14 @@ def train(rank, params, model, data, optimizer, epoch, compose, device):
     # model returns two outputs: 
     # out represents the output predictions, 
     # G represents the updated graph.
-    out = model(xn,[],Graph=G)
-    # valmax tensor contains the maximum value for each sample, 
-    # argmax tensor contains the corresponding indices.
-    [valmax, argmax] = torch.max(out, dim=1)
-    # The gradient g represents the contribution of each node to the loss.
-    g = G.nodeGrad(out.t().unsqueeze(0))
+    out = model(xn,[],Graph=G,rank=rank)
     # nll_loss: calculates the negative log-likelihood loss 
     # loss between the predicted out values and the target labels data.y 
     # only for the nodes specified by data.train_mask.
-    loss = F.nll_loss(out[data.train_mask], data.y[data.train_mask])
+    criterion = F.nll_loss
+    
+    out_masked = compose(index_op,out,data.train_mask)
+    loss = compose(criterion, out_masked, data.y[data.train_mask])
     # gradients of the loss with respect to the model's parameters 
     # using backpropagation.
     loss.backward()
@@ -148,6 +147,7 @@ def train(rank, params, model, data, optimizer, epoch, compose, device):
 
 # Evaluate model on validation data
 # Return: number of correctly classified test items, total number of test items, loss on test data set
+@torch.no_grad()
 def test(model, data, device):
     model.eval()
     I = data.edge_index[0, :]
@@ -181,21 +181,39 @@ def test(model, data, device):
     # number of samples in the mask using int(mask.sum()) to obtain 
     # the accuracy. The accuracy is appended to the accs list.
     for _, mask in data('train_mask', 'val_mask', 'test_mask'):
-        accs.append(int((pred[mask] == data.y[mask]).sum()) / int(mask.sum()))
+        pred_masked = model.compose(index_op,pred,mask)
+        accs.append(int((pred_masked == data.y[mask]).sum()) / int(mask.sum()))
     return accs
+
+def remove_outliers(array):
+    median = stats.median(array)
+    for ind in range(0,len(array)):
+        if(array[ind]>median*10):
+            if ind==0:
+                array[ind] = array[ind+1]
+            array[ind] = array[ind-1]
+    return array
 
 def plot_save_metric_data(metrics={},title="",):
     colors = ['-r','-g','-b','-c','-m','-k']
     i = 0
     plt.title(title)
     for key in metrics:
-        value = metrics[key]
+        value = remove_outliers(metrics[key])
         length = len(value)
         iters = range(1,length+1)
         plt.plot(iters,value,colors[i],label=key)
         i+=1
     plt.legend(loc='upper left')
-    plt.savefig(title+".png")  # should before show method
+    if title[0]=="A":
+        path = "accuracy"
+    elif title[0]=="L":
+        path = "loss"
+    else:
+        path = "time"
+    my_path = os.path.abspath(__file__) 
+    my_path = os.path.dirname(my_path)
+    plt.savefig(my_path+"/"+path+"/"+title+".png")  # should before show method
     plt.clf()
 
 
@@ -222,7 +240,7 @@ def main():
     print(rank,f'Run info rank: {rank}: Torch version: {torch.__version__} | Device: {device} | Host: {host}')
 
     # Set seed for reproducibility
-    torch.manual_seed(args.seed)
+    # torch.manual_seed(args.seed)
 
     # Compute number of steps in PDE-GCN per processor
     local_steps = int(args.steps / procs)
@@ -259,12 +277,6 @@ def main():
     nopen = n_channels
     nhid = n_channels
     nNclose = n_channels
-    n_layers = 16
-    print("DATA SET IS:", dataset)
-    # h = 1 / n_layers
-    # suggest from range [1 / (n_layers), 3] with step size q=1 / (n_layers)
-    h = 0.796875
-    # h = trial.suggest_discrete_uniform('h', 0.1, 3, q=0.1)
     batchSize = 32 # number of samples processed before the model is updated.
 
     # Finish assembling training and test datasets
@@ -344,33 +356,42 @@ def main():
     Graph = GO.graph(I, J, N, W=w, pos=None, faces=None)
     Graph = Graph.to(device)
 
-    #### Hyperparameters ####
-    # dropout are regularization techniques for reducing overfitting    
-    dropout = 0.8
-
-    # learning rate is a tuning parameter in an optimization 
-    # algorithm that determines the step size at each iteration 
-    # while moving toward a minimum of a loss function.
-    lr = 0.008819856508590504
-    lrGCN = 1.8702187212357512e-05
-
-    # Weight decay is a regularization technique by 
-    # adding a small penalty, usually the L2 norm of the weights 
-    # (all the weights of the model), to the loss function.
-    # loss = loss + weight decay parameter * L2 norm of the weights
-    wd = 0.00024200526856409135
-
-    lr_alpha = 0.00016337842151693108
-
+    hyper_parameters_datasets = {
+        "CORA" : {
+            "8":  {'h': 2.75, 'dropout': 0.8, 'lr': 0.0017343966715010824, 'lrGCN': 0.00024138503983822774, 'wd': 0.00014416129160101603, 'lr_alpha': 2.1914060049579967e-05},
+            "16": {'h': 1.0, 'dropout': 0.7, 'lr': 0.002408417397652311, 'lrGCN': 2.9386512408090523e-05, 'wd': 0.00033035514207532037, 'lr_alpha': 0.0039007013583180652},
+            "32": {'h': 0.875, 'dropout': 0.7, 'lr': 0.006102254566580768, 'lrGCN': 1.2660249012543178e-05, 'wd': 0.0006373023961365857, 'lr_alpha': 0.0007038973758344859},
+            "64": {'h': 0.796875, 'dropout': 0.8, 'lr': 0.008819856508590504, 'lrGCN': 1.8702187212357512e-05, 'wd': 0.00024200526856409135, 'lr_alpha': 0.00016337842151693108}
+        },
+        "CiteSeer" : {
+            "8": {},
+            "16": {},
+            "32": {},
+            "64":{'h': 0.90625, 'dropout': 0.6, 'lr': 0.0026835403361853212, 'lrGCN': 5.067346690238226e-05, 'wd': 2.7416952046582594e-05, 'lr_alpha': 0.0010118119877900122}
+        },
+        "PubMed" : {
+            "8":{'h': 2.4375, 'dropout': 0.7, 'lr': 0.002672024141685073, 'lrGCN': 4.5256636114969606e-05, 'wd': 0.00022110173620958117, 'lr_alpha': 0.00019229692933031442},
+            "16":{'h': 2.4375, 'dropout': 0.7, 'lr': 0.002672024141685073, 'lrGCN': 4.5256636114969606e-05, 'wd': 0.00022110173620958117, 'lr_alpha': 0.00019229692933031442},
+            "32":{},
+            "64":{}
+        },        
+    }
     # Carry out parallel training
-    epoch_losses = {"16":[]}
-    epoch_accuracies = {"16":[]}
-    epoch_times = {"16":[]}
-    num_layers = [16]
+    epoch_losses = {"8":[],"16":[],"32":[],"64":[]}
+    epoch_accuracies = {"8":[],"16":[],"32":[],"64":[]}
+    epoch_times = {"8":[],"16":[],"32":[],"64":[]}
+    num_layers = [8,16,32,64]
     for nl in num_layers:
         # Create layer-parallel Graph Neural Network
         # Note this can be done on only one processor, but will be slow
         # setup the model
+        h = hyper_parameters_datasets[args.dataset][str(nl)]['h']
+        dropout = hyper_parameters_datasets[args.dataset][str(nl)]['dropout']
+        wd = hyper_parameters_datasets[args.dataset][str(nl)]['wd']
+        lr = hyper_parameters_datasets[args.dataset][str(nl)]['lr']
+        lrGCN = hyper_parameters_datasets[args.dataset][str(nl)]['lrGCN']
+        lr_alpha = hyper_parameters_datasets[args.dataset][str(nl)]['lr_alpha']
+
         model = ParallelGraphNet(nNin, nopen, nhid, nNclose, nl, h=h, dense=False, varlet=True,wave=False, 
                                 diffOrder=1, num_output=dataset.num_classes, dropOut=dropout, gated=False, 
                                 realVarlet=False, mixDyamics=False, doubleConv=False, tripleConv=False, 
@@ -431,7 +452,7 @@ def main():
             epoch_losses[str(nl)] += [losses]
             accs=test(model=model, data=data, device=device)
             epoch_accuracies[str(nl)] += [accs[2]] 
-            print(rank, accs)
+            root_print(rank, accs)
         # Print out Braid internal timings, if desired
         #timer_str = model.parallel_nn.getTimersString()
         #root_print(rank, timer_str)
@@ -444,9 +465,9 @@ def main():
         root_print(rank, f'\nMin epoch time:   {"{:.3f}".format(np.min(epoch_times[str(nl)]))} ')
         root_print(rank, f'Mean epoch time:  {"{:.3f}".format(stats.mean(epoch_times[str(nl)]))} ')
     if rank == 0:
-        plot_save_metric_data(epoch_accuracies,"Accuracies-wrt Layers_"+str(procs))
-        plot_save_metric_data(epoch_times,"Times-wrt Layers_"+str(procs))
-        plot_save_metric_data(epoch_losses,"Loss-wrt Layers_"+str(procs))
+        plot_save_metric_data(epoch_accuracies,"Accuracies-wrt Layers_ num_proc"+str(procs)+" num_levels "+str(args.lp_max_levels))
+        plot_save_metric_data(epoch_times,"Times-wrt Layers_ num_proc"+str(procs)+" num_levels "+str(args.lp_max_levels))
+        plot_save_metric_data(epoch_losses,"Loss-wrt Layers_ num_proc"+str(procs)+" num_levels "+str(args.lp_max_levels))
     root_print(rank,epoch_accuracies)
     root_print(rank,epoch_times)
 

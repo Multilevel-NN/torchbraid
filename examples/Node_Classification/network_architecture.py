@@ -335,7 +335,6 @@ class StepLayer(nn.Module):
         return x
       
   def forward(self, xn,*extra_args,**extra_kwargs): # Forward for step layer
-    print("Inside step layer: ",type(extra_kwargs["Graph"]))
     gradX = extra_kwargs["Graph"].nodeGrad(xn)
 
     if self.dropout:
@@ -421,66 +420,6 @@ class ParallelGraphNet(nn.Module):
     self.open_nn = compose(OpenFlatLayer,nopen,nNin,dropOut,realVarlet)
     self.close_nn = compose(CloseLayer, nopen,num_output,dropOut,modelnet,faust,PPI)
 
-    def reset_parameters(self):
-        # glorot: calculates the appropriate standard deviation based 
-        # on the tensor's shape and then initializes the tensor with 
-        # random values from a uniform distribution.
-        glorot(self.K1Nopen)
-        glorot(self.K2Nopen)
-        glorot(self.KNclose)
-        if self.realVarlet:
-            glorot(self.KE1)
-        if self.modelnet:
-            glorot(self.mlp)
-
-  def edgeConv(self, xe, K, groups=1):
-    if xe.dim() == 4:
-        if K.dim() == 2:
-            xe = F.conv2d(xe, K.unsqueeze(-1).unsqueeze(-1), groups=groups)
-        else:
-            xe = conv2(xe, K, groups=groups)
-    elif xe.dim() == 3:
-        if K.dim() == 2:
-            xe = F.conv1d(xe, K.unsqueeze(-1), groups=groups)
-        else:
-            xe = conv1(xe, K, groups=groups)
-    return xe
-
-
-  def singleLayer(self, x, K, relu=True, norm=False, groups=1, openclose=False):
-    if openclose:  # if K.shape[0] != K.shape[1]:
-        x = self.edgeConv(x, K, groups=groups)
-        if norm:
-            x = F.instance_norm(x)
-        if relu:
-            # relu layer
-            x = F.relu(x)
-        else:
-            x = F.tanh(x)
-    if not openclose:  # if K.shape[0] == K.shape[1]:
-        x = self.edgeConv(x, K, groups=groups)
-        if not relu:
-            x = F.tanh(x)
-        else:
-            x = F.relu(x)
-        if norm:
-            beta = torch.norm(x)
-            x = beta * tv_norm(x)
-        x = self.edgeConv(x, K.t(), groups=groups)
-    return x
-
-    def finalDoubleLayer(self, x, K1, K2):
-        x = F.tanh(x)
-        x = self.edgeConv(x, K1)
-        x = F.tanh(x)
-        x = self.edgeConv(x, K2)
-        x = F.tanh(x)
-        x = self.edgeConv(x, K2.t())
-        x = F.tanh(x)
-        x = self.edgeConv(x, K1.t())
-        x = F.tanh(x)
-        return x
-
   def savePropagationImage(self, xn, Graph, i=0, minv=None, maxv=None):
       plt.figure()
       img = xn.clone().detach().squeeze().reshape(32, 32).cpu().numpy()
@@ -530,11 +469,10 @@ class ParallelGraphNet(nn.Module):
     try:
       xn,Graph = self.compose(self.open_nn,xn,Graph=extra_kwargs["Graph"])
     except:
-      Graph = self.updateGraph(Graph=extra_kwargs["Graph"])
-    print("Before parallel_nn ",type(Graph))
+      [Graph, edge_index] = self.updateGraph(extra_kwargs["Graph"])
     xn = self.parallel_nn(xn,[],Graph=Graph)
     xn = self.compose(self.close_nn,xn)
-    return xn
+    return xn # For backpropagation xn_0 must be set on in ranks not equat to 0
 
     """# dropout and 1 x 1 convolution layer
     xn = F.dropout(xn, p=self.dropout, training=self.training)
