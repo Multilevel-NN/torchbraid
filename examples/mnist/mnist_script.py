@@ -258,22 +258,21 @@ def main():
     test_times += [timer() - start_time]
     validat_correct_counts += [validat_correct]
 
-  # Print out Braid internal timings, if desired
+  # Print out Braid internal timings, if desired -- these are primarily diagnostic timings
   #timer_str = model.parallel_nn.getTimersString()
   #root_print(rank, timer_str)
 
-  # Note: the MNIST example is not meant to exhibit performance
-  #root_print(rank,
-  #           f'TIME PER EPOCH: {"{:.2f}".format(stats.mean(epoch_times))} '
-  #           f'{("(1 std dev " + "{:.2f}".format(stats.mean(epoch_times))) if len(epoch_times) > 1 else ""}')
+  # Note: the MNIST example is primarily meant to demonstrate the package, not focus on performance
+  root_print(rank,
+             f'TIME PER EPOCH: {"{:.2f}".format(stats.mean(epoch_times))} '
+             f'{("(1 std dev " + "{:.2f}".format(stats.mean(epoch_times))) if len(epoch_times) > 1 else ""}')
 
   if args.serial_file is not None:
     # Model can be reloaded in serial format with: model = torch.load(filename)
     model.saveSerialNet(args.serial_file)
 
-  # Note: the MNIST example is not meant to exhibit performance
-  #root_print(rank, f'\nMin batch time:   {"{:.3f}".format(np.min(batch_times))} ')
-  #root_print(rank, f'Mean batch time:  {"{:.3f}".format(stats.mean(batch_times))} ')
+  root_print(rank, f'\nMin batch time:   {"{:.3f}".format(np.min(batch_times))} ')
+  root_print(rank, f'Mean batch time:  {"{:.3f}".format(stats.mean(batch_times))} ')
 
   # Plot the loss, validation
   if rank == 0:
