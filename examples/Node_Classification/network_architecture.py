@@ -54,7 +54,7 @@ class OpenFlatLayer(nn.Module):
     if self.faust or self.PPI:
         stdv = 1e-1
 
-    self.K1Nopen = nn.Parameter(torch.randn(nopen, nNin) * stdv)
+    self.K1Nopen = torch.load("tensor3.pt")
     self.K2Nopen = nn.Parameter(torch.randn(nopen, nopen) * stdv)
 
   def edgeConv(self, xe, K, groups=1):
@@ -123,17 +123,20 @@ class OpenFlatLayer(nn.Module):
     # xn = [B, C, N]
     # xe = [B, C, N, N] or [B, C, E]
     # Opening layer
-    
+    print("Opening Input")
+    print(xn)
+    torch.save(xn,"input_opening_parallel.pt")
     [Graph, edge_index] = self.updateGraph(extra_kwargs["Graph"])
     xhist = []
 
     # dropout layer (n x cin -> n x cin)
     if self.dropout:
       xn = F.dropout(xn, p=self.dropout, training=self.training)
-
     # 1 x 1 convolution (n x cin -> n x c)
     # and ReLU layer
     xn = self.singleLayer(xn, self.K1Nopen, relu=True, openclose=True, norm=False)
+    print("Opening Output")
+    print(xn)
     return xn , Graph
 
 class CloseLayer(nn.Module):
@@ -150,14 +153,8 @@ class CloseLayer(nn.Module):
     else:
         self.dropout = False
     stdv = 1e-2
-    if self.faust or self.PPI:
-        stdv = 1e-1
         
-    self.KNclose = nn.Parameter(torch.randn(nopen, nopen) * stdv)
-    if self.modelnet:
-        self.KNclose = nn.Parameter(torch.randn(1024, num_output) * stdv)  # num_output on left size
-    elif not self.faust:
-        self.KNclose = nn.Parameter(torch.randn(num_output, nopen) * stdv)  # num_output on left size
+    self.KNclose = torch.load("tensor4.pt")
 
   def forward(self, xn):
     xn = F.dropout(xn, p=self.dropout, training=self.training)
@@ -295,9 +292,8 @@ class StepLayer(nn.Module):
         Nfeatures = 1 * nopen
 
     self.KN1 = nn.Parameter(torch.rand(1, Nfeatures, nhid) * stdvp)
-    rrnd = torch.rand( Nfeatures, nhid) * (1e-3)
-
-    self.KN1 = nn.Parameter(identityInit(self.KN1) + rrnd)
+    rrnd = torch.rand(1,Nfeatures, nhid) * (1e-3)
+    self.KN1 = nn.Parameter(identityInit(self.KN1))
 
   def edgeConv(self, xe, K, groups=1):
     if xe.dim() == 4:
@@ -335,6 +331,8 @@ class StepLayer(nn.Module):
         return x
       
   def forward(self, xn,*extra_args,**extra_kwargs): # Forward for step layer
+    print("Input i")
+    print(xn)
     gradX = extra_kwargs["Graph"].nodeGrad(xn)
 
     if self.dropout:
@@ -343,7 +341,7 @@ class StepLayer(nn.Module):
     # 1 x 1 convolution
     dxn = (self.singleLayer(gradX, self.KN1[0], norm=False, relu=True, groups=1))  # KN2
     dxn = extra_kwargs["Graph"].edgeDiv(dxn)
-    return -self.h*dxn
+    return -self.h * dxn
 
 
 ####################################################################################
@@ -385,8 +383,15 @@ class ParallelGraphNet(nn.Module):
     else:
         self.dropout = False
     self.nlayers = nlayer
-
-    self.PPI = PPI
+    stdv = 1e-2
+    stdvp = 1e-2
+    if self.faust or self.PPI:
+        stdv = 1e-1
+        stdvp = 1e-1
+        stdv = 1e-2
+        stdvp = 1e-2
+    # nopen: output channel
+    # nNin: input channel
     # Parallel Net Parameters
     step_layer = lambda: StepLayer(nopen, nhid, dropOut,realVarlet,varlet,gated,doubleConv,h)
     self.comm_lp = comm_lp
@@ -395,6 +400,16 @@ class ParallelGraphNet(nn.Module):
     self.parallel_nn = torchbraid.LayerParallel(comm_lp, step_layer, self.nlayers, Tf,
                                                 max_fwd_levels=max_levels, max_bwd_levels=max_levels,
                                                 max_iters=2, user_mpi_buf=user_mpi_buf)
+    # this object ensures that only the LayerParallel code runs on ranks!=0
+    compose = self.compose = self.parallel_nn.comp_op()
+
+    # by passing this through 'compose' (mean composition: e.g. OpenFlatLayer o channels)
+    # on processors not equal to 0, these will be None (there are no parameters to train there)
+    self.open_nn = compose(OpenFlatLayer,nopen,nNin,dropOut,realVarlet)
+    torch.save(self.open_nn.K1Nopen,"tensor3_parallel.pt")
+    self.close_nn = compose(CloseLayer, nopen,num_output,dropOut,modelnet,faust,PPI)
+    torch.save(self.close_nn.KNclose,"tensr4_parallel.pt")
+
     self.parallel_nn.setBwdMaxIters(bwd_max_iters)
     self.parallel_nn.setFwdMaxIters(fwd_max_iters)
     self.parallel_nn.setPrintLevel(print_level, True)
@@ -412,13 +427,6 @@ class ParallelGraphNet(nn.Module):
     else:
       self.parallel_nn.setNumRelax(1, level=0)  # Set FCF-Relaxation on the fine grid
 
-    # this object ensures that only the LayerParallel code runs on ranks!=0
-    compose = self.compose = self.parallel_nn.comp_op()
-
-    # by passing this through 'compose' (mean composition: e.g. OpenFlatLayer o channels)
-    # on processors not equal to 0, these will be None (there are no parameters to train there)
-    self.open_nn = compose(OpenFlatLayer,nopen,nNin,dropOut,realVarlet)
-    self.close_nn = compose(CloseLayer, nopen,num_output,dropOut,modelnet,faust,PPI)
 
   def savePropagationImage(self, xn, Graph, i=0, minv=None, maxv=None):
       plt.figure()

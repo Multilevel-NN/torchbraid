@@ -23,7 +23,7 @@ except:
     import graphOps as GO
     from graphOps import getConnectivity
     from mpl_toolkits.mplot3d import Axes3D
-    from utils import saveMesh, h_swish
+    from utils import saveMesh
     from inits import glorot, identityInit
 
 from torch_geometric.nn.conv.gcn_conv import gcn_norm
@@ -34,6 +34,9 @@ from torch_scatter import scatter_add
 # X: input graph
 # Kernel: convolution kernel or filter. 
 #         It is a tensor that defines the weights of the convolution operation.
+def compose(f,a1,a2):
+    return f(a1,a2)
+
 def conv2(X, Kernel):
     return F.conv2d(X, Kernel, padding=int((Kernel.shape[-1] - 1) / 2))
 # padding: ensures that the output has the same spatial dimensions as the input.
@@ -154,41 +157,21 @@ class graphNetwork_nodesOnly(nn.Module):
             stdvp = 1e-2
         # nopen: output channel
         # nNin: input channel
-        self.K1Nopen = nn.Parameter(torch.randn(nopen, nNin) * stdv)
-        self.K2Nopen = nn.Parameter(torch.randn(nopen, nopen) * stdv)
-        self.convs1x1 = nn.Parameter(torch.randn(nlayer, nopen, nopen) * stdv)
-        self.modelnet = modelnet
-
-        if self.modelnet:
-            self.KNclose = nn.Parameter(torch.randn(1024, num_output) * stdv)  # num_output on left size
-        elif not self.faust:
-            self.KNclose = nn.Parameter(torch.randn(num_output, nopen) * stdv)  # num_output on left size
-        else:
-            self.KNclose = nn.Parameter(torch.randn(nopen, nopen) * stdv)
-
         if varlet:
             Nfeatures = 1 * nopen
         else:
             Nfeatures = 1 * nopen
-
+            
         self.KN1 = nn.Parameter(torch.rand(nlayer, Nfeatures, nhid) * stdvp)
         rrnd = torch.rand(nlayer, Nfeatures, nhid) * (1e-3)
 
-        self.KN1 = nn.Parameter(identityInit(self.KN1) + rrnd)
-
-        if self.realVarlet:
+        self.KN1 = nn.Parameter(identityInit(self.KN1))
+        """if self.realVarlet:
             self.KN1 = nn.Parameter(torch.rand(nlayer, nhid, 2 * Nfeatures) * stdvp)
             self.KE1 = nn.Parameter(torch.rand(nlayer, nhid, 2 * Nfeatures) * stdvp)
 
         if self.mixDynamics:
             self.alpha = nn.Parameter(-0 * torch.ones(1, 1))
-
-        self.KN2 = nn.Parameter(torch.rand(nlayer, nhid, 1 * nhid) * stdvp)
-        self.KN2 = nn.Parameter(identityInit(self.KN2))
-
-        if self.tripleConv:
-            self.KN3 = nn.Parameter(torch.rand(nlayer, nopen, 1 * nhid) * stdvp)
-            self.KN3 = nn.Parameter(identityInit(self.KN3))
 
         if self.faust:
             self.lin1 = torch.nn.Linear(nopen, nopen)
@@ -200,7 +183,20 @@ class graphNetwork_nodesOnly(nn.Module):
         if self.modelnet:
             self.mlp = Seq(
                 MLP([64, 128]), Dropout(0.5), MLP([128, 64]), Dropout(0.5),
-                Lin(64, 10))
+                Lin(64, 10))"""
+
+        self.K1Nopen = nn.Parameter(torch.randn(nopen, nNin) * stdv)
+        self.K2Nopen = nn.Parameter(torch.randn(nopen, nopen) * stdv)
+        self.convs1x1 = nn.Parameter(torch.randn(nlayer, nopen, nopen) * stdv)
+        self.modelnet = modelnet
+        self.compose = compose
+
+        if self.modelnet:
+            self.KNclose = nn.Parameter(torch.randn(1024, num_output) * stdv)  # num_output on left size
+        elif not self.faust:
+            self.KNclose = nn.Parameter(torch.randn(num_output, nopen) * stdv)  # num_output on left size
+        else:
+            self.KNclose = nn.Parameter(torch.randn(nopen, nopen) * stdv)
 
     def reset_parameters(self):
         # glorot: calculates the appropriate standard deviation based 
@@ -307,8 +303,8 @@ class graphNetwork_nodesOnly(nn.Module):
         # xn = [B, C, N]
         # xe = [B, C, N, N] or [B, C, E]
         # Opening layer
-
-        
+        print("Opening Input")
+        print(xn)
         if not self.faust:
             [Graph, edge_index] = self.updateGraph(Graph)
         if self.faust:
@@ -331,35 +327,20 @@ class graphNetwork_nodesOnly(nn.Module):
         # dropout layer (n x cin -> n x cin)
         if self.dropout:
             xn = F.dropout(xn, p=self.dropout, training=self.training)
-
         # 1 x 1 convolution (n x cin -> n x c)
         # and ReLU layer
         xn = self.singleLayer(xn, self.K1Nopen, relu=True, openclose=True, norm=False)
-
         
         x0 = xn.clone()
         debug = False
-        # if debug:
-        #     image = False
-        #     if image:
-        #         plt.figure()
-        #         print("xn shape:", xn.shape)
-        #         img = xn.clone().detach().squeeze().cpu().numpy().reshape(32, 32)
-        #         minv = img.min()
-        #         maxv = img.max()
-        #         # img = img / img.max()
-        #         plt.imshow(img, vmax=maxv, vmin=minv)
-        #         plt.colorbar()
-        #         plt.show()
-        #         plt.savefig('plots/img_xn_norm_layer_verlet' + str(1) + 'order_nodeDeriv' + str(0) + '.jpg')
-        #         plt.close()
-        #     else:
-        #         saveMesh(xn.squeeze().t(), Graph.faces, Graph.pos, 0, vmax=vmax, vmin=vmin)
 
-        # PDE-GCN block:
         xn_old = x0
+        print("Opening Output")
+        print(xn)
         nlayers = self.nlayers
         for i in range(nlayers):
+            print("Input ",i)
+            print(xn)
             gradX = Graph.nodeGrad(xn) # Apply G to node features
 
             if self.dropout:
@@ -371,8 +352,7 @@ class graphNetwork_nodesOnly(nn.Module):
                     dxn = (self.singleLayer(gradX, self.KN1[i], norm=False, relu=True, groups=1))  # Apply 1x1 convolution + nonlinearity + 1x1 convolution (with same kernel K)
                 else:
                     dxn = self.finalDoubleLayer(gradX, self.KN1[i], self.KN2[i]) # Apply 1x1 convolution + nonlinearity + 1x1 convolution
-                dxn = Graph.edgeDiv(dxn) # Applies final G^t
-                        
+                dxn = Graph.edgeDiv(dxn) # Applies final G^t 
                         # false
                         # if self.tripleConv:
                         #     dxn = self.singleLayer(dxn, self.KN3[i], norm=False, relu=False)

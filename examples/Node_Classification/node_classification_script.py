@@ -240,8 +240,7 @@ def main():
     print(rank,f'Run info rank: {rank}: Torch version: {torch.__version__} | Device: {device} | Host: {host}')
 
     # Set seed for reproducibility
-    # torch.manual_seed(args.seed)
-
+    torch.manual_seed(args.seed)
     # Compute number of steps in PDE-GCN per processor
     local_steps = int(args.steps / procs)
 
@@ -301,6 +300,7 @@ def main():
     root_print(rank,f'Has isolated nodes: {data.has_isolated_nodes()}')
     root_print(rank,f'Has self-loops: {data.has_self_loops()}')
     root_print(rank,f'Is undirected: {data.is_undirected()}')
+    root_print(rank,'===========================================================================================================')
 
     # Diagnostic information
     root_print(rank, '-- procs    = {}\n'
@@ -377,23 +377,26 @@ def main():
         },        
     }
     # Carry out parallel training
-    epoch_losses = {"8":[],"16":[],"32":[],"64":[]}
-    epoch_accuracies = {"8":[],"16":[],"32":[],"64":[]}
-    epoch_times = {"8":[],"16":[],"32":[],"64":[]}
-    num_layers = [8,16,32,64]
+    epoch_losses = {"1":[],"2":[],"8":[],"16":[],"32":[],"64":[]}
+    epoch_accuracies = {"1":[],"2":[],"8":[],"16":[],"32":[],"64":[]}
+    epoch_times = {"1":[],"2":[],"8":[],"16":[],"32":[],"64":[]}
+    num_layers = [2]
+
     for nl in num_layers:
         # Create layer-parallel Graph Neural Network
         # Note this can be done on only one processor, but will be slow
         # setup the model
-        h = hyper_parameters_datasets[args.dataset][str(nl)]['h']
-        dropout = hyper_parameters_datasets[args.dataset][str(nl)]['dropout']
-        wd = hyper_parameters_datasets[args.dataset][str(nl)]['wd']
-        lr = hyper_parameters_datasets[args.dataset][str(nl)]['lr']
-        lrGCN = hyper_parameters_datasets[args.dataset][str(nl)]['lrGCN']
-        lr_alpha = hyper_parameters_datasets[args.dataset][str(nl)]['lr_alpha']
-
+        h = hyper_parameters_datasets[args.dataset][str(8)]['h']
+        dropout = hyper_parameters_datasets[args.dataset][str(8)]['dropout']
+        wd = hyper_parameters_datasets[args.dataset][str(8)]['wd']
+        lr = hyper_parameters_datasets[args.dataset][str(8)]['lr']
+        lrGCN = hyper_parameters_datasets[args.dataset][str(8)]['lrGCN']
+        lr_alpha = hyper_parameters_datasets[args.dataset][str(8)]['lr_alpha']
+        
+        root_print(rank,f': {nNin, nopen, nhid, nNclose, nl, h,dropout}:')
+        
         model = ParallelGraphNet(nNin, nopen, nhid, nNclose, nl, h=h, dense=False, varlet=True,wave=False, 
-                                diffOrder=1, num_output=dataset.num_classes, dropOut=dropout, gated=False, 
+                                diffOrder=1, num_output=dataset.num_classes, dropOut=False, gated=False, 
                                 realVarlet=False, mixDyamics=False, doubleConv=False, tripleConv=False, 
                                 max_levels=args.lp_max_levels, 
                                 bwd_max_iters=args.lp_bwd_max_iters, 
@@ -425,6 +428,7 @@ def main():
         # control the optimization behavior for different groups 
         # of parameters within your model, allowing you to apply 
         # different learning rates or weight decays as needed.
+        # torch.save(model.parallel_nn.parameters(),"tensor_parallel.pt")
         if (rank==0):
             optimizer = torch.optim.Adam([
             dict(params=model.parallel_nn.parameters(), lr=lrGCN, weight_decay=0),
