@@ -224,6 +224,7 @@ def main():
     f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
 
   # Declare optimizer  
+  print(len(list(model.parameters())))
   optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
 
   # For better timings (especially with GPUs) do a little warm up
