@@ -195,6 +195,8 @@ def parse_args():
                       help='Final time for ResNet layer-parallel part')
   parser.add_argument('--serial-file', type=str, default=None,
                       help='Save network to file in serial (not parallel) format')
+  parser.add_argument('--force-serial', action='store_true', default=False,
+                      help='Run as serial TorchBraid network for comparison')
 
   # algorithmic settings (batching)
   parser.add_argument('--percent-data', type=float, default=0.05, metavar='N',
