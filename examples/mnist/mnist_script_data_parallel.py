@@ -164,7 +164,7 @@ def main():
   args = parse_args()
 
   root_print(rank, 'TORCHBRAID REV: %s' % torchbraid.utils.git_rev())
-  root_print(f'INPUT Args: {args}')
+  root_print(rank,f'INPUT Args: {args}')
 
   if procs % args.dp_size == 0:
     comm_dp, comm_lp = torchbraid.utils.data_parallel.split_communicator(comm=comm, splitting=args.dp_size)
