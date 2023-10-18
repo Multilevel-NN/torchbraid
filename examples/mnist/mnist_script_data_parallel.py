@@ -163,6 +163,9 @@ def main():
   procs = comm.Get_size()
   args = parse_args()
 
+  root_print(rank, 'TORCHBRAID REV: %s' % torchbraid.utils.git_rev())
+  root_print(f'INPUT Args: {args}')
+
   if procs % args.dp_size == 0:
     comm_dp, comm_lp = torchbraid.utils.data_parallel.split_communicator(comm=comm, splitting=args.dp_size)
     rank_dp = comm_dp.Get_rank()
@@ -206,8 +209,8 @@ def main():
   else:
     raise Exception('Please choose the batch size so that it can be divided evenly by the dp size.')
 
-  train_size = int(50000 * args.percent_data)
-  test_size = int(10000 * args.percent_data)
+  train_size = 50*batch_size*size_dp # these sizes are selected to easy studies of parallelism.
+  test_size  = 10*batch_size*size_dp # generally one would do some percentage of the training and test sets
   train_set = torch.utils.data.Subset(dataset, range(train_size))
   test_set = torch.utils.data.Subset(dataset, range(train_size, train_size + test_size))
   train_partition = torchbraid.utils.data_parallel.Partioner(data=train_set, procs=size_dp, seed=args.seed, batch_size=batch_size).get_partion(
