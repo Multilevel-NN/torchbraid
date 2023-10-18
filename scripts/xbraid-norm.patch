@@ -1,0 +1,52 @@
+diff --git a/braid/restrict.c b/braid/restrict.c
+index 8c4a3f8..a7c7ab7 100644
+--- a/braid/restrict.c
++++ b/braid/restrict.c
+@@ -186,7 +186,8 @@ _braid_FRestrict(braid_Core   core,
+          /* Compute rnorm (only on level 0). Richardson computes the rnorm later */
+          if (level == 0 && !richardson )
+          {
+-            _braid_BaseSpatialNorm(core, app,  r, &rnorm_temp);
++      //////_braid_BaseSpatialNorm(core, app,  r, &rnorm_temp);
++            rnorm_temp = 1.0;
+             tnorm_a[interval] = rnorm_temp;       /* inf-norm uses tnorm_a */
+             if(tnorm == 1) 
+             {  
+@@ -333,22 +334,23 @@ _braid_FRestrict(braid_Core   core,
+    /* Compute global rnorm (only on level 0) */
+    if (level == 0)
+    {
+-      if(tnorm == 1)          /* one-norm reduction */
+-      {  
+-         MPI_Allreduce(&rnorm, &grnorm, 1, braid_MPI_REAL, MPI_SUM, comm);
+-      }
+-      else if(tnorm == 3)     /* inf-norm reduction */
+-      {  
+-         _braid_Max(tnorm_a, ncpoints, &rnorm); 
+-         MPI_Allreduce(&rnorm, &grnorm, 1, braid_MPI_REAL, MPI_MAX, comm);
+-      }
+-      else                    /* default two-norm reduction */
+-      {  
+-         MPI_Allreduce(&rnorm, &grnorm, 1, braid_MPI_REAL, MPI_SUM, comm);
+-         grnorm = sqrt(grnorm);
+-      }
++ /////if(tnorm == 1)          /* one-norm reduction */
++ /////{  
++ /////   MPI_Allreduce(&rnorm, &grnorm, 1, braid_MPI_REAL, MPI_SUM, comm);
++ /////}
++ /////else if(tnorm == 3)     /* inf-norm reduction */
++ /////{  
++ /////   _braid_Max(tnorm_a, ncpoints, &rnorm); 
++ /////   MPI_Allreduce(&rnorm, &grnorm, 1, braid_MPI_REAL, MPI_MAX, comm);
++ /////}
++ /////else                    /* default two-norm reduction */
++ /////{  
++ /////   MPI_Allreduce(&rnorm, &grnorm, 1, braid_MPI_REAL, MPI_SUM, comm);
++ /////   grnorm = sqrt(grnorm);
++ /////}
+ 
+       /* Store new rnorm */
++      grnorm = -1.0;
+       _braid_SetRNorm(core, -1, grnorm);
+    }
+    
