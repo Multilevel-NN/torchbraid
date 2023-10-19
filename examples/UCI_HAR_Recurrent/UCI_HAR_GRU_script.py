@@ -63,7 +63,7 @@ import torchbraid
 import torchbraid.utils
 
 from network_architecture import parse_args, ParallelNet
-from data import download_UCI_Data, load_data, ParallelRNNDataLoader
+from data import download_UCI_Data, load_data, ParallelGRUDataLoader
 
 
 ##
@@ -170,8 +170,8 @@ def main():
   train_set = torch.utils.data.Subset(train_set, range(train_size))
   test_set = torch.utils.data.Subset(test_set, range(test_size))
 
-  train_loader = ParallelRNNDataLoader(comm, dataset=train_set, batch_size=args.batch_size, shuffle=False)
-  test_loader = ParallelRNNDataLoader(comm, dataset=test_set, batch_size=args.batch_size, shuffle=False)
+  train_loader = ParallelGRUDataLoader(comm, dataset=train_set, batch_size=args.batch_size, shuffle=False)
+  test_loader = ParallelGRUDataLoader(comm, dataset=test_set, batch_size=args.batch_size, shuffle=False)
 
   # Diagnostic information
   root_print(rank, '-- procs       = {}\n'
@@ -191,6 +191,7 @@ def main():
 
   # Create layer-parallel network
   # Note this can be done on only one processor, but will be slow
+  torch.manual_seed(args.seed)
   model = ParallelNet(hidden_size=args.hidden_size,
                       Tf=None, # None to have it be calculated "correctly" based on other arguments
                       num_layers=args.num_layers,
@@ -205,9 +206,9 @@ def main():
                       skip_downcycle=not args.lp_use_downcycle).to(device)
 
   # Detailed XBraid timings are output to these files for the forward and backward phases
-  model.parallel_rnn.fwd_app.setTimerFile(
+  model.parallel_gru.fwd_app.setTimerFile(
     'b_fwd_s_%d_c_%d_bs_%d_p_%d'%(local_steps, args.hidden_size, args.batch_size, procs) )
-  model.parallel_rnn.bwd_app.setTimerFile(
+  model.parallel_gru.bwd_app.setTimerFile(
     'b_bwd_s_%d_c_%d_bs_%d_p_%d'%(local_steps, args.hidden_size, args.batch_size, procs) )
 
   # Declare optimizer
@@ -219,9 +220,9 @@ def main():
     train(rank=rank, params=args, model=model, train_loader=train_loader, optimizer=optimizer,
           epoch=0, compose=model.compose, device=device)
 
-    model.parallel_rnn.timer_manager.resetTimers()
-    model.parallel_rnn.fwd_app.resetBraidTimer()
-    model.parallel_rnn.bwd_app.resetBraidTimer()
+    model.parallel_gru.timer_manager.resetTimers()
+    model.parallel_gru.fwd_app.resetBraidTimer()
+    model.parallel_gru.bwd_app.resetBraidTimer()
     if use_cuda:
       torch.cuda.synchronize()
     root_print(rank, f'\nWarm up timer {timer() - warm_up_timer}\n')
@@ -246,7 +247,7 @@ def main():
     validat_correct_counts += [validat_correct]
 
   # Print out Braid internal timings, if desired
-  #timer_str = model.parallel_rnn.getTimersString()ll *
+  #timer_str = model.parallel_gru.getTimersString()ll *
   #root_print(rank, timer_str)
 
   root_print(rank,

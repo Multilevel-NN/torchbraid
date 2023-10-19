@@ -31,7 +31,6 @@
 
 import inspect
 
-import torch
 import torch.nn as nn
 
 from mpi4py import MPI
@@ -39,12 +38,9 @@ from mpi4py import MPI
 import copy
 
 from torchbraid.braid_function import BraidFunction
-from torchbraid.utils import ContextTimerManager
 
 import torchbraid.odenet_apps as apps
 from torchbraid.lp_module import LPModule
-
-import numpy as np
 
 ##
 # Define your Python Braid Vector
@@ -174,7 +170,13 @@ class LayerParallel(LPModule):
     # in "mixing" adjoint data.
     #self.fwd_app.setCFactor(CWt)
 
-  def forward(self,x):
+  def startStateCommunication(self):
+    self.fwd_app.beginUpdateWeights()
+
+  def endStateCommunication(self):
+    self.fwd_app.endUpdateWeights()
+
+  def forward(self,x,*extra_args,**extra_kwargs):
     # we are doing this to take adavtage of
     # pytorch's autograd which functions "naturally"
     # with the torch.autograd.function
@@ -187,8 +189,13 @@ class LayerParallel(LPModule):
       self.fwd_app.evalNetwork()
       self.bwd_app.evalNetwork()
 
-    return BraidFunction.apply(self.fwd_app,self.bwd_app,x,*params) 
+    return BraidFunction.apply(self.fwd_app,self.bwd_app,extra_args,extra_kwargs,x,*params) 
   # end forward
+
+  def to(self, *args, **kwargs):
+    result = super().to(*args,**kwargs)
+    self.fwd_app.to(*args,**kwargs)
+    return result
 
   def getFineTimePoints(self):
     return self.fwd_app.getTimePoints()
@@ -197,6 +204,12 @@ class LayerParallel(LPModule):
   # This method copies the layer parameters and can be used for verification
   def buildSequentialOnRoot(self):
     ode_layers    = [FixDTBlock(copy.deepcopy(l),self.dt) for l in self.layer_models]
+
+    # reset running stats
+    for l in nn.Sequential(*ode_layers).modules():
+      if hasattr(l,'reset_running_stats'):
+        l.reset_running_stats()
+
     remote_layers = ode_layers
     build_seq_tag = 12         # this 
     comm          = self.getMPIComm()
@@ -221,6 +234,4 @@ class LayerParallel(LPModule):
       comm.send(ode_layers_cpu,dest=0,tag=build_seq_tag)
       return None
   # end buildSequentialOnRoot
-
-
 # end LayerParallel

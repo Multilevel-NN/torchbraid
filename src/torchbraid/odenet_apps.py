@@ -37,13 +37,14 @@ import torch.nn as nn
 from .braid_vector import BraidVector
 from torchbraid.torchbraid_app import BraidApp
 from torchbraid.bsplines import BsplineBasis
-import torchbraid.utils
+import torchbraid.utils as tb_utils
 import itertools
 
 import sys
 import traceback
 import resource
 import copy
+
 
 from bisect import bisect_right
 from mpi4py import MPI
@@ -56,8 +57,8 @@ class ForwardODENetApp(BraidApp):
 
       self.layer = layer
 
-    def forward(self,dt, x):
-      y = dt*self.layer(x)
+    def forward(self,dt, x,*args,**kwargs):
+      y = dt*self.layer(x,*args,**kwargs)
       y.add_(x)
       return y
   # end ODEBlock
@@ -69,8 +70,8 @@ class ForwardODENetApp(BraidApp):
 
       self.layer = layer
 
-    def forward(self,dt, x):
-      return self.layer(x)
+    def forward(self,dt, x,*args,**kwargs):
+      return self.layer(x,*args,**kwargs)
   # end ODEBlock
 
   class LayersDataStructure:
@@ -99,11 +100,20 @@ class ForwardODENetApp(BraidApp):
     
            counts : list[int]
              the count (repeatitions) of each layer
+
+           done_flag : tensor for indicating that "done" is being called
         """
     
         # this block of code prepares the data for easy sorting
         [self.counts,self.functors] = list(zip(*layers))
         self.indices = list(itertools.accumulate(self.counts))
+        self.done_flag = tb_utils.DoneFlag.allocate()
+
+      def updateLayerDoneFlag(self,new_state):
+        tb_utils.DoneFlag.update(self.done_flag,new_state)
+
+      def registerLayerDoneFlag(self,layer):
+        tb_utils.DoneFlag.module_register(layer,self.done_flag)
 
       def getNumLayers(self):
         """Get the global number of layers of concern for layer-parallel."""
@@ -122,9 +132,16 @@ class ForwardODENetApp(BraidApp):
         else:
           layer = ForwardODENetApp.ODEBlock(layer)
     
-        return layer.to(device)
+        layer = layer.to(device)
+        tb_utils.DoneFlag.module_register(layer,self.done_flag)
+        return layer
 
+      def layerWeights(self,layer):
+        return [p.data if p is not None else None for p in layer.parameters()] +[b for b in layer.buffers()]
+
+      @torch.no_grad()
       def sendRecvLayers(self,comm,recv_layers_list,send_layers_list,layer_dict,device):
+        tag_shift = 1e4
         requests = []
         for fine_index,src_proc in recv_layers_list:
           # allocate space if layer doesn't exit
@@ -133,13 +150,24 @@ class ForwardODENetApp(BraidApp):
 
           layer = layer_dict[fine_index]
 
-          req = comm.Irecv(layer,source=src_proc)
-          requests += [req]
+          params = self.layerWeights(layer)
+          for ind,p in enumerate(params):
+            if p is not None and p.dtype!=torch.bool:
+              req = comm.Irecv(p,source=src_proc,tag=int(fine_index+tag_shift*ind))
+              requests += [req]
 
         for fine_index,dest_proc in send_layers_list:
           assert fine_index in layer_dict
 
-          comm.Isend(layer_dict[fine_index],dest=dest_proc)
+          params = self.layerWeights(layer_dict[fine_index])
+          for ind,p in enumerate(params):
+            if p is not None and p.dtype!=torch.bool:
+              req = comm.Isend(p,dest=dest_proc,tag=int(fine_index+tag_shift*ind))
+              requests += [req]
+
+        return requests
+  # end class LayersDataStructure
+
   # end class LayersDataStructure
 
   def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_funcs=None,levels_to_coarsen=None,user_mpi_buf=False,nsplines=0, splinedegree=1):
@@ -205,31 +233,19 @@ class ForwardODENetApp(BraidApp):
       owned_layers -= 1
 
     # Now creating the trainable layers
-    #self.layer_dict = { i: self.layers_data_structure.buildLayer(self.start_layer+i,self.device) for i in range(owned_layers)} 
+    self.layer_owned = { i for i in range(self.start_layer,self.start_layer+owned_layers) }
     self.layer_dict = { i: self.layers_data_structure.buildLayer(i,self.device) for i in range(self.start_layer,self.start_layer+owned_layers) }
     self.layer_models = [ self.layer_dict[i] for i in range(self.start_layer,self.start_layer+owned_layers) ]
+    self.requests = None
 
     if self.use_cuda:
       torch.cuda.synchronize()
 
     self.timer_manager = timer_manager
-    self.use_deriv = False
-
-    self.parameter_shapes = []
-    for layer_constr in self.layers_data_structure.functors:
-      # build the layer on the proper device
-      layer = layer_constr()
-
-      # sanity check
-      sd = layer.state_dict()
-      for k in sd:
-        assert isinstance(sd[k],torch.Tensor)
-      self.parameter_shapes += [[sd[k].size() for k in layer.state_dict()]]
 
     self.initial_guess = None
 
     self.backpropped = dict()
-    self.temp_layers = dict()
     self.state_shapes = dict()
 
     # If this is a SpliNet, create communicators for shared weights
@@ -257,11 +273,16 @@ class ForwardODENetApp(BraidApp):
         # Finally create the communicator and store it. 
         thiscomm = comm.Create(newgroup) # This will be MPI.COMM_NULL on all processors that are excluded
         self.spline_comm_vec.append(thiscomm)  
-      
   # end __init__
 
   def __del__(self):
     pass
+
+  def to(self, *args, **kwargs):
+    # make sure all the layers have registered the done flag
+    # this makes sure the any poijnter sharing is preserved
+    for l in self.layer_dict.values():
+      self.layers_data_structure.registerLayerDoneFlag(l)
 
   @staticmethod 
   def batchSize(ten):
@@ -269,7 +290,7 @@ class ForwardODENetApp(BraidApp):
       return int(ten.item())
     return ten.shape[0]
 
-  def buildShapes(self,x):
+  def buildShapes(self,x,extra_args,extra_kwargs):
     """
     Do a dry run to determine the shapes of the state tensors that need
     to be built.
@@ -291,7 +312,7 @@ class ForwardODENetApp(BraidApp):
         # build the layer on the proper device
         layer = layer_constr().to(self.device) 
      
-        x = layer(x)
+        x = layer(x,*extra_args,**extra_kwargs)
           
         shapes += [x.shape]
     else:
@@ -304,27 +325,23 @@ class ForwardODENetApp(BraidApp):
 
     return shapes
 
-  def getTempLayer(self,t):
+  def getLayer(self,ind):
     """
     This function returns a pytorch layer module. A dictionary is used
     to cache the construction and search. These will be used to make sure
     that any parallel communication is correctly handled even if the layer
     is of a different type.
     """
-    i = self.getGlobalTimeIndex(t)
-    ind = bisect_right(self.layers_data_structure.indices,i)
-
     # using a dictionary to cache previously built temp layers
-    if ind in self.temp_layers:
-      result = self.temp_layers[ind]
-    else:
-      result = self.layers_data_structure.buildLayer(i,self.device)
-      self.temp_layers[ind] = result
+    if ind not in self.layer_dict:
+      self.layer_dict[ind] = self.layers_data_structure.buildLayer(ind,self.device)
+
+    result = self.layer_dict[ind]
 
     # set correct mode...neccessary for BatchNorm
-    if self.training:
+    if self.training and not result.training:
       result.train()
-    else:
+    elif not self.training and result.training:
       result.eval()
 
     return result
@@ -366,89 +383,38 @@ class ForwardODENetApp(BraidApp):
     return [shape,]
 
   def getParameterShapes(self,tidx,level):
-    if len(self.parameter_shapes)<=0:
-      return []
-    i = self.getFineTimeIndex(tidx,level)
-    ind = bisect_right(self.layers_data_structure.indices,i)
-
-    return self.parameter_shapes[ind]
-
-  def setVectorWeights(self,t,x):
-
-    if self.splinet: 
-      # Evaluate the splines at time t and get interval k such that t \in [\tau_k, \tau_k+1] for splineknots \tau
-      with torch.no_grad():
-        splines, k = self.splinebasis.eval(t)
-        # Add up sum over p+1 non-zero splines(t) times weights coeffients, l=0,\dots,p
-        l = 0 # first one here, because I didn't know how to set the shape of 'weights' correctly...
-        layermodel_localID = k + l - self.start_layer
-        assert layermodel_localID >= 0 and layermodel_localID < len(self.layer_dict)
-        layer = self.layer_dict[layermodel_localID]
-        weights = [splines[l] * p.data for p in layer.parameters()] # l=0
-        # others: l=1,dots, p
-        for l in range(1,len(splines)):
-          layermodel_localID = k + l - self.start_layer
-          if t== self.Tf and l==len(splines)-1: # There is one more spline at Tf, which is zero at Tf and therefore it is not stored. Skip. 
-            continue
-          assert layermodel_localID >= 0 and layermodel_localID < len(self.layer_dict)
-          layer = self.layer_dict[layermodel_localID]
-          for dest_w, src_p in zip(weights, list(layer.parameters())):  
-              dest_w.add_(src_p.data, alpha=splines[l])
-
-    else: 
-      #layer_index = self.getGlobalTimeIndex(t) - self.start_layer
-      layer_index = self.getGlobalTimeIndex(t) 
-      #if layer_index<len(self.layer_dict) and layer_index>=0:
-      if layer_index in self.layer_dict:
-        layer = self.layer_dict[layer_index]
-      else:
-        layer = None
-
-      if layer!=None:
-        # weights = [p.data for p in layer.parameters()]
-        sd = layer.state_dict()
-        weights = [sd[k] for k in sd]
-      else:
-        weights = []
-
-    x.addWeightTensors(weights)
-  # end setVectorWeights
-
-  def setLayerWeights(self,t,tf,level,weights):
-    layer = self.getTempLayer(t)
-
-    with torch.no_grad():
-      #for dest_p,src_w in zip(list(layer.parameters()),weights):
-      #  dest_p.data = src_w
-
-      sd = layer.state_dict()
-      keys = [k for k in sd]
-      assert len(keys)==len(weights)
-
-      pairs = zip(keys,weights)
-      layer.load_state_dict(OrderedDict(pairs))
-  # end setLayerWeights
+    return []
 
   def initializeVector(self,t,x):
-    self.setVectorWeights(t,x)
-
     if  self.initial_guess is not None and t != 0.0:
       x.replaceTensor(copy.deepcopy(self.initial_guess.getState(t)))
-        
+  # end initializeVector 
 
-  def run(self,x):
-    #requests = self.layers_data_structure.sendRecvLayers(self.getMPIComm(),
-    #                               self.buildLayersRecvList(),
-    #                               self.buildLayersSendList(),
-    #                               self.layer_dict,
-    #                               self.device)
-    #MPI.Request.Waitall(requests)
+  def beginUpdateWeights(self):
+    with self.timer("beginUpdateWeights"):
+      if self.use_cuda:
+        torch.cuda.synchronize()
 
-    # turn on derivative path (as requried)
-    self.use_deriv = self.training
-    
-    # instead of doing runBraid, can execute tests
-    #self.testBraid(x)
+      # don't recommunicate the layer parameters
+      if self.requests is None:
+        self.requests = self.layers_data_structure.sendRecvLayers(self.getMPIComm(),
+                                                                  self.buildLayersRecvList(),
+                                                                  self.buildLayersSendList(),
+                                                                  self.layer_dict,
+                                                                  self.device)
+
+  def endUpdateWeights(self):
+    with self.timer("endUpdateWeights"):
+      if self.requests is not None:
+        MPI.Request.Waitall(self.requests)
+        self.requests = None
+
+  def run(self,x,extra_args,extra_kwargs):
+    self.beginUpdateWeights()
+    self.endUpdateWeights()
+
+    self.extra_args = extra_args
+    self.extra_kwargs = extra_kwargs
 
     # run the braid solver
     self.getMPIComm().Barrier()
@@ -456,8 +422,8 @@ class ForwardODENetApp(BraidApp):
 
       y = self.runBraid(x)
 
-      # reset derivative papth
-      self.use_deriv = False
+    self.extra_args = list()
+    self.extra_kwargs = dict()
 
     if y is not None:
       return y[0]
@@ -476,49 +442,44 @@ class ForwardODENetApp(BraidApp):
 
     return params
 
-  def eval(self,y,tstart,tstop,level,done,x=None):
+  def eval(self,y,tstart,tstop,level,done):
     """
     Method called by "my_step" in braid. This is
     required to propagate from tstart to tstop, with the initial
     condition x. The level is defined by braid
     """
 
-    record = False
-    layer = None
-    if level==0 and done:
-      #ts_index = self.getGlobalTimeIndex(tstart)-self.start_layer
-      #if ts_index<len(self.layer_dict) and ts_index >= 0:
-      ts_index = self.getGlobalTimeIndex(tstart)
-      if ts_index in self.layer_dict:
-        layer = self.layer_dict[ts_index]
-        record = True
- 
-    if layer==None:
-      self.setLayerWeights(tstart,tstop,level,y.weightTensors())
-      layer = self.getTempLayer(tstart)
+    self.layers_data_structure.updateLayerDoneFlag(done)
+
+    ts_index = self.getGlobalTimeIndex(tstart)
+    if level==0 and done and ts_index in self.layer_owned:
+      layer = self.layer_dict[ts_index]
+      record = True
+    elif ts_index in self.layer_owned:
+      layer = self.layer_dict[ts_index]
+      record = False
+    else:
+      layer = self.getLayer(ts_index)
+      record = False
 
     t_y = y.tensor().detach()
 
     # no gradients are necessary here, so don't compute them
     dt = tstop-tstart
-    if record:
+    if record and self.training:
       with torch.enable_grad():
         t_y.requires_grad = True
-        ny = layer(dt,t_y)
+        ny = layer(dt,t_y,*self.extra_args,**self.extra_kwargs)
         y.replaceTensor(ny.detach().clone()) 
 
-      self.backpropped[tstart,tstop] = (t_y,ny)
+      self.backpropped[ts_index] = (t_y,ny)
     else:
       with torch.no_grad():
-        ny = layer(dt,t_y)
+        ny = layer(dt,t_y,*self.extra_args,**self.extra_kwargs)
         y.replaceTensor(ny) 
-
-
-    # This connects weights at tstop with the vector y. For a SpliNet, the weights at tstop are evaluated using the spline basis function. 
-    self.setVectorWeights(tstop,y)
   # end eval
 
-  def getPrimalWithGrad(self,tstart,tstop,level):
+  def getPrimalWithGrad(self,tstart,tstop,level,done):
     """ 
     Get the forward solution associated with this
     time step and also get its derivative. This is
@@ -530,18 +491,16 @@ class ForwardODENetApp(BraidApp):
 
     # Set the layer at tstart. For a SpliNet, get the layer weights from x at tstart, otherwise, get layer and weights from storage.
     if self.splinet:
-      self.setLayerWeights(tstart,tstop,0,b_x.weightTensors())
-      layer = self.getTempLayer(tstart)
+      assert False
+      layer = self.getLayer(tstart)
+      # self.setLayerWeights(layer,b_x.weightTensors())
     else:
-      #ts_index = self.getGlobalTimeIndex(tstart)-self.start_layer
-      #assert(ts_index<len(self.layer_dict))
-      #assert(ts_index >= 0)
       ts_index = self.getGlobalTimeIndex(tstart)
       assert ts_index in self.layer_dict
       layer = self.layer_dict[ts_index]
 
-      if level==0 and (tstart,tstop) in self.backpropped:
-        x,y = self.backpropped[(tstart,tstop)]
+      if level==0 and ts_index in self.backpropped:
+        x,y = self.backpropped[ts_index]
         return (y,x), layer
     
     t_x = b_x.tensor()
@@ -554,10 +513,12 @@ class ForwardODENetApp(BraidApp):
     x = t_x.detach()
     y = t_x.detach().clone()
 
+    self.layers_data_structure.updateLayerDoneFlag(level==0 and done)
+
     x.requires_grad = True 
     dt = tstop-tstart
     with torch.enable_grad():
-      y = layer(dt,x)
+      y = layer(dt,x,*self.extra_args,**self.extra_kwargs)
     return (y, x), layer
   # end getPrimalWithGrad
 
@@ -604,15 +565,21 @@ class BackwardODENetApp(BraidApp):
   def timer(self,name):
     return self.timer_manager.timer("BckWD::"+name)
 
-  def run(self,x):
+  def run(self,x,extra_args,extra_kwargs):
     
     # instead of doing runBraid, can execute tests
     #self.testBraid(x)
 
     try:
 
+      self.fwd_app.extra_args = extra_args
+      self.fwd_app.extra_kwargs = extra_kwargs
+
       with self.timer("runBraid"):
         f = self.runBraid(x)
+
+      self.fwd_app.extra_args = list()
+      self.fwd_app.extra_kwargs = dict()
 
       if f is not None:
         f = f[0]
@@ -625,12 +592,12 @@ class BackwardODENetApp(BraidApp):
             # print(splinecomm.Get_rank(), ": I will pack spline ", i)
             # pack the spline into a buffer and initiate non-blocking allredude
             splinelayer = self.fwd_app.layer_dict[i - self.fwd_app.start_layer]
-            buf = torchbraid.utils.pack_buffer([p.grad for p in splinelayer.parameters()])
+            buf = tb_utils.pack_buffer([p.grad for p in splinelayer.parameters()])
             req=splinecomm.Iallreduce(MPI.IN_PLACE, buf, MPI.SUM)
 
             # Finish up communication. TODO: Queue all requests.
             MPI.Request.Wait(req)
-            torchbraid.utils.unpack_buffer([p.grad for p in splinelayer.parameters()], buf)
+            tb_utils.unpack_buffer([p.grad for p in splinelayer.parameters()], buf)
       # end splinet
 
       self.grads = []
@@ -638,8 +605,7 @@ class BackwardODENetApp(BraidApp):
       # preserve the layerwise structure, to ease communication
       # - note the prection of the 'None' case, this is so that individual layers
       # - can have gradient's turned off
-      my_params = self.fwd_app.parameters()
-      for sublist in my_params:
+      for sublist in self.fwd_app.parameters():
         sub_gradlist = [] 
         for item in sublist:
           if item.grad is not None:
@@ -649,7 +615,6 @@ class BackwardODENetApp(BraidApp):
 
         self.grads += [ sub_gradlist ]
       # end for sublist
-      # print(self.getMPIComm().Get_rank(), " self.grads=", self.grads)
 
       for l in self.fwd_app.layer_models:
          if l==None: continue
@@ -679,8 +644,7 @@ class BackwardODENetApp(BraidApp):
         # we need to adjust the time step values to reverse with the adjoint
         # this is so that the renumbering used by the backward problem is properly adjusted
         (t_y,t_x),layer = self.fwd_app.getPrimalWithGrad(self.Tf-tstop,
-                                                         self.Tf-tstart,
-                                                         level)
+                                                         self.Tf-tstart,level,done)
                                                          
         # print(self.fwd_app.my_rank, "--> FWD with layer ", [p.data for p in layer.parameters()])
 

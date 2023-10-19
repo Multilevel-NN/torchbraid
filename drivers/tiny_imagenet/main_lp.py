@@ -61,12 +61,14 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 import statistics as stats
+import time
+import cProfile
 
 from torchvision import datasets, transforms
 from timeit import default_timer as timer
 
 from torchbraid.utils import MeanInitialGuessStorage
-from utils import parse_args, buildNet, ParallelNet, SerialNet, getComm, git_rev, getDevice, get_lr_scheduler
+from utils import parse_args, buildNet, ParallelNet, SerialNet, getComm, git_rev, getDevice, get_lr_scheduler, MPI
 
 
 def root_print(rank, s):
@@ -87,7 +89,7 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mi
   total_time_cm = 0.0
 
   switched = False
-  format_str = 'Train Epoch: {:2d} [{:6d}/{:6d}]\tLoss: {:.3e}\tTime Per Batch {:.6f}/{:.6f} - F{:2d}/{:.2e}, B{:2d}/{:.2e}'
+  format_str = 'Train Epoch: {:2d} [{:6d}/{:6d}]\tLoss: {:.9e}\tTime Per Batch {:.6f}/{:.6f} - F{:2d}/{:.2e}, B{:2d}/{:.2e}'
   total_data = 0
 
   cumulative_start_time = timer()
@@ -129,6 +131,8 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mi
     # take step
     stop_time = timer()
     optimizer.step()
+
+    model.startStateCommunication() 
 
     total_data += batch_size(data)
     total_time += stop_time - start_time
@@ -434,7 +438,7 @@ def main():
 
   if rank == 0:
     print('===============MODEL=============\n')
-  print(model)
+  #print(model)
 
   if rank == 0:
     print('===============OPTIMIZER=============\n')
@@ -460,6 +464,11 @@ def main():
     root_print(rank, f'Warm up timer {timer() - warm_up_timer}')
 
   print(f'Run info rank: {rank}: Torch version: {torch.__version__} | Device: {my_device} | Host: {my_host}')
+
+  if args.lp_print >= 2 and not args.use_serial:
+      MPI.COMM_WORLD.Barrier()
+      model.parallel_nn.fwd_app.start_time = time.time()
+      model.parallel_nn.bwd_app.start_time = time.time()
 
   epoch = 0
   start_time = timer()
@@ -519,4 +528,13 @@ def main():
 
 
 if __name__ == '__main__':
+  #pr = cProfile.Profile()
+  #pr.enable()
   main()
+  #pr.disable()
+
+  #comm = getComm()
+
+  # Dump results:
+  # - for binary dump
+  #pr.dump_stats('rank_%d.prof' % comm.Get_rank())

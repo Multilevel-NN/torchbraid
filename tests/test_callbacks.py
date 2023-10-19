@@ -56,6 +56,10 @@ class DummyApp:
     self.user_mpi_buf = use_cuda
     self.device = device
     self.buffer = []
+    self.start_time = 0
+
+  def printRuntimeFuncCall(self, t_start, t_stop, method):
+    pass
 
   def buildInit(self,t):
     # recoggnize that the default for pytorch is a 32 bit float...

@@ -38,46 +38,45 @@ from mpi4py import MPI
 
 import copy
 
-from torchbraid.rnn_braid_function import BraidFunction
+from torchbraid.gru_braid_function import BraidFunction
 from torchbraid.utils import ContextTimerManager
 
-import torchbraid.rnn_apps as apps
+import torchbraid.gru_apps as apps
 from torchbraid.lp_module import LPModule
 
 import numpy as np
 
-class RNN_Serial(nn.Module):
+class GRU_Serial(nn.Module):
   """
-  Helper class to build a serial RNN from the parallel version.
+  Helper class to build a serial GRU from the parallel version.
   This makes comparison to the serial version easier
   """
-  def __init__(self,RNN_model,num_layers,hidden_size,dt=1.0):
-    super(RNN_Serial,self).__init__()
+  def __init__(self,GRU_model,num_layers,hidden_size,dt=1.0):
+    super(GRU_Serial,self).__init__()
     self.num_layers  = num_layers
     self.hidden_size = hidden_size
     self.dt          = dt
 
-    self.RNN_model = RNN_model
+    self.GRU_model = GRU_model
   # end __init__
 
-  def forward(self,x,h_c=None):
-    if h_c is None:
-      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size, x.device)
-      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size, x.device)
-      h_c = (h,c)
-    elif isinstance(h_c,torch.Tensor):
-      h_c = (h_c,)
+  def forward(self,x,h=None):
+    if h is None:
+      h = torch.zeros(self.num_layers, x.size(0), self.hidden_size, device=x.device)
+      h = (h,)
+    elif isinstance(h, torch.Tensor):
+      h = (h,)
 
     num_steps = x.shape[1]
     for i in range(num_steps):
-      h_c = self.RNN_model(0,0.0,self.dt,x[:,i,:],h_c)
+      h = self.GRU_model(0,0.0,self.dt,x[:,i,:],h)
 
-    if len(h_c)==1:
-      return h_c[0]
-    return h_c
-# end RNN_Serial
+    if len(h)==1:
+      return h[0]
+    return h
+# end Serial
 
-class RNN_Parallel(LPModule):
+class GRU_Parallel(LPModule):
 
   ##################################################
 
@@ -86,47 +85,34 @@ class RNN_Parallel(LPModule):
 
     self.num_layers  = num_layers
     self.hidden_size = hidden_size
-    self.RNN_models  = basic_block
+    self.GRU_models  = basic_block
 
-    # RNN_torchbraid_apps.py -> ForwardBraidApp
-    self.fwd_app = apps.ForwardBraidApp(comm,self.RNN_models,num_steps,Tf,max_fwd_levels,max_iters,self.timer_manager)
+    # gru_apps.py -> ForwardBraidApp
+    self.fwd_app = apps.ForwardBraidApp(comm,self.GRU_models,num_steps,Tf,max_fwd_levels,max_iters,self.timer_manager)
     self.bwd_app = apps.BackwardBraidApp(self.fwd_app,self.timer_manager)
   # end __init__
 
   def zero_grad(self):
-    self.RNN_models.zero_grad()
+    self.GRU_models.zero_grad()
 
   def getFastForwardInfo(self):
     return self.fwd_app.getFastForwardInfo()
 
-  def forward(self,x,h_c=None):
+  def forward(self,x,h=None):
     # we are doing this to take adavtage of
     # pytorch's autograd which functions "naturally"
     # with the torch.autograd.function
 
-    if h_c is None:
+    if h is None:
       h = torch.zeros(self.num_layers, x.size(0), self.hidden_size,device=x.device)
-      c = torch.zeros(self.num_layers, x.size(0), self.hidden_size,device=x.device)
-      h_c = (h,c)
+      h = (h,)
 
     params = list(self.parameters())
-    if isinstance(h_c, torch.Tensor):
-      return BraidFunction.apply(self.fwd_app,self.bwd_app,1,x,h_c,*params)
+    if isinstance(h, torch.Tensor):
+      return BraidFunction.apply(self.fwd_app, self.bwd_app, 1, x, h, *params)
     else:
-      return BraidFunction.apply(self.fwd_app,self.bwd_app,len(h_c),x,*h_c,*params)
+      return BraidFunction.apply(self.fwd_app, self.bwd_app, len(h), x, *h, *params)
+    
   # end forward
 
-  def buildInit(self,t):
-    # prefix_rank  = self.comm.Get_rank()
-    # print("Rank %d RNN_Parallel -> buildInit() - start" % prefix_rank)
-
-    g = self.g0.clone()
-    if t>0:
-      t_h,t_c = g.tensors()
-      t_h[:] = 0.0
-      t_c[:] = 0.0
-
-    # print("Rank %d RNN_Parallel -> buildInit() - end" % prefix_rank)
-    return g
-
-# end RNN_Parallel
+# end GRU_Parallel

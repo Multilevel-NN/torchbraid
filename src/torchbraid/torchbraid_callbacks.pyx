@@ -37,6 +37,7 @@ import torch
 import numpy as np
 import traceback
 import sys
+import time
 cimport numpy as np
 
 from torch.cuda import Stream
@@ -65,6 +66,7 @@ cdef int my_access(braid_App app,braid_Vector u,braid_AccessStatus status):
 
   try:
     pyApp = <object> app
+    start = time.time() - pyApp.start_time
     with pyApp.timer("access"):
 
       # Create Numpy wrapper around u.v
@@ -88,7 +90,7 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
 
   try:
     pyApp = <object> app
-
+    start = time.time() - pyApp.start_time
     with pyApp.timer("step"):
 
       tstart = 0.0
@@ -99,6 +101,7 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
       braid_StepStatusGetDone(status, &done)
 
       u = <object> vec_u
+      u.syncStream()
 
       # modify the state vector in place
       pyApp.eval(u,tstart,tstop,level,done)
@@ -106,7 +109,7 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
       # store final step
       if level==0 and tstop==pyApp.Tf:
         pyApp.x_final = u.clone()
-
+      pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time()-pyApp.start_time, method=f'my_step_{level}')
   except:
     output_exception("my_step: rank={}, step=({},{}), level={}, sf={}".format(pyApp.getMPIComm().Get_rank(),
                                                                                            tstart,
@@ -121,6 +124,7 @@ cdef int my_init(braid_App app, double t, braid_Vector *u_ptr):
 
   try:
     pyApp = <object> app
+    start = time.time() - pyApp.start_time
     with pyApp.timer("init"):
       u_mem = pyApp.buildInit(t)
       Py_INCREF(u_mem) # why do we need this?
@@ -130,6 +134,7 @@ cdef int my_init(braid_App app, double t, braid_Vector *u_ptr):
       # finish the step computation
       if pyApp.use_cuda:
         torch.cuda.synchronize()
+    pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time() - pyApp.start_time, method=f'my_init')
   except:
     output_exception("my_init")
 
@@ -138,12 +143,14 @@ cdef int my_init(braid_App app, double t, braid_Vector *u_ptr):
 cdef int my_free(braid_App app, braid_Vector u):
   try:
     pyApp = <object> app
+    start = time.time() - pyApp.start_time
     with pyApp.timer("free"):
       # Cast u as a PyBraid_Vector
       pyU = <object> u
       # Decrement the smart pointer
       Py_DECREF(pyU)
       del pyU
+    pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time() - pyApp.start_time, method=f'my_free')
   except:
     output_exception("my_free")
   return 0
@@ -151,9 +158,13 @@ cdef int my_free(braid_App app, braid_Vector u):
 cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_Vector y):
   try:
     pyApp = <object> app
+    start = time.time() - pyApp.start_time
     with pyApp.timer("sum"):
       bv_X = <object> x
       bv_Y = <object> y
+
+      bv_X.syncStream()
+      bv_Y.syncStream()
 
       for ten_X,ten_Y in zip(bv_X.tensors(),bv_Y.tensors()):
         ten_Y.mul_(float(beta))
@@ -162,6 +173,7 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
       ## finish the sum computation
       ##if pyApp.use_cuda:
       ##  torch.cuda.synchronize()
+    pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time() - pyApp.start_time, method=f'my_sum')
   except:
     x_shapes = [ten_X.size() for ten_X in bv_X.tensors()]
     y_shapes = [ten_Y.size() for ten_Y in bv_Y.tensors()]
@@ -174,6 +186,7 @@ cdef int my_sum(braid_App app, double alpha, braid_Vector x, double beta, braid_
 cdef int my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
   try:
     pyApp = <object> app
+    start = time.time() - pyApp.start_time
     with pyApp.timer("clone"):
       ten_U = <object> u
       #v_mem = ten_U.clone()
@@ -185,6 +198,7 @@ cdef int my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
 
       Py_INCREF(v) # why do we need this?
       v_ptr[0] = <braid_Vector> v
+    pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time() - pyApp.start_time, method=f'my_clone')
   except:
     output_exception("my_clone")
 
@@ -193,12 +207,14 @@ cdef int my_clone(braid_App app, braid_Vector u, braid_Vector *v_ptr):
 cdef int my_norm(braid_App app, braid_Vector u, double *norm_ptr):
   try:
     pyApp = <object> app
+    start = time.time() - pyApp.start_time
     with pyApp.timer("norm"):
       # Compute norm
       tensors_U = (<object> u).tensors()
       norms = torch.stack([torch.square(ten_U).sum() for ten_U in tensors_U])
 
       norm_ptr[0] = math.sqrt(norms.sum().item())
+      pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time() - pyApp.start_time, method=f'my_norm')
   except:
     output_exception("my_norm")
 
@@ -213,7 +229,7 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
 
   try:
     pyApp = <object> app
-
+    start = time.time() - pyApp.start_time
     float_type = float # on CPU
     if pyApp.user_mpi_buf:
       float_type = __float_alloc_type__ # on CUDA
@@ -222,8 +238,9 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
 
       cnt = 0
       for s in shapes:
-        cnt += s.numel() 
+        cnt += s.numel()
       size_ptr[0] = get_bytes(float_type)*cnt
+    pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time() - pyApp.start_time, method=f'my_bufsize_{level}')
   except:
     output_exception("my_bufsize")
 
@@ -237,7 +254,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void * buffer,braid_BufferSta
   braid_BufferStatusGetLevel(status, &level)
 
   pyApp = <object> app
-
+  start = time.time() - pyApp.start_time
 
   try:
     if pyApp.use_cuda:
@@ -246,6 +263,7 @@ cdef int my_bufpack(braid_App app, braid_Vector u, void * buffer,braid_BufferSta
       return my_bufpack_cpu(app, u, buffer, tidx, level)
   except:
     output_exception("my_bufpack")
+  pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time() - pyApp.start_time, method=f'my_bufpack_{level}')
 # end my_bufpack
 
 cdef int my_bufpack_cpu(braid_App app, braid_Vector u, void *buffer,int tidx, int level):
@@ -309,7 +327,7 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
   braid_BufferStatusGetLevel(status, &level)
 
   pyApp = <object> app
-
+  start = time.time() - pyApp.start_time
   try:
     if pyApp.use_cuda:
       result = my_bufunpack_cuda(app, buffer, u_ptr,tidx, level)
@@ -317,7 +335,7 @@ cdef int my_bufunpack(braid_App app, void *buffer, braid_Vector *u_ptr,braid_Buf
       result = my_bufunpack_cpu(app, buffer, u_ptr,tidx, level)
   except:
     output_exception("my_bufunpack")
-
+  pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time() - pyApp.start_time, method=f'my_bufunpack_{level}')
   return result
 # end my_bufunpack
 
@@ -327,34 +345,38 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,int 
   try:
     pyApp = <object> app
     with pyApp.timer("bufunpack"):
-      addr = <uintptr_t> buffer
-      app_buffer = pyApp.getBuffer(addr = addr)
-
-      size_vt = pyApp.getFeatureShapes(tidx,level)
-      size_wt = pyApp.getParameterShapes(tidx,level)
-
-      vt = []
-      start = 0
-      for s in size_vt:
-        size = s.numel()
-        vt.append(torch.reshape(app_buffer[start:start+size].detach().clone(), s))
-        start += size
-
-      wt = []
-      for s in size_wt:
-        size = s.numel()
-        wt.append(torch.reshape(app_buffer[start:start+size].detach().clone(), s))
-        start += size
-
-      u_obj = BraidVector(tensor = vt, send_flag = True)
-      u_obj.weight_tensor_data_ = wt
-      Py_INCREF(u_obj)
-
-      # set the pointer for output
-      u_ptr[0] = <braid_Vector> u_obj
+      strm = torch.cuda.Stream(device=pyApp.device)
+      with torch.cuda.stream(strm):
+        addr = <uintptr_t> buffer
+        app_buffer = pyApp.getBuffer(addr = addr)
+  
+        size_vt = pyApp.getFeatureShapes(tidx,level)
+        size_wt = pyApp.getParameterShapes(tidx,level)
+  
+        vt = []
+        start = 0
+        for s in size_vt:
+          size = s.numel()
+          vt.append(torch.reshape(app_buffer[start:start+size].detach().clone(), s))
+          start += size
+  
+        wt = []
+        for s in size_wt:
+          size = s.numel()
+          wt.append(torch.reshape(app_buffer[start:start+size].detach().clone(), s))
+          start += size
+  
+        u_obj = BraidVector(tensor = vt, send_flag = True)
+        u_obj.weight_tensor_data_ = wt
+        Py_INCREF(u_obj)
+  
+        # set the pointer for output
+        u_ptr[0] = <braid_Vector> u_obj
 
       # finish data movement (this one might not be neccessary)
-      torch.cuda.synchronize()
+      u_obj.setStream(strm)
+      u_obj.syncStream()
+      #strm.synchronize()
   except:
     output_exception("my_bufunpack_gpu")
 
@@ -399,7 +421,7 @@ cdef int my_bufunpack_cpu(braid_App app, void *buffer, braid_Vector *u_ptr,int t
 cdef int my_coarsen(braid_App app, braid_Vector fu, braid_Vector *cu_ptr, braid_CoarsenRefStatus status):
   cdef int level = -1
   pyApp  = <object> app
-
+  start = time.time() - pyApp.start_time
   with pyApp.timer("coarsen"):
     ten_fu =  <object> fu
 
@@ -412,13 +434,14 @@ cdef int my_coarsen(braid_App app, braid_Vector fu, braid_Vector *cu_ptr, braid_
 
     Py_INCREF(cu) # why do we need this?
     cu_ptr[0] = <braid_Vector> cu
+  pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time() - pyApp.start_time, method=f'my_coarsen_{level}')
 
   return 0
 
 cdef int my_refine(braid_App app, braid_Vector cu, braid_Vector *fu_ptr, braid_CoarsenRefStatus status):
   cdef int level = -1
   pyApp  = <object> app
-
+  start = time.time() - pyApp.start_time
   with pyApp.timer("refine"):
     ten_cu =  <object> cu
 
@@ -428,43 +451,48 @@ cdef int my_refine(braid_App app, braid_Vector cu, braid_Vector *fu_ptr, braid_C
     fu = BraidVector(tensors,ten_cu.send_flag_)
     if len(ten_cu.weight_tensor_data_)>0:
       fu.weight_tensor_data_ = [t.detach() for t in ten_cu.weight_tensor_data_]
-    # fu_mem = pyApp.spatial_refine(ten_cu,level)
-    # fu_vec = BraidVector(fu_mem)
 
     Py_INCREF(fu)
     fu_ptr[0] = <braid_Vector> fu
-
+  pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time() - pyApp.start_time, method=f'my_refine_{level}')
   return 0
 
 cdef int my_bufalloc(braid_App app, void **buffer, int nbytes, braid_BufferStatus status):
   cdef uintptr_t addr
 
   pyApp = <object>app
+  start = time.time() - pyApp.start_time
 
-  if pyApp.use_cuda:
-    # convert nbytes to number of elements
-    elements = math.ceil(nbytes / get_bytes(__float_alloc_type__))
+  with pyApp.timer("bufalloc"):
+    if pyApp.use_cuda:
+      # convert nbytes to number of elements
+      elements = math.ceil(nbytes / get_bytes(__float_alloc_type__))
 
-    addr = pyApp.addBufferEntry(tensor=torch.empty(elements, dtype=__float_alloc_type__, device='cuda'))
+      strm = torch.cuda.Stream(device=pyApp.device)
+      with torch.cuda.stream(strm):
+        addr = pyApp.addBufferEntry(tensor=torch.empty(elements, dtype=__float_alloc_type__, device=pyApp.device))
 
-    buffer[0]=<void *> addr
+        buffer[0]=<void *> addr
 
-    torch.cuda.synchronize()
-  else:
-    buffer[0] = malloc(nbytes)
-
+      strm.synchronize()
+    else:
+      buffer[0] = malloc(nbytes)
+  pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time() - pyApp.start_time, method=f'my_bufalloc')
   return 0
 
 cdef int my_buffree(braid_App app, void **buffer):
   cdef uintptr_t addr
 
   pyApp = <object> app
-  if pyApp.use_cuda:
-    addr = <uintptr_t> buffer[0]
-    pyApp.removeBufferEntry(addr=addr)
+  with pyApp.timer("buffree"):
 
-  else:
-    free(buffer[0])
-    buffer[0] = NULL
+    start = time.time() - pyApp.start_time
+    if pyApp.use_cuda:
+      addr = <uintptr_t> buffer[0]
+      pyApp.removeBufferEntry(addr=addr)
 
+    else:
+      free(buffer[0])
+      buffer[0] = NULL
+  pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time() - pyApp.start_time, method=f'my_buffree')
   return 0

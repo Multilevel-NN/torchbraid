@@ -199,6 +199,9 @@ class TestGradUpdate(unittest.TestCase):
         for p in f.parameters(): 
           p -= p.grad * lr
         f.zero_grad()
+
+      if my_device.type=='cuda':
+        torch.cuda.synchronize()
      
       xf.grad.zero_()
       wf = f(xf)

@@ -79,7 +79,7 @@ def load_data(train, example_path):
 
   return torch.Tensor(x_data),y_data
 
-class ParallelRNNDataLoader(torch.utils.data.DataLoader):
+class ParallelGRUDataLoader(torch.utils.data.DataLoader):
   """ Custom DataLoader class for distributing sequences across ranks """
   def __init__(self, comm, dataset, batch_size, shuffle=False):
     self.dataset = dataset

@@ -41,6 +41,7 @@ import torchbraid
 import faulthandler
 
 from torchbraid.utils import getDevice
+from torchbraid.utils import LPBatchNorm2d
 
 faulthandler.enable()
 
@@ -79,25 +80,46 @@ class LinearBlock(nn.Module):
     return x
 # end layer
 
-class ReLUBlock(nn.Module):
+class ExtraLinearBlock(nn.Module):
   def __init__(self,dim=10):
+    super(ExtraLinearBlock, self).__init__()
+
+  def forward(self, x, *args,**kwargs):
+    assert len(args)==2
+    assert args[0]=='horse'
+    assert args[1]=='dog'
+
+    assert len(kwargs)==3
+    assert kwargs['a0']=='cat'
+    assert kwargs['a1']=='monkey'
+    assert kwargs['a2']=='donkey'
+    return x
+# end layer
+
+class ReLUBlock(nn.Module):
+  def __init__(self,dim=10,with_bn=False):
     super(ReLUBlock, self).__init__()
     self.lin = nn.Linear(dim, dim,bias=True)
+    self.with_bn = with_bn
 
-    w = torch.randn(dim,dim)
     w = 2.3*torch.ones(dim,dim)
     self.lin.weight = torch.nn.Parameter(w)
 
-    b = torch.randn(dim)
     b = -1.22*torch.ones(dim)
     self.lin.bias = torch.nn.Parameter(b)
 
+    if with_bn:
+      #self.bn = nn.BatchNorm1d(dim)
+      self.bn = LPBatchNorm2d(dim)
+
   def forward(self, x):
+    if self.with_bn:
+      x = self.bn(x)
     return F.relu(self.lin(x))
 # end layer
 
 class ConvBlock(nn.Module):
-  def __init__(self,dim,num_ch):
+  def __init__(self,dim,num_ch,with_bn=False):
     super(ConvBlock, self).__init__()
     self.lin = nn.Conv1d(num_ch,num_ch,kernel_size=3,padding=1,bias=False)
 
@@ -112,6 +134,27 @@ class ConvBlock(nn.Module):
 # end layer
 
 class TestTorchBraid(unittest.TestCase):
+
+  def test_extra_linearNet_Exact(self):
+    dim = 2
+    basic_block = lambda: ExtraLinearBlock(dim)
+
+    # figure out the whole GPU situation
+    my_device,my_host = getDevice(MPI.COMM_WORLD) 
+
+    x0 = torch.randn(5,dim) # forward initial cond
+
+    x0 = x0.to(my_device)
+
+    m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,3*MPI.COMM_WORLD.Get_size(),2.0,max_fwd_levels=1,max_bwd_levels=1,max_iters=1)
+    m.setPrintLevel(0)
+    m = m.to(my_device)
+
+    MPI.COMM_WORLD.barrier()
+
+    m(x0,'horse','dog',a0='cat',a1='monkey',a2='donkey')
+  # end test_linearNet_Exact
+
   def test_linearNet_Exact(self):
     dim = 2
     basic_block = lambda: LinearBlock(dim)
@@ -156,6 +199,74 @@ class TestTorchBraid(unittest.TestCase):
 
     MPI.COMM_WORLD.barrier()
   # end test_reLUNet_Exact
+
+  def test_reLUNetBN_Exact(self):
+    dim = 2
+    basic_block = lambda: ReLUBlock(dim,True)
+
+    torch.manual_seed(434442321)
+    x0 = 1.0*torch.rand(5,dim) # forward initial cond
+    w0 = 3.0*torch.ones(5,dim) # adjoint initial cond
+    max_levels = 1
+    max_iters = 1
+
+    # this catch block, augments the 
+    rank = MPI.COMM_WORLD.Get_rank()
+    try:
+      self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-16,prefix='reLUNetBN_Exact')
+    except RuntimeError as err:
+      raise RuntimeError("proc=%d) reLUNetBN_Exact..failure" % rank) from err
+
+    MPI.COMM_WORLD.barrier()
+  # end test_reLUNet_Exact
+
+  def test_reLUNetBN_Approx(self):
+    dim = 2
+    basic_block = lambda: ReLUBlock(dim,True)
+
+    torch.manual_seed(434442321)
+    x0 = 1.0*torch.rand(5,dim) # forward initial cond
+    w0 = 3.0*torch.ones(5,dim) # adjoint initial cond
+    max_levels = 3
+    max_iters = 8
+
+    # this catch block, augments the 
+    rank = MPI.COMM_WORLD.Get_rank()
+    try:
+      m_parallel,m_serial = self.backForwardProp(dim,basic_block,x0,w0,max_levels,max_iters,test_tol=1e-16,prefix='reLUNetBN_Approx')
+    except RuntimeError as err:
+      raise RuntimeError("proc=%d) reLUNetBN_Approx..failure" % rank) from err
+ 
+    # evaluate more times to make sure the batchnorm is correct
+    ########################################################
+
+    # figure out the whole GPU situation
+    my_device,my_host = getDevice(MPI.COMM_WORLD) 
+
+    x0 = 1.0*torch.rand(5,dim,device=my_device) # forward initial cond
+    w0 = 1.0*torch.rand(5,dim,device=my_device) # forward initial cond
+
+    m_parallel.eval() # evaluation should result in no buffer changes
+    y = m_parallel(x0)
+
+    m_parallel.train()
+    y = m_parallel(x0)
+    y.backward(w0)
+
+    if m_serial!=None:
+      m_serial.train()
+      m_serial(x0)
+
+    # test the buffers
+    parallel_buffers = self.copyBuffersToRoot(m_parallel,my_device)
+    if rank==0:
+      serial_buffers = list(m_serial.buffers())
+
+      for s,p in zip(serial_buffers,parallel_buffers):
+        if s.dtype==torch.bool: 
+          continue
+       
+        self.assertTrue(torch.norm(s-p).item()/torch.norm(s).item() < 1.e-15)
 
   def test_convNet_Approx_coarse_ref(self):
     dim = 128
@@ -267,6 +378,32 @@ class TestTorchBraid(unittest.TestCase):
     fine_tidx = m.fwd_app.getFineTimeIndex(tidx=23,level=1)
     self.assertEqual(fine_tidx,23*cfactor[0])
 
+  def copyBuffersToRoot(self,m,device):
+    comm     = m.getMPIComm()
+    my_rank  = m.getMPIComm().Get_rank()
+    num_proc = m.getMPIComm().Get_size()
+ 
+    bn_mods = [l for l in m.modules() if isinstance(l,nn.BatchNorm1d) or isinstance(l,LPBatchNorm2d)]
+    params = []
+    for l in bn_mods:
+      params.extend(list(l.buffers()))
+
+    if len(params)==0:
+      return params
+
+    if my_rank==0:
+      for i in range(1,num_proc):
+        remote_p = comm.recv(source=i,tag=77)
+        remote_p = [p.to(device) for p in remote_p]
+        params.extend(remote_p)
+
+      return params
+    else:
+      params_cpu = [p.cpu() for p in params]
+      comm.send(params_cpu,dest=0,tag=77)
+      return None
+  # end copyParametersToRoot
+
   def copyParameterGradToRoot(self,m,device):
     comm     = m.getMPIComm()
     my_rank  = m.getMPIComm().Get_rank()
@@ -290,7 +427,8 @@ class TestTorchBraid(unittest.TestCase):
       return None
   # end copyParametersToRoot
 
-  def backForwardProp(self,dim, basic_block,x0,w0,max_levels,max_iters,test_tol,prefix,ref_pair=None,check_grad=True,num_steps=4,print_level=0,check_initial_guess=False):
+  def backForwardProp(self,dim, basic_block,x0,w0,max_levels,max_iters,test_tol,prefix,
+                      ref_pair=None,check_grad=True,num_steps=4,print_level=0,check_initial_guess=False,extra_args=list(),extra_kwargs=dict()):
     Tf = 2.0
     cfactor = 2 
 
@@ -344,7 +482,8 @@ class TestTorchBraid(unittest.TestCase):
     xm = x0.clone()
     xm.requires_grad = check_grad
 
-    wm = m(xm)
+    m.train()
+    wm = m(xm,*extra_args,**extra_kwargs)
 
     times,uvals = m.getFineTimePoints()
 
@@ -382,6 +521,7 @@ class TestTorchBraid(unittest.TestCase):
       xf = x0.clone()
       xf.requires_grad = check_grad
       
+      f.train()
       wf = f(xf)
  
       # compare the solutions
@@ -403,12 +543,10 @@ class TestTorchBraid(unittest.TestCase):
         param_errors = []
         for pf,pm_grad in zip(list(f.parameters()),m_param_grad):
           self.assertTrue(not pm_grad is None)
-   
+
           # accumulate parameter errors for testing purposes
           param_errors += [(torch.norm(pf.grad-pm_grad)/torch.norm(pf.grad)).item()]
 
-          #print(param_errors[-1],torch.norm(pf.grad),pf.grad.shape,torch.norm(pm_grad))
-   
           # check the error conditions
           self.assertTrue(torch.norm(pf.grad-pm_grad)<=test_tol)
    
@@ -418,6 +556,8 @@ class TestTorchBraid(unittest.TestCase):
       print('\n')
     elif initial_guess is not None:
       self.assertEqual(len(marks), 0)
+
+    return m,f
   # forwardPropSerial
 
   import sys

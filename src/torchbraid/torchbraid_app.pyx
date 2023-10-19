@@ -59,6 +59,7 @@ class BraidApp:
                spatial_ref_pair=None,user_mpi_buf=False,
                require_storage=False,abs_tol=1e-12):
 
+    self.start_time = time.time()
     self.prefix_str = prefix_str # prefix string for helping to debug hopefully
     self.tb_print_level = 0      # set print level internally to zero
 
@@ -275,8 +276,17 @@ class BraidApp:
     for cf in cfactors:
       cnt = cf * cnt
 
-    return int(self.num_steps/cnt) 
-
+    return int(self.num_steps/cnt)
+    
+  def printRuntimeFuncCall(self, t_start, t_stop, method):
+    if self.tb_print_level >= 2:
+      print(f'Model '
+            f'| rank: {self.getMPIComm().Get_rank()} '
+            f'| t_start: {t_start} '
+            f'| t_stop: {t_stop} '
+            f'| method: {method} '
+            f'| type: {self.prefix_str}'
+            )
 
   def setCFactor(self,cfactor : Union[int, dict]):
     """
@@ -527,6 +537,7 @@ class BraidApp:
     self.buffer = [item for item in self.buffer if item.data_ptr() != addr]
 
   def initializeStates(self):
+    start = time.time() - self.start_time
     try:
       t = 0.0
       for i in range(self.local_num_steps+1):
@@ -536,7 +547,7 @@ class BraidApp:
           self.initializeVector(t,u_vec)
     except:
       output_exception("{}:initializeStates: rank {}, t={}".format(self.prefix_str,self.getMPIComm().Get_rank(),t))
-   
+    self.printRuntimeFuncCall(t_start=start, t_stop=time.time() - self.start_time, method='initializeStates')
   # end initializeStates
 
   def testBraid(self, x):
@@ -589,6 +600,7 @@ class BraidApp:
     #                NULL,    NULL,   NULL,    b_step)    
 
   def runBraid(self,x):
+    start = time.time() - self.start_time
     cdef PyBraid_Core py_core = <PyBraid_Core> self.py_core
     cdef braid_Core core = py_core.getCore()
 
@@ -617,7 +629,7 @@ class BraidApp:
     # make sure all the computationas are completed
     if torch.cuda.is_available():
       torch.cuda.synchronize()
-
+    self.printRuntimeFuncCall(t_start=start, t_stop=time.time() - self.start_time, method='runBraid')
     return fin
 
   def getBraidStats(self):
