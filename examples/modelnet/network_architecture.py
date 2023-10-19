@@ -88,6 +88,7 @@ class ParallelNet(nn.Module):
                user_mpi_buf=False, comm_lp=MPI.COMM_WORLD, sc_levels=None, numx=31):
     super(ParallelNet, self).__init__()
 
+    # the following functions implement the spatial coarsening/refinement of 3D images
     def sp_coarsen(img, level):
       if level in self.levels_to_coarsen:
         nx = img.shape[2]
