@@ -244,9 +244,6 @@ def main():
     warm_up_timer = timer()
     train(rank=rank, params=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=0,
           compose=model.compose, device=device)
-    model.parallel_nn.timer_manager.resetTimers()
-    model.parallel_nn.fwd_app.resetBraidTimer()
-    model.parallel_nn.bwd_app.resetBraidTimer()
     if use_cuda:
       torch.cuda.synchronize()
     root_print(rank, f'\nWarm up timer {timer() - warm_up_timer}\n')
@@ -271,18 +268,10 @@ def main():
     test_times += [timer() - start_time]
     validat_correct_counts += [validat_correct]
 
-  # Print out Braid internal timings, if desired -- these are primarily diagnostic timings
-  #timer_str = model.parallel_nn.getTimersString()
-  #root_print(rank, timer_str)
-
   # Note: the MNIST example is primarily meant to demonstrate the package, not focus on performance
   root_print(rank,
              f'TIME PER EPOCH: {"{:.2f}".format(stats.mean(epoch_times))} '
              f'{("(1 std dev " + "{:.2f}".format(stats.mean(epoch_times))) if len(epoch_times) > 1 else ""}')
-
-  if args.serial_file is not None:
-    # Model can be reloaded in serial format with: model = torch.load(filename)
-    model.saveSerialNet(args.serial_file)
 
   root_print(rank, f'\nMin batch time:   {"{:.3f}".format(np.min(batch_times))} ')
   root_print(rank, f'Mean batch time:  {"{:.3f}".format(stats.mean(batch_times))} ')
