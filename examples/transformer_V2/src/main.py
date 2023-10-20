@@ -55,6 +55,7 @@ from timeit import default_timer as timer
 
 import matplotlib.pyplot as plt
 import numpy as np
+import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -62,12 +63,15 @@ import torch.optim as optim
 import torchbraid
 import torchbraid.utils
 from torchvision import datasets, transforms
+import sys
 
 from network_architecture import parse_args, ParallelNet
 from mpi4py import MPI
 
 import input_pipeline
 import preprocessing
+
+# torch.set_default_dtype(torch.float64)
 
 ##
 # Make sure datasets are present (if already downloaded, this is not repeated)
@@ -95,6 +99,11 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device):
     loss.backward()
     stop_time = timer()
     optimizer.step()
+    
+    # if rank == 0: 
+    #   root_print(rank, f'rank{rank}, batch_idx {batch_idx}, data {data}, target {target}, loss {loss}')
+    #   for p in model.parameters(): root_print(rank, f'{p.shape}, {p.ravel()[:10]}')
+    #   sys.exit()
 
     # print(output.shape, target.shape, output.argmax(dim=-1).shape)
     preds = output.argmax(dim=-1)
@@ -178,6 +187,7 @@ def obtain_ds_dl(data_path_train, data_path_dev, batch_size, max_len):
     attributes_target=attributes_target,
     batch_size=batch_size, 
     bucket_size=max_len,
+    seed=0,
   )
   eval_ds, eval_dl = preprocessing.obtain_dataset(
     filename=dev, 
@@ -186,6 +196,7 @@ def obtain_ds_dl(data_path_train, data_path_dev, batch_size, max_len):
     attributes_target=attributes_target,
     batch_size=batch_size,#64,#187, 
     bucket_size=max_len,
+    seed=0,
   )
 
   return train_ds, eval_ds, train_dl, eval_dl, vocabs
@@ -206,7 +217,7 @@ def main():
   print(f'Run info rank: {rank}: Torch version: {torch.__version__} | Device: {device} | Host: {host}')
 
   # Set seed for reproducibility
-  torch.manual_seed(args.seed)
+  torch.manual_seed(0)#args.seed)
 
   # Compute number of steps in ResNet per processor
   local_steps = int(args.steps / procs)
@@ -238,6 +249,8 @@ def main():
   data_path_dev = '/users/msalvado/MLT/ML_PQ/data/en_gum-ud-dev.conllu.txt'
   train_ds, eval_ds, train_dl, eval_dl, vocabs = obtain_ds_dl(data_path_train, data_path_dev, args.batch_size, max_len=2048)
   train_set, test_set, train_loader, test_loader = train_ds, eval_ds, train_dl, eval_dl
+  # root_print(rank, f'{len(train_loader)}, {next(iter(train_loader))}')
+  # sys.exit()
 
 
   # Diagnostic information
@@ -261,7 +274,7 @@ def main():
   
   # Create layer-parallel network
   # Note this can be done on only one processor, but will be slow
-  model = ParallelNet('Torch',
+  model = ParallelNet(args.model_dimension, args.num_heads,
                   local_steps=local_steps,
                   max_levels=args.lp_max_levels,
                   bwd_max_iters=args.lp_bwd_max_iters,
@@ -276,6 +289,11 @@ def main():
                   relax_only_cg=False,
                   user_mpi_buf=args.lp_user_mpi_buf).to(device)
 
+  # if rank == 0:
+  #   for p in model.parameters():
+  #     root_print(rank, f'{p.dtype}, {p.shape}, {p.ravel()[:10]}')
+  # sys.exit()
+
   model.pad_id_src = vocabs['forms']['<p>']
   model.pad_id_tgt = vocabs['xpos']['<p>']
 
@@ -288,6 +306,8 @@ def main():
   # Declare optimizer  
   print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
   optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+  # if rank == 0: root_print(rank, optimizer)
+  # sys.exit()
 
   # For better timings (especially with GPUs) do a little warm up
   if args.warm_up:
@@ -308,6 +328,8 @@ def main():
   test_times = []
   validat_correct_counts = []
 
+  torch.manual_seed(0)
+  epoch_time_start = time.time()
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
     [losses, train_times] = train(rank=rank, params=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=epoch,
@@ -320,6 +342,10 @@ def main():
     validat_correct, validat_size, validat_loss = test(rank=rank, model=model, test_loader=test_loader, compose=model.compose, device=device)
     test_times += [timer() - start_time]
     validat_correct_counts += [validat_correct]
+  
+    epoch_time_end = time.time()
+    if rank == 0: root_print(rank, f'Epoch time: {epoch_time_end - epoch_time_start} seconds')
+    epoch_time_start = time.time()
 
   # Print out Braid internal timings, if desired
   #timer_str = model.parallel_nn.getTimersString()

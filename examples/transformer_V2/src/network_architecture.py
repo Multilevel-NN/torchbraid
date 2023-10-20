@@ -31,15 +31,15 @@ __all__ = [ 'OpenLayer', 'CloseLayer', 'StepLayer', 'parse_args', 'ParallelNet' 
 
 
 class OpenLayer(nn.Module):
-  def __init__(self,encoding):
+  def __init__(self, model_dimension):
     super(OpenLayer, self).__init__()
     torch.manual_seed(0)
-    self.encoding = encoding
-    self.emb = nn.Embedding(15514, 128)
+    self.d = model_dimension
+    self.emb = nn.Embedding(15514, self.d)
     # self.dropout = nn.Dropout(p=.1)
-    self.posenc = PositionalEncoding(128) if encoding == 'Torch'\
-      else PE_Alternative(128) if encoding == 'Alternative'\
-      else Exception('encoding unknown')
+    self.posenc = PositionalEncoding(self.d) #if encoding == 'Torch'\
+      #else PE_Alternative(128) if encoding == 'Alternative'\
+      #else Exception('encoding unknown')
 
   def forward(self, x):
     # this bit of python magic simply replicates each image in the batch
@@ -50,11 +50,12 @@ class OpenLayer(nn.Module):
 # end layer
 
 class CloseLayer(nn.Module):
-  def __init__(self):
+  def __init__(self, model_dimension):
     super(CloseLayer, self).__init__()
     torch.manual_seed(0)
-    self.ln3 = nn.LayerNorm(128)
-    self.fc3 = nn.Linear(128, 49)
+    self.d = model_dimension
+    self.ln3 = nn.LayerNorm(self.d)
+    self.fc3 = nn.Linear(self.d, 49)
 
   def forward(self, x):
     x = self.ln3(x)
@@ -65,19 +66,21 @@ class CloseLayer(nn.Module):
 # f = open('llog3.txt', 'w')
 # f.close()
 class StepLayer(nn.Module):
-  def __init__(self):
+  def __init__(self, model_dimension, num_heads):
     super(StepLayer, self).__init__()
     torch.manual_seed(0)
-    self.fc1 = nn.Linear(128, 128)
-    self.fc2 = nn.Linear(128, 128)
+    self.d = model_dimension
+    self.num_heads = num_heads
+    self.fc1 = nn.Linear(self.d, self.d)
+    self.fc2 = nn.Linear(self.d, self.d)
     self.att = nn.MultiheadAttention(
-      embed_dim=128, 
-      num_heads=1, 
+      embed_dim=self.d, 
+      num_heads=self.num_heads, 
       dropout=0.,#.3, 
       batch_first=True
     )
-    self.ln1 = nn.LayerNorm(128)
-    self.ln2 = nn.LayerNorm(128)
+    self.ln1 = nn.LayerNorm(self.d)
+    self.ln2 = nn.LayerNorm(self.d)
 
     self.mask = None
 
@@ -127,13 +130,13 @@ class StepLayer(nn.Module):
 # local_steps: number of ResNet layers per processor
 # all other parameter definitions are in argument parser comments below
 class ParallelNet(nn.Module):
-  def __init__(self, encoding, local_steps=8, Tf=1.0, max_levels=1, bwd_max_iters=1,
+  def __init__(self, model_dimension, num_heads, local_steps=8, Tf=1.0, max_levels=1, bwd_max_iters=1,
                fwd_max_iters=2, print_level=0, braid_print_level=0, cfactor=4,
                fine_fcf=False, skip_downcycle=True, fmg=False, relax_only_cg=0,
                user_mpi_buf=False, comm_lp=MPI.COMM_WORLD):
     super(ParallelNet, self).__init__()
 
-    step_layer = lambda: StepLayer()
+    step_layer = lambda: StepLayer(model_dimension, num_heads)
     self.comm_lp = comm_lp
     numprocs = self.comm_lp.Get_size()
 
@@ -162,8 +165,8 @@ class ParallelNet(nn.Module):
 
     # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels)
     # on processors not equal to 0, these will be None (there are no parameters to train there)
-    self.open_nn = compose(OpenLayer, encoding)
-    self.close_nn = compose(CloseLayer)
+    self.open_nn = compose(OpenLayer, model_dimension)
+    self.close_nn = compose(CloseLayer, model_dimension)
 
   def saveSerialNet(self, name):
     # Model can be reloaded in serial format with: model = torch.load(filename)
@@ -290,6 +293,8 @@ def parse_args():
                       help='Models directory (for model saving)')
 
   ## additional arguments
+  parser.add_argument('--model_dimension', type=int, default=128)
+  parser.add_argument('--num_heads', type=int, default=1)
   parser.add_argument('--optimizer', type=str, default='Adam')#required=True)
   parser.add_argument('--momentum', type=float, default=0.)
 

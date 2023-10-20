@@ -1,0 +1,6 @@
+- set max-levels 1
+- set max-iters 1
+Serial & Parallel
+
+32 steps, cfactor 4, skip_downcycle
++ nodes, + max-levels --> 8 gpus 
