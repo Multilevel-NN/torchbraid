@@ -170,7 +170,7 @@ class ForwardODENetApp(BraidApp):
 
   # end class LayersDataStructure
 
-  def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None,user_mpi_buf=False,nsplines=0, splinedegree=1):
+  def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_funcs=None,levels_to_coarsen=None,user_mpi_buf=False,nsplines=0, splinedegree=1):
     """
     """
     self.layers_data_structure = ForwardODENetApp.LayersDataStructure(layers)
@@ -182,7 +182,7 @@ class ForwardODENetApp(BraidApp):
                       Tf,
                       max_levels,
                       max_iters,
-                      spatial_ref_pair=spatial_ref_pair,
+                      spatial_ref_pair=spatial_ref_funcs[:2] if spatial_ref_funcs is not None else None,
                       user_mpi_buf=user_mpi_buf,
                       require_storage=True)
 
@@ -195,6 +195,17 @@ class ForwardODENetApp(BraidApp):
     my_rank       = self.getMPIComm().Get_rank()
     num_ranks     = self.getMPIComm().Get_size()
     self.my_rank = my_rank
+
+    # need access to the user's coarsen function to coarsen state vectors
+    # from the fine level in getPrimalWithGrad
+    if spatial_ref_funcs is not None:
+      self.spatial_coarsen = spatial_ref_funcs[0]
+      self.coarsen_shape = spatial_ref_funcs[2]
+      self.levels_to_coarsen = levels_to_coarsen
+    else:
+      self.spatial_coarsen = None
+      self.coarsen_shape = None
+      self.levels_to_coarsen = None
 
     # If this is a SpliNet, create spline basis and overwrite local self.start_layer/end_layer 
     self.splinet = False
@@ -354,7 +365,22 @@ class ForwardODENetApp(BraidApp):
   def getFeatureShapes(self,tidx,level):
     i = self.getFineTimeIndex(tidx,level)
     ind = bisect_right(self.layers_data_structure.indices,i)
-    return [self.shape0[ind],]
+    shape = self.shape0[ind]
+
+    # spatial coarsening changes the shapes on the coarse grid
+    if level > 0 and self.levels_to_coarsen is not None:
+      cshape = list(shape)
+      # coarsen shape
+      for l in range(level):
+        if l in self.levels_to_coarsen:
+          # call user provided function to determine coarsened shape
+          # this function should accept a tuple of integers and return the same
+          cshape = self.coarsen_shape(cshape)
+      
+      print(f"coarsening shape {shape} to {cshape}")
+      shape = torch.Size(cshape)
+
+    return [shape,]
 
   def getParameterShapes(self,tidx,level):
     return []
@@ -478,6 +504,12 @@ class ForwardODENetApp(BraidApp):
         return (y,x), layer
     
     t_x = b_x.tensor()
+
+    # call the user's coarsen function on every level lower than this one
+    if self.spatial_coarsen:
+      for l in range(level):
+        t_x = self.spatial_coarsen(t_x, l)
+
     x = t_x.detach()
     y = t_x.detach().clone()
 
