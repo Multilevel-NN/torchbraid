@@ -62,22 +62,22 @@ def downloadModelNet(nx=31, train=True):
     for group in groups:
         print(f"Processing {group} data")
         with open(f"data/{group}_labels.csv", "w") as label_file:
-            for i, name in enumerate(classes):
+            for i_class, name in enumerate(classes):
                 class_dir = data_dir + name + f"/{group}"
                 class_processed = processed_dir + name + f"/{group}"
                 class_files = os.listdir(class_dir)
                 num_files = len(class_files)
-                for i, filename in enumerate(class_files):
+                for i_file, filename in enumerate(class_files):
                     if filename[0] == '.':
                         continue
 
                     f = os.path.join(class_processed, filename[:-4] + f"_{nx}.pt")
-                    label_file.write(f"{f},{i}\r\n")
+                    label_file.write(f"{f},{i_class}\r\n")
                     if not os.path.isfile(f):
                         # convert .off file to voxels and save to file
                         process(class_dir, class_processed, filename, nx)
                     
-                    print(f"{name}: {100*(i+1)/num_files : .2f}%", end="\r")
+                    print(f"{name}: {100*(i_file+1)/num_files : .2f}%", end="\r")
                 print()
 
 

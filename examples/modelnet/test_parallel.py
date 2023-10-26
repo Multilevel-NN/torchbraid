@@ -118,7 +118,7 @@ def time_test(rank, model, test_loader, compose, device):
 test_data = ModelNet(train=False)
 test_indices = torch.randperm(len(test_data))[0:int(args.percent_data * len(test_data))]
 test_set = torch.utils.data.Subset(test_data, test_indices)
-test_loader = torch.utils.data.DataLoader(test_set, batch_size=50, shuffle=False)
+test_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=False)
 
 
 # some logic to determine on which levels to apply the spatial coarsening
@@ -154,4 +154,3 @@ neednt_keys = []
 model.load_state_dict(state_dict)
 
 time_test(rank, model, test_loader, model.compose, device)
-
