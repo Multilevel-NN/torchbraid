@@ -28,10 +28,18 @@ def process(datadir, processed_dir, file, nx):
 def downloadModelNet(nx=31, train=True):
     modelnet_url = "http://vision.princeton.edu/projects/2014/3DShapeNets/ModelNet10.zip"
     if not os.path.isfile("data/ModelNet10.zip"):
-        print("Downloading ModelNet10.zip")
-        r = requests.get(modelnet_url, allow_redirects=True)
-        with open("data/ModelNet10.zip", "wb") as file:
-            file.write(r.content)
+        print("Downloading ModelNet10.zip (this takes a few minutes)")
+        with requests.get(modelnet_url, allow_redirects=True, stream=True) as r:
+            tot_size = int(r.headers["Content-Length"])
+            r.raise_for_status()
+            if not os.path.exists("data"):
+                os.mkdir("data")
+            with open("data/ModelNet10.zip", "wb") as file:
+                chunk_size = 8192
+                for i, chunk in enumerate(r.iter_content(chunk_size=chunk_size)):
+                    file.write(chunk)
+                    print(f"progress: {100*(i+1)*chunk_size/tot_size : .2f}%", end="\r")
+                print('\n')
         
     if not os.path.exists("data/ModelNet10"):
         print("Extracting ModelNet10.zip")
@@ -52,11 +60,14 @@ def downloadModelNet(nx=31, train=True):
         groups = ["test"]
 
     for group in groups:
+        print(f"Processing {group} data")
         with open(f"data/{group}_labels.csv", "w") as label_file:
             for i, name in enumerate(classes):
                 class_dir = data_dir + name + f"/{group}"
                 class_processed = processed_dir + name + f"/{group}"
-                for filename in os.listdir(class_dir):
+                class_files = os.listdir(class_dir)
+                num_files = len(class_files)
+                for i, filename in enumerate(class_files):
                     if filename[0] == '.':
                         continue
 
@@ -65,6 +76,9 @@ def downloadModelNet(nx=31, train=True):
                     if not os.path.isfile(f):
                         # convert .off file to voxels and save to file
                         process(class_dir, class_processed, filename, nx)
+                    
+                    print(f"{name}: {100*(i+1)/num_files : .2f}%", end="\r")
+                print()
 
 
 class ModelNet(Dataset):
