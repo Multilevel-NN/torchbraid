@@ -375,9 +375,8 @@ class ForwardODENetApp(BraidApp):
         if l in self.levels_to_coarsen:
           # call user provided function to determine coarsened shape
           # this function should accept a tuple of integers and return the same
-          cshape = self.coarsen_shape(cshape)
+          cshape = self.coarsen_shape(cshape, l)
       
-      print(f"coarsening shape {shape} to {cshape}")
       shape = torch.Size(cshape)
 
     return [shape,]
