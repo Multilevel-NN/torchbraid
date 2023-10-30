@@ -1,5 +1,5 @@
 import os, requests, zipfile
-import torch, open3d
+import torch
 from torch.utils.data import Dataset
 
 def voxelgrid_to_tensor(voxelgrid, nx):
@@ -11,6 +11,8 @@ def voxelgrid_to_tensor(voxelgrid, nx):
     return img
 
 def process(datadir, processed_dir, file, nx):
+    import open3d
+
     # open off file and convert to voxel grid
     mesh = open3d.io.read_triangle_mesh(os.path.join(datadir, file))
     bounds = (min(mesh.get_min_bound()), max(mesh.get_max_bound()))
@@ -109,4 +111,4 @@ class ModelNet(Dataset):
     
 
 if __name__ == "__main__":
-    downloadModelNet(nx=31, train=True)
+    downloadModelNet(nx=63, train=True)
