@@ -629,7 +629,7 @@ class BackwardODENetApp(BraidApp):
   def getFeatureShapes(self,tidx,level):
     fine_idx = self.getFineTimeIndex(tidx,level)
     # need to map back to the global fine index on the forward grid
-    return self.fwd_app.getFeatureShapes(self.num_steps-fine_idx,0)
+    return self.fwd_app.getFeatureShapes(self.num_steps-fine_idx,level)
 
   def eval(self,w,tstart,tstop,level,done):
     """
