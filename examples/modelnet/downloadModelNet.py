@@ -108,6 +108,63 @@ class ModelNet(Dataset):
         if self.transform:
            out = self.transform(out)
         return out, self.labels[idx]
+
+class RootLoaderIter:
+  def __init__(self, cnt, elmt, last_elmt):
+    self.cnt = cnt
+    self.elmt = elmt
+    self.last_elmt = last_elmt
+
+  def __iter__(self):
+    return self
+
+  def __next__(self):
+    if self.cnt > 1:
+      self.cnt -= 1
+      return self.elmt
+    elif self.cnt == 1:
+      self.cnt -= 1
+      return self.last_elmt
+    else:
+      raise StopIteration
+
+def batch_size(ten):
+  """
+  This convenience function is used in conjunction with the data loader (and RootLoader used
+  in parallel) to extract a batch size. This is then used internally within torchbraid to optimize
+  the computation of shapes.
+  """
+  if ten.dim()==0:
+    return int(ten.item())
+  return ten.shape[0]
+
+class RootLoader:
+  def __init__(self, batches, items,batch_size, device):
+    self.batches = batches
+
+    elmt = torch.tensor((batch_size), device=device)
+    self.elmt = (elmt, elmt)
+
+    # the last batch size can be the actual batchsize,
+    # or some smaller fraction 
+    if items % batch_size==0:
+      last_batch = batch_size
+    else:
+      last_batch = items % batch_size
+
+    last_elmt = torch.tensor((last_batch), device=device)
+    self.last_elmt = (last_elmt, last_elmt)
+
+    self.dataset = batches * [None]
+
+  def __iter__(self):
+    return RootLoaderIter(self.batches, self.elmt,self.last_elmt)
+
+def root_loader(rank, loader, device):
+  if rank == 0:
+    return loader
+  batches = len(loader)
+  return RootLoader(batches, len(loader.dataset), loader.batch_size, device)
     
 
 if __name__ == "__main__":

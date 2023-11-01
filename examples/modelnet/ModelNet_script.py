@@ -63,7 +63,7 @@ import torchbraid.utils
 from torchvision import datasets, transforms
 
 from network_architecture import parse_args, ParallelNet
-from downloadModelNet import downloadModelNet, ModelNet
+from downloadModelNet import downloadModelNet, ModelNet, root_loader
 from mpi4py import MPI
 
 
@@ -140,11 +140,13 @@ def main():
   rank = comm.Get_rank()
   procs = comm.Get_size()
   args = parse_args()
+  if rank==0:
+    print(args)
 
   # Download the ModelNet10 dataset if it does not exist, then convert the models to voxels
   # This will take around 10 minutes (if nx=63)
-  if rank == 0:
-    downloadModelNet(nx=args.numx)
+  #if rank == 0:
+  #  downloadModelNet(nx=args.numx)
 
   # Use device or CPU?
   use_cuda = not args.no_cuda and torch.cuda.is_available()
@@ -170,7 +172,9 @@ def main():
   train_set = torch.utils.data.Subset(train_dataset, train_indices)
   test_set = torch.utils.data.Subset(test_dataset, test_indices)
   train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size, shuffle=False)
+  train_loader = root_loader(rank, train_loader, device)
   test_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=False)
+  test_loader = root_loader(rank, test_loader, device)
 
   # some logic to determine on which levels to apply the spatial coarsening
   if args.lp_sc_levels == -1:
@@ -318,4 +322,3 @@ def main():
 
 if __name__ == '__main__':
   main()
-
