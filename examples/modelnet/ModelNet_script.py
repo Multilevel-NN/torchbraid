@@ -89,14 +89,16 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device):
     total_time += stop_time - start_time
     train_times.append(stop_time - start_time)
     losses.append(loss.item())
-    if batch_idx % params.log_interval == 0:
+    if batch_idx % params.log_interval == 0 and rank==0:
       root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
         epoch, batch_idx * len(data), len(train_loader.dataset),
                100. * batch_idx / len(train_loader), loss.item(), total_time / (batch_idx + 1.0)))
 
-  root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
-    epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
-           100. * (batch_idx + 1) / len(train_loader), loss.item(), total_time / (batch_idx + 1.0)))
+  if rank==0: 
+    root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
+      epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
+             100. * (batch_idx + 1) / len(train_loader), loss.item(), total_time / (batch_idx + 1.0)))
+
   return losses, train_times
 
 
