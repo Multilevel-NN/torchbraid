@@ -49,6 +49,8 @@ import copy
 from bisect import bisect_right
 from mpi4py import MPI
 
+from inspect import signature
+
 class ForwardODENetApp(BraidApp):
   class ODEBlock(nn.Module):
     """This is a helper class to wrap layers that should be ODE time steps."""
@@ -57,9 +59,19 @@ class ForwardODENetApp(BraidApp):
 
       self.layer = layer
 
-    def forward(self,dt, x,*args,**kwargs):
-      y = dt*self.layer(x,*args,**kwargs)
-      y.add_(x)
+      if len(signature(self.layer.forward).parameters) == 1:
+        self.dt_custom = False
+      else:
+        self.dt_custom = True
+
+    def forward(self, dt, x,*args,**kwargs):
+      if self.dt_custom:
+        # Note that we do not do the residual layer here; assumed handled explicitly
+        y = self.layer(x, dt, *args, **kwargs)
+      else:
+        y = dt*self.layer(x,*args,**kwargs)
+        y.add_(x)
+
       return y
   # end ODEBlock
 
@@ -107,13 +119,24 @@ class ForwardODENetApp(BraidApp):
         # this block of code prepares the data for easy sorting
         [self.counts,self.functors] = list(zip(*layers))
         self.indices = list(itertools.accumulate(self.counts))
+
+        # Helper flags are needed
         self.done_flag = tb_utils.DoneFlag.allocate()
+        self.nb_flag = tb_utils.NBFlag.allocate()
 
-      def updateLayerDoneFlag(self,new_state):
-        tb_utils.DoneFlag.update(self.done_flag,new_state)
+        # print(f"LayersData: {self.nb_flag=} {self.done_flag=}")
 
-      def registerLayerDoneFlag(self,layer):
-        tb_utils.DoneFlag.module_register(layer,self.done_flag)
+      def incrementLayerNBFlag(self):
+        tb_utils.NBFlag.increment(self.nb_flag)
+
+      def registerLayerNBFlag(self, layer):
+        tb_utils.NBFlag.module_register(layer, self.nb_flag)
+
+      def updateLayerDoneFlag(self, new_state):
+        tb_utils.DoneFlag.update(self.done_flag, new_state)
+
+      def registerLayerDoneFlag(self, layer):
+        tb_utils.DoneFlag.module_register(layer, self.done_flag)
 
       def getNumLayers(self):
         """Get the global number of layers of concern for layer-parallel."""
@@ -131,9 +154,20 @@ class ForwardODENetApp(BraidApp):
           layer = ForwardODENetApp.PlainBlock(layer)
         else:
           layer = ForwardODENetApp.ODEBlock(layer)
-    
+
         layer = layer.to(device)
-        tb_utils.DoneFlag.module_register(layer,self.done_flag)
+
+        # if MPI.COMM_WORLD.Get_rank() == 0:
+        #   print(f'Registering flags {layer=}')
+        #   for l in layer.modules():
+        #     if hasattr(l,  'register_nb'):
+        #       print(l, hasattr(l,  'register_nb'))
+        #       print(f'{l.register_nb=}')
+        #       print(f'{l.register_nb=}')
+
+        tb_utils.DoneFlag.module_register(layer, self.done_flag)
+        tb_utils.NBFlag.module_register(layer, self.nb_flag)
+
         return layer
 
       def layerWeights(self,layer):
@@ -269,9 +303,11 @@ class ForwardODENetApp(BraidApp):
 
   def to(self, *args, **kwargs):
     # make sure all the layers have registered the done flag
-    # this makes sure the any poijnter sharing is preserved
+    # this makes sure the any pointer sharing is preserved
     for l in self.layer_dict.values():
       self.layers_data_structure.registerLayerDoneFlag(l)
+    for l in self.layer_dict.values():
+      self.layers_data_structure.registerLayerNBFlag(l)
 
   @staticmethod 
   def batchSize(ten):
@@ -289,7 +325,6 @@ class ForwardODENetApp(BraidApp):
     for off proeccosr elements x with be a zero-d array with the batch
     size included.
     """
-
     batch_size = ForwardODENetApp.batchSize(x)
 
     if batch_size in self.state_shapes: 
@@ -299,10 +334,9 @@ class ForwardODENetApp(BraidApp):
       shapes = [x.shape]
       for layer_constr in self.layers_data_structure.functors:
         # build the layer on the proper device
-        layer = layer_constr().to(self.device) 
-     
+        layer = layer_constr().to(self.device)
+        # print('\t ', type(layer))
         x = layer(x,*extra_args,**extra_kwargs)
-          
         shapes += [x.shape]
     else:
       shapes = None
@@ -384,6 +418,8 @@ class ForwardODENetApp(BraidApp):
         self.requests = None
 
   def run(self,x,extra_args,extra_kwargs):
+    self.layers_data_structure.incrementLayerNBFlag()
+    
     self.beginUpdateWeights()
     self.endUpdateWeights()
 
@@ -398,11 +434,11 @@ class ForwardODENetApp(BraidApp):
 
     self.extra_args = list()
     self.extra_kwargs = dict()
-
     if y is not None:
       return y[0]
     else:
       return None
+    
   # end forward
 
   def timer(self,name):
@@ -422,7 +458,6 @@ class ForwardODENetApp(BraidApp):
     required to propagate from tstart to tstop, with the initial
     condition x. The level is defined by braid
     """
-
     self.layers_data_structure.updateLayerDoneFlag(done)
 
     ts_index = self.getGlobalTimeIndex(tstart)
