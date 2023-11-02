@@ -63,7 +63,7 @@ import torchbraid
 import torchbraid.utils
 from torchvision import datasets, transforms
 
-from network_architecture import parse_args, ParallelNet
+from network_architecture import parse_args, ParallelNet, SerialNet
 from mpi4py import MPI
 
 ##
@@ -181,47 +181,60 @@ def main():
   train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size, shuffle=False)
   test_loader = torch.utils.data.DataLoader(test_set, batch_size=args.batch_size, shuffle=False)
 
-  # Diagnostic information
-  root_print(rank, '-- procs    = {}\n'
-                   '-- channels = {}\n'
-                   '-- Tf       = {}\n'
-                   '-- steps    = {}\n'
-                   '-- max_levels     = {}\n'
-                   '-- max_bwd_iters  = {}\n'
-                   '-- max_fwd_iters  = {}\n'
-                   '-- cfactor        = {}\n'
-                   '-- fine fcf       = {}\n'
-                   '-- skip down      = {}\n'.format(procs, args.channels, 
-                                                     args.Tf, args.steps,
-                                                     args.lp_max_levels,
-                                                     args.lp_bwd_max_iters,
-                                                     args.lp_fwd_max_iters,
-                                                     args.lp_cfactor,
-                                                     args.lp_fine_fcf,
-                                                     not args.lp_use_downcycle) )
-  
-  # Create layer-parallel network
-  # Note this can be done on only one processor, but will be slow
-  model = ParallelNet(channels=args.channels,
-                  local_steps=local_steps,
-                  max_levels=args.lp_max_levels,
-                  bwd_max_iters=args.lp_bwd_max_iters,
-                  fwd_max_iters=args.lp_fwd_max_iters,
-                  print_level=args.lp_print_level,
-                  braid_print_level=args.lp_braid_print_level,
-                  cfactor=args.lp_cfactor,
-                  fine_fcf=args.lp_fine_fcf,
-                  skip_downcycle=not args.lp_use_downcycle,
-                  fmg=False, 
-                  Tf=args.Tf,
-                  relax_only_cg=False,
-                  user_mpi_buf=args.lp_user_mpi_buf).to(device)
+  if args.force_serial:
+    root_print(rank, '-- procs    = {}\n'
+                     '-- channels = {}\n'
+                     '-- Tf       = {}\n'
+                     '-- steps    = {}\n'.format(procs, args.channels,
+                                                 args.Tf, args.steps))
+    root_print(rank, 'Using SerialNet:')
+    model = SerialNet(channels=args.channels, local_steps=local_steps, Tf=args.Tf).to(device)
+    compose = lambda op, *p: op(*p)
+    model.compose = compose
 
-  # Detailed XBraid timings are output to these files for the forward and backward phases
-  model.parallel_nn.fwd_app.setTimerFile(
-    f'b_fwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
-  model.parallel_nn.bwd_app.setTimerFile(
-    f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
+  else:
+
+    # Diagnostic information
+    root_print(rank, '-- procs    = {}\n'
+                     '-- channels = {}\n'
+                     '-- Tf       = {}\n'
+                     '-- steps    = {}\n'
+                     '-- max_levels     = {}\n'
+                     '-- max_bwd_iters  = {}\n'
+                     '-- max_fwd_iters  = {}\n'
+                     '-- cfactor        = {}\n'
+                     '-- fine fcf       = {}\n'
+                     '-- skip down      = {}\n'.format(procs, args.channels,
+                                                       args.Tf, args.steps,
+                                                       args.lp_max_levels,
+                                                       args.lp_bwd_max_iters,
+                                                       args.lp_fwd_max_iters,
+                                                       args.lp_cfactor,
+                                                       args.lp_fine_fcf,
+                                                       not args.lp_use_downcycle) )
+
+    # Create layer-parallel network
+    # Note this can be done on only one processor, but will be slow
+    model = ParallelNet(channels=args.channels,
+                    local_steps=local_steps,
+                    max_levels=args.lp_max_levels,
+                    bwd_max_iters=args.lp_bwd_max_iters,
+                    fwd_max_iters=args.lp_fwd_max_iters,
+                    print_level=args.lp_print_level,
+                    braid_print_level=args.lp_braid_print_level,
+                    cfactor=args.lp_cfactor,
+                    fine_fcf=args.lp_fine_fcf,
+                    skip_downcycle=not args.lp_use_downcycle,
+                    fmg=False,
+                    Tf=args.Tf,
+                    relax_only_cg=False,
+                    user_mpi_buf=args.lp_user_mpi_buf).to(device)
+  
+    # Detailed XBraid timings are output to these files for the forward and backward phases
+    model.parallel_nn.fwd_app.setTimerFile(
+      f'b_fwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
+    model.parallel_nn.bwd_app.setTimerFile(
+      f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
 
   # Declare optimizer  
   optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
@@ -231,9 +244,6 @@ def main():
     warm_up_timer = timer()
     train(rank=rank, params=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=0,
           compose=model.compose, device=device)
-    model.parallel_nn.timer_manager.resetTimers()
-    model.parallel_nn.fwd_app.resetBraidTimer()
-    model.parallel_nn.bwd_app.resetBraidTimer()
     if use_cuda:
       torch.cuda.synchronize()
     root_print(rank, f'\nWarm up timer {timer() - warm_up_timer}\n')
@@ -258,22 +268,13 @@ def main():
     test_times += [timer() - start_time]
     validat_correct_counts += [validat_correct]
 
-  # Print out Braid internal timings, if desired
-  #timer_str = model.parallel_nn.getTimersString()
-  #root_print(rank, timer_str)
+  # Note: the MNIST example is primarily meant to demonstrate the package, not focus on performance
+  root_print(rank,
+             f'TIME PER EPOCH: {"{:.2f}".format(stats.mean(epoch_times))} '
+             f'{("(1 std dev " + "{:.2f}".format(stats.mean(epoch_times))) if len(epoch_times) > 1 else ""}')
 
-  # Note: the MNIST example is not meant to exhibit performance
-  #root_print(rank,
-  #           f'TIME PER EPOCH: {"{:.2f}".format(stats.mean(epoch_times))} '
-  #           f'{("(1 std dev " + "{:.2f}".format(stats.mean(epoch_times))) if len(epoch_times) > 1 else ""}')
-
-  if args.serial_file is not None:
-    # Model can be reloaded in serial format with: model = torch.load(filename)
-    model.saveSerialNet(args.serial_file)
-
-  # Note: the MNIST example is not meant to exhibit performance
-  #root_print(rank, f'\nMin batch time:   {"{:.3f}".format(np.min(batch_times))} ')
-  #root_print(rank, f'Mean batch time:  {"{:.3f}".format(stats.mean(batch_times))} ')
+  root_print(rank, f'\nMin batch time:   {"{:.3f}".format(np.min(batch_times))} ')
+  root_print(rank, f'Mean batch time:  {"{:.3f}".format(stats.mean(batch_times))} ')
 
   # Plot the loss, validation
   if rank == 0:

@@ -138,7 +138,7 @@ class TestGradUpdate(unittest.TestCase):
 
     # this is the torchbraid class being tested 
     #######################################
-    m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_fwd_levels=max_levels,max_bwd_levels=max_levels,max_iters=max_iters,spatial_ref_pair=ref_pair)
+    m = torchbraid.LayerParallel(MPI.COMM_WORLD,basic_block,num_steps,Tf,max_fwd_levels=max_levels,max_bwd_levels=max_levels,max_iters=max_iters,spatial_ref_funcs=ref_pair)
     m = m.to(my_device)
     m.setPrintLevel(0)
 

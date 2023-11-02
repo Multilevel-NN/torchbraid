@@ -195,7 +195,7 @@ class ParallelNet(nn.Module):
     self.num_layers = num_layers
 
   def forward(self, x):
-    h = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+    h = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
     hn = self.parallel_gru(x, h)
 
     x = self.compose(self.close_gru,hn[-1,:,:])
