@@ -67,12 +67,10 @@ class StepLayer(nn.Module):
   def __init__(self, channels):
     super(StepLayer, self).__init__()
     ker_width = 3
-    self.conv1 = nn.Conv3d(channels, channels, ker_width, padding=1)
-    self.conv2 = nn.Conv3d(channels, channels, ker_width, padding=1)
+    self.conv = nn.Conv3d(channels, channels, ker_width, padding=1)
 
   def forward(self, x):
-    # return torch.sigmoid(self.conv2(torch.sigmoid(self.conv1(x))))
-    return F.relu(self.conv2(F.relu(self.conv1(x))))
+    return F.relu(self.conv(x))
 
 
 ####################################################################################
@@ -85,15 +83,52 @@ class ParallelNet(nn.Module):
   def __init__(self, channels=12, local_steps=8, Tf=1.0, max_levels=1, bwd_max_iters=1,
                fwd_max_iters=2, print_level=0, braid_print_level=0, cfactor=4,
                fine_fcf=False, skip_downcycle=True, fmg=False, relax_only_cg=0,
-               user_mpi_buf=False, comm_lp=MPI.COMM_WORLD, sc_levels=None, numx=31):
+               user_mpi_buf=False, comm_lp=MPI.COMM_WORLD, sc_levels=None,
+               full_weighting=True, numx=31):
     super(ParallelNet, self).__init__()
+
+    # this is the trilinear interpolation kernel
+    trilin_weight = torch.tensor([[[
+        [
+            [.125, .25, .125],
+            [.25, .5, .25],
+            [.125, .25, .125]
+        ], [
+            [.25, .5, .25],
+            [.5, 1., .5],
+            [.25, .5, .25]
+        ], [
+            [.125, .25, .125],
+            [.25, .5, .25],
+            [.125, .25, .125]
+        ]
+    ]]])
 
     # the following functions implement the spatial coarsening/refinement of 3D images
     def sp_coarsen(img, level):
       if level in self.levels_to_coarsen:
         nx = img.shape[2]
         nxc = (nx + 1) // 2 - 1
-        return torch.nn.functional.interpolate(img, [nxc, nxc, nxc], mode='trilinear', align_corners=False)
+        
+
+        if self.full_weighting:
+          # Full weighting restriction (transpose of trilinear)
+
+          # Use torch built in interpolation (not great, but fast)
+          # return torch.nn.functional.interpolate(img, [nxc, nxc, nxc], mode='trilinear', align_corners=False)
+
+          batch = img.shape[0]
+          channels = img.shape[1]
+
+          return torch.nn.functional.conv3d(
+              img.view(batch*channels, 1, nx, nx, nx), 
+              trilin_weight, 
+              stride=[2,2,2]).view(batch, channels, nxc, nxc, nxc)
+
+        else:
+          # Injection (fastest)
+          return img[:, :, 1::2, 1::2, 1::2]
+
       else:
         return img.clone()
 
@@ -101,7 +136,18 @@ class ParallelNet(nn.Module):
       if level in self.levels_to_coarsen:
         nx = img.shape[2]
         nxf = (nx + 1) * 2 - 1
-        return torch.nn.functional.interpolate(img, [nxf, nxf, nxf], mode='trilinear', align_corners=False)
+
+        # Use torch built in interpolation (not great, but fast)
+        # return torch.nn.functional.interpolate(img, [nxf, nxf, nxf], mode='trilinear', align_corners=False)
+
+        # Bilinear interpolation with convolution
+        batch = img.shape[0]
+        channels = img.shape[1]
+        return 1/6*torch.nn.functional.conv_transpose3d(
+            img.view(batch*channels, 1, nx, nx, nx), 
+            trilin_weight, 
+            stride=[2,2,2]).view(batch, channels, nxf, nxf, nxf)
+
       else:
         return img.clone()
 
@@ -121,6 +167,7 @@ class ParallelNet(nn.Module):
     else:
       self.levels_to_coarsen = sc_levels
       sp_funcs = (sp_coarsen, sp_refine, sp_coarsen_shape)
+      self.full_weighting = full_weighting
 
     self.numx = numx
 
@@ -262,6 +309,8 @@ def parse_args():
                       help='Layer parallel coarsening factor (default: 4)')
   parser.add_argument('--lp-fine-fcf',action='store_true', default=False,
                       help='Layer parallel fine FCF for forward solve, on or off (default: False)')
+  parser.add_argument('--lp-fmg',action='store_true', default=False,
+                      help='Layer parallel use F-cycles, on or off (default: False)')
   parser.add_argument('--no-cuda', action='store_true', default=False,
                       help='disables CUDA training')
   parser.add_argument('--warm-up', action='store_true', default=False,
@@ -272,6 +321,8 @@ def parse_args():
                       help='Layer parallel use downcycle on or off (default: False)')
   parser.add_argument('--lp-sc-levels', type=int, nargs='+', default=None,
                       help='Layer parallel spatial coarsening levels (default: None)')
+  parser.add_argument('--lp-sc-injection', action='store_true', default=False,
+                      help='Layer parallel spatial coarsening use injection instead of full weighting restriction (default: False)')
 
   # data parallelism
   parser.add_argument('--dp-size', type=int, default=1, metavar='N',

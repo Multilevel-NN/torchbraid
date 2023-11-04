@@ -193,14 +193,20 @@ def main():
                    '-- max_bwd_iters  = {}\n'
                    '-- max_fwd_iters  = {}\n'
                    '-- cfactor        = {}\n'
+                   '-- sc levels      = {}\n'
+                   '-- sc full weight = {}\n'
                    '-- fine fcf       = {}\n'
+                   '-- F-cycles       = {}\n'
                    '-- skip down      = {}\n'.format(procs, args.channels, 
                                                      args.Tf, args.steps,
                                                      args.lp_max_levels,
                                                      args.lp_bwd_max_iters,
                                                      args.lp_fwd_max_iters,
                                                      args.lp_cfactor,
+                                                     sc_levels,
+                                                     not args.lp_sc_injection,
                                                      args.lp_fine_fcf,
+                                                     args.lp_fmg,
                                                      not args.lp_use_downcycle) )
   
   # Create layer-parallel network
@@ -216,11 +222,12 @@ def main():
     cfactor=args.lp_cfactor,
     fine_fcf=args.lp_fine_fcf,
     skip_downcycle=not args.lp_use_downcycle,
-    fmg=False, 
+    fmg=args.lp_fmg, 
     Tf=args.Tf,
     relax_only_cg=False,
     user_mpi_buf=args.lp_user_mpi_buf,
     sc_levels=sc_levels,
+    full_weighting=not args.lp_sc_injection,
     numx=args.numx
   ).to(device)
 
