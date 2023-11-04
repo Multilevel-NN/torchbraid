@@ -122,7 +122,7 @@ class ParallelNet(nn.Module):
 
           return torch.nn.functional.conv3d(
               img.view(batch*channels, 1, nx, nx, nx), 
-              trilin_weight, 
+              1/8*trilin_weight, 
               stride=[2,2,2]).view(batch, channels, nxc, nxc, nxc)
 
         else:
@@ -143,7 +143,7 @@ class ParallelNet(nn.Module):
         # Bilinear interpolation with convolution
         batch = img.shape[0]
         channels = img.shape[1]
-        return 1/6*torch.nn.functional.conv_transpose3d(
+        return torch.nn.functional.conv_transpose3d(
             img.view(batch*channels, 1, nx, nx, nx), 
             trilin_weight, 
             stride=[2,2,2]).view(batch, channels, nxf, nxf, nxf)
