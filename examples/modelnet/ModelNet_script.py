@@ -76,6 +76,7 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device):
   model.train()
   criterion = nn.CrossEntropyLoss()
   total_time = 0.0
+  processed = 0
   for batch_idx, (data, target) in enumerate(train_loader):
     start_time = timer()
     data, target = data.to(device), target.to(device)
@@ -89,14 +90,18 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device):
     total_time += stop_time - start_time
     train_times.append(stop_time - start_time)
     losses.append(loss.item())
+
+    if rank==0:
+      processed += len(target)
+
     if batch_idx % params.log_interval == 0 and rank==0:
       root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
-        epoch, batch_idx * len(data), len(train_loader.dataset),
+        epoch, processed, len(train_loader.dataset),
                100. * batch_idx / len(train_loader), loss.item(), total_time / (batch_idx + 1.0)))
 
   if rank==0: 
     root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tTime Per Batch {:.6f}'.format(
-      epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
+      epoch, processed, len(train_loader.dataset),
              100. * (batch_idx + 1) / len(train_loader), loss.item(), total_time / (batch_idx + 1.0)))
 
   return losses, train_times
@@ -105,7 +110,7 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device):
 ##
 # Evaluate model on validation data
 # Return: number of correctly classified test items, total number of test items, loss on test data set
-def test(rank, model, test_loader, compose, device):
+def test(rank,epoch, model, test_loader, compose, device):
   model.eval()
   test_loss = 0
   correct = 0
@@ -122,8 +127,8 @@ def test(rank, model, test_loader, compose, device):
 
   test_loss /= len(test_loader.dataset)
 
-  root_print(rank, '\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-    test_loss, correct, len(test_loader.dataset),
+  root_print(rank, '\nTest Epoch {:6d}:  Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+    epoch,test_loss, correct, len(test_loader.dataset),
     100. * correct / len(test_loader.dataset)))
   return correct, len(test_loader.dataset), test_loss
 
@@ -265,11 +270,8 @@ def main():
   else:
     filename = args.filename
 
-  if not os.path.exists('models'):
-    os.makedirs('models')
-  
-  if not os.path.exists('models/training_history'):
-    os.makedirs('models/training_history')
+  os.makedirs('models',exist_ok=True)
+  os.makedirs('models/training_history',exist_ok=True)
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
@@ -280,7 +282,7 @@ def main():
     batch_times += train_times
 
     start_time = timer()
-    validate_correct, validate_size, validate_loss = test(rank=rank, model=model, test_loader=test_loader, compose=model.compose, device=device)
+    validate_correct, validate_size, validate_loss = test(rank=rank, epoch=epoch, model=model, test_loader=test_loader, compose=model.compose, device=device)
     test_times += [timer() - start_time]
     validat_correct_counts += [validate_correct]
 
@@ -290,10 +292,14 @@ def main():
       contents = (args.channels, args.steps, model.state_dict())
       torch.save(contents, f"models/{filename}.pt")
 
+      # write training history
+      np.savetxt(f"models/training_history/{filename}_losses.csv", batch_losses, delimiter=",")
+      np.savetxt(f"models/training_history/{filename}_accuracies.csv", np.array(validat_correct_counts)/len(test_loader.dataset), delimiter=",")
+
   # write training history to file
-  if rank == 0:
-    np.savetxt(f"models/training_history/{filename}_losses.csv", batch_losses, delimiter=",")
-    np.savetxt(f"models/training_history/{filename}_accuracies.csv", np.array(validat_correct_counts)/len(test_loader.dataset), delimiter=",")
+  #if rank == 0:
+  #  np.savetxt(f"models/training_history/{filename}_losses.csv", batch_losses, delimiter=",")
+  #  np.savetxt(f"models/training_history/{filename}_accuracies.csv", np.array(validat_correct_counts)/len(test_loader.dataset), delimiter=",")
   
   # Print out Braid internal timings, if desired
   #timer_str = model.parallel_nn.getTimersString()
