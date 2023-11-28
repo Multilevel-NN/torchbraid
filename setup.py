@@ -6,8 +6,8 @@ import numpy
 from Cython.Build import cythonize, build_ext
 from setuptools import setup, Extension, find_packages
 
-if "CC" not in os.environ.keys():
-  os.environ["CC"] = mpi4py.get_config()['mpicc']
+# MPICC is needed to compile xbraid; environ is not persistent and will revert to original choice
+os.environ["CC"] = mpi4py.get_config()['mpicc']
 
 braid_dir = './src/xbraid/braid'
 
