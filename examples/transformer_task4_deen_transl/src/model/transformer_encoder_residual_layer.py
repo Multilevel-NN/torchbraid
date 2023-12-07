@@ -5,9 +5,9 @@ from model.mlp import MLP
 from model.self_attention import SelfAttention
 
 class TransformerEncoderResidualLayer(nn.Module):
-  def __init__(self, d, num_heads, dim_ff):
+  def __init__(self, d, num_heads, dim_ff, max_length, device):
     super().__init__()
-    self.self_attn = SelfAttention(d, num_heads)
+    self.self_attn = SelfAttention(d, num_heads, max_length, device)
     self.mlp = MLP(d, dim_ff)
     self.self_attn_layer_norm = nn.LayerNorm(
       (d,), 

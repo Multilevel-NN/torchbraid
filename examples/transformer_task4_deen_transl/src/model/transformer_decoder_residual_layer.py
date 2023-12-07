@@ -6,9 +6,9 @@ from model.multihead_attention import MultiHeadAttention
 from model.self_attention import SelfAttention
 
 class TransformerDecoderResidualLayer(nn.Module):
-  def __init__(self, d, num_heads, dim_ff):
+  def __init__(self, d, num_heads, dim_ff, max_length, device):
     super().__init__()
-    self.self_attn = SelfAttention(d, num_heads)
+    self.self_attn = SelfAttention(d, num_heads, max_length, device)
     self.cross_attn = MultiHeadAttention(d, num_heads)
     self.mlp = MLP(d, dim_ff)
     self.self_attn_layer_norm = nn.LayerNorm(

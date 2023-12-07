@@ -82,27 +82,35 @@ class CloseLayer(nn.Module):
 # end layer
 
 class StepLayer_enc(nn.Module):
-  def __init__(self, **kwargs):
+  def __init__(self, batch_size, source_length, target_length, device, **kwargs):
     super().__init__()
     torch.manual_seed(0)
-    self.F = TransformerEncoderResidualLayer(**kwargs)
+    self.F = TransformerEncoderResidualLayer(**kwargs, max_length=source_length, device=device)
+
+    self.zeros_tensor = torch.zeros(size=(batch_size, target_length, kwargs['d']), device=device)
 
   def forward(self, x):
     x, y = x
     x = self.F(x)
-    x = torch.stack((x, y))
+    # x = torch.stack((x, torch.zeros_like(y)))
+    x = torch.stack((x, self.zeros_tensor[:y.shape[0]]))
+
     return x
 
 class StepLayer_dec(nn.Module):
-  def __init__(self, **kwargs):
+  def __init__(self, batch_size, source_length, target_length, device, **kwargs):
     super().__init__()
     torch.manual_seed(0)
-    self.F = TransformerDecoderResidualLayer(**kwargs)
+    self.F = TransformerDecoderResidualLayer(**kwargs, max_length=target_length, device=device)
+
+    self.zeros_tensor = torch.zeros(size=(batch_size, source_length, kwargs['d']), device=device)
 
   def forward(self, x):
     mem, y = x
     y = self.F(y, mem)
-    x = torch.stack((mem, y))
+    # x = torch.stack((torch.zeros_like(mem), y))
+    x = torch.stack((self.zeros_tensor[:mem.shape[0]], y))
+    
     return x
 
 ####################################################################################
@@ -112,7 +120,7 @@ class StepLayer_dec(nn.Module):
 # local_steps: number of ResNet layers per processor
 # all other parameter definitions are in argument parser comments below
 class ParallelNet(nn.Module):
-  def __init__(self, model_dimension, num_heads, dim_ff, tokenizer, pad_id, bos_id, eos_id, device,
+  def __init__(self, model_dimension, num_heads, dim_ff, tokenizer, pad_id, bos_id, eos_id, device, batch_size, source_length, target_length,
                local_steps=8, Tf=1.0, max_levels=1, bwd_max_iters=1,
                fwd_max_iters=2, print_level=0, braid_print_level=0, cfactor=4,
                fine_fcf=False, skip_downcycle=True, fmg=False, relax_only_cg=0,
@@ -122,8 +130,9 @@ class ParallelNet(nn.Module):
     self.comm_lp = comm_lp
     numprocs = self.comm_lp.Get_size()
 
-    step_layer_enc = lambda: StepLayer_enc(d=model_dimension, num_heads=num_heads, dim_ff=dim_ff)
-    step_layer_dec = lambda: StepLayer_dec(d=model_dimension, num_heads=num_heads, dim_ff=dim_ff)
+    step_layer_enc = lambda: StepLayer_enc(d=model_dimension, num_heads=num_heads, dim_ff=dim_ff, batch_size=batch_size, source_length=source_length, target_length=target_length, device=device)
+    step_layer_dec = lambda: StepLayer_dec(d=model_dimension, num_heads=num_heads, dim_ff=dim_ff, batch_size=batch_size, source_length=source_length, target_length=target_length, device=device)
+
     layers = [step_layer_enc, step_layer_dec]
     num_steps = [local_steps*numprocs, local_steps*numprocs]#[num_encoder_layers, num_decoder_layers]
 

@@ -61,6 +61,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.profiler import profile, record_function, ProfilerActivity
 import torchbraid
 import torchbraid.utils
 import torchbraid.utils.data_parallel
@@ -87,30 +88,60 @@ def train(rank, model, batch, optimizer, epoch, compose, device, criterion, comm
   rank_lp = comm_lp.Get_rank()
   rank_dp = comm_dp.Get_rank()
 
+  rank = rank_lp + rank_dp  # in order to make rank=0 --> rank_dp=0 ^ rank_lp=0
+
   train_times = []
   losses = []
   total_time = 0.0
   corr, tot = 0, 0
 
-  # print(batch)
-  data, target = batch['input_ids'], batch['labels']
-  print(f'data.shape {data.shape}, target.shape {target.shape}')
-  data, target = data.to(device), target.to(device)
-  data, target_inputs, target_outputs = data[:, :-1], target[:, :-1], target[:, 1:]
-  x = torch.stack((data, target_inputs))
+  # root_print(rank, f'Mem alloc before [data/target].to(device): {torch.cuda.memory_allocated(0)}')
 
-  batch_fwd_time_start = time.time()
-  output = model(x)
-  output_embeddings = output
-  loss = compose(criterion, output_embeddings.reshape(-1, output_embeddings.shape[-1]), target_outputs.reshape(-1))
-  batch_fwd_time_end = time.time()
+  # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True, record_shapes=True) as prof:
+  #   with record_function('model_inference'):
+  if 1:
+    if 1:
+      # print(batch)
+      data, target = batch['input_ids'], batch['labels']
+      #root_print(f'data.shape {data.shape}, target.shape {target.shape}')
+      data, target = data.to(device), target.to(device)
+      data, target_inputs, target_outputs = data[:, :-1], target[:, :-1], target[:, 1:]
+      x = torch.stack((data, target_inputs))
+
+  # root_print(rank, prof.key_averages().table(sort_by="cuda_memory_usage", row_limit=10))
+
+  # root_print(rank, f'Mem alloc between data and fwd pass: {torch.cuda.memory_allocated(0)}')
+
+  # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True, record_shapes=True) as prof:
+  #   with record_function('model_inference'):
+  if 1:
+    if 1:
+
+      batch_fwd_time_start = time.time()
+      output = model(x)
+      output_embeddings = output
+      loss = compose(criterion, output_embeddings.reshape(-1, output_embeddings.shape[-1]), target_outputs.reshape(-1))
+      batch_fwd_time_end = time.time()
+
+  # root_print(rank, prof.key_averages().table(sort_by="cuda_memory_usage", row_limit=10))
+
+  # root_print(rank, f'Mem alloc between fwd and bwd pass: {torch.cuda.memory_allocated(0)}')
 
   optimizer.zero_grad(set_to_none=True)
 
-  batch_bwd_time_start = time.time()
-  loss.backward()
-  torchbraid.utils.data_parallel.average_gradients(model=model, comm_dp=comm_dp)
-  batch_bwd_time_end = time.time()
+  # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], profile_memory=True, record_shapes=True) as prof:
+  #   with record_function('model_inference'):
+  if 1:
+    if 1:
+
+      batch_bwd_time_start = time.time()
+      loss.backward()
+      torchbraid.utils.data_parallel.average_gradients(model=model, comm_dp=comm_dp)
+      batch_bwd_time_end = time.time()
+
+  # root_print(rank, prof.key_averages().table(sort_by="cuda_memory_usage", row_limit=10))
+
+  # root_print(rank, f'Mem alloc after fwd and bwd pass: {torch.cuda.memory_allocated(0)}')
 
   optimizer.step()
 
@@ -133,8 +164,8 @@ def train(rank, model, batch, optimizer, epoch, compose, device, criterion, comm
     root_print(rank, f'Training batch bwd pass time: {batch_bwd_time_end - batch_bwd_time_start} seconds')
     root_print(rank, f'Gather things time: {gather_things_end - gather_things_start} seconds')
 
-  root_print(0, f'fwd time: {batch_fwd_time_end - batch_fwd_time_start} seconds')
-  root_print(0, f'bwd time: {batch_bwd_time_end - batch_bwd_time_start} seconds')
+  # root_print(0, f'fwd time: {batch_fwd_time_end - batch_fwd_time_start} seconds')
+  # root_print(0, f'bwd time: {batch_bwd_time_end - batch_bwd_time_start} seconds')
 
   losses.append(loss.item())
 
@@ -194,7 +225,7 @@ def main():
   size_dp = comm_dp.Get_size()
   rank_lp = comm_lp.Get_rank()
   size_lp = comm_lp.Get_size()
-  print(f'rank_dp {rank_dp}, size_dp {size_dp}, rank_lp {rank_lp}, size_lp {size_lp}')
+  root_print(rank, f'rank_dp {rank_dp}, size_dp {size_dp}, rank_lp {rank_lp}, size_lp {size_lp}')
 
   # Use device or CPU?
   use_cuda = not args.no_cuda and torch.cuda.is_available()
@@ -212,16 +243,17 @@ def main():
   torch.manual_seed(0)
 
   name_model = "Helsinki-NLP/opus-mt-en-de"
-  print('Loading tokenizer')
+  root_print(rank, 'Loading tokenizer')
   tokenizer = AutoTokenizer.from_pretrained(name_model)
   pad_id = tokenizer.pad_token_id
   bos_id = pad_id
   eos_id = tokenizer.eos_token_id
 
-  print('Loading data')
+  root_print(rank, 'Loading data')
   lang_src, lang_tgt, dss, dls = obtain_data(tokenizer, device, args.batch_size, size_dp, args.debug)
+  source_length, target_length = 128, 128
   ds, dl = dss[rank_dp], dls[rank_dp]
-  print(f"Number of samples: train, {len(dl['train'])}; test, {len(dl['test'])}.")
+  root_print(rank, f"Number of samples: train, {len(dl['train'])}; test, {len(dl['test'])}.")
 
   # Using the Torchbraid partitioner to split the data for data parallelism.
   # train_partition = torchbraid.utils.data_parallel.Partioner(data=ds['train'], procs=size_dp, seed=args.seed, batch_size=args.batch_size).get_partion(rank=rank_dp)
@@ -232,7 +264,7 @@ def main():
   # test_partition = torchbraid.utils.data_parallel.Partioner(data=ds['test'], procs=size_dp, seed=args.seed, batch_size=args.batch_size).get_partion(rank=rank_dp)
   # dl['train'] = torch.utils.data.DataLoader(train_partition, batch_size=args.batch_size, shuffle=False)
   # dl['test' ] = torch.utils.data.DataLoader(test_partition , batch_size=args.batch_size, shuffle=False)
-  print(f'''next(iter(dl['train'])) {next(iter(dl['train']))}, rank_dp {rank_dp}''')
+  # print(f'''next(iter(dl['train'])) {next(iter(dl['train']))}, rank_dp {rank_dp}''')
 
   # model = Transformer(args.model_dimension, args.num_heads, args.dim_ff, args.num_encoder_layers, args.num_decoder_layers, tokenizer, pad_id, bos_id, eos_id, device)
 
@@ -257,7 +289,8 @@ def main():
   
   # Create layer-parallel network
   # Note this can be done on only one processor, but will be slow
-  model = ParallelNet(args.model_dimension, args.num_heads, args.dim_ff, tokenizer, pad_id, bos_id, eos_id, device,
+  # model = ParallelNet(args.model_dimension, args.num_heads, args.dim_ff, tokenizer, pad_id, bos_id, eos_id, device,
+  model = ParallelNet(args.model_dimension, args.num_heads, args.dim_ff, tokenizer, pad_id, bos_id, eos_id, device, args.batch_size, source_length, target_length,
                   local_steps=local_steps,
                   max_levels=args.lp_max_levels,
                   bwd_max_iters=args.lp_bwd_max_iters,
@@ -288,7 +321,7 @@ def main():
     f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
 
   # Declare optimizer  
-  print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
+  root_print(rank, f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
   optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
   criterion = nn.CrossEntropyLoss(ignore_index=pad_id)
   # if rank == 0: root_print(rank, optimizer)

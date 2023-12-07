@@ -28,7 +28,7 @@ def obtain_data(tokenizer, device, batch_size, size_dp, debug):
     path_src = open(os.path.join(dir_data, fn[mode]['src']), 'r')
     path_tgt = open(os.path.join(dir_data, fn[mode]['tgt']), 'r')
 
-    print(f'Obtaining "{mode}" data')
+    # print(f'Obtaining "{mode}" data')
     for i, (line_src, line_tgt) in enumerate(tqdm.tqdm(zip(path_src, path_tgt))):
       if debug and i > 2000: break
       ds = dss[i % size_dp]

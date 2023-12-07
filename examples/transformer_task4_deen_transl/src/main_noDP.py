@@ -184,6 +184,8 @@ def main():
   print('Loading data')
   lang_src, lang_tgt, ds, dl = obtain_data(tokenizer, device, args.batch_size, args.debug)
   print(f"Number of samples: train, {len(dl['train'])}; test, {len(dl['test'])}.")
+  source_length, target_length = [tensor.shape[1] for tensor in next(iter(dl['train']))]
+  root_print(rank, f'source length: {source_length}, target length: {target_length}')
 
   # model = Transformer(args.model_dimension, args.num_heads, args.dim_ff, args.num_encoder_layers, args.num_decoder_layers, tokenizer, pad_id, bos_id, eos_id, device)
 
@@ -208,7 +210,8 @@ def main():
   
   # Create layer-parallel network
   # Note this can be done on only one processor, but will be slow
-  model = ParallelNet(args.model_dimension, args.num_heads, args.dim_ff, tokenizer, pad_id, bos_id, eos_id, device,
+  # model = ParallelNet(args.model_dimension, args.num_heads, args.dim_ff, tokenizer, pad_id, bos_id, eos_id, device,
+  model = ParallelNet(args.model_dimension, args.num_heads, args.dim_ff, tokenizer, pad_id, bos_id, eos_id, device, args.batch_size, source_length, target_length,
                   local_steps=local_steps,
                   max_levels=args.lp_max_levels,
                   bwd_max_iters=args.lp_bwd_max_iters,
