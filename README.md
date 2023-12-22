@@ -17,6 +17,10 @@ XBraid interface to PyTorch
     Then all changes in the .py files are directly applicable in the
     installation. Changes to .pyx files require a re-installation.
 
+    You can also install directly from github using  
+    `pip install git+ssh://git@github.com/Multilevel-NN/torchbraid.git`  
+    or the HTTP equivalent. 
+
 1. Run unit tests (may need to install tox)  
   `tox`
 
