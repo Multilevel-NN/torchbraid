@@ -49,7 +49,7 @@ import copy
 from bisect import bisect_right
 from mpi4py import MPI
 
-from inspect import signature
+from inspect import signature, Parameter
 
 class ForwardODENetApp(BraidApp):
   class ODEBlock(nn.Module):
@@ -59,7 +59,9 @@ class ForwardODENetApp(BraidApp):
 
       self.layer = layer
 
-      if len(signature(self.layer.forward).parameters) == 1:
+      param = [v for v in signature(self.layer.forward).parameters.values()]
+
+      if len(param)<=1 or param[1].kind==Parameter.VAR_POSITIONAL or param[1].kind==Parameter.VAR_KEYWORD:
         self.dt_custom = False
       else:
         self.dt_custom = True

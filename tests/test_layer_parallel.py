@@ -81,18 +81,25 @@ class LinearBlock(nn.Module):
 # end layer
 
 class ExtraLinearBlock(nn.Module):
+  failure = False
+  
   def __init__(self,dim=10):
     super(ExtraLinearBlock, self).__init__()
+    self.fail = False
 
   def forward(self, x, *args,**kwargs):
-    assert len(args)==2
-    assert args[0]=='horse'
-    assert args[1]=='dog'
+    try:
+      assert len(args)==2
+      assert args[0]=='horse'
+      assert args[1]=='dog'
 
-    assert len(kwargs)==3
-    assert kwargs['a0']=='cat'
-    assert kwargs['a1']=='monkey'
-    assert kwargs['a2']=='donkey'
+      assert len(kwargs)==3
+      assert kwargs['a0']=='cat'
+      assert kwargs['a1']=='monkey'
+      assert kwargs['a2']=='donkey'
+    except:
+      ExtraLinearBlock.failure = True
+
     return x
 # end layer
 
@@ -153,6 +160,8 @@ class TestTorchBraid(unittest.TestCase):
     MPI.COMM_WORLD.barrier()
 
     m(x0,'horse','dog',a0='cat',a1='monkey',a2='donkey')
+
+    self.assertTrue(not ExtraLinearBlock.failure)
   # end test_linearNet_Exact
 
   def test_linearNet_Exact(self):
