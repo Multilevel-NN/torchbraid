@@ -25,7 +25,7 @@ class myMake(build_ext):
       subprocess.check_call(['git', 'clone', 'https://github.com/XBraid/xbraid.git'], cwd='./src')
 
     print('building xbraid...')
-    subprocess.check_call(['make', 'debug=no', 'braid'], cwd='./src/xbraid')
+    subprocess.check_call(['make', 'debug=no', 'braid', 'MPICC=cc'], cwd='./src/xbraid')
 
 
 braid_sources = ['access.c', 'adjoint.c', 'base.c', 'braid.c', 'braid_status.c',
@@ -56,8 +56,8 @@ install_requires = [
   'mpi4py',
   'cython==0.29.32',
   'numpy',
-  'torch==1.13.1',
-  'torchvision==0.14.1',
+  'torch==2.0.1',
+  'torchvision==0.15.2',
   'matplotlib'
 ]
 

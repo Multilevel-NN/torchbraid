@@ -29,13 +29,15 @@ def obtain_data(data_dir, input_text, tokenization):
     from transformers import GPT2Tokenizer, GPT2Model
 
     print('1.2 Obtaining gpt2 tokenizer')
-    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+    # tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+    tokenizer = GPT2Tokenizer.from_pretrained('gpt2-tokenizer')
     # tokenizer.pad_token = '<pad>'
     decode = tokenizer.decode
     vocab_size = tokenizer.vocab_size
 
     print('1.3 Encoding data')
     data = tokenizer(text)['input_ids']
+    data = torch.tensor(data, dtype=torch.long)
 
   else: raise Exception()
 

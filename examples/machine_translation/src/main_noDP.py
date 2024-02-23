@@ -53,7 +53,7 @@ print('Importing modules')
 import statistics as stats
 from timeit import default_timer as timer
 
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
 import os
 import time
@@ -63,8 +63,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchbraid
 import torchbraid.utils
-from torchvision import datasets, transforms
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+# from torchvision import datasets, transforms
+from transformers import AutoTokenizer#, AutoModelForSeq2SeqLM
 import sys
 
 from network_architecture import parse_args, ParallelNet
@@ -175,17 +175,17 @@ def main():
   torch.manual_seed(0)
 
   name_model = "Helsinki-NLP/opus-mt-en-de"
-  root_print(rank, 'Loading tokenizer')
+  print('Loading tokenizer')
   tokenizer = AutoTokenizer.from_pretrained(name_model)
   pad_id = tokenizer.pad_token_id
   bos_id = pad_id
   eos_id = tokenizer.eos_token_id
 
-  root_print(rank, 'Loading data')
-  lang_src, lang_tgt, dss, dls = obtain_data(tokenizer, device, args.batch_size, args.dp_size, args.debug)
-  ds, dl = dss[0], dls[0]
-  root_print(rank, f"Number of samples: train, {len(dl['train'])}; test, {len(dl['test'])}.")
-  source_length, target_length = 128, 128
+  print('Loading data')
+  lang_src, lang_tgt, ds, dl = obtain_data(tokenizer, device, args.batch_size, args.debug)
+  print(f"Number of samples: train, {len(dl['train'])}; test, {len(dl['test'])}.")
+  source_length, target_length = [tensor.shape[1] for tensor in next(iter(dl['train']))]
+  root_print(rank, f'source length: {source_length}, target length: {target_length}')
 
   # model = Transformer(args.model_dimension, args.num_heads, args.dim_ff, args.num_encoder_layers, args.num_decoder_layers, tokenizer, pad_id, bos_id, eos_id, device)
 
@@ -210,6 +210,7 @@ def main():
   
   # Create layer-parallel network
   # Note this can be done on only one processor, but will be slow
+  # model = ParallelNet(args.model_dimension, args.num_heads, args.dim_ff, tokenizer, pad_id, bos_id, eos_id, device,
   model = ParallelNet(args.model_dimension, args.num_heads, args.dim_ff, tokenizer, pad_id, bos_id, eos_id, device, args.batch_size, source_length, target_length,
                   local_steps=local_steps,
                   max_levels=args.lp_max_levels,

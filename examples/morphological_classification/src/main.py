@@ -280,7 +280,7 @@ def main():
 
   # Declare optimizer  
   print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
-  optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+  optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
   # if rank == 0: root_print(rank, optimizer)
   # sys.exit()
 

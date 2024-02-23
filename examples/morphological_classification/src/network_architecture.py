@@ -20,58 +20,108 @@ from timeit import default_timer as timer
 
 from mpi4py import MPI
 
+from models import PositionalEncoding, PE_Alternative
 
-__all__ = [ 'OpenFlatLayer', 'CloseLayer', 'StepLayer', 'parse_args', 'ParallelNet' ]
+__all__ = [ 'OpenLayer', 'CloseLayer', 'StepLayer', 'parse_args', 'ParallelNet' ]
 
 ####################################################################################
 ####################################################################################
 # Network architecture is Open + ResNet + Close
 # The StepLayer defines the ResNet (ODENet)
 
-class OpenFlatLayer(nn.Module):
-  ''' 
-  Opening layer has no parameters, replicates image number of channels times
-  '''
-  def __init__(self, channels):
-    super(OpenFlatLayer, self).__init__()
-    self.channels = channels
+
+class OpenLayer(nn.Module):
+  def __init__(self, model_dimension):
+    super(OpenLayer, self).__init__()
+    torch.manual_seed(0)
+    self.d = model_dimension
+    self.emb = nn.Embedding(15514, self.d)
+    # self.dropout = nn.Dropout(p=.1)
+    self.posenc = PositionalEncoding(self.d) #if encoding == 'Torch'\
+      #else PE_Alternative(128) if encoding == 'Alternative'\
+      #else Exception('encoding unknown')
 
   def forward(self, x):
-    s = len(x.shape) * [1]
-    s[1] = self.channels
-    x = x.repeat(s)
+    # this bit of python magic simply replicates each image in the batch
+    x = self.emb(x) 
+    # x = self.dropout(x)
+    x = self.posenc(x)
     return x
+# end layer
 
 class CloseLayer(nn.Module):
-  '''
-  Dense closing classification layer
-  '''
-  def __init__(self, channels):
+  def __init__(self, model_dimension):
     super(CloseLayer, self).__init__()
-    self.fc1 = nn.Linear(channels * 28 * 28, 32)
-    self.fc2 = nn.Linear(32, 10)
+    torch.manual_seed(0)
+    self.d = model_dimension
+    self.ln3 = nn.LayerNorm(self.d)
+    self.fc3 = nn.Linear(self.d, 49)
 
   def forward(self, x):
-    x = torch.flatten(x, 1)
-    x = self.fc1(x)
-    x = F.relu(x)
-    x = self.fc2(x)
-    return F.log_softmax(x, dim=1)
+    x = self.ln3(x)
+    x = self.fc3(x)
+    return x#.transpose(1,2)
+# end layer
 
-
+# f = open('llog3.txt', 'w')
+# f.close()
 class StepLayer(nn.Module):
-  '''
-  ResNet composed of convolutional layers
-  '''
-  def __init__(self, channels):
+  def __init__(self, model_dimension, num_heads):
     super(StepLayer, self).__init__()
-    ker_width = 3
-    self.conv1 = nn.Conv2d(channels, channels, ker_width, padding=1)
-    self.conv2 = nn.Conv2d(channels, channels, ker_width, padding=1)
+    torch.manual_seed(0)
+    self.d = model_dimension
+    self.num_heads = num_heads
+    self.fc1 = nn.Linear(self.d, self.d)
+    self.fc2 = nn.Linear(self.d, self.d)
+    self.att = nn.MultiheadAttention(
+      embed_dim=self.d, 
+      num_heads=self.num_heads, 
+      dropout=0.,#.3, 
+      batch_first=True
+    )
+    self.ln1 = nn.LayerNorm(self.d)
+    self.ln2 = nn.LayerNorm(self.d)
+
+    self.mask = None
 
   def forward(self, x):
-    return F.relu(self.conv2(F.relu(self.conv1(x))))
+    # mask = d_extra['mask']
 
+    # write_log('d', x.shape)
+    ## y.shape[0] = x.shape[0]*128 + mask.shape[0]
+    ## x.shape[0] = mask.shape[0]
+    ## --> x.shape[0] = y.shape[0]/129
+    # x_shape0 = x.shape[0]//129
+    # x, mask = x[:x_shape0*128], x[x_shape0*128:]
+    # x = x.reshape(x_shape0, x.shape[1], 128)
+    # write_log('e', x.shape)
+    # write_log('f', mask.shape)
+    # self.mask = mask
+
+    self.mask = mask
+
+    # ContinuousBlock - dxdtEncoder1DBlock
+    x0 = x
+    x = self.ln1(x)     # also try to remove layernorm
+    # with open('../llog3.txt', 'a') as f:
+    #   f.write(str(self.mask is None))
+    # print(self.mask)
+    x, _ = self.att(x, x, x, self.mask)
+    x1 = x
+    x = x + x0
+
+    x = self.ln2(x)
+    # MLPBlock
+    x = self.fc1(x)
+    x = nn.ELU()(x)
+    x = self.fc2(x)
+    
+    x = x + x1
+    # write_log('h', x.shape)
+
+    # x = x.reshape(x.shape[0]*x.shape[2], x.shape[1])
+    # x = torch.cat((x, self.mask), axis=0)
+    return x
 
 ####################################################################################
 ####################################################################################
@@ -80,13 +130,13 @@ class StepLayer(nn.Module):
 # local_steps: number of ResNet layers per processor
 # all other parameter definitions are in argument parser comments below
 class ParallelNet(nn.Module):
-  def __init__(self, channels=12, local_steps=8, Tf=1.0, max_levels=1, bwd_max_iters=1,
+  def __init__(self, model_dimension, num_heads, local_steps=8, Tf=1.0, max_levels=1, bwd_max_iters=1,
                fwd_max_iters=2, print_level=0, braid_print_level=0, cfactor=4,
                fine_fcf=False, skip_downcycle=True, fmg=False, relax_only_cg=0,
                user_mpi_buf=False, comm_lp=MPI.COMM_WORLD):
     super(ParallelNet, self).__init__()
 
-    step_layer = lambda: StepLayer(channels)
+    step_layer = lambda: StepLayer(model_dimension, num_heads)
     self.comm_lp = comm_lp
     numprocs = self.comm_lp.Get_size()
 
@@ -113,10 +163,10 @@ class ParallelNet(nn.Module):
     # this object ensures that only the LayerParallel code runs on ranks!=0
     compose = self.compose = self.parallel_nn.comp_op()
 
-    # by passing this through 'compose' (mean composition: e.g. OpenFlatLayer o channels)
+    # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels)
     # on processors not equal to 0, these will be None (there are no parameters to train there)
-    self.open_nn = compose(OpenFlatLayer, channels)
-    self.close_nn = compose(CloseLayer, channels)
+    self.open_nn = compose(OpenLayer, model_dimension)
+    self.close_nn = compose(CloseLayer, model_dimension)
 
   def saveSerialNet(self, name):
     # Model can be reloaded in serial format with: model = torch.load(filename)
@@ -129,8 +179,12 @@ class ParallelNet(nn.Module):
   def forward(self, x):
     # by passing this through 'o' (mean composition: e.g. self.open_nn o x)
     # this makes sure this is run on only processor 0
-
+    global mask
+    mask = (x == 0)
     x = self.compose(self.open_nn, x)
+    # self.parallel_nn.mask = mask
+    # print(x)
+    #print(mask)
     x = self.parallel_nn(x)
     x = self.compose(self.close_nn, x)
 
@@ -142,7 +196,7 @@ class SerialNet(nn.Module):
     super(SerialNet, self).__init__()
 
     if open_nn is None:
-      self.open_nn = OpenFlatLayer(channels)
+      self.open_nn = OpenLayer(channels)
     else:
       self.open_nn = open_nn
 
@@ -183,8 +237,6 @@ def parse_args():
                       help='random seed (default: 1)')
   parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                       help='how many batches to wait before logging training status')
-  parser.add_argument('--dataset', default='digits',
-                      help='if digits use digits MNIST, if fashion use fashion MNIST')
 
   # artichtectural settings
   parser.add_argument('--steps', type=int, default=32, metavar='N',
@@ -233,6 +285,18 @@ def parse_args():
   # data parallelism
   parser.add_argument('--dp-size', type=int, default=1, metavar='N',
                       help='Data parallelism (used if value != 1)')
+
+  ## save model
+  parser.add_argument('--output_fn',type=str, default=None,#required=True,
+                      help='Output filename (for model saving)')
+  parser.add_argument('--models_dir',type=str, default=None,#required=True,
+                      help='Models directory (for model saving)')
+
+  ## additional arguments
+  parser.add_argument('--model_dimension', type=int, default=128)
+  parser.add_argument('--num_heads', type=int, default=1)
+  parser.add_argument('--optimizer', type=str, default='SGD')#required=True)
+  parser.add_argument('--momentum', type=float, default=.9)
 
   ##
   # Do some parameter checking
