@@ -23,6 +23,8 @@ from mpi4py import MPI
 from model.transformer_encoder_residual_layer import TransformerEncoderResidualLayer
 from model.transformer_decoder_residual_layer import TransformerDecoderResidualLayer
 
+import time
+
 __all__ = [ 'OpenLayer', 'CloseLayer', 'StepLayer', 'parse_args', 'ParallelNet' ]
 
 ####################################################################################
@@ -124,8 +126,10 @@ class ParallelNet(nn.Module):
                local_steps=8, Tf=1.0, max_levels=1, bwd_max_iters=1,
                fwd_max_iters=2, print_level=0, braid_print_level=0, cfactor=4,
                fine_fcf=False, skip_downcycle=True, fmg=False, relax_only_cg=0,
-               user_mpi_buf=False, comm_lp=MPI.COMM_WORLD):
+               user_mpi_buf=False, comm_lp=MPI.COMM_WORLD, comm_dp=None):
     super(ParallelNet, self).__init__()
+
+    self.comm_dp = comm_dp  # M!
 
     self.comm_lp = comm_lp
     numprocs = self.comm_lp.Get_size()
@@ -184,9 +188,15 @@ class ParallelNet(nn.Module):
     mask_pad_src = (src == 58100)
     mask_pad_tgt = (tgt == 58100)
     x = self.compose(self.open_nn, src, tgt)
+    t0_continuous_block_time = time.time()
     x = self.parallel_nn(x)
+    t1_continuous_block_time = time.time()
     mem, y = x
     y = self.compose(self.close_nn, y)
+
+    lp_rank = self.comm_lp.Get_rank()
+    dp_rank = self.comm_dp.Get_rank() if self.comm_dp is not None else None
+    print(f'CBT --- lp_rank={lp_rank}, dp_rank={dp_rank}: {t1_continuous_block_time - t0_continuous_block_time :.4f} seconds')
 
     return y
 

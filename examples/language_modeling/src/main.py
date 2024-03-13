@@ -120,10 +120,10 @@ def train(rank, params, model, train_data, optimizer, epoch, compose, device, co
 
   optimizer.step()
     
-  if rank == 0:
-    root_print(rank, f'Getting batch time: {get_batch_time_end - get_batch_time_start} seconds')
-    root_print(rank, f'Training batch fwd pass time: {batch_fwd_time_end - batch_fwd_time_start} seconds')
-    root_print(rank, f'Training batch bwd pass time: {batch_bwd_time_end - batch_bwd_time_start} seconds')
+  if 1:#rank == 0:
+    print(rank, f'Getting batch time: {get_batch_time_end - get_batch_time_start} seconds')
+    print(rank, f'Training batch fwd pass time: {batch_fwd_time_end - batch_fwd_time_start} seconds')
+    print(rank, f'Training batch bwd pass time: {batch_bwd_time_end - batch_bwd_time_start} seconds')
 
   losses.append(loss.item())
 

@@ -61,12 +61,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.profiler import profile, record_function, ProfilerActivity
+# from torch.profiler import profile, record_function, ProfilerActivity
 import torchbraid
 import torchbraid.utils
 import torchbraid.utils.data_parallel
-from torchvision import datasets, transforms
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+# from torchvision import datasets, transforms
+from transformers import AutoTokenizer#, AutoModelForSeq2SeqLM
 import sys
 
 from network_architecture import parse_args, ParallelNet
@@ -238,13 +238,13 @@ def main():
   torch.manual_seed(0)#args.seed)
 
   # Compute number of steps in ResNet per processor
-  local_steps = int(args.steps / procs)
+  local_steps = int(args.steps / size_lp)#procs)
 
   torch.manual_seed(0)
 
   name_model = "Helsinki-NLP/opus-mt-en-de"
   root_print(rank, 'Loading tokenizer')
-  tokenizer = AutoTokenizer.from_pretrained(name_model)
+  tokenizer = AutoTokenizer.from_pretrained('marian-tokenizer')#name_model)
   pad_id = tokenizer.pad_token_id
   bos_id = pad_id
   eos_id = tokenizer.eos_token_id
@@ -305,7 +305,10 @@ def main():
                   relax_only_cg=False,
                   user_mpi_buf=args.lp_user_mpi_buf,
                   comm_lp=comm_lp,
+                  comm_dp=comm_dp,
   ).to(device)
+
+  root_print(rank, f'Model: {model}')
 
   # torch.manual_seed(0)
 

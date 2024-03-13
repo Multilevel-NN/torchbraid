@@ -5,6 +5,7 @@ import numpy as np
 import sys
 import statistics as stats
 import argparse
+import time
 
 import torch
 import torch.nn as nn
@@ -131,8 +132,11 @@ class ParallelNet(nn.Module):
     # by passing this through 'o' (mean composition: e.g. self.open_nn o x)
     # this makes sure this is run on only processor 0
     x = self.compose(self.open_nn, x)
+    t0_CB = time.time()
     x = self.parallel_nn(x)
+    t1_CB = time.time()
     x = self.compose(self.close_nn, x)
+    print(f'CB: {t1_CB - t0_CB :<4f}')
 
     return x
 
