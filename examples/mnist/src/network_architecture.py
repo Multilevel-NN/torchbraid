@@ -1,3 +1,4 @@
+
 from __future__ import print_function
 
 import numpy as np
@@ -21,104 +22,58 @@ from timeit import default_timer as timer
 
 from mpi4py import MPI
 
-from model.transformer_encoder_residual_layer import TransformerEncoderResidualLayer
-from model.transformer_decoder_residual_layer import TransformerDecoderResidualLayer
 
-__all__ = [ 'OpenLayer', 'CloseLayer', 'StepLayer', 'parse_args', 'ParallelNet' ]
+__all__ = [ 'OpenFlatLayer', 'CloseLayer', 'StepLayer', 'parse_args', 'ParallelNet' ]
 
 ####################################################################################
 ####################################################################################
 # Network architecture is Open + ResNet + Close
 # The StepLayer defines the ResNet (ODENet)
 
+class OpenFlatLayer(nn.Module):
+  ''' 
+  Opening layer has no parameters, replicates image number of channels times
+  '''
+  def __init__(self, channels):
+    super(OpenFlatLayer, self).__init__()
+    self.channels = channels
 
-class OpenLayer(nn.Module):
-  def __init__(self, d, tokenizer, pad_id): 
-    super().__init__()
-    torch.manual_seed(0)
-    self.d = d
-
-    self.embedding = nn.Embedding(
-      len(tokenizer), 
-      d, 
-      padding_idx=pad_id
-    )
-    self.positional_encoding_src = nn.Embedding(512, 512)
-    self.positional_encoding_tgt = nn.Embedding(512, 512)
-
-  def forward(self, src, tgt):
-    ## Embedding
-    src = self.embedding(src)  # src: [b, L , d]
-    tgt = self.embedding(tgt)  # tgt: [b, L', d]
-
-    ## Scale
-    src *= np.sqrt(self.d)
-    tgt *= np.sqrt(self.d)
-
-    ## Positional encoding
-    L, Lp = src.shape[1], tgt.shape[1]
-    positions_src = torch.arange(L ).reshape(1, L ).to(src.device)  # positions_src: [1, L ]
-    positions_tgt = torch.arange(Lp).reshape(1, Lp).to(tgt.device)  # positions_tgt: [1, L']
-    posenc_src = self.positional_encoding_src(positions_src)  # positions_src: [1, L , d] 
-    posenc_tgt = self.positional_encoding_tgt(positions_tgt)  # positions_tgt: [1, L', d]
-
-    src += posenc_src  # src: [b, L , d]
-    tgt += posenc_tgt  # tgt: [b, L', d]
-
-    x = torch.stack((src, tgt))
-
+  def forward(self, x):
+    s = len(x.shape) * [1]
+    s[1] = self.channels
+    x = x.repeat(s)
     return x
-# end layer
 
 class CloseLayer(nn.Module):
-  def __init__(self, d, tokenizer):
-    super().__init__()
-    torch.manual_seed(0)
-    self.classifier = nn.Linear(d, len(tokenizer))
-
-  def forward(self, x, **kwargs):
-    x = self.classifier(x)
-
-    return x
-# end layer
-
-class StepLayer_enc(nn.Module):
-  def __init__(self, batch_size, source_length, target_length, device, **kwargs):
-    super().__init__()
-    torch.manual_seed(0)
-    self.F = TransformerEncoderResidualLayer(**kwargs, max_length=source_length, device=device)
-
-    self.zeros_tensor = torch.zeros(size=(batch_size, target_length, kwargs['d']), device=device)
+  '''
+  Dense closing classification layer
+  '''
+  def __init__(self, channels):
+    super(CloseLayer, self).__init__()
+    self.fc1 = nn.Linear(channels * 28 * 28, 32)
+    self.fc2 = nn.Linear(32, 10)
 
   def forward(self, x):
-    t0 = time.time()
-    x, y = x
-    x = self.F(x)
-    # x = torch.stack((x, torch.zeros_like(y)))
-    x = torch.stack((x, self.zeros_tensor[:y.shape[0]]))
-    t1 = time.time()
-    print(f'Fwd time encoder layer: {t1 - t0} seconds')
+    x = torch.flatten(x, 1)
+    x = self.fc1(x)
+    x = F.relu(x)
+    x = self.fc2(x)
+    return F.log_softmax(x, dim=1)
 
-    return x
 
-class StepLayer_dec(nn.Module):
-  def __init__(self, batch_size, source_length, target_length, device, **kwargs):
-    super().__init__()
-    torch.manual_seed(0)
-    self.F = TransformerDecoderResidualLayer(**kwargs, max_length=target_length, device=device)
-
-    self.zeros_tensor = torch.zeros(size=(batch_size, source_length, kwargs['d']), device=device)
+class StepLayer(nn.Module):
+  '''
+  ResNet composed of convolutional layers
+  '''
+  def __init__(self, channels, comm_lp, comm_dp):
+    super(StepLayer, self).__init__()
+    ker_width = 3
+    self.conv1 = nn.Conv2d(channels, channels, ker_width, padding=1)
+    self.conv2 = nn.Conv2d(channels, channels, ker_width, padding=1)
 
   def forward(self, x):
-    t0 = time.time()
-    mem, y = x
-    y = self.F(y, mem)
-    # x = torch.stack((torch.zeros_like(mem), y))
-    x = torch.stack((self.zeros_tensor[:mem.shape[0]], y))
-    t1 = time.time()
-    print(f'Fwd time decoder layer: {t1 - t0} seconds')
+    return F.relu(self.conv2(F.relu(self.conv1(x))))
 
-    return x
 
 ####################################################################################
 ####################################################################################
@@ -127,31 +82,21 @@ class StepLayer_dec(nn.Module):
 # local_steps: number of ResNet layers per processor
 # all other parameter definitions are in argument parser comments below
 class ParallelNet(nn.Module):
-  def __init__(self, model_dimension, num_heads, dim_ff, tokenizer, pad_id, bos_id, eos_id, device, batch_size, source_length, target_length,
-               local_steps=8, Tf=1.0, max_levels=1, bwd_max_iters=1,
+  def __init__(self, channels=12, local_steps=8, Tf=1.0, max_levels=1, bwd_max_iters=1,
                fwd_max_iters=2, print_level=0, braid_print_level=0, cfactor=4,
                fine_fcf=False, skip_downcycle=True, fmg=False, relax_only_cg=0,
                user_mpi_buf=False, comm_lp=MPI.COMM_WORLD, comm_dp=None):
     super(ParallelNet, self).__init__()
 
-    self.comm_dp = comm_dp  # M!
-
+    step_layer = lambda: StepLayer(channels, comm_lp, comm_dp)
     self.comm_lp = comm_lp
     numprocs = self.comm_lp.Get_size()
 
-    step_layer_enc = lambda: StepLayer_enc(d=model_dimension, num_heads=num_heads, dim_ff=dim_ff, batch_size=batch_size, source_length=source_length, target_length=target_length, device=device)
-    step_layer_dec = lambda: StepLayer_dec(d=model_dimension, num_heads=num_heads, dim_ff=dim_ff, batch_size=batch_size, source_length=source_length, target_length=target_length, device=device)
+    self.lp_rank = comm_lp.Get_rank()
+    self.dp_rank = comm_dp.Get_rank() if comm_dp is not None else None
 
-    layers = [step_layer_enc, step_layer_dec]
-    num_steps = [local_steps*numprocs, local_steps*numprocs]#[num_encoder_layers, num_decoder_layers]
-    # num_steps = [local_steps*numprocs * 5//4, local_steps*numprocs * 3//4]
-
-    self.parallel_nn = torchbraid.LayerParallel(comm_lp, 
-                                                #step_layer, local_steps*numprocs, 
-                                                layers, num_steps,
-                                                Tf,
-                                                max_fwd_levels=max_levels,#1,#max_levels, 
-                                                max_bwd_levels=max_levels,
+    self.parallel_nn = torchbraid.LayerParallel(comm_lp, step_layer, local_steps*numprocs, Tf,
+                                                max_fwd_levels=max_levels, max_bwd_levels=max_levels,
                                                 max_iters=2, user_mpi_buf=user_mpi_buf)
     self.parallel_nn.setBwdMaxIters(bwd_max_iters)
     self.parallel_nn.setFwdMaxIters(fwd_max_iters)
@@ -173,10 +118,10 @@ class ParallelNet(nn.Module):
     # this object ensures that only the LayerParallel code runs on ranks!=0
     compose = self.compose = self.parallel_nn.comp_op()
 
-    # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels)
+    # by passing this through 'compose' (mean composition: e.g. OpenFlatLayer o channels)
     # on processors not equal to 0, these will be None (there are no parameters to train there)
-    self.open_nn = compose(OpenLayer, model_dimension, tokenizer, pad_id)
-    self.close_nn = compose(CloseLayer, model_dimension, tokenizer)
+    self.open_nn = compose(OpenFlatLayer, channels)
+    self.close_nn = compose(CloseLayer, channels)
 
   def saveSerialNet(self, name):
     # Model can be reloaded in serial format with: model = torch.load(filename)
@@ -189,22 +134,15 @@ class ParallelNet(nn.Module):
   def forward(self, x):
     # by passing this through 'o' (mean composition: e.g. self.open_nn o x)
     # this makes sure this is run on only processor 0
-    global mask_pad_src, mask_pad_tgt
-    src, tgt = x
-    mask_pad_src = (src == 58100)
-    mask_pad_tgt = (tgt == 58100)
-    x = self.compose(self.open_nn, src, tgt)
-    t0_continuous_block_time = time.time()
+
+    x = self.compose(self.open_nn, x)
+    t0 = time.time()
     x = self.parallel_nn(x)
-    t1_continuous_block_time = time.time()
-    mem, y = x
-    y = self.compose(self.close_nn, y)
+    t1 = time.time()
+    print(f'lpr={self.lp_rank}, dpr={self.dp_rank}: {t1 - t0 :.4f}')
+    x = self.compose(self.close_nn, x)
 
-    lp_rank = self.comm_lp.Get_rank()
-    dp_rank = self.comm_dp.Get_rank() if self.comm_dp is not None else None
-    print(f'lp_rank={lp_rank}, dp_rank={dp_rank}: {t1_continuous_block_time - t0_continuous_block_time :.4f}')
-
-    return y
+    return x
 
 # Serial Network Class (used by the saveSerialNet functionality in ParallelNet)
 class SerialNet(nn.Module):
@@ -212,7 +150,7 @@ class SerialNet(nn.Module):
     super(SerialNet, self).__init__()
 
     if open_nn is None:
-      self.open_nn = OpenLayer(channels)
+      self.open_nn = OpenFlatLayer(channels)
     else:
       self.open_nn = open_nn
 
@@ -253,6 +191,8 @@ def parse_args():
                       help='random seed (default: 1)')
   parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                       help='how many batches to wait before logging training status')
+  parser.add_argument('--dataset', default='digits',
+                      help='if digits use digits MNIST, if fashion use fashion MNIST')
 
   # artichtectural settings
   parser.add_argument('--steps', type=int, default=32, metavar='N',
@@ -263,15 +203,17 @@ def parse_args():
                       help='Final time for ResNet layer-parallel part')
   parser.add_argument('--serial-file', type=str, default=None,
                       help='Save network to file in serial (not parallel) format')
+  parser.add_argument('--force-serial', action='store_true', default=False,
+                      help='Run as serial TorchBraid network for comparison')
 
   # algorithmic settings (batching)
   parser.add_argument('--percent-data', type=float, default=0.05, metavar='N',
                       help='how much of the data to read in and use for training/testing')
-  parser.add_argument('--batch-size', type=int, default=50, metavar='N',
+  parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                       help='input batch size for training (default: 50)')
   parser.add_argument('--epochs', type=int, default=3, metavar='N',
                       help='number of epochs to train (default: 3)')
-  parser.add_argument('--lr', type=float, default=3e-4, metavar='LR',
+  parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                       help='learning rate (default: 0.01)')
 
   # algorithmic settings (layer-parallel)
@@ -301,20 +243,6 @@ def parse_args():
   # data parallelism
   parser.add_argument('--dp-size', type=int, default=1, metavar='N',
                       help='Data parallelism (used if value != 1)')
-
-  ## save model
-  parser.add_argument('--output_fn',type=str, default=None,#required=True,
-                      help='Output filename (for model saving)')
-  parser.add_argument('--models_dir',type=str, default=None,#required=True,
-                      help='Models directory (for model saving)')
-
-  ## additional arguments
-  parser.add_argument('--model_dimension', type=int, default=512)
-  parser.add_argument('--num_heads', type=int, default=8)
-  parser.add_argument('--dim_ff', type=int, default=2048)
-  # parser.add_argument('--num_encoder_layers', type=int, default=6)
-  # parser.add_argument('--num_decoder_layers', type=int, default=6)
-  parser.add_argument('--debug', action='store_true')
 
   ##
   # Do some parameter checking
@@ -354,3 +282,4 @@ def parse_args():
 
 ####################################################################################
 ####################################################################################
+

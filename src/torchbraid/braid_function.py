@@ -29,6 +29,7 @@
 # ************************************************************************
 #@HEADER
 
+import time
 import torch.autograd
 import torch.nn.functional as F
 
@@ -98,10 +99,16 @@ class BraidFunction(torch.autograd.Function):
     if num_ranks>1:
       if my_rank==num_ranks-1:
         req = comm.Isend(result,dest=0)
+        t0 = time.time()
         req.Wait()
+        t1 = time.time()
+        print(f'WAIT1 - rank:{my_rank}, time={t1 - t0 :<4}')
       elif my_rank==0:
         req = comm.Irecv(result,source=num_ranks-1)
+        t0 = time.time()
         req.Wait()
+        t1 = time.time()
+        print(f'WAIT2 - rank:{my_rank}, time={t1 - t0 :<4}')
 
     if adjusting:
       return result[0:temp_batch,:]
@@ -120,10 +127,16 @@ class BraidFunction(torch.autograd.Function):
         if ctx.fwd_app.use_cuda:
           torch.cuda.synchronize()
         req = comm.Isend(grad_output,dest=num_ranks-1)
+        t0 = time.time()
         req.Wait()
+        t1 = time.time()
+        print(f'WAIT3 - rank:{my_rank}, time={t1 - t0 :<4}')
       elif my_rank==num_ranks-1: 
         req = comm.Irecv(grad_output,source=0)
+        t0 = time.time()
         req.Wait()
+        t1 = time.time()
+        print(f'WAIT4 - rank:{my_rank}, time={t1 - t0 :<4}')
 
     if my_rank==num_ranks-1:
       if ctx.adjusting:

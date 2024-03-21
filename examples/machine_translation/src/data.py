@@ -53,12 +53,12 @@ def obtain_data(tokenizer, device, batch_size, size_dp, debug):
     dl = {}
     dl['train'] = DataLoader(
       ds_dict['train'], 
-      batch_size=batch_size, 
+      batch_size=batch_size//size_dp, 
       shuffle=True
     )
     dl['test'] = DataLoader(
       ds_dict['test'], 
-      batch_size=batch_size, 
+      batch_size=batch_size//size_dp, 
       shuffle=False
     )
     dls.append(dl)

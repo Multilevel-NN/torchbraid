@@ -157,12 +157,12 @@ def train(rank, model, batch, optimizer, epoch, compose, device, criterion, comm
       #          100. * (batch_idx + 1) / len(train_loader), loss_global, total_time / (batch_idx + 1.0)))
   gather_things_end = time.time()
 
-  if rank_lp == 0 and rank_dp == 0:
-    root_print(rank, f'(rank_lp {rank_lp}, rank_dp {rank_dp}):')
-    root_print(rank, f'Training batch loss: {losses[-1]}')
-    root_print(rank, f'Training batch fwd pass time: {batch_fwd_time_end - batch_fwd_time_start} seconds')
-    root_print(rank, f'Training batch bwd pass time: {batch_bwd_time_end - batch_bwd_time_start} seconds')
-    root_print(rank, f'Gather things time: {gather_things_end - gather_things_start} seconds')
+  if 1 and epoch > 2: #rank_lp == 0 and rank_dp == 0:
+    # root_print(rank, f'(rank_lp {rank_lp}, rank_dp {rank_dp}):')
+    # root_print(rank, f'Training batch loss: {losses[-1]}')
+    print(f'lp-rank={rank_lp}, dp-rank={rank_dp}: Training batch fwd pass time: {batch_fwd_time_end - batch_fwd_time_start} seconds')
+    print(f'lp-rank={rank_lp}, dp-rank={rank_dp}: Training batch bwd pass time: {batch_bwd_time_end - batch_bwd_time_start} seconds')
+    # root_print(rank, f'Gather things time: {gather_things_end - gather_things_start} seconds')
 
   # root_print(0, f'fwd time: {batch_fwd_time_end - batch_fwd_time_start} seconds')
   # root_print(0, f'bwd time: {batch_bwd_time_end - batch_bwd_time_start} seconds')
@@ -240,6 +240,9 @@ def main():
   # Compute number of steps in ResNet per processor
   local_steps = int(args.steps / size_lp)#procs)
 
+  batch_size_per_partition = args.batch_size // size_dp
+  assert batch_size_per_partition > 0 and args.batch_size%size_dp == 0
+
   torch.manual_seed(0)
 
   name_model = "Helsinki-NLP/opus-mt-en-de"
@@ -290,7 +293,7 @@ def main():
   # Create layer-parallel network
   # Note this can be done on only one processor, but will be slow
   # model = ParallelNet(args.model_dimension, args.num_heads, args.dim_ff, tokenizer, pad_id, bos_id, eos_id, device,
-  model = ParallelNet(args.model_dimension, args.num_heads, args.dim_ff, tokenizer, pad_id, bos_id, eos_id, device, args.batch_size, source_length, target_length,
+  model = ParallelNet(args.model_dimension, args.num_heads, args.dim_ff, tokenizer, pad_id, bos_id, eos_id, device, batch_size_per_partition, source_length, target_length,
                   local_steps=local_steps,
                   max_levels=args.lp_max_levels,
                   bwd_max_iters=args.lp_bwd_max_iters,
