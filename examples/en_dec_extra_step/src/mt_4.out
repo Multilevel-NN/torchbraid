@@ -1,0 +1,2349 @@
+Importing modules
+Importing modules
+Importing modules
+Importing modules
+Importing local files
+Importing local files
+Importing local files
+Importing local files
+args Namespace(seed=1, log_interval=10, steps=32, channels=3, Tf=1.0, serial_file=None, percent_data=0.05, batch_size=50, epochs=3, lr=0.0003, lp_max_levels=3, lp_bwd_max_iters=1, lp_fwd_max_iters=2, lp_print_level=0, lp_braid_print_level=0, lp_cfactor=4, lp_fine_fcf=False, no_cuda=False, warm_up=False, lp_user_mpi_buf=False, lp_use_downcycle=False, dp_size=1, output_fn=None, models_dir=None, model_dimension=512, num_heads=8, dim_ff=2048, debug=False)
+Using GPU Device
+Run info rank: 0: Torch version: 2.1.2+cu121 | Device: cuda:0 | Host: cpu
+Loading tokenizer
+Run info rank: 3: Torch version: 2.1.2+cu121 | Device: cuda:0 | Host: cpu
+Run info rank: 2: Torch version: 2.1.2+cu121 | Device: cuda:0 | Host: cpu
+Run info rank: 1: Torch version: 2.1.2+cu121 | Device: cuda:0 | Host: cpu
+Loading data
+Number of samples: train, 580; test, 21.
+-- procs    = 4
+-- channels = 3
+-- Tf       = 1.0
+-- steps    = 32
+-- max_levels     = 3
+-- max_bwd_iters  = 1
+-- max_fwd_iters  = 2
+-- cfactor        = 4
+-- fine fcf       = False
+-- skip down      = True
+
+rank 1: len(list(model.parameters())) 266
+rank 2: len(list(model.parameters())) 416
+rank 3: len(list(model.parameters())) 390
+Model: ParallelNet(
+  (parallel_nn): LayerParallel(
+    parallel rank = 0 of 4
+    (local_layers): Sequential(
+      (0): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (1): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (2): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (3): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (4): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (5): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (6): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (7): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (8): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (9): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (10): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (11): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (12): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (13): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (14): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (15): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (16): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+    )
+  )
+  <...> LayerParallel(
+    parallel rank = 1 of 4
+    (local_layers): Sequential(
+      (0): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (1): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (2): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (3): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (4): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (5): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (6): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (7): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (8): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (9): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (10): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (11): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (12): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (13): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (14): ODEBlock(
+        (layer): StepLayer_enc(
+          (F): TransformerEncoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (15): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+    )
+  )
+  <...> LayerParallel(
+    parallel rank = 2 of 4
+    (local_layers): Sequential(
+      (0): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (1): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (2): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (3): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (4): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (5): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (6): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (7): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (8): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (9): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (10): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (11): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (12): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (13): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (14): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (15): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+    )
+  )
+  <...> LayerParallel(
+    parallel rank = 3 of 4
+    (local_layers): Sequential(
+      (0): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (1): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (2): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (3): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (4): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (5): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (6): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (7): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (8): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (9): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (10): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (11): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (12): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (13): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+      (14): ODEBlock(
+        (layer): StepLayer_dec(
+          (F): TransformerDecoderResidualLayer(
+            (self_attn): SelfAttention(
+              (attn): MultiHeadAttention(
+                (k_proj): Linear(in_features=512, out_features=512, bias=True)
+                (v_proj): Linear(in_features=512, out_features=512, bias=True)
+                (q_proj): Linear(in_features=512, out_features=512, bias=True)
+                (out_proj): Linear(in_features=512, out_features=512, bias=True)
+              )
+            )
+            (cross_attn): MultiHeadAttention(
+              (k_proj): Linear(in_features=512, out_features=512, bias=True)
+              (v_proj): Linear(in_features=512, out_features=512, bias=True)
+              (q_proj): Linear(in_features=512, out_features=512, bias=True)
+              (out_proj): Linear(in_features=512, out_features=512, bias=True)
+            )
+            (mlp): MLP(
+              (fc1): Linear(in_features=512, out_features=2048, bias=True)
+              (fc2): Linear(in_features=2048, out_features=512, bias=True)
+              (activation_fn): SiLU()
+            )
+            (self_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (cross_attn_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+            (final_layer_norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+          )
+        )
+      )
+    )
+  )
+  (open_nn): OpenLayer(
+    (embedding): Embedding(58101, 512, padding_idx=58100)
+    (positional_encoding_src): Embedding(512, 512)
+    (positional_encoding_tgt): Embedding(512, 512)
+  )
+  (close_nn): CloseLayer(
+    (classifier): Linear(in_features=512, out_features=58101, bias=True)
+  )
+)
+rank 0: len(list(model.parameters())) 277
+Epoch 0
+Epoch 1
+Fwd time encoder layer: 0.4979369640350342 seconds
+Fwd time decoder layer: 0.0009715557098388672 seconds
+Fwd time encoder layer: 0.001035928726196289 seconds
+Fwd time encoder layer: 0.0005142688751220703 seconds
+Fwd time encoder layer: 0.0004930496215820312 seconds
+Fwd time encoder layer: 0.0004951953887939453 seconds
+Fwd time encoder layer: 0.11735129356384277 seconds
+Fwd time encoder layer: 0.0005178451538085938 seconds
+Fwd time encoder layer: 0.0004889965057373047 seconds
+Fwd time encoder layer: 0.0004889965057373047 seconds
+Fwd time encoder layer: 0.0004749298095703125 seconds
+Fwd time encoder layer: 0.0005509853363037109 seconds
+Fwd time encoder layer: 0.0005099773406982422 seconds
+Fwd time encoder layer: 0.0005059242248535156 seconds
+Fwd time decoder layer: 0.12352371215820312 seconds
+Fwd time encoder layer: 0.0005950927734375 seconds
+Fwd time decoder layer: 0.0008921623229980469 seconds
+Fwd time encoder layer: 0.0006670951843261719 seconds
+Fwd time encoder layer: 0.0005085468292236328 seconds
+Fwd time encoder layer: 0.00048542022705078125 seconds
+Fwd time encoder layer: 0.0004870891571044922 seconds
+Fwd time encoder layer: 0.0005328655242919922 seconds
+Fwd time decoder layer: 0.0008869171142578125 seconds
+Fwd time encoder layer: 0.0005013942718505859 seconds
+Fwd time encoder layer: 0.0004968643188476562 seconds
+Fwd time encoder layer: 0.0004837512969970703 seconds
+Fwd time encoder layer: 0.0004849433898925781 seconds
+Fwd time encoder layer: 0.0004963874816894531 seconds
+Fwd time encoder layer: 0.0008082389831542969 seconds
+Fwd time encoder layer: 0.0005002021789550781 seconds
+Fwd time encoder layer: 0.0006642341613769531 seconds
+Fwd time encoder layer: 0.001074075698852539 seconds
+Fwd time encoder layer: 0.0004932880401611328 seconds
+Fwd time encoder layer: 0.0004858970642089844 seconds
+Fwd time encoder layer: 0.0004749298095703125 seconds
+Fwd time encoder layer: 0.0005180835723876953 seconds
+Fwd time decoder layer: 0.13625645637512207 seconds
+Fwd time decoder layer: 0.0008745193481445312 seconds
+Fwd time encoder layer: 0.0005266666412353516 seconds
+Fwd time decoder layer: 0.0008821487426757812 seconds
+Fwd time decoder layer: 0.0009796619415283203 seconds
+Fwd time encoder layer: 0.0005137920379638672 seconds
+Fwd time encoder layer: 0.00048804283142089844 seconds
+Fwd time encoder layer: 0.00048351287841796875 seconds
+Fwd time encoder layer: 0.0004749298095703125 seconds
+Fwd time encoder layer: 0.0005271434783935547 seconds
+Fwd time encoder layer: 0.00048732757568359375 seconds
+Fwd time encoder layer: 0.0004763603210449219 seconds
+Fwd time encoder layer: 0.0004897117614746094 seconds
+Fwd time encoder layer: 0.0009484291076660156 seconds
+Fwd time encoder layer: 0.0006029605865478516 seconds
+Fwd time decoder layer: 0.0008769035339355469 seconds
+Fwd time decoder layer: 0.0008859634399414062 seconds
+Fwd time encoder layer: 0.0004994869232177734 seconds
+Fwd time encoder layer: 0.0005168914794921875 seconds
+Fwd time encoder layer: 0.0004928112030029297 seconds
+Fwd time encoder layer: 0.0004856586456298828 seconds
+Fwd time encoder layer: 0.0006394386291503906 seconds
+Fwd time encoder layer: 0.0006093978881835938 seconds
+Fwd time encoder layer: 0.0009055137634277344 seconds
+Fwd time encoder layer: 0.0019061565399169922 seconds
+Fwd time encoder layer: 0.0019221305847167969 seconds
+Fwd time encoder layer: 0.0019299983978271484 seconds
+Fwd time encoder layer: 0.0019450187683105469 seconds
+Fwd time encoder layer: 0.0019145011901855469 seconds
+Fwd time encoder layer: 0.0019457340240478516 seconds
+Fwd time encoder layer: 0.0019278526306152344 seconds
+Fwd time encoder layer: 0.0019545555114746094 seconds
+Fwd time encoder layer: 0.0019445419311523438 seconds
+Fwd time encoder layer: 0.0019435882568359375 seconds
+Fwd time encoder layer: 0.0019588470458984375 seconds
+Fwd time encoder layer: 0.001982450485229492 seconds
+Fwd time encoder layer: 0.001977682113647461 seconds
+Fwd time encoder layer: 0.0005114078521728516 seconds
+Fwd time decoder layer: 0.0008573532104492188 seconds
+Fwd time decoder layer: 0.0008881092071533203 seconds
+lp_rank=0, dp_rank=None: 1.3498
+Fwd time decoder layer: 0.001886606216430664 seconds
+Fwd time decoder layer: 0.0008740425109863281 seconds
+Fwd time encoder layer: 0.0005245208740234375 seconds
+Fwd time decoder layer: 0.0010557174682617188 seconds
+Fwd time encoder layer: 0.0005252361297607422 seconds
+Fwd time decoder layer: 0.0008952617645263672 seconds
+Fwd time encoder layer: 0.0005030632019042969 seconds
+Fwd time decoder layer: 0.0008761882781982422 seconds
+Fwd time decoder layer: 0.0008957386016845703 seconds
+Fwd time encoder layer: 0.0007443428039550781 seconds
+Fwd time decoder layer: 0.0008819103240966797 seconds
+Fwd time decoder layer: 0.0008800029754638672 seconds
+Fwd time decoder layer: 0.00101470947265625 seconds
+Fwd time decoder layer: 0.0008826255798339844 seconds
+Fwd time encoder layer: 0.0004909038543701172 seconds
+Fwd time encoder layer: 0.0006852149963378906 seconds
+Fwd time encoder layer: 0.0005743503570556641 seconds
+Fwd time encoder layer: 0.0005774497985839844 seconds
+Fwd time encoder layer: 0.0005776882171630859 seconds
+Fwd time encoder layer: 0.0005619525909423828 seconds
+Fwd time encoder layer: 0.0006680488586425781 seconds
+Fwd time decoder layer: 0.0008778572082519531 seconds
+Fwd time decoder layer: 0.0008549690246582031 seconds
+Fwd time encoder layer: 0.0006422996520996094 seconds
+Fwd time encoder layer: 0.0005195140838623047 seconds
+Fwd time decoder layer: 0.0008499622344970703 seconds
+Fwd time decoder layer: 0.0012214183807373047 seconds
+Fwd time encoder layer: 0.0006666183471679688 seconds
+Fwd time decoder layer: 0.0008687973022460938 seconds
+Fwd time decoder layer: 0.0008687973022460938 seconds
+Fwd time encoder layer: 0.0006461143493652344 seconds
+Fwd time decoder layer: 0.0008571147918701172 seconds
+Fwd time decoder layer: 0.0010104179382324219 seconds
+Epoch 2
+Fwd time encoder layer: 0.0006132125854492188 seconds
+Fwd time encoder layer: 0.0005257129669189453 seconds
+Fwd time encoder layer: 0.0004987716674804688 seconds
+Fwd time encoder layer: 0.0004825592041015625 seconds
+Fwd time encoder layer: 0.0004990100860595703 seconds
+Fwd time decoder layer: 0.0011663436889648438 seconds
+Fwd time decoder layer: 0.0009098052978515625 seconds
+Fwd time encoder layer: 0.0005190372467041016 seconds
+Fwd time encoder layer: 0.0004961490631103516 seconds
+Fwd time encoder layer: 0.0004899501800537109 seconds
+Fwd time encoder layer: 0.00047516822814941406 seconds
+Fwd time encoder layer: 0.0004980564117431641 seconds
+Fwd time encoder layer: 0.00048542022705078125 seconds
+Fwd time encoder layer: 0.0004961490631103516 seconds
+Fwd time encoder layer: 0.0004899501800537109 seconds
+Fwd time encoder layer: 0.0004956722259521484 seconds
+Fwd time encoder layer: 0.0004811286926269531 seconds
+Fwd time encoder layer: 0.0004775524139404297 seconds
+Fwd time encoder layer: 0.0004851818084716797 seconds
+Fwd time encoder layer: 0.00048065185546875 seconds
+Fwd time encoder layer: 0.0004863739013671875 seconds
+Fwd time encoder layer: 0.0004773139953613281 seconds
+Fwd time encoder layer: 0.0004849433898925781 seconds
+Fwd time encoder layer: 0.0005140304565429688 seconds
+Fwd time encoder layer: 0.0004878044128417969 seconds
+Fwd time encoder layer: 0.000476837158203125 seconds
+Fwd time encoder layer: 0.00048613548278808594 seconds
+Fwd time encoder layer: 0.0010211467742919922 seconds
+Fwd time decoder layer: 0.0010247230529785156 seconds
+Fwd time decoder layer: 0.0010428428649902344 seconds
+Fwd time encoder layer: 0.0005118846893310547 seconds
+Fwd time encoder layer: 0.00048732757568359375 seconds
+Fwd time encoder layer: 0.0004935264587402344 seconds
+Fwd time encoder layer: 0.0004761219024658203 seconds
+Fwd time encoder layer: 0.0005035400390625 seconds
+Fwd time encoder layer: 0.0004849433898925781 seconds
+Fwd time encoder layer: 0.00047397613525390625 seconds
+Fwd time encoder layer: 0.00048279762268066406 seconds
+Fwd time encoder layer: 0.0005123615264892578 seconds
+Fwd time encoder layer: 0.0004968643188476562 seconds
+Fwd time encoder layer: 0.0005164146423339844 seconds
+Fwd time encoder layer: 0.0004887580871582031 seconds
+Fwd time encoder layer: 0.00047969818115234375 seconds
+Fwd time encoder layer: 0.0005838871002197266 seconds
+Fwd time encoder layer: 0.0005748271942138672 seconds
+Fwd time encoder layer: 0.000568389892578125 seconds
+Fwd time encoder layer: 0.0005617141723632812 seconds
+Fwd time encoder layer: 0.0005598068237304688 seconds
+Fwd time encoder layer: 0.0005662441253662109 seconds
+Fwd time encoder layer: 0.0005640983581542969 seconds
+Fwd time encoder layer: 0.0005574226379394531 seconds
+Fwd time encoder layer: 0.0005559921264648438 seconds
+Fwd time encoder layer: 0.0005583763122558594 seconds
+Fwd time encoder layer: 0.0005567073822021484 seconds
+Fwd time encoder layer: 0.0005512237548828125 seconds
+Fwd time encoder layer: 0.0005590915679931641 seconds
+Fwd time encoder layer: 0.0005574226379394531 seconds
+Fwd time encoder layer: 0.0005605220794677734 seconds
+Fwd time encoder layer: 0.0005438327789306641 seconds
+Fwd time decoder layer: 0.0010302066802978516 seconds
+Fwd time encoder layer: 0.0005059242248535156 seconds
+Fwd time decoder layer: 0.0008676052093505859 seconds
+lp_rank=0, dp_rank=None: 0.3557
+Fwd time encoder layer: 0.0005059242248535156 seconds
+Fwd time decoder layer: 0.0010538101196289062 seconds
+Fwd time decoder layer: 0.0008654594421386719 seconds
+Fwd time encoder layer: 0.0006330013275146484 seconds
+Fwd time encoder layer: 0.0005795955657958984 seconds
+Fwd time encoder layer: 0.0005600452423095703 seconds
+Fwd time encoder layer: 0.0005679130554199219 seconds
+Fwd time encoder layer: 0.0005657672882080078 seconds
+Fwd time encoder layer: 0.0006406307220458984 seconds
+Fwd time encoder layer: 0.0004968643188476562 seconds
+Fwd time decoder layer: 0.0009036064147949219 seconds
+Fwd time decoder layer: 0.0014181137084960938 seconds
+Epoch 3
+Fwd time encoder layer: 0.0005216598510742188 seconds
+Fwd time decoder layer: 0.0010275840759277344 seconds
+Fwd time decoder layer: 0.0008406639099121094 seconds
+Fwd time encoder layer: 0.0005223751068115234 seconds
+Fwd time encoder layer: 0.0005092620849609375 seconds
+Fwd time encoder layer: 0.00048661231994628906 seconds
+Fwd time encoder layer: 0.0004899501800537109 seconds
+Fwd time encoder layer: 0.0005204677581787109 seconds
+Fwd time encoder layer: 0.00048160552978515625 seconds
+Fwd time encoder layer: 0.0004887580871582031 seconds
+Fwd time encoder layer: 0.00047659873962402344 seconds
+Fwd time encoder layer: 0.0004990100860595703 seconds
+Fwd time encoder layer: 0.00047969818115234375 seconds
+Fwd time encoder layer: 0.0004775524139404297 seconds
+Fwd time encoder layer: 0.0004851818084716797 seconds
+Fwd time encoder layer: 0.0004851818084716797 seconds
+Fwd time encoder layer: 0.00048732757568359375 seconds
+Fwd time encoder layer: 0.0004792213439941406 seconds
+Fwd time encoder layer: 0.0004856586456298828 seconds
+Fwd time encoder layer: 0.00048279762268066406 seconds
+Fwd time encoder layer: 0.0004894733428955078 seconds
+Fwd time encoder layer: 0.0004813671112060547 seconds
+Fwd time encoder layer: 0.00046896934509277344 seconds
+Fwd time encoder layer: 0.0005049705505371094 seconds
+Fwd time encoder layer: 0.00048065185546875 seconds
+Fwd time encoder layer: 0.0004837512969970703 seconds
+Fwd time encoder layer: 0.0004780292510986328 seconds
+Fwd time decoder layer: 0.0010128021240234375 seconds
+Fwd time decoder layer: 0.0008342266082763672 seconds
+Fwd time encoder layer: 0.0004801750183105469 seconds
+Fwd time encoder layer: 0.00051116943359375 seconds
+Fwd time encoder layer: 0.0004837512969970703 seconds
+Fwd time encoder layer: 0.00048160552978515625 seconds
+Fwd time encoder layer: 0.0004875659942626953 seconds
+Fwd time encoder layer: 0.00049591064453125 seconds
+Fwd time encoder layer: 0.0004951953887939453 seconds
+Fwd time encoder layer: 0.00047898292541503906 seconds
+Fwd time encoder layer: 0.00048041343688964844 seconds
+Fwd time encoder layer: 0.0005068778991699219 seconds
+Fwd time encoder layer: 0.0004889965057373047 seconds
+Fwd time encoder layer: 0.0005004405975341797 seconds
+Fwd time decoder layer: 0.0014684200286865234 seconds
+Fwd time decoder layer: 0.0008473396301269531 seconds
+Fwd time encoder layer: 0.0004954338073730469 seconds
+Fwd time encoder layer: 0.0004930496215820312 seconds
+Fwd time encoder layer: 0.0004763603210449219 seconds
+Fwd time encoder layer: 0.0007593631744384766 seconds
+Fwd time encoder layer: 0.0005669593811035156 seconds
+Fwd time encoder layer: 0.0005674362182617188 seconds
+Fwd time encoder layer: 0.0005629062652587891 seconds
+Fwd time encoder layer: 0.0005581378936767578 seconds
+Fwd time encoder layer: 0.000560760498046875 seconds
+Fwd time encoder layer: 0.0005626678466796875 seconds
+Fwd time encoder layer: 0.0005664825439453125 seconds
+Fwd time encoder layer: 0.0005536079406738281 seconds
+Fwd time encoder layer: 0.0005564689636230469 seconds
+Fwd time encoder layer: 0.0005698204040527344 seconds
+Fwd time encoder layer: 0.0005719661712646484 seconds
+Fwd time encoder layer: 0.0005559921264648438 seconds
+Fwd time encoder layer: 0.0005598068237304688 seconds
+Fwd time encoder layer: 0.0005671977996826172 seconds
+Fwd time encoder layer: 0.0005645751953125 seconds
+Fwd time encoder layer: 0.0004916191101074219 seconds
+Fwd time decoder layer: 0.0008490085601806641 seconds
+Fwd time decoder layer: 0.0008587837219238281 seconds
+lp_rank=0, dp_rank=None: 0.3596
+Fwd time encoder layer: 0.0005030632019042969 seconds
+Fwd time decoder layer: 0.0008425712585449219 seconds
+Fwd time decoder layer: 0.00083160400390625 seconds
+Fwd time encoder layer: 0.0007224082946777344 seconds
+Fwd time encoder layer: 0.0006327629089355469 seconds
+Fwd time encoder layer: 0.0006000995635986328 seconds
+Fwd time encoder layer: 0.0005965232849121094 seconds
+Fwd time encoder layer: 0.0006017684936523438 seconds
+Fwd time encoder layer: 0.0004971027374267578 seconds
+Fwd time decoder layer: 0.0008492469787597656 seconds
+Fwd time decoder layer: 0.0008172988891601562 seconds
+Fwd time encoder layer: 0.000614166259765625 seconds
+Fwd time encoder layer: 0.0004761219024658203 seconds
+Fwd time decoder layer: 0.0008502006530761719 seconds
+Fwd time decoder layer: 0.0008208751678466797 seconds
+lp-rank=0, dp-rank=None: Training batch fwd pass time: 0.36010217666625977 seconds
+lp-rank=0, dp-rank=None: Training batch bwd pass time: 0.28751277923583984 seconds
+Fwd time decoder layer: 0.0008709430694580078 seconds
+Fwd time encoder layer: 0.00047135353088378906 seconds
+Fwd time decoder layer: 0.0008599758148193359 seconds
+Fwd time encoder layer: 0.0006482601165771484 seconds
+Fwd time decoder layer: 0.0008232593536376953 seconds
+Fwd time decoder layer: 0.0008318424224853516 seconds
+Fwd time encoder layer: 0.0005121231079101562 seconds
+Fwd time decoder layer: 0.0008215904235839844 seconds
+Fwd time decoder layer: 0.0008165836334228516 seconds
+Fwd time encoder layer: 0.0005173683166503906 seconds
+Fwd time decoder layer: 0.0008466243743896484 seconds
+Fwd time decoder layer: 0.0008215904235839844 seconds
+Fwd time encoder layer: 0.0004925727844238281 seconds
+Fwd time decoder layer: 0.0008296966552734375 seconds
+Fwd time decoder layer: 0.0010075569152832031 seconds
+Fwd time encoder layer: 0.0004756450653076172 seconds
+Fwd time decoder layer: 0.0008108615875244141 seconds
+Fwd time decoder layer: 0.0008473396301269531 seconds
+Fwd time decoder layer: 0.0008618831634521484 seconds
+Fwd time encoder layer: 0.0006649494171142578 seconds
+Fwd time decoder layer: 0.0008120536804199219 seconds
+Fwd time decoder layer: 0.0008282661437988281 seconds
+Fwd time encoder layer: 0.0006091594696044922 seconds
+Fwd time decoder layer: 0.0009999275207519531 seconds
+Fwd time encoder layer: 0.0017056465148925781 seconds
+Fwd time decoder layer: 0.0008428096771240234 seconds
+Fwd time decoder layer: 0.0008270740509033203 seconds
+Fwd time encoder layer: 0.0019419193267822266 seconds
+Fwd time decoder layer: 0.0008461475372314453 seconds
+Fwd time decoder layer: 0.0010929107666015625 seconds
+Fwd time encoder layer: 0.001932382583618164 seconds
+Fwd time decoder layer: 0.0008161067962646484 seconds
+Fwd time decoder layer: 0.0017800331115722656 seconds
+Fwd time encoder layer: 0.0019519329071044922 seconds
+Fwd time decoder layer: 0.0008227825164794922 seconds
+Fwd time decoder layer: 0.0030066967010498047 seconds
+Fwd time encoder layer: 0.0019292831420898438 seconds
+Fwd time decoder layer: 0.0012593269348144531 seconds
+Fwd time decoder layer: 0.003020048141479492 seconds
+Fwd time encoder layer: 0.001969575881958008 seconds
+Fwd time decoder layer: 0.0017511844635009766 seconds
+Fwd time decoder layer: 0.0030150413513183594 seconds
+Fwd time encoder layer: 0.0019354820251464844 seconds
+Fwd time decoder layer: 0.0029659271240234375 seconds
+Fwd time decoder layer: 0.0029997825622558594 seconds
+Fwd time decoder layer: 0.003112316131591797 seconds
+Fwd time encoder layer: 0.001954793930053711 seconds
+Fwd time decoder layer: 0.0029761791229248047 seconds
+Fwd time encoder layer: 0.0019576549530029297 seconds
+Fwd time decoder layer: 0.00281524658203125 seconds
+Fwd time decoder layer: 0.0030667781829833984 seconds
+Fwd time encoder layer: 0.0018925666809082031 seconds
+Fwd time decoder layer: 0.003105640411376953 seconds
+Fwd time decoder layer: 0.003039121627807617 seconds
+Fwd time encoder layer: 0.0012240409851074219 seconds
+Fwd time decoder layer: 0.003017902374267578 seconds
+Fwd time decoder layer: 0.003295421600341797 seconds
+Fwd time encoder layer: 0.0009875297546386719 seconds
+Fwd time decoder layer: 0.0031554698944091797 seconds
+Fwd time decoder layer: 0.0032634735107421875 seconds
+Fwd time encoder layer: 0.0018219947814941406 seconds
+Fwd time decoder layer: 0.003032684326171875 seconds
+Fwd time decoder layer: 0.0032727718353271484 seconds
+Fwd time encoder layer: 0.0019216537475585938 seconds
+Fwd time decoder layer: 0.0030930042266845703 seconds
+Fwd time decoder layer: 0.0015769004821777344 seconds
+Fwd time decoder layer: 0.0030460357666015625 seconds
+Fwd time decoder layer: 0.0018558502197265625 seconds
+lp_rank=1, dp_rank=None: 1.7297
+Fwd time decoder layer: 0.003719329833984375 seconds
+Fwd time decoder layer: 0.003067493438720703 seconds
+Fwd time decoder layer: 0.003047943115234375 seconds
+Fwd time encoder layer: 0.0006234645843505859 seconds
+Fwd time decoder layer: 0.0016300678253173828 seconds
+Fwd time decoder layer: 0.0030171871185302734 seconds
+Fwd time decoder layer: 0.0018341541290283203 seconds
+lp_rank=2, dp_rank=None: 1.7545
+Fwd time encoder layer: 0.0005972385406494141 seconds
+Fwd time encoder layer: 0.0005776882171630859 seconds
+Fwd time decoder layer: 0.002994537353515625 seconds
+Fwd time decoder layer: 0.0035347938537597656 seconds
+Fwd time decoder layer: 0.0012650489807128906 seconds
+Fwd time decoder layer: 0.002989053726196289 seconds
+Fwd time decoder layer: 0.0010197162628173828 seconds
+Fwd time encoder layer: 0.001827239990234375 seconds
+lp_rank=3, dp_rank=None: 1.7641
+Fwd time decoder layer: 0.0009920597076416016 seconds
+Fwd time encoder layer: 0.0005238056182861328 seconds
+Fwd time decoder layer: 0.0035469532012939453 seconds
+Fwd time decoder layer: 0.0009810924530029297 seconds
+Fwd time encoder layer: 0.0004870891571044922 seconds
+Fwd time decoder layer: 0.0010323524475097656 seconds
+Fwd time decoder layer: 0.0010821819305419922 seconds
+Fwd time encoder layer: 0.0004901885986328125 seconds
+Fwd time decoder layer: 0.0010237693786621094 seconds
+Fwd time decoder layer: 0.002269744873046875 seconds
+Fwd time decoder layer: 0.0008487701416015625 seconds
+Fwd time encoder layer: 0.0005154609680175781 seconds
+Fwd time decoder layer: 0.0022940635681152344 seconds
+Fwd time decoder layer: 0.0008218288421630859 seconds
+Fwd time encoder layer: 0.0005030632019042969 seconds
+Fwd time decoder layer: 0.0008618831634521484 seconds
+Fwd time encoder layer: 0.0004839897155761719 seconds
+Fwd time decoder layer: 0.0008428096771240234 seconds
+Fwd time decoder layer: 0.0008120536804199219 seconds
+Fwd time decoder layer: 0.0008487701416015625 seconds
+Fwd time encoder layer: 0.00049591064453125 seconds
+Fwd time decoder layer: 0.0008254051208496094 seconds
+Fwd time encoder layer: 0.00048422813415527344 seconds
+Fwd time decoder layer: 0.0008420944213867188 seconds
+Fwd time decoder layer: 0.0008177757263183594 seconds
+Fwd time encoder layer: 0.0005061626434326172 seconds
+Fwd time decoder layer: 0.0008323192596435547 seconds
+Fwd time decoder layer: 0.0008120536804199219 seconds
+Fwd time encoder layer: 0.0004863739013671875 seconds
+Fwd time decoder layer: 0.000827789306640625 seconds
+Fwd time decoder layer: 0.0008149147033691406 seconds
+Fwd time decoder layer: 0.0008194446563720703 seconds
+Fwd time decoder layer: 0.0008227825164794922 seconds
+Fwd time encoder layer: 0.0005006790161132812 seconds
+Fwd time encoder layer: 0.0004837512969970703 seconds
+Fwd time decoder layer: 0.0008308887481689453 seconds
+Fwd time decoder layer: 0.0008273124694824219 seconds
+Fwd time encoder layer: 0.0005104541778564453 seconds
+Fwd time decoder layer: 0.0008342266082763672 seconds
+Fwd time decoder layer: 0.0008218288421630859 seconds
+Fwd time encoder layer: 0.0004963874816894531 seconds
+Fwd time decoder layer: 0.0008220672607421875 seconds
+Fwd time decoder layer: 0.0008192062377929688 seconds
+Fwd time decoder layer: 0.0008261203765869141 seconds
+Fwd time encoder layer: 0.00047326087951660156 seconds
+Fwd time decoder layer: 0.0008091926574707031 seconds
+Fwd time encoder layer: 0.0004937648773193359 seconds
+Fwd time decoder layer: 0.0008301734924316406 seconds
+Fwd time decoder layer: 0.0008311271667480469 seconds
+Fwd time encoder layer: 0.0004906654357910156 seconds
+Fwd time decoder layer: 0.0008349418640136719 seconds
+Fwd time decoder layer: 0.0008237361907958984 seconds
+Fwd time encoder layer: 0.0004904270172119141 seconds
+Fwd time decoder layer: 0.0008332729339599609 seconds
+Fwd time decoder layer: 0.0008218288421630859 seconds
+Fwd time encoder layer: 0.0004811286926269531 seconds
+Fwd time decoder layer: 0.0008261203765869141 seconds
+Fwd time decoder layer: 0.0008311271667480469 seconds
+Fwd time encoder layer: 0.0006778240203857422 seconds
+Fwd time decoder layer: 0.0008566379547119141 seconds
+Fwd time decoder layer: 0.0008320808410644531 seconds
+Fwd time encoder layer: 0.0004813671112060547 seconds
+Fwd time decoder layer: 0.0008451938629150391 seconds
+Fwd time decoder layer: 0.0008280277252197266 seconds
+Fwd time decoder layer: 0.0008187294006347656 seconds
+Fwd time encoder layer: 0.00048422813415527344 seconds
+Fwd time decoder layer: 0.0008318424224853516 seconds
+Fwd time decoder layer: 0.0010273456573486328 seconds
+Fwd time encoder layer: 0.00048041343688964844 seconds
+Fwd time decoder layer: 0.00081634521484375 seconds
+Fwd time decoder layer: 0.0008318424224853516 seconds
+Fwd time encoder layer: 0.0005006790161132812 seconds
+Fwd time decoder layer: 0.001018524169921875 seconds
+Fwd time decoder layer: 0.0009915828704833984 seconds
+Fwd time decoder layer: 0.0008280277252197266 seconds
+Fwd time encoder layer: 0.0006444454193115234 seconds
+Fwd time encoder layer: 0.0004906654357910156 seconds
+Fwd time decoder layer: 0.0008351802825927734 seconds
+Fwd time decoder layer: 0.0009963512420654297 seconds
+Fwd time decoder layer: 0.0008428096771240234 seconds
+Fwd time decoder layer: 0.0008404254913330078 seconds
+Fwd time encoder layer: 0.0004894733428955078 seconds
+Fwd time encoder layer: 0.0005104541778564453 seconds
+Fwd time decoder layer: 0.0008797645568847656 seconds
+Fwd time decoder layer: 0.0009839534759521484 seconds
+Fwd time encoder layer: 0.0005042552947998047 seconds
+Fwd time decoder layer: 0.0008296966552734375 seconds
+Fwd time decoder layer: 0.0008146762847900391 seconds
+Fwd time encoder layer: 0.0004885196685791016 seconds
+Fwd time decoder layer: 0.0009801387786865234 seconds
+Fwd time decoder layer: 0.0008022785186767578 seconds
+Fwd time decoder layer: 0.0008211135864257812 seconds
+Fwd time decoder layer: 0.0008504390716552734 seconds
+Fwd time encoder layer: 0.0004813671112060547 seconds
+Fwd time encoder layer: 0.0006690025329589844 seconds
+Fwd time decoder layer: 0.0008358955383300781 seconds
+Fwd time decoder layer: 0.0008301734924316406 seconds
+Fwd time encoder layer: 0.0004940032958984375 seconds
+Fwd time decoder layer: 0.0008208751678466797 seconds
+Fwd time decoder layer: 0.000823974609375 seconds
+Fwd time encoder layer: 0.0005116462707519531 seconds
+Fwd time decoder layer: 0.0008230209350585938 seconds
+Fwd time decoder layer: 0.0008182525634765625 seconds
+Fwd time encoder layer: 0.0004935264587402344 seconds
+Fwd time decoder layer: 0.0008025169372558594 seconds
+Fwd time decoder layer: 0.001001119613647461 seconds
+Fwd time encoder layer: 0.00047707557678222656 seconds
+Fwd time decoder layer: 0.0008375644683837891 seconds
+Fwd time decoder layer: 0.0008399486541748047 seconds
+Fwd time encoder layer: 0.0005879402160644531 seconds
+Fwd time decoder layer: 0.0008373260498046875 seconds
+Fwd time decoder layer: 0.0008490085601806641 seconds
+Fwd time encoder layer: 0.0005731582641601562 seconds
+Fwd time decoder layer: 0.0008385181427001953 seconds
+Fwd time decoder layer: 0.0008230209350585938 seconds
+Fwd time decoder layer: 0.0008258819580078125 seconds
+Fwd time decoder layer: 0.0008232593536376953 seconds
+Fwd time encoder layer: 0.0005581378936767578 seconds
+Fwd time encoder layer: 0.0005517005920410156 seconds
+Fwd time decoder layer: 0.000820159912109375 seconds
+Fwd time decoder layer: 0.0009927749633789062 seconds
+Fwd time encoder layer: 0.0005617141723632812 seconds
+Fwd time decoder layer: 0.0009779930114746094 seconds
+Fwd time decoder layer: 0.0009670257568359375 seconds
+Fwd time encoder layer: 0.0005714893341064453 seconds
+Fwd time decoder layer: 0.0009794235229492188 seconds
+Fwd time decoder layer: 0.0009632110595703125 seconds
+Fwd time encoder layer: 0.0005483627319335938 seconds
+Fwd time decoder layer: 0.0009677410125732422 seconds
+Fwd time decoder layer: 0.0009791851043701172 seconds
+Fwd time encoder layer: 0.0005509853363037109 seconds
+Fwd time decoder layer: 0.0009589195251464844 seconds
+Fwd time decoder layer: 0.0009930133819580078 seconds
+Fwd time decoder layer: 0.000982046127319336 seconds
+Fwd time encoder layer: 0.0005574226379394531 seconds
+Fwd time decoder layer: 0.0009667873382568359 seconds
+Fwd time encoder layer: 0.0005595684051513672 seconds
+Fwd time decoder layer: 0.0009648799896240234 seconds
+Fwd time decoder layer: 0.00098419189453125 seconds
+Fwd time encoder layer: 0.0005536079406738281 seconds
+Fwd time decoder layer: 0.0009608268737792969 seconds
+Fwd time decoder layer: 0.0009844303131103516 seconds
+Fwd time encoder layer: 0.0005602836608886719 seconds
+Fwd time decoder layer: 0.0009620189666748047 seconds
+Fwd time decoder layer: 0.0011296272277832031 seconds
+Fwd time encoder layer: 0.0004794597625732422 seconds
+Fwd time decoder layer: 0.0009648799896240234 seconds
+Fwd time decoder layer: 0.0009377002716064453 seconds
+Fwd time encoder layer: 0.0005710124969482422 seconds
+Fwd time decoder layer: 0.000949859619140625 seconds
+Fwd time decoder layer: 0.0009441375732421875 seconds
+Fwd time encoder layer: 0.0005614757537841797 seconds
+Fwd time decoder layer: 0.0009584426879882812 seconds
+Fwd time decoder layer: 0.0009393692016601562 seconds
+Fwd time encoder layer: 0.0005502700805664062 seconds
+Fwd time decoder layer: 0.0009551048278808594 seconds
+Fwd time decoder layer: 0.0008299350738525391 seconds
+lp_rank=1, dp_rank=None: 0.3956
+Fwd time decoder layer: 0.0008296966552734375 seconds
+Fwd time decoder layer: 0.0009708404541015625 seconds
+Fwd time decoder layer: 0.0009937286376953125 seconds
+Fwd time decoder layer: 0.0009553432464599609 seconds
+Fwd time decoder layer: 0.0012063980102539062 seconds
+Fwd time encoder layer: 0.0005984306335449219 seconds
+Fwd time decoder layer: 0.0009720325469970703 seconds
+Fwd time decoder layer: 0.0009503364562988281 seconds
+Fwd time encoder layer: 0.0005645751953125 seconds
+Fwd time decoder layer: 0.0009737014770507812 seconds
+lp_rank=2, dp_rank=None: 0.4300
+Fwd time encoder layer: 0.0005667209625244141 seconds
+lp_rank=3, dp_rank=None: 0.4498
+Fwd time decoder layer: 0.0012183189392089844 seconds
+Fwd time decoder layer: 0.0011138916015625 seconds
+Fwd time decoder layer: 0.0010607242584228516 seconds
+Fwd time decoder layer: 0.0009748935699462891 seconds
+Fwd time decoder layer: 0.0009984970092773438 seconds
+Fwd time decoder layer: 0.0009543895721435547 seconds
+Fwd time encoder layer: 0.0005085468292236328 seconds
+Fwd time decoder layer: 0.0009567737579345703 seconds
+Fwd time encoder layer: 0.0005002021789550781 seconds
+Fwd time decoder layer: 0.0009865760803222656 seconds
+Fwd time decoder layer: 0.0008485317230224609 seconds
+Fwd time decoder layer: 0.0009744167327880859 seconds
+Fwd time encoder layer: 0.0004899501800537109 seconds
+Fwd time encoder layer: 0.0004863739013671875 seconds
+Fwd time decoder layer: 0.0008294582366943359 seconds
+Fwd time decoder layer: 0.000850677490234375 seconds
+Fwd time encoder layer: 0.0004963874816894531 seconds
+Fwd time decoder layer: 0.0008060932159423828 seconds
+Fwd time decoder layer: 0.0008440017700195312 seconds
+Fwd time encoder layer: 0.0005004405975341797 seconds
+Fwd time decoder layer: 0.0008034706115722656 seconds
+Fwd time decoder layer: 0.0008175373077392578 seconds
+Fwd time encoder layer: 0.0004961490631103516 seconds
+Fwd time decoder layer: 0.0008106231689453125 seconds
+Fwd time decoder layer: 0.0008065700531005859 seconds
+Fwd time encoder layer: 0.0004787445068359375 seconds
+Fwd time decoder layer: 0.0008108615875244141 seconds
+Fwd time decoder layer: 0.0008409023284912109 seconds
+Fwd time encoder layer: 0.00047898292541503906 seconds
+Fwd time decoder layer: 0.0008151531219482422 seconds
+Fwd time decoder layer: 0.00081634521484375 seconds
+Fwd time encoder layer: 0.0004887580871582031 seconds
+Fwd time decoder layer: 0.0008137226104736328 seconds
+Fwd time decoder layer: 0.0008122920989990234 seconds
+Fwd time decoder layer: 0.0008203983306884766 seconds
+Fwd time decoder layer: 0.0008087158203125 seconds
+Fwd time encoder layer: 0.0004975795745849609 seconds
+Fwd time encoder layer: 0.0004801750183105469 seconds
+Fwd time decoder layer: 0.0008099079132080078 seconds
+Fwd time decoder layer: 0.0008242130279541016 seconds
+Fwd time encoder layer: 0.0004942417144775391 seconds
+Fwd time decoder layer: 0.0008115768432617188 seconds
+Fwd time decoder layer: 0.0008261203765869141 seconds
+Fwd time encoder layer: 0.0004897117614746094 seconds
+Fwd time decoder layer: 0.0008149147033691406 seconds
+Fwd time decoder layer: 0.0008165836334228516 seconds
+Fwd time encoder layer: 0.0004820823669433594 seconds
+Fwd time decoder layer: 0.0008196830749511719 seconds
+Fwd time decoder layer: 0.0008177757263183594 seconds
+Fwd time decoder layer: 0.0008170604705810547 seconds
+Fwd time decoder layer: 0.0008094310760498047 seconds
+Fwd time encoder layer: 0.00047850608825683594 seconds
+Fwd time encoder layer: 0.0004978179931640625 seconds
+Fwd time decoder layer: 0.0008070468902587891 seconds
+Fwd time decoder layer: 0.0008087158203125 seconds
+Fwd time decoder layer: 0.0008161067962646484 seconds
+Fwd time encoder layer: 0.0004982948303222656 seconds
+Fwd time decoder layer: 0.0008056163787841797 seconds
+Fwd time encoder layer: 0.0004863739013671875 seconds
+Fwd time decoder layer: 0.0010042190551757812 seconds
+Fwd time decoder layer: 0.0008168220520019531 seconds
+Fwd time encoder layer: 0.0004878044128417969 seconds
+Fwd time decoder layer: 0.0008292198181152344 seconds
+Fwd time decoder layer: 0.0008380413055419922 seconds
+Fwd time encoder layer: 0.0005156993865966797 seconds
+Fwd time decoder layer: 0.0008194446563720703 seconds
+Fwd time decoder layer: 0.0008323192596435547 seconds
+Fwd time encoder layer: 0.0004761219024658203 seconds
+Fwd time decoder layer: 0.0008068084716796875 seconds
+Fwd time decoder layer: 0.0008194446563720703 seconds
+Fwd time encoder layer: 0.00047206878662109375 seconds
+Fwd time decoder layer: 0.0008311271667480469 seconds
+Fwd time decoder layer: 0.0008168220520019531 seconds
+Fwd time encoder layer: 0.0004975795745849609 seconds
+Fwd time decoder layer: 0.0008161067962646484 seconds
+Fwd time decoder layer: 0.0008518695831298828 seconds
+Fwd time encoder layer: 0.0005009174346923828 seconds
+Fwd time decoder layer: 0.0008139610290527344 seconds
+Fwd time decoder layer: 0.0008161067962646484 seconds
+Fwd time encoder layer: 0.0004897117614746094 seconds
+Fwd time decoder layer: 0.0008330345153808594 seconds
+Fwd time decoder layer: 0.0008149147033691406 seconds
+Fwd time decoder layer: 0.0008301734924316406 seconds
+Fwd time decoder layer: 0.0008358955383300781 seconds
+Fwd time encoder layer: 0.0004885196685791016 seconds
+Fwd time decoder layer: 0.0008435249328613281 seconds
+Fwd time encoder layer: 0.0004763603210449219 seconds
+Fwd time decoder layer: 0.0008206367492675781 seconds
+Fwd time encoder layer: 0.0004999637603759766 seconds
+Fwd time decoder layer: 0.0008232593536376953 seconds
+Fwd time decoder layer: 0.0008218288421630859 seconds
+Fwd time encoder layer: 0.0004878044128417969 seconds
+Fwd time decoder layer: 0.0008037090301513672 seconds
+Fwd time decoder layer: 0.0008139610290527344 seconds
+Fwd time encoder layer: 0.0004937648773193359 seconds
+Fwd time decoder layer: 0.0008223056793212891 seconds
+Fwd time decoder layer: 0.0008063316345214844 seconds
+Fwd time decoder layer: 0.0008459091186523438 seconds
+Fwd time encoder layer: 0.0004723072052001953 seconds
+Fwd time decoder layer: 0.0008137226104736328 seconds
+Fwd time encoder layer: 0.0005085468292236328 seconds
+Fwd time decoder layer: 0.000804901123046875 seconds
+Fwd time decoder layer: 0.0008213520050048828 seconds
+Fwd time encoder layer: 0.0004925727844238281 seconds
+Fwd time decoder layer: 0.0008034706115722656 seconds
+Fwd time decoder layer: 0.0008249282836914062 seconds
+Fwd time encoder layer: 0.0004971027374267578 seconds
+Fwd time decoder layer: 0.0008177757263183594 seconds
+Fwd time decoder layer: 0.0008158683776855469 seconds
+Fwd time encoder layer: 0.00048160552978515625 seconds
+Fwd time decoder layer: 0.0010149478912353516 seconds
+Fwd time decoder layer: 0.0008411407470703125 seconds
+Fwd time encoder layer: 0.0004737377166748047 seconds
+Fwd time decoder layer: 0.000823974609375 seconds
+Fwd time decoder layer: 0.00083160400390625 seconds
+Fwd time encoder layer: 0.0005729198455810547 seconds
+Fwd time decoder layer: 0.0008120536804199219 seconds
+Fwd time decoder layer: 0.0008561611175537109 seconds
+Fwd time decoder layer: 0.0008025169372558594 seconds
+Fwd time decoder layer: 0.0008337497711181641 seconds
+Fwd time encoder layer: 0.0005581378936767578 seconds
+Fwd time encoder layer: 0.0005640983581542969 seconds
+Fwd time decoder layer: 0.0009672641754150391 seconds
+Fwd time decoder layer: 0.0008156299591064453 seconds
+Fwd time decoder layer: 0.0009684562683105469 seconds
+Fwd time decoder layer: 0.0009777545928955078 seconds
+Fwd time encoder layer: 0.0005645751953125 seconds
+Fwd time encoder layer: 0.0005490779876708984 seconds
+Fwd time decoder layer: 0.0009624958038330078 seconds
+Fwd time decoder layer: 0.0009534358978271484 seconds
+Fwd time encoder layer: 0.0005514621734619141 seconds
+Fwd time decoder layer: 0.0009596347808837891 seconds
+Fwd time decoder layer: 0.0009596347808837891 seconds
+Fwd time encoder layer: 0.0005633831024169922 seconds
+Fwd time decoder layer: 0.0009551048278808594 seconds
+Fwd time decoder layer: 0.0009453296661376953 seconds
+Fwd time encoder layer: 0.0005660057067871094 seconds
+Fwd time decoder layer: 0.0009579658508300781 seconds
+Fwd time decoder layer: 0.0009560585021972656 seconds
+Fwd time encoder layer: 0.0005469322204589844 seconds
+Fwd time decoder layer: 0.0009546279907226562 seconds
+Fwd time decoder layer: 0.0009579658508300781 seconds
+Fwd time encoder layer: 0.0005478858947753906 seconds
+Fwd time decoder layer: 0.0009601116180419922 seconds
+Fwd time decoder layer: 0.000946044921875 seconds
+Fwd time encoder layer: 0.0005583763122558594 seconds
+Fwd time decoder layer: 0.0009539127349853516 seconds
+Fwd time decoder layer: 0.000949859619140625 seconds
+Fwd time encoder layer: 0.0005557537078857422 seconds
+Fwd time decoder layer: 0.0009598731994628906 seconds
+Fwd time decoder layer: 0.0009496212005615234 seconds
+Fwd time encoder layer: 0.0004897117614746094 seconds
+Fwd time decoder layer: 0.0009562969207763672 seconds
+Fwd time decoder layer: 0.0009505748748779297 seconds
+Fwd time encoder layer: 0.000553131103515625 seconds
+Fwd time decoder layer: 0.0009510517120361328 seconds
+Fwd time decoder layer: 0.0009624958038330078 seconds
+Fwd time encoder layer: 0.0005505084991455078 seconds
+Fwd time decoder layer: 0.00083160400390625 seconds
+Fwd time decoder layer: 0.0009555816650390625 seconds
+Fwd time decoder layer: 0.0008211135864257812 seconds
+Fwd time encoder layer: 0.0005633831024169922 seconds
+Fwd time decoder layer: 0.0009729862213134766 seconds
+lp_rank=1, dp_rank=None: 0.3324
+Fwd time decoder layer: 0.0009715557098388672 seconds
+Fwd time decoder layer: 0.0009548664093017578 seconds
+Fwd time decoder layer: 0.0012156963348388672 seconds
+Fwd time decoder layer: 0.0009527206420898438 seconds
+Fwd time decoder layer: 0.0009560585021972656 seconds
+Fwd time encoder layer: 0.0005934238433837891 seconds
+lp_rank=3, dp_rank=None: 0.3808
+Fwd time decoder layer: 0.0009474754333496094 seconds
+Fwd time encoder layer: 0.0005702972412109375 seconds
+Fwd time decoder layer: 0.0010380744934082031 seconds
+lp_rank=2, dp_rank=None: 0.3343
+Fwd time encoder layer: 0.0005605220794677734 seconds
+Fwd time decoder layer: 0.0009891986846923828 seconds
+Fwd time decoder layer: 0.0011785030364990234 seconds
+Fwd time decoder layer: 0.0010905265808105469 seconds
+Fwd time decoder layer: 0.0009822845458984375 seconds
+Fwd time decoder layer: 0.0009801387786865234 seconds
+lp-rank=1, dp-rank=None: Training batch fwd pass time: 0.3326711654663086 seconds
+lp-rank=1, dp-rank=None: Training batch bwd pass time: 0.31780481338500977 seconds
+lp-rank=3, dp-rank=None: Training batch fwd pass time: 0.3811187744140625 seconds
+lp-rank=3, dp-rank=None: Training batch bwd pass time: 0.26998066902160645 seconds
+Fwd time decoder layer: 0.0009608268737792969 seconds
+Fwd time decoder layer: 0.0009586811065673828 seconds
+Fwd time decoder layer: 0.001043558120727539 seconds
+lp-rank=2, dp-rank=None: Training batch fwd pass time: 0.33461928367614746 seconds
+lp-rank=2, dp-rank=None: Training batch bwd pass time: 0.3160398006439209 seconds
