@@ -29,25 +29,6 @@
 # ************************************************************************
 # @HEADER
 
-
-# Train network for fashion or digits MNIST 
-# Network architecture is Opening Layer + ResNet + CloseLayer
-#
-#
-# Running the following should reproduce parallel output of mnist_notebook.ipynb
-# $ mpirun -np 4 python3 mnist_script.py
-#
-# To reproduce serial mnist_notebook.ipynb output, do
-# $ mpirun -np 4 python3 mnist_script.py --lp-max-levels 1
-#
-# Many options are available, see
-# $ python3 mnist_script.py --help
-#
-# For example, 
-# $ mpirun -np 4 python3 mnist_script.py --dataset fashion --steps 24 --channels 8 --percent-data 0.25 --batch-size 100 --epochs 5 
-# trains on 25% of fashion MNIST with 24 steps in the ResNet, 8 channels, 100 images per batch over 5 epochs 
-
-
 from __future__ import print_function
 
 import statistics as stats
@@ -63,7 +44,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchbraid
 import torchbraid.utils
-from torchvision import datasets, transforms
+from torch.utils.data import Dataset, DataLoader
 import sys
 
 from network_architecture import parse_args, ParallelNet
@@ -95,59 +76,65 @@ def init_weights(module):
 ##
 # Train model for one epoch
 # Return values: per batch losses and training times, model parameters updated in-place
-def train(rank, params, model, train_data, optimizer, epoch, compose, device, context_window, batch_size, criterion):
+def train(rank, params, model, train_data, optimizer, epoch, compose, device, context_window, batch_size, criterion,
+  train_loader, scheduler):
   train_times = []
   losses = []
   total_time = 0.0
   corr, tot = 0, 0
 
-  get_batch_time_start = time.time()
-  batch = get_batch(train_data, context_window, batch_size, device)
-  get_batch_time_end = time.time()
-  
-  data, target = batch
+  model.train()
+  for batch_idx, (data, target) in enumerate(train_loader):
+    # print(batch_idx, data.shape, target.shape)
+    start_time = timer()
+    data, target = data.to(device), target.to(device)
 
-  batch_fwd_time_start = time.time()
-  output = model(data)
-  loss = compose(criterion, output.reshape(-1, output.shape[-1]), target.reshape(-1))
-  batch_fwd_time_end = time.time()
-
-  optimizer.zero_grad(set_to_none=True)
-
-  batch_bwd_time_start = time.time()
-  loss.backward()
-  batch_bwd_time_end = time.time()
-
-  optimizer.step()
+    batch_fwd_pass_start = time.time()
+    output = model(data)
+    loss = compose(criterion, output.reshape(-1, output.shape[-1]), target.reshape(-1))
+    batch_fwd_pass_end = time.time()
     
-  if 1:#rank == 0:
-    print(rank, f'Getting batch time: {get_batch_time_end - get_batch_time_start} seconds')
-    print(rank, f'Training batch fwd pass time: {batch_fwd_time_end - batch_fwd_time_start} seconds')
-    print(rank, f'Training batch bwd pass time: {batch_bwd_time_end - batch_bwd_time_start} seconds')
+    optimizer.zero_grad(set_to_none=True)
 
-  losses.append(loss.item())
+    batch_bwd_pass_start = time.time()
+    loss.backward()
+    batch_bwd_pass_end = time.time()
+
+    stop_time = timer()
+    optimizer.step()
+    scheduler.step()
+
+    total_time += stop_time - start_time
+    train_times.append(stop_time - start_time)
+    losses.append(loss.item())
+
+    if batch_idx % params.log_interval == 0:
+      root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} LR {:.2e}'.format(
+        epoch, batch_idx * len(data), len(train_loader.dataset),
+               100. * batch_idx / len(train_loader), loss.item(), float(scheduler.get_lr()[0])))
+
+  root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} LR {:.2e}'.format(
+    epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
+           100. * (batch_idx + 1) / len(train_loader), loss.item(), float(scheduler.get_lr()[0])))
+
 
   return losses, train_times
-
 
 ##
 # Evaluate model on validation data
 # Return: number of correctly classified test items, total number of test items, loss on test data set
-def test(rank, model, val_data, compose, device, context_window, batch_size):
+def test(rank, model, test_loader, compose, device):
   model.eval()
   test_loss = 0
   criterion = nn.CrossEntropyLoss()
-  eval_iters = 200
 
   with torch.no_grad():
-    for k in range(eval_iters):
-      torch.manual_seed(-(k+1))
-      batch = get_batch(val_data, context_window, batch_size, device)
-      data, target = batch
+    for (data, target) in test_loader:
+      data, target = data.to(device), target.to(device)
       output = model(data)
       test_loss += compose(criterion, output.reshape(-1, output.shape[-1]), target.reshape(-1)).item()
 
-  test_loss /= eval_iters
+  test_loss /= len(test_loader)
   model.train()
 
   # root_print(rank, '\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
@@ -160,38 +147,38 @@ def test(rank, model, val_data, compose, device, context_window, batch_size):
 # Parallel printing helper function  
 def root_print(rank, s):
   if rank == 0:
-    print(s)
+    print(s, flush=True)
+
+class TextDataset(Dataset):
+    def __init__(self, data, context_window = 256):
+        self.length = len(data) // context_window - 1
+
+        self.data = data
+        self.context_window = context_window
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, idx):
+        return self.data[idx * self.context_window:(idx + 1) * self.context_window], \
+                self.data[1 + idx * self.context_window:1 + (idx + 1) * self.context_window]
 
 
-def obtain_ds_dl(data_path_train, data_path_dev, batch_size, max_len):
-  train = data_path_train
-  dev = data_path_dev
+class CosineWarmupScheduler(optim.lr_scheduler._LRScheduler):
+    def __init__(self, optimizer, warmup, max_iters):
+        self.warmup = warmup
+        self.max_num_iters = max_iters
+        super().__init__(optimizer)
 
-  vocabs = input_pipeline.create_vocabs(train)
+    def get_lr(self):
+        lr_factor = self.get_lr_factor(epoch=self.last_epoch)
+        return [base_lr * lr_factor for base_lr in self.base_lrs]
 
-  attributes_input = [input_pipeline.CoNLLAttributes.FORM]
-  attributes_target = [input_pipeline.CoNLLAttributes.XPOS]
-
-  train_ds, train_dl = preprocessing.obtain_dataset(
-    filename=train, 
-    vocabs=vocabs, 
-    attributes_input=attributes_input, 
-    attributes_target=attributes_target,
-    batch_size=batch_size, 
-    bucket_size=max_len,
-    seed=0,
-  )
-  eval_ds, eval_dl = preprocessing.obtain_dataset(
-    filename=dev, 
-    vocabs=vocabs, 
-    attributes_input=attributes_input, 
-    attributes_target=attributes_target,
-    batch_size=batch_size,#64,#187, 
-    bucket_size=max_len,
-    seed=0,
-  )
-
-  return train_ds, eval_ds, train_dl, eval_dl, vocabs
+    def get_lr_factor(self, epoch):
+        lr_factor = 0.5 * (1 + np.cos(np.pi * epoch / self.max_num_iters))
+        if epoch <= self.warmup:
+            lr_factor *= epoch * 1.0 / self.warmup
+        return lr_factor
 
 def main():
   # Begin setting up run-time environment 
@@ -215,9 +202,16 @@ def main():
   local_steps = int(args.steps / procs)
 
   # Finish assembling training and test datasets
-  root_print(rank, 'Loading dataset')
+  root_print(rank, f'Loading dataset; {args.percent_data=}')
   train_data, val_data, decode, vocabulary_size = \
-    data.obtain_data(DATA_DIR, args.input_text, args.tokenization)
+    data.obtain_data(DATA_DIR, args.input_text, args.tokenization, args.percent_data)
+
+  # Create dataloader 
+  train_dataset = TextDataset(train_data, args.context_window)
+  train_loader  = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, drop_last=True)
+
+  val_dataset   = TextDataset(val_data, args.context_window)
+  val_loader    = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, drop_last=True)
 
   # Diagnostic information
   root_print(rank, '-- procs    = {}\n'
@@ -237,7 +231,7 @@ def main():
                                                      args.lp_cfactor,
                                                      args.lp_fine_fcf,
                                                      not args.lp_use_downcycle) )
-  
+  root_print(rank, f'{args.model_dimension=} {args.num_heads=} {args.batch_size=}')
   # Create layer-parallel network
   # Note this can be done on only one processor, but will be slow
   model = ParallelNet(args.model_dimension, args.num_heads, vocabulary_size, args.context_window,
@@ -273,10 +267,15 @@ def main():
 
   # Declare optimizer  
   print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
-  optimizer = optim.AdamW(model.parameters(), lr=args.lr)
+  print(f'rank {rank}: {sum(p.numel() for p in model.parameters() if p.requires_grad)}')
+  # optimizer = optim.AdamW(model.parameters(), lr=args.lr)
+  optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.98), eps=1e-09)
+
+  # Choose shorter warm-up if using shakespeare
+  warmup = 50 if args.input_text == 'shakespeare' else 500
+  scheduler = CosineWarmupScheduler(optimizer, warmup=int(warmup), 
+                                      max_iters=args.epochs*len(train_loader))
   criterion = nn.CrossEntropyLoss()
-  # if rank == 0: root_print(rank, optimizer)
-  # sys.exit()
 
   # For better timings (especially with GPUs) do a little warm up
   if args.warm_up:
@@ -291,7 +290,8 @@ def main():
     root_print(rank, f'\nWarm up timer {timer() - warm_up_timer}\n')
 
   # Carry out parallel training
-  # batch_losses = [] 
+  batch_losses = [] 
+  test_losses = []
   batch_times = []
   epoch_times = [] 
   test_times = []
@@ -299,18 +299,22 @@ def main():
 
   torch.manual_seed(0)
   # epoch_time_start = time.time()
-  for epoch in range(args.epochs+1):
-    if rank == 0: root_print(rank, f'Epoch {epoch}')
+  for epoch in range(1, args.epochs+1):
     torch.manual_seed(epoch)
 
-    if epoch > 0:
-      # start_time = timer()
-      [losses, train_times] = train(rank=rank, params=args, model=model, train_data=train_data, optimizer=optimizer, epoch=epoch,
-            compose=model.compose, device=device, context_window=args.context_window, batch_size=args.batch_size, criterion=criterion)
-      # epoch_times += [timer() - start_time]
-      # batch_losses += losses
-      # batch_times += train_times
-     
+    start_time = timer()
+    [losses, train_times] = train(rank=rank, params=args, model=model, train_data=train_data, optimizer=optimizer, epoch=epoch,
+          compose=model.compose, device=device, context_window=args.context_window, batch_size=args.batch_size, criterion=criterion,
+          train_loader=train_loader, scheduler=scheduler)
+    epoch_times += [timer() - start_time]
+    batch_losses += losses
+    batch_times += train_times
+    
+    start_time = timer()
+    validat_loss = test(rank=rank, model=model, test_loader=val_loader, compose=model.compose, device=device)
+    test_times += [timer() - start_time] 
+    test_losses.append(validat_loss)
+  
 
     # if epoch % 500 == 0 or epoch == args.epochs:
     #   start_time = timer()
@@ -322,14 +326,25 @@ def main():
     #   # if rank == 0: root_print(rank, f'Epoch time: {epoch_time_end - epoch_time_start} seconds')
     #   # epoch_time_start = time.time()
 
-  # Print out Braid internal timings, if desired
-  #timer_str = model.parallel_nn.getTimersString()
-  #root_print(rank, timer_str)
+  if rank == 0:
+    fig, ax1 = plt.subplots()
+    ax1.plot(batch_losses, color='b', linewidth=2)
+    ax1.grid(True, color='k', linestyle='-', linewidth=0.4)
+    ax1.set_xlabel(r"Batch number", fontsize=13)
+    ax1.set_ylabel(r"Loss", fontsize=13, color='b')
+    
+    ax2 = ax1.twinx()
+    epoch_points = np.arange(1, len(test_losses)+1) * len(train_loader)
+    # validation_percentage = np.array(validat_correct_counts) / validat_size
+    ax2.plot( epoch_points, test_losses, color='r', linestyle='dashed', linewidth=2, marker='o')
+    ax2.set_ylabel(r"Validation Loss", fontsize=13, color='r')
+    plt.savefig(f'data_run_{args.lp_bwd_max_iters}_{args.lp_fwd_max_iters}_{args.lp_max_levels}.png', bbox_inches="tight")
 
-  # Note: the MNIST example is not meant to exhibit performance
-  #root_print(rank,
-  #           f'TIME PER EPOCH: {"{:.2f}".format(stats.mean(epoch_times))} '
-  #           f'{("(1 std dev " + "{:.2f}".format(stats.mean(epoch_times))) if len(epoch_times) > 1 else ""}')
+    # Save to files
+    import pickle
+
+    with open(f'data_run_{args.lp_bwd_max_iters}_{args.lp_fwd_max_iters}_{args.lp_max_levels}', 'wb') as fp:
+      pickle.dump([batch_losses, epoch_points, test_losses], fp)
 
   if args.serial_file is not None:
     # Model can be reloaded in serial format with: model = torch.load(filename)

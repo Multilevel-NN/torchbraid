@@ -2,48 +2,56 @@
 
 import os
 import torch
-# from transformers import GPT2Tokenizer, GPT2Model  <-- below
+# from transformers import GPT2Tokenizer  <-- below
+from tqdm import tqdm
+from transformers import GPT2TokenizerFast
 
-def obtain_data(data_dir, input_text, tokenization):
+
+def obtain_data(data_dir, input_text, tokenization, percent_data=1):
   data_path = os.path.join(data_dir, input_text + '.txt')
+  data_file = os.path.join(data_dir, input_text + '.data')
+  data = []
+  counter = 0 
 
-  print('1.1 Reading text')
-  with open(data_path, 'r', encoding='utf-8') as f:
-      text = f.read()
+  # tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+  tokenizer = GPT2TokenizerFast.from_pretrained('gpt2-tokenizer')
+  decode = tokenizer.decode
+  vocab_size = tokenizer.vocab_size
 
-  if tokenization == 'character':
-    print('1.2 Building character-level tokenizer')
-    # here are all the unique characters that occur in this text
-    chars = sorted(list(set(text)))
-    vocab_size = len(chars)
-    # create a mapping from characters to integers
-    stoi = { ch:i for i,ch in enumerate(chars) }
-    itos = { i:ch for i,ch in enumerate(chars) }
-    encode = lambda s: [stoi[c] for c in s] # encoder: take a string, output a list of integers
-    decode = lambda l: ''.join([itos[i] for i in l]) # decoder: take a list of integers, output a string
+  # Counted number of lines on linux to be 2966378
+  try:
+    # Attempt to load the tensor
+    data = torch.load(data_file)
+    print(f"Loaded tensor from {data_file}")
+    
+  except FileNotFoundError:
+    # File not found, save the tensor
+    print(f"Tokenized data not found; creating and saving for future.")
+    print('Wikipedia takes roughly 5 minutes to load on A100')
+    with open(data_path, 'r', encoding='utf-8') as f:
+      # Use tqdm to iterate through lines with a description
+      for line in tqdm(f, desc="Tokenizing", total=2966378):
+        text = line.strip()  # Strip whitespace from each line
 
-    print('1.3 Encoding data')
-    data = torch.tensor(encode(text), dtype=torch.long)
+        # Check if it's a blank line (after stripping)
+        if not text:
+          continue
 
-  elif tokenization == 'gpt2':
-    from transformers import GPT2Tokenizer, GPT2Model
-
-    print('1.2 Obtaining gpt2 tokenizer')
-    # tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-    tokenizer = GPT2Tokenizer.from_pretrained('gpt2-tokenizer')
-    # tokenizer.pad_token = '<pad>'
-    decode = tokenizer.decode
-    vocab_size = tokenizer.vocab_size
-
-    print('1.3 Encoding data')
-    data = tokenizer(text)['input_ids']
+        # Tokenize and process the text
+        data += tokenizer(text)['input_ids']
+    
     data = torch.tensor(data, dtype=torch.long)
-
-  else: raise Exception()
+    torch.save(data, data_file)
+    print(f'Total number of tokens: {len(data)}')
+    print(f"Saved tensor to {data_file}")
 
   print('1.4 Splitting data into training and validation data')
   n = int(.9*len(data))
   train_data, val_data = data[:n], data[n:]
+  print(f'{len(train_data)=}, {len(val_data)=} {percent_data=}')
+  train_data  = train_data[:int(percent_data * len(train_data))]
+  val_data    = val_data[:int(percent_data * len(val_data))]
+  print(f'{len(train_data)=}, {len(val_data)=}')
 
   return train_data, val_data, decode, vocab_size
 

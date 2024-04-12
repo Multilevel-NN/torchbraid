@@ -69,7 +69,7 @@ class StepLayer(nn.Module):
     torch.manual_seed(0)
     self.F = F_dec(**kwargs)
 
-  def forward(self, x, **kwargs): 
+  def forward(self, x): 
     x = self.F(x)
     return x
 
@@ -132,11 +132,11 @@ class ParallelNet(nn.Module):
     # by passing this through 'o' (mean composition: e.g. self.open_nn o x)
     # this makes sure this is run on only processor 0
     x = self.compose(self.open_nn, x)
-    t0_CB = time.time()
+    # t0_CB = time.time()
     x = self.parallel_nn(x)
-    t1_CB = time.time()
+    # t1_CB = time.time()
     x = self.compose(self.close_nn, x)
-    print(f'CB: {t1_CB - t0_CB :<4f}')
+    # print(f'CB: {t1_CB - t0_CB :<4f}')
 
     return x
 
@@ -206,7 +206,7 @@ def parse_args():
   parser.add_argument('--epochs', type=int, default=3, metavar='N',
                       help='number of epochs to train (default: 3)')
   parser.add_argument('--lr', type=float, default=3e-4, metavar='LR',
-                      help='learning rate (default: 0.01)')
+                      help='learning rate (default:3e-4)')
 
   # algorithmic settings (layer-parallel)
   parser.add_argument('--lp-max-levels', type=int, default=3, metavar='N',
