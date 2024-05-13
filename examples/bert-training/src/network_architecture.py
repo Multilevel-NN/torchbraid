@@ -289,46 +289,54 @@ class StepLayer(nn.Module):
     """
     def __init__(self, model_dimension, num_heads):
         super(StepLayer, self).__init__()
-        torch.manual_seed(0)
-        self.d = model_dimension
+
+        self.d_model = model_dimension
+
+
+
         self.num_heads = num_heads
-        self.fc1 = nn.Linear(self.d, self.d)
-        self.fc2 = nn.Linear(self.d, self.d)
-        self.att = nn.MultiheadAttention(
-          embed_dim=self.d, 
-          num_heads=self.num_heads, 
-          dropout=0.,#.3, 
-          batch_first=True
-        )
+        self.feed_forward = FeedForward(d_model, middle_dim=self.d_model * 4)
+        self.mha = MultiHeadedAttention(heads, d_model, dropout=0.0)
+
         self.ln1 = nn.LayerNorm(self.d)
         self.ln2 = nn.LayerNorm(self.d)
 
         self.mask = None
 
     def forward(self, x):
-        # mask = d_extra['mask']
+        # Need to use global mask; passing in stuff might be hard
+        global mask
 
-        self.mask = mask
+        # Apply simple cont version 
+        x1 = self.ln1(x)
+        x1 = self.mha(
+            x1, x1, x1, mask
+        )
+
+        x2 = self.ln2(x + x1)
+        x2 = self.feed_forward(x2)
+
 
         # ContinuousBlock - dxdtEncoder1DBlock
-        x0 = x
-        x = self.ln1(x)     # also try to remove layernorm
-        x, _ = self.att(x, x, x, self.mask)
-        x1 = x
-        x = x + x0
+        # x0 = x
+        # x = self.ln1(x)     # also try to remove layernorm
+        # x, _ = self.att(x, x, x, self.mask)
+        # x1 = x
+        # x = x + x0
 
-        x = self.ln2(x)
-        # MLPBlock
-        x = self.fc1(x)
-        x = nn.ELU()(x)
-        x = self.fc2(x)
+        # x = self.ln2(x)
+        # # MLPBlock
+        # x = self.fc1(x)
+        # x = nn.ELU()(x)
+        # x = self.fc2(x)
         
-        x = x + x1
+        # x = x + x1
         # write_log('h', x.shape)
 
         # x = x.reshape(x.shape[0]*x.shape[2], x.shape[1])
         # x = torch.cat((x, self.mask), axis=0)
-        return x
+        
+        return x + x1 + x2
 
 ####################################################################################
 ####################################################################################
