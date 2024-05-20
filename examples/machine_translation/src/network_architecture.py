@@ -22,7 +22,10 @@ from timeit import default_timer as timer
 from mpi4py import MPI
 
 from model.transformer_encoder_residual_layer import TransformerEncoderResidualLayer
-from model.transformer_decoder_residual_layer import TransformerDecoderResidualLayer
+# from model.transformer_decoder_residual_layer import TransformerDecoderResidualLayer
+from model.mlp import MLP
+from model.multihead_attention import MultiHeadAttention
+from model.self_attention import SelfAttention
 
 __all__ = [ 'OpenLayer', 'CloseLayer', 'StepLayer', 'parse_args', 'ParallelNet' ]
 
@@ -91,32 +94,88 @@ class StepLayer_enc(nn.Module):
     self.zeros_tensor = torch.zeros(size=(batch_size, target_length, kwargs['d']), device=device)
 
   def forward(self, x):
-    t0 = time.time()
+    # t0 = time.time()
     x, y = x
     x = self.F(x)
     # x = torch.stack((x, torch.zeros_like(y)))
     x = torch.stack((x, self.zeros_tensor[:y.shape[0]]))
-    t1 = time.time()
-    print(f'Fwd time encoder layer: {t1 - t0} seconds')
+    # t1 = time.time()
+    # print(f'Fwd time encoder layer: {t1 - t0} seconds')
 
     return x
 
-class StepLayer_dec(nn.Module):
+# class StepLayer_dec(nn.Module):
+#   def __init__(self, batch_size, source_length, target_length, device, **kwargs):
+#     super().__init__()
+#     torch.manual_seed(0)
+#     self.F = TransformerDecoderResidualLayer(**kwargs, max_length=target_length, device=device)
+# 
+#     self.zeros_tensor = torch.zeros(size=(batch_size, source_length, kwargs['d']), device=device)
+# 
+#   def forward(self, x):
+#     t0 = time.time()
+#     mem, y = x
+#     y = self.F(y, mem)
+#     # x = torch.stack((torch.zeros_like(mem), y))
+#     x = torch.stack((self.zeros_tensor[:mem.shape[0]], y))
+#     t1 = time.time()
+#     print(f'Fwd time decoder layer: {t1 - t0} seconds')
+# 
+#     return x
+
+class StepLayer_dec_SA(nn.Module):
   def __init__(self, batch_size, source_length, target_length, device, **kwargs):
     super().__init__()
     torch.manual_seed(0)
-    self.F = TransformerDecoderResidualLayer(**kwargs, max_length=target_length, device=device)
-
+    self.self_attn = SelfAttention(kwargs['d'], kwargs['num_heads'], max_length=target_length, device=device)
+    self.self_attn_layer_norm = nn.LayerNorm(
+      (kwargs['d'],), eps=1e-5, elementwise_affine=True,
+    )
     self.zeros_tensor = torch.zeros(size=(batch_size, source_length, kwargs['d']), device=device)
 
   def forward(self, x):
-    t0 = time.time()
+    # t0 = time.time()
     mem, y = x
-    y = self.F(y, mem)
-    # x = torch.stack((torch.zeros_like(mem), y))
+    y = self.self_attn(
+      self.self_attn_layer_norm(y),
+      mask_pad=mask_pad_tgt,
+      add_mask_attn=True,
+    )
     x = torch.stack((self.zeros_tensor[:mem.shape[0]], y))
-    t1 = time.time()
-    print(f'Fwd time decoder layer: {t1 - t0} seconds')
+    # t1 = time.time()
+    # print(f'Fwd time decoder layer: {t1 - t0} seconds')
+
+    return x
+
+class StepLayer_dec_CA_MLP(nn.Module):
+  def __init__(self, batch_size, source_length, device, **kwargs):
+    super().__init__()
+    torch.manual_seed(0)
+    self.cross_attn = MultiHeadAttention(kwargs['d'], kwargs['num_heads'])
+    self.mlp = MLP(kwargs['d'], kwargs['dim_ff'])
+    self.cross_attn_layer_norm = nn.LayerNorm(
+      (kwargs['d'],), eps=1e-5, elementwise_affine=True,
+    )
+    self.final_layer_norm = nn.LayerNorm(
+      (kwargs['d'],), eps=1e-5, elementwise_affine=True,
+    )
+    self.zeros_tensor = torch.zeros(size=(batch_size, source_length, kwargs['d']), device=device)
+
+  def forward(self, x):
+    # t0 = time.time()
+    mem, y = x
+    y1 = self.cross_attn(
+      _K=mem,
+      _V=mem,
+      _Q=self.cross_attn_layer_norm(y),
+      mask_attn=None,
+      mask_pad=mask_pad_mem,
+    )
+    y2 = self.mlp(self.final_layer_norm(y + y1))
+    y = y1 + y2
+    x = torch.stack((self.zeros_tensor[:mem.shape[0]], y))
+    # t1 = time.time()
+    # print(f'Fwd time decoder layer: {t1 - t0} seconds')
 
     return x
 
@@ -140,11 +199,22 @@ class ParallelNet(nn.Module):
     numprocs = self.comm_lp.Get_size()
 
     step_layer_enc = lambda: StepLayer_enc(d=model_dimension, num_heads=num_heads, dim_ff=dim_ff, batch_size=batch_size, source_length=source_length, target_length=target_length, device=device)
-    step_layer_dec = lambda: StepLayer_dec(d=model_dimension, num_heads=num_heads, dim_ff=dim_ff, batch_size=batch_size, source_length=source_length, target_length=target_length, device=device)
+    # step_layer_dec = lambda: StepLayer_dec(d=model_dimension, num_heads=num_heads, dim_ff=dim_ff, batch_size=batch_size, source_length=source_length, target_length=target_length, device=device)
+    step_layer_dec_selfonly = lambda: StepLayer_dec_SA(d=model_dimension, num_heads=num_heads, dim_ff=dim_ff, batch_size=batch_size, source_length=source_length, target_length=target_length, device=device)
+    step_layer_dec_crossmlponly = lambda: StepLayer_dec_CA_MLP(d=model_dimension, num_heads=num_heads, dim_ff=dim_ff, batch_size=batch_size, source_length=source_length, device=device)
 
-    layers = [step_layer_enc, step_layer_dec]
-    num_steps = [local_steps*numprocs, local_steps*numprocs]#[num_encoder_layers, num_decoder_layers]
+    # layers = [step_layer_enc, step_layer_dec]
+    # num_steps = [local_steps*numprocs, local_steps*numprocs]#[num_encoder_layers, num_decoder_layers]
     # num_steps = [local_steps*numprocs * 5//4, local_steps*numprocs * 3//4]
+    layers, num_steps = [], []
+    for i in range(local_steps * numprocs): 
+      layers.append(step_layer_enc)
+      num_steps.append(1)
+    for i in range(local_steps * numprocs):
+      layers.append(step_layer_dec_selfonly)
+      num_steps.append(1)
+      layers.append(step_layer_dec_crossmlponly)
+      num_steps.append(1)
 
     self.parallel_nn = torchbraid.LayerParallel(comm_lp, 
                                                 #step_layer, local_steps*numprocs, 
@@ -189,10 +259,11 @@ class ParallelNet(nn.Module):
   def forward(self, x):
     # by passing this through 'o' (mean composition: e.g. self.open_nn o x)
     # this makes sure this is run on only processor 0
-    global mask_pad_src, mask_pad_tgt
+    global mask_pad_src, mask_pad_tgt, mask_pad_mem
     src, tgt = x
     mask_pad_src = (src == 58100)
     mask_pad_tgt = (tgt == 58100)
+    mask_pad_mem = mask_pad_src.clone()
     x = self.compose(self.open_nn, src, tgt)
     t0_continuous_block_time = time.time()
     x = self.parallel_nn(x)
@@ -202,22 +273,17 @@ class ParallelNet(nn.Module):
 
     lp_rank = self.comm_lp.Get_rank()
     dp_rank = self.comm_dp.Get_rank() if self.comm_dp is not None else None
-    print(f'lp_rank={lp_rank}, dp_rank={dp_rank}: {t1_continuous_block_time - t0_continuous_block_time :.4f}')
+    if 1: print(f'lp_rank={lp_rank}, dp_rank={dp_rank}: {t1_continuous_block_time - t0_continuous_block_time :.4f}')
 
     return y
 
 # Serial Network Class (used by the saveSerialNet functionality in ParallelNet)
-class SerialNet(nn.Module):
-  def __init__(self, channels=12, local_steps=8, Tf=1.0, serial_nn=None, open_nn=None, close_nn=None):
+class SerialNet(nn.Module):  # !!! needs to be finished
+  def __init__(self, local_steps=8, Tf=1.0, serial_nn=None, open_nn=None, close_nn=None):
     super(SerialNet, self).__init__()
 
-    if open_nn is None:
-      self.open_nn = OpenLayer(channels)
-    else:
-      self.open_nn = open_nn
-
     if serial_nn is None:
-      step_layer = lambda: StepLayer(channels)
+      step_layer = lambda: StepLayer()
       numprocs = 1
       parallel_nn = torchbraid.LayerParallel(MPI.COMM_SELF, step_layer, numprocs * local_steps, Tf,
                                              max_fwd_levels=1, max_bwd_levels=1, max_iters=1)
@@ -226,8 +292,17 @@ class SerialNet(nn.Module):
     else:
       self.serial_nn = serial_nn
 
+    step_layer_enc = lambda: StepLayer_enc(d=model_dimension, num_heads=num_heads, dim_ff=dim_ff, batch_size=batch_size, source_length=source_length, target_length=target_length, device=device)
+    step_layer_dec_selfonly = lambda: StepLayer_dec_SA(d=model_dimension, num_heads=num_heads, dim_ff=dim_ff, batch_size=batch_size, source_length=source_length, target_length=target_length, device=device)
+    step_layer_dec_crossmlponly = lambda: StepLayer_dec_CA_MLP(d=model_dimension, num_heads=num_heads, dim_ff=dim_ff, batch_size=batch_size, source_length=source_length, device=device)
+
+    if open_nn is None:
+      self.open_nn = OpenLayer()
+    else:
+      self.open_nn = open_nn
+
     if close_nn is None:
-      self.close_nn = CloseLayer(channels)
+      self.close_nn = CloseLayer()
     else:
       self.close_nn = close_nn
 
@@ -257,8 +332,6 @@ def parse_args():
   # artichtectural settings
   parser.add_argument('--steps', type=int, default=32, metavar='N',
                       help='Number of times steps in the resnet layer (default: 32)')
-  parser.add_argument('--channels', type=int, default=3, metavar='N',
-                      help='Number of channels in resnet layer (default: 4)')
   parser.add_argument('--Tf',type=float,default=1.0,
                       help='Final time for ResNet layer-parallel part')
   parser.add_argument('--serial-file', type=str, default=None,

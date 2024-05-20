@@ -142,16 +142,11 @@ class ParallelNet(nn.Module):
 
 # Serial Network Class (used by the saveSerialNet functionality in ParallelNet)
 class SerialNet(nn.Module):
-  def __init__(self, channels=12, local_steps=8, Tf=1.0, serial_nn=None, open_nn=None, close_nn=None):
+  def __init__(self, model_dimension, num_heads, vocabulary_size, context_window, local_steps=8, Tf=1.0, serial_nn=None, open_nn=None, close_nn=None):
     super(SerialNet, self).__init__()
 
-    if open_nn is None:
-      self.open_nn = OpenLayer(channels)
-    else:
-      self.open_nn = open_nn
-
     if serial_nn is None:
-      step_layer = lambda: StepLayer(channels)
+      step_layer = lambda: StepLayer(model_dimension=model_dimension, num_heads=num_heads, context_window=context_window, dropout=0.)
       numprocs = 1
       parallel_nn = torchbraid.LayerParallel(MPI.COMM_SELF, step_layer, numprocs * local_steps, Tf,
                                              max_fwd_levels=1, max_bwd_levels=1, max_iters=1)
@@ -160,8 +155,13 @@ class SerialNet(nn.Module):
     else:
       self.serial_nn = serial_nn
 
+    if open_nn is None:
+      self.open_nn = OpenLayer(model_dimension, vocabulary_size, context_window)
+    else:
+      self.open_nn = open_nn
+
     if close_nn is None:
-      self.close_nn = CloseLayer(channels)
+      self.close_nn = CloseLayer(model_dimension, vocabulary_size)
     else:
       self.close_nn = close_nn
 
@@ -191,8 +191,6 @@ def parse_args():
   # artichtectural settings
   parser.add_argument('--steps', type=int, default=32, metavar='N',
                       help='Number of times steps in the resnet layer (default: 32)')
-  parser.add_argument('--channels', type=int, default=3, metavar='N',
-                      help='Number of channels in resnet layer (default: 4)')
   parser.add_argument('--Tf',type=float,default=1.0,
                       help='Final time for ResNet layer-parallel part')
   parser.add_argument('--serial-file', type=str, default=None,
@@ -244,10 +242,12 @@ def parse_args():
 
   ## additional arguments
   parser.add_argument('--context_window', type=int, default=256)
-  parser.add_argument('--input_text', type=str, default='shakespeare')
+  parser.add_argument('--input_text', type=str, default='wikipedia')
   parser.add_argument('--tokenization', type=str, default='gpt2')
   parser.add_argument('--model_dimension', type=int, default=384)
   parser.add_argument('--num_heads', type=int, default=6)
+
+  parser.add_argument('--enforce_serial', action='store_true')
 
   ##
   # Do some parameter checking

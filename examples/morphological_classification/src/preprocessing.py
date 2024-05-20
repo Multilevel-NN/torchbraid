@@ -35,7 +35,7 @@ class Dataset(torch.utils.data.Dataset):
 
       ctr += 1
 
-    print(f'#inputs: {ctr}')
+    # print(f'#inputs: {ctr}')
 
     return data
 
@@ -57,46 +57,10 @@ def obtain_dataset(seed=None, **params):
     batch_size=params['batch_size'], 
     shuffle=True,#False,#True,
     drop_last=True,
-    worker_init_fn=np.random.seed(seed),
+    #worker_init_fn=np.random.seed(seed),
     num_workers=0,
   )
   return dataset, dataloader
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

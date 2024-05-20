@@ -5,6 +5,7 @@ import numpy as np
 import sys
 import statistics as stats
 import argparse
+import time
 
 import torch
 import torch.nn as nn
@@ -31,9 +32,11 @@ __all__ = [ 'OpenLayer', 'CloseLayer', 'StepLayer', 'parse_args', 'ParallelNet' 
 
 
 class OpenLayer(nn.Module):
-  def __init__(self, model_dimension):
+  def __init__(self, model_dimension):#, seed_setter):
     super(OpenLayer, self).__init__()
-    torch.manual_seed(0)
+    # torch.manual_seed(0)
+    # print(f'OpenLayer:')
+    # seed_setter.set_seed()
     self.d = model_dimension
     self.emb = nn.Embedding(15514, self.d)
     # self.dropout = nn.Dropout(p=.1)
@@ -41,18 +44,20 @@ class OpenLayer(nn.Module):
       #else PE_Alternative(128) if encoding == 'Alternative'\
       #else Exception('encoding unknown')
 
-  def forward(self, x):
-    # this bit of python magic simply replicates each image in the batch
+  def forward(self, x):  # x: [b, L, d]
+    x = x.T    
     x = self.emb(x) 
     # x = self.dropout(x)
     x = self.posenc(x)
-    return x
+    return x.transpose(0, 1)
 # end layer
 
 class CloseLayer(nn.Module):
-  def __init__(self, model_dimension):
+  def __init__(self, model_dimension):#, seed_setter):
     super(CloseLayer, self).__init__()
-    torch.manual_seed(0)
+    # torch.manual_seed(0)
+    # print(f'CloseLayer:')
+    # seed_setter.set_seed()
     self.d = model_dimension
     self.ln3 = nn.LayerNorm(self.d)
     self.fc3 = nn.Linear(self.d, 49)
@@ -66,9 +71,10 @@ class CloseLayer(nn.Module):
 # f = open('llog3.txt', 'w')
 # f.close()
 class StepLayer(nn.Module):
-  def __init__(self, model_dimension, num_heads):
+  def __init__(self, model_dimension, num_heads, comm_lp=None):#, seed_setter):
     super(StepLayer, self).__init__()
-    torch.manual_seed(0)
+    # torch.manual_seed(0)
+    # torch.manual_seed(-seed_setter.initial_seed)
     self.d = model_dimension
     self.num_heads = num_heads
     self.fc1 = nn.Linear(self.d, self.d)
@@ -84,7 +90,10 @@ class StepLayer(nn.Module):
 
     self.mask = None
 
+    self.comm_lp = comm_lp
+
   def forward(self, x):
+    # print(f'rank:{self.comm_lp.Get_rank()}')
     # mask = d_extra['mask']
 
     # write_log('d', x.shape)
@@ -130,14 +139,17 @@ class StepLayer(nn.Module):
 # local_steps: number of ResNet layers per processor
 # all other parameter definitions are in argument parser comments below
 class ParallelNet(nn.Module):
-  def __init__(self, model_dimension, num_heads, local_steps=8, Tf=1.0, max_levels=1, bwd_max_iters=1,
+  def __init__(self, model_dimension, num_heads, #seed_setter, 
+               local_steps=8, Tf=1.0, max_levels=1, bwd_max_iters=1,
                fwd_max_iters=2, print_level=0, braid_print_level=0, cfactor=4,
                fine_fcf=False, skip_downcycle=True, fmg=False, relax_only_cg=0,
-               user_mpi_buf=False, comm_lp=MPI.COMM_WORLD):
+               user_mpi_buf=False, comm_lp=MPI.COMM_WORLD, comm_dp=None):
     super(ParallelNet, self).__init__()
 
-    step_layer = lambda: StepLayer(model_dimension, num_heads)
+    step_layer = lambda: StepLayer(model_dimension, num_heads, comm_lp)#, seed_setter)
     self.comm_lp = comm_lp
+    self.comm_dp = comm_dp
+    self.rank = self.comm_lp.Get_rank()
     numprocs = self.comm_lp.Get_size()
 
     self.parallel_nn = torchbraid.LayerParallel(comm_lp, step_layer, local_steps*numprocs, Tf,
@@ -165,8 +177,8 @@ class ParallelNet(nn.Module):
 
     # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels)
     # on processors not equal to 0, these will be None (there are no parameters to train there)
-    self.open_nn = compose(OpenLayer, model_dimension)
-    self.close_nn = compose(CloseLayer, model_dimension)
+    self.open_nn  = compose(OpenLayer , model_dimension)#, seed_setter)
+    self.close_nn = compose(CloseLayer, model_dimension)#, seed_setter)
 
   def saveSerialNet(self, name):
     # Model can be reloaded in serial format with: model = torch.load(filename)
@@ -185,23 +197,22 @@ class ParallelNet(nn.Module):
     # self.parallel_nn.mask = mask
     # print(x)
     #print(mask)
+    t0 = time.time()
     x = self.parallel_nn(x)
+    t1 = time.time()
     x = self.compose(self.close_nn, x)
+    if 0: print(f'rank={self.rank}, CB-time: {t1 - t0} seconds')
 
     return x
 
 # Serial Network Class (used by the saveSerialNet functionality in ParallelNet)
 class SerialNet(nn.Module):
-  def __init__(self, channels=12, local_steps=8, Tf=1.0, serial_nn=None, open_nn=None, close_nn=None):
+  def __init__(self, model_dimension, num_heads, #seed_setter, 
+               local_steps=8, Tf=1.0, serial_nn=None, open_nn=None, close_nn=None):
     super(SerialNet, self).__init__()
 
-    if open_nn is None:
-      self.open_nn = OpenLayer(channels)
-    else:
-      self.open_nn = open_nn
-
     if serial_nn is None:
-      step_layer = lambda: StepLayer(channels)
+      step_layer = lambda: StepLayer(model_dimension, num_heads, None)#, seed_setter)
       numprocs = 1
       parallel_nn = torchbraid.LayerParallel(MPI.COMM_SELF, step_layer, numprocs * local_steps, Tf,
                                              max_fwd_levels=1, max_bwd_levels=1, max_iters=1)
@@ -210,15 +221,25 @@ class SerialNet(nn.Module):
     else:
       self.serial_nn = serial_nn
 
+    if open_nn is None:
+      self.open_nn = OpenLayer(model_dimension)#, seed_setter)
+    else:
+      self.open_nn = open_nn
+
     if close_nn is None:
-      self.close_nn = CloseLayer(channels)
+      self.close_nn = CloseLayer(model_dimension)#, seed_setter)
     else:
       self.close_nn = close_nn
 
   def forward(self, x):
+    global mask
+    mask = (x == 0)
     x = self.open_nn(x)
+    t0 = time.time()
     x = self.serial_nn(x)
+    t1 = time.time()
     x = self.close_nn(x)
+    if 0: print(f'rank=0, CB-time: {t1 - t0} seconds')
     return x
 
 
@@ -233,7 +254,7 @@ def parse_args():
 
   # Command line settings
   parser = argparse.ArgumentParser(description='MNIST example argument parser')
-  parser.add_argument('--seed', type=int, default=1, metavar='S',
+  parser.add_argument('--seed', type=int, default=0, metavar='S',
                       help='random seed (default: 1)')
   parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                       help='how many batches to wait before logging training status')
@@ -241,8 +262,6 @@ def parse_args():
   # artichtectural settings
   parser.add_argument('--steps', type=int, default=32, metavar='N',
                       help='Number of times steps in the resnet layer (default: 32)')
-  parser.add_argument('--channels', type=int, default=3, metavar='N',
-                      help='Number of channels in resnet layer (default: 4)')
   parser.add_argument('--Tf',type=float,default=1.0,
                       help='Final time for ResNet layer-parallel part')
   parser.add_argument('--serial-file', type=str, default=None,
@@ -257,6 +276,7 @@ def parse_args():
                       help='number of epochs to train (default: 3)')
   parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                       help='learning rate (default: 0.01)')
+  parser.add_argument('--scheduler', type=str, default=None)  # '{step-size}-{gamma}'
 
   # algorithmic settings (layer-parallel)
   parser.add_argument('--lp-max-levels', type=int, default=3, metavar='N',
@@ -297,6 +317,18 @@ def parse_args():
   parser.add_argument('--num_heads', type=int, default=1)
   parser.add_argument('--optimizer', type=str, default='SGD')#required=True)
   parser.add_argument('--momentum', type=float, default=.9)
+  parser.add_argument('--gradient_accumulation', type=int, default=1)
+
+  parser.add_argument('--enforce_serial', action='store_true')
+
+  parser.add_argument('--save', action='store_true')
+  parser.add_argument('--load', action='store_true')
+
+  parser.add_argument('--debug', action='store_true')
+
+  # parser.add_argument('--ni_starting_level', type=int, default=0)
+  parser.add_argument('--ni_cfactor'   , type=int, default=2)
+  parser.add_argument('--ni_num_levels', type=int, default=2)
 
   ##
   # Do some parameter checking

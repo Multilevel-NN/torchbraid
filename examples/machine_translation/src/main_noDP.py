@@ -82,37 +82,43 @@ DATA_DIR = os.path.join('..', 'data')
 ##
 # Train model for one epoch
 # Return values: per batch losses and training times, model parameters updated in-place
-def train(rank, params, model, batch, optimizer, epoch, compose, device, criterion):
+def train(rank, params, model, train_dl_iter, train_dl, optimizer, epoch, compose, device, criterion):
   train_times = []
   losses = []
   total_time = 0.0
   corr, tot = 0, 0
 
-  # print(batch)
-  data, target = batch['input_ids'], batch['labels']
-  data, target = data.to(device), target.to(device)
-  data, target_inputs, target_outputs = data[:, :-1], target[:, :-1], target[:, 1:]
-  x = torch.stack((data, target_inputs))
+  for k in range(500):
+    batch = next(train_dl_iter, None)
+    if batch is None: 
+        train_dl_iter = iter(train_dl)
+        batch = next(train_dl_iter)
 
-  batch_fwd_time_start = time.time()
-  output = model(x)
-  output_embeddings = output
-  loss = compose(criterion, output_embeddings.reshape(-1, output_embeddings.shape[-1]), target_outputs.reshape(-1))
-  batch_fwd_time_end = time.time()
+    # print(batch)
+    data, target = batch['input_ids'], batch['labels']
+    data, target = data.to(device), target.to(device)
+    data, target_inputs, target_outputs = data[:, :-1], target[:, :-1], target[:, 1:]
+    x = torch.stack((data, target_inputs))
 
-  optimizer.zero_grad(set_to_none=True)
+    batch_fwd_time_start = time.time()
+    output = model(x)
+    output_embeddings = output
+    loss = compose(criterion, output_embeddings.reshape(-1, output_embeddings.shape[-1]), target_outputs.reshape(-1))
+    batch_fwd_time_end = time.time()
 
-  batch_bwd_time_start = time.time()
-  loss.backward()
-  batch_bwd_time_end = time.time()
+    optimizer.zero_grad(set_to_none=True)
 
-  optimizer.step()
+    batch_bwd_time_start = time.time()
+    loss.backward()
+    batch_bwd_time_end = time.time()
+
+    optimizer.step()
     
-  if 1 and epoch > 2: #rank == 0:
-    print(f'lp-rank={rank}, dp-rank=None: Training batch fwd pass time: {batch_fwd_time_end - batch_fwd_time_start} seconds')
-    print(f'lp-rank={rank}, dp-rank=None: Training batch bwd pass time: {batch_bwd_time_end - batch_bwd_time_start} seconds')
+    if 0:
+      print(f'lp-rank={rank}, dp-rank=None: Training batch fwd pass time: {batch_fwd_time_end - batch_fwd_time_start} seconds')
+      print(f'lp-rank={rank}, dp-rank=None: Training batch bwd pass time: {batch_bwd_time_end - batch_bwd_time_start} seconds')
 
-  losses.append(loss.item())
+    losses.append(loss.item())
 
   return losses, train_times
 
@@ -120,21 +126,37 @@ def train(rank, params, model, batch, optimizer, epoch, compose, device, criteri
 ##
 # Evaluate model on validation data
 # Return: number of correctly classified test items, total number of test items, loss on test data set
-def test(rank, model, val_data, compose, device, context_window, batch_size):
+def test(rank, model, val_dl, compose, device, criterion):
   model.eval()
-  test_loss = 0
-  criterion = nn.CrossEntropyLoss()
-  eval_iters = 200
+  test_loss = 0.
+  max_eval_iters = 200
 
   with torch.no_grad():
-    for k in range(eval_iters):
-      torch.manual_seed(-(k+1))
-      batch = get_batch(val_data, context_window, batch_size, device)
-      data, target = batch
-      output = model(data)
-      test_loss += compose(criterion, output.reshape(-1, output.shape[-1]), target.reshape(-1)).item()
+    # for k in range(eval_iters):
+    #   torch.manual_seed(-(k+1))
+    #   batch = get_batch(val_data, context_window, batch_size, device)
+    #   data, target = batch
+    for k, batch in enumerate(val_dl):
+      if k == max_eval_iters: break
 
-  test_loss /= eval_iters
+      data, target = batch['input_ids'], batch['labels']
+      data, target = data.to(device), target.to(device)
+      data, target_inputs, target_outputs = data[:, :-1], target[:, :-1], target[:, 1:]
+      x = torch.stack((data, target_inputs))
+
+      output = model(x)
+      output_embeddings = output
+      # print(data.shape, target.shape, target_inputs.shape, target_outputs.shape, x.shape, output.shape)
+      print(output_embeddings.reshape(-1, output_embeddings.shape[-1]).shape, target_outputs.reshape(-1).shape,)
+      exit()
+      loss = compose(
+        criterion, 
+        output_embeddings.reshape(-1, output_embeddings.shape[-1]), 
+        target_outputs.reshape(-1),
+      )
+      test_loss += loss.item()
+
+  test_loss /= k
   model.train()
 
   # root_print(rank, '\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
@@ -191,7 +213,6 @@ def main():
 
   # Diagnostic information
   root_print(rank, '-- procs    = {}\n'
-                   '-- channels = {}\n'
                    '-- Tf       = {}\n'
                    '-- steps    = {}\n'
                    '-- max_levels     = {}\n'
@@ -199,7 +220,7 @@ def main():
                    '-- max_fwd_iters  = {}\n'
                    '-- cfactor        = {}\n'
                    '-- fine fcf       = {}\n'
-                   '-- skip down      = {}\n'.format(procs, args.channels, 
+                   '-- skip down      = {}\n'.format(procs,
                                                      args.Tf, args.steps,
                                                      args.lp_max_levels,
                                                      args.lp_bwd_max_iters,
@@ -236,9 +257,9 @@ def main():
 
   # Detailed XBraid timings are output to these files for the forward and backward phases
   model.parallel_nn.fwd_app.setTimerFile(
-    f'b_fwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
+    f'b_fwd_s_{args.steps}_bs_{args.batch_size}_p_{procs}')
   model.parallel_nn.bwd_app.setTimerFile(
-    f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
+    f'b_bwd_s_{args.steps}_bs_{args.batch_size}_p_{procs}')
 
   # Declare optimizer  
   print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
@@ -246,17 +267,6 @@ def main():
   criterion = nn.CrossEntropyLoss(ignore_index=pad_id)
   # if rank == 0: root_print(rank, optimizer)
   # sys.exit()
-
-  # For better timings (especially with GPUs) do a little warm up
-  if args.warm_up:
-    warm_up_timer = timer()
-    train(rank=rank, params=args, model=model, batch=next(iter(dl['train'])), optimizer=optimizer, epoch=0, compose=model.compose, device=device, criterion=criterion)
-    model.parallel_nn.timer_manager.resetTimers()
-    model.parallel_nn.fwd_app.resetBraidTimer()
-    model.parallel_nn.bwd_app.resetBraidTimer()
-    if use_cuda:
-      torch.cuda.synchronize()
-    root_print(rank, f'\nWarm up timer {timer() - warm_up_timer}\n')
 
   # Carry out parallel training
   # batch_losses = [] 
@@ -270,32 +280,31 @@ def main():
   train_dl_iter = iter(dl['train'])
 
   for epoch in range(args.epochs+1):
-    if rank == 0: root_print(rank, f'Epoch {epoch}')
+    root_print(rank, f'Epoch {epoch}')
     torch.manual_seed(epoch)
 
-    batch = next(train_dl_iter, None)
-    if batch is None: 
-        train_dl_iter = iter(dl['train'])
-        batch = next(train_dl_iter)
-
     if epoch > 0:
-      # start_time = timer()
-      [losses, train_times] = train(rank=rank, params=args, model=model, batch=batch, optimizer=optimizer, epoch=epoch,
+      start_time = timer()
+      [losses, train_times] = train(rank=rank, params=args, model=model, train_dl_iter=train_dl_iter, train_dl=dl['train'], optimizer=optimizer, epoch=epoch,
             compose=model.compose, device=device, criterion=criterion)
-      # epoch_times += [timer() - start_time]
+      epoch_times += [timer() - start_time]
       # batch_losses += losses
       # batch_times += train_times
      
+      root_print(rank, f'Epoch time: {epoch_times[-1]} seconds')
+      root_print(rank, f'Training loss: {np.mean(losses) :.8f}')
 
-    # if epoch % 500 == 0 or epoch == args.epochs:
-    #   start_time = timer()
-    #   validat_loss = test(rank=rank, model=model, val_data=val_data, compose=model.compose, device=device, 
-    #           context_window=args.context_window, batch_size=args.batch_size)
-    #   test_times += [timer() - start_time]
+    if 0 and epoch % 500 == 0 or epoch == args.epochs:
+      # start_time = timer()
+      validat_loss = test(
+        rank=rank, model=model, val_dl=dl['test'], compose=model.compose, device=device, 
+        criterion=criterion,
+      )
+      # test_times += [timer() - start_time]
   
-    #   # epoch_time_end = time.time()
-    #   # if rank == 0: root_print(rank, f'Epoch time: {epoch_time_end - epoch_time_start} seconds')
-    #   # epoch_time_start = time.time()
+      # epoch_time_end = time.time()
+      # if rank == 0: root_print(rank, f'Epoch time: {epoch_time_end - epoch_time_start} seconds')
+      # epoch_time_start = time.time()
 
   # Print out Braid internal timings, if desired
   #timer_str = model.parallel_nn.getTimersString()
