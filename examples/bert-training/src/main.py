@@ -310,8 +310,8 @@ def main():
     return tokenized_inputs
 
   # preprocess dataset
-  tokenized_datasets = raw_datasets.map(group_texts, batched=True, remove_columns=["text"])
-  root_print(rank, tokenized_datasets)
+  #tokenized_datasets = raw_datasets.map(group_texts, batched=True, remove_columns=["text"])
+  #root_print(rank, tokenized_datasets)
 
 	# Diagnostic information
 	# root_print(rank, '-- procs    = {}\n'
