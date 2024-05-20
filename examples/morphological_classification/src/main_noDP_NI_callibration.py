@@ -250,37 +250,7 @@ def get_optimizer(model, args):  # Declare optimizer
   )
   return optimizer
 
-def interpolate_weights(coarse_model, fine_model, args, rank):
-  root_print(rank, 'Interpolating weights...')
-  fwd_app = fine_model.parallel_nn.fwd_app
-  cf = args.lp_cfactor
-
-  print(
-    rank, 
-    'a', 
-    len(list(coarse_model.parameters())),
-    len(list(fine_model  .parameters())),
-  )
-
-  ## (I) Segmentation fault !
-  # new_params = fwd_app.parallel_injection_interp_params(
-  #   fine_model, coarse_model, cf=cf, grad=False,
-  # )
-  ## (II)
-  new_params = tb_get_injection_interp_params(
-    fine_model, coarse_model, cf, deep_copy=True, grad=False,
-  )
-
-  with torch.no_grad():
-    old_params = list(fine_model.parameters())
-    print(rank, len(old_params), len(new_params))
-    for i, j in zip(old_params, new_params): print(rank, i.shape, j.shape)
-    assert(len(old_params) == len(new_params)) 
-    for (op, np) in zip(old_params, new_params): op[:] = np[:]
-  root_print(rank, '-> Done.')
-
-
-def interpolate_weights_V2(
+def interpolate_weights(
   coarse_model, fine_model, cf, rank, num_procs, comm,
 ):
   root_print(rank, 'Interpolating weights V2...')
@@ -411,58 +381,15 @@ def interpolate_weights_V2(
 
   root_print(rank, '-> Done.')
 
-def tb_get_injection_interp_params(
-  model_fine, model_coarse, cf=2, deep_copy=False, grad=False,
-):
-  # See https://stackoverflow.com/questions/383565/how-to-iterate-over-a-list-repeating-each-element-in-python
-  def duplicate(iterable,n):
-    """A generator that repeats each entry n times"""
-    for item in iterable:
-      first = True
-      for _ in range(n):
-        yield item,first
-        first = False
-
-  interp_params = []
-
-  # loop over all the children, interpolating the layer-parallel weights
-  with torch.no_grad():
-    for child in model_coarse.children():
-      # handle layer parallel modules differently 
-      if isinstance(child, torchbraid.LayerParallel):
-        # loop over each layer-parallel layer -- this is where the "interpolation" occurs
-        for (lp_child, lp_f) in duplicate(child.layer_models, cf):
-          for param in lp_child.parameters():
-            if deep_copy:
-              if grad: interp_params.append(torch.clone(param.grad))
-              else:    interp_params.append(torch.clone(param))
-            else: # no deep copy
-              if grad: interp_params.append(param.grad)
-              else:    interp_params.append(param)
-               
-      else:
-        # Do simple injection for the opening and closing layers
-        for param in child.parameters():
-          if deep_copy:
-            if grad: interp_params.append(torch.clone(param.grad))
-            else:    interp_params.append(torch.clone(param))
-          else: # no deep copy
-            if grad: interp_params.append(param.grad)
-            else:    interp_params.append(param)
-    ##
-
-  return interp_params
-
 def main():
-  # Begin setting up run-time environment 
-  # MPI information
+  ## MPI information
   comm = MPI.COMM_WORLD
   rank = comm.Get_rank()
   num_procs = comm.Get_size()
   args = parse_args()
   root_print(rank, f'args: {args}')
 
-  # Use device or CPU?
+  ## DEVICE
   use_cuda = not args.no_cuda and torch.cuda.is_available()
   device, host = torchbraid.utils.getDevice(comm=comm)
   if not use_cuda:
@@ -472,13 +399,10 @@ def main():
   + f' | Device: {device} | Host: {host}'
   )
 
-  # Set seed for reproducibility
-  torch.manual_seed(args.seed)
+  torch.manual_seed(args.seed)  # set seed for reproducibility
+  local_steps = int(args.steps / num_procs)  # compute number of steps in ResNet per processor
 
-  # Compute number of steps in ResNet per processor
-  local_steps = int(args.steps / num_procs)
-
-  # Finish assembling training and test datasets
+  ## DATA
   root_print(rank, 'Loading data set...')
   training_data_path = '/users/msalvado/MLT/ML_PQ/data/en_gum-ud-train.conllu.txt'
   validation_data_path = '/users/msalvado/MLT/ML_PQ/data/en_gum-ud-dev.conllu.txt'
@@ -513,11 +437,6 @@ def main():
                                                      args.lp_fine_fcf,
                                                      not args.lp_use_downcycle) )
   
-  # model     = get_model(rank, args, local_steps, num_procs, device, vocabs)
-  # optimizer = get_optimizer(model, args)
-
-  # print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
-
   ## How should scheduler work in nested iteration?
   ## --> No scheduler when applying nested iteration (ATM)
   # ## (Scheduler)
@@ -549,7 +468,7 @@ def main():
 
   # datetime = dt.datetime.now().strftime('%Y%m%d%H%M%S')
   # load_save_path = f'../stored_models/n{num_procs}_{datetime}.pt'
-  load_save_path = f'../stored_models/n{num_procs}.pt'
+  load_save_path = f'../stored_models/n{num_procs}_Tf{args.Tf}.pt'
   if args.load:
     checkpoint = torch.load(load_save_path)
     model    .load_state_dict(checkpoint.pop('model_state'    ))
@@ -574,8 +493,9 @@ def main():
 
   root_print(rank, 'Starting training...')
 
-  old_model = None
+  previous_model = None
   patience = 10
+  previous_model_best_accuracy = -1.
   for level in range(ni_starting_level, 1):
     level_global_steps =  args.steps // args.ni_cfactor**(-level)
     level_local_steps  = local_steps // args.ni_cfactor**(-level)
@@ -588,10 +508,9 @@ def main():
     # for p in model.parameters():
     #   root_print(rank, p.ravel()[:3].tolist() + p.ravel()[-3:].tolist())
 
-    if old_model is not None: 
-      # interpolate_weights(old_model, model, args, rank)
-      interpolate_weights_V2(
-        old_model, model, args.ni_cfactor, rank, num_procs, comm,
+    if previous_model is not None: 
+      interpolate_weights(
+        previous_model, model, args.ni_cfactor, rank, num_procs, comm,
       )
 
     # root_print(rank, 'after')
@@ -606,8 +525,10 @@ def main():
     next_validation_accuracy_goal = -1.
     too_slow_improvement_ctr = 0
     epoch = 0
+    current_model_best_accuracy = -1.
 
-    while too_slow_improvement_ctr < patience:
+    while too_slow_improvement_ctr < patience or \
+          validation_accuracy < previous_model_best_accuracy:
       if epoch > 0:
         start_time = timer()
         training_loss, training_accuracy, training_times = train_epoch(
@@ -655,11 +576,14 @@ def main():
       else:
         too_slow_improvement_ctr += 1
 
-      # print(rank, too_slow_improvement_ctr, next_validation_accuracy_goal)
+      current_model_best_accuracy = max(
+        current_model_best_accuracy, validation_accuracy,
+      )
 
       epoch += 1
 
-    old_model = model
+    previous_model = model
+    previous_model_best_accuracy = current_model_best_accuracy
 
   root_print(rank, 'Training finished.')
 
