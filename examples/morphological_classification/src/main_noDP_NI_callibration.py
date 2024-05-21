@@ -56,6 +56,8 @@ from timeit import default_timer as timer
 import datetime as dt
 import matplotlib.pyplot as plt
 import numpy as np
+import re
+import sys
 import time
 import torch
 import torch.nn as nn
@@ -64,7 +66,6 @@ import torch.optim as optim
 import torchbraid
 import torchbraid.utils
 from torchvision import datasets, transforms
-import sys
 
 from network_architecture import parse_args, ParallelNet, SerialNet
 from mpi4py import MPI
@@ -254,130 +255,111 @@ def interpolate_weights(
   coarse_model, fine_model, cf, rank, num_procs, comm,
 ):
   root_print(rank, 'Interpolating weights V2...')
-  # fwd_app = fine_model.parallel_nn.fwd_app
-  # cf = args.lp_cfactor
 
-  # coarse_model_parameters, fine_model_parameters = [], []
-  # for rank in range(num_procs):
-  #   coarse_model_parameters_per_rank, fine_model_parameters_per_rank = \
-  #     list(coarse_model.parameters()), list(fine_model.parameters())
-  #   coarse_model_selected_rank_params, fine_model_selected_rank_params = \
-  #     comm.bcast(coarse_model_parameters_per_rank, root=rank), \
-  #     comm.bcast(fine_model_parameters_per_rank  , root=rank)
-  #   coarse_model_parameters += coarse_model_selected_rank_params
-  #   fine_model_parameters   += fine_model_selected_rank_params
-
-  # print(rank, 'Checkpoint 1')
-
-  coarse_model_lp_parameters_per_rank                = []
-  coarse_model_open_close_layers_parameters_per_rank = []
+  rank_coarse_model_lp_parameters                = []
+  rank_coarse_model_open_close_layers_parameters = []
 
   for child in coarse_model.children():
     if isinstance(child, torchbraid.LayerParallel):
       for layer in child.layer_models:
-        coarse_model_lp_parameters_per_rank.append(
+        rank_coarse_model_lp_parameters.append(
           list(layer.parameters())
         )
     else:
-      coarse_model_open_close_layers_parameters_per_rank.append(
+      rank_coarse_model_open_close_layers_parameters.append(
         list(child.parameters())
       )
 
-  # print(
-  #   'a',
-  #   rank,
-  #   len(coarse_model_lp_parameters_per_rank),
-  #   len(coarse_model_open_close_layers_parameters_per_rank),
-  # )
-
-  # print(rank, 'Checkpoint 2')
-
-  coarse_model_lp_parameters                = []
-  coarse_model_open_close_layers_parameters = []
-
-  for selected_rank in range(num_procs):
-    coarse_model_selected_rank_lp_parameters = comm.bcast(
-      coarse_model_lp_parameters_per_rank, root=selected_rank,
-    )
-    coarse_model_selected_rank_open_close_layers_parameters = comm.bcast(
-      coarse_model_open_close_layers_parameters_per_rank, root=selected_rank,
-    )
-    coarse_model_lp_parameters += \
-      coarse_model_selected_rank_lp_parameters
-    coarse_model_open_close_layers_parameters += \
-      coarse_model_selected_rank_open_close_layers_parameters
-
-  # print(rank, 'Checkpoint 3')
-
-  # print(
-  #   'b',
-  #   rank, 
-  #   len(coarse_model_lp_parameters),
-  # + len(coarse_model_open_close_layers_parameters),
-  # )
-
-  # print(rank, 'Checkpoint 4')
-
-  # print(rank, coarse_model)
-  # print(rank, fine_model)
+  state_tag = 'state'
+  send_parameters_pattern = 'send parameters to rank=(\d+)'
 
   with torch.no_grad():
-    k, lp_new_parameters = 0, None
-    for selected_rank in range(num_procs):
-      if rank == selected_rank:
-        # print(f'selected_rank={selected_rank}')
-        for child in fine_model.children():
-          if isinstance(child, torchbraid.LayerParallel):
-            for layer in child.layer_models:
-              if k % cf == 0: 
-                lp_new_parameters = coarse_model_lp_parameters.pop(0)
-                # print(f'LP1: {len(list(layer.parameters()))} {len(lp_new_parameters)}')
+    if rank == 0:
+      k, coarse_model_lp_parameters, lp_new_parameters, \
+        next_rank_to_provide_params = 0, [], None, 0
+
+    else:
+      rank_turn = False
+
+      while not rank_turn:
+        message = comm.recv(source=MPI.ANY_SOURCE)
+        tag, content = message
+
+        if tag == state_tag:
+          k, coarse_model_lp_parameters, lp_new_parameters, \
+            next_rank_to_provide_params = content
+          rank_turn = True
+
+        elif re.match(send_parameters_pattern, tag):
+          message_source = int(re.search(send_parameters_pattern, tag)[1])
+          comm.send(rank_coarse_model_lp_parameters, dest=message_source)
+
+    for child in fine_model.children():
+      if isinstance(child, torchbraid.LayerParallel):
+        for layer in child.layer_models:
+          if k % cf == 0:
+            if not coarse_model_lp_parameters:
+              if rank == next_rank_to_provide_params:
+                coarse_model_lp_parameters = \
+                  rank_coarse_model_lp_parameters
+                # print(f'LP1aI: {len(list(layer.parameters()))} {len(lp_new_parameters)}')
 
               else:
-                # print(f'LP2: {len(list(layer.parameters()))} {len(lp_new_parameters)}')
-                pass
-
-              for j, (old_parameter, new_parameter) in enumerate(zip(
-                layer.parameters(), lp_new_parameters,
-              )): 
-                # print(f'j={j}')
-                assert old_parameter.shape == new_parameter.shape, \
-                       f'{old_parameter.shape}, {new_parameter.shape}'
-                old_parameter[:] = new_parameter[:]
-
-              k += 1
-
-          else:  # Open/Close layer
-            open_close_new_parameters = coarse_model_open_close_layers_parameters.pop(0)
-            # print(f'OC: {len(list(child.parameters()))} {len(open_close_new_parameters)}')
+                tag = send_parameters_pattern.replace('(\d+)', f'{rank}')
+                content = None
+                message = (tag, content)
+                comm.send(content, dest=next_rank_to_provide_params)
+                coarse_model_lp_parameters = \
+                  comm.recv(source=next_rank_to_provide_params)
+                # print(f'LP1aII: {len(list(layer.parameters()))} {len(lp_new_parameters)}')
           
-            for (old_parameter, new_parameter) in zip(
-              child.parameters(), open_close_new_parameters,
-            ): 
-              assert old_parameter.shape == new_parameter.shape, \
-                     f'{old_parameter.shape}, {new_parameter.shape}'
-              old_parameter[:] = new_parameter[:]
+              next_rank_to_provide_params += 1
 
-      (
-        k, lp_new_parameters, coarse_model_lp_parameters, 
-        coarse_model_open_close_layers_parameters,
-      ) = comm.bcast(
-        [
-          k, lp_new_parameters, coarse_model_lp_parameters, 
-          coarse_model_open_close_layers_parameters,
-        ],
-        root=selected_rank,
-      )
+            else: 
+              # print(f'LP1b: {len(list(layer.parameters()))} {len(lp_new_parameters)}')
+              pass
 
-    assert k % cf == 0, f'k={k}, cf={cf}'
-    assert not coarse_model_lp_parameters
-    assert not coarse_model_open_close_layers_parameters
+            lp_new_parameters = coarse_model_lp_parameters.pop(0)
 
-  # print(rank, 'Checkpoint 5')
+          else:
+            # print(f'LP2: {len(list(layer.parameters()))} {len(lp_new_parameters)}')
+            pass
 
-  comm.Barrier()
+          for j, (old_parameter, new_parameter) in enumerate(zip(
+            layer.parameters(), lp_new_parameters,
+          )): 
+            # print(f'j={j}')
+            assert old_parameter.shape == new_parameter.shape, \
+                   f'{old_parameter.shape}, {new_parameter.shape}'
+            old_parameter[:] = new_parameter[:]
 
-  # print(rank, 'Checkpoint 6')
+          k += 1
+
+      else:  # Open/Close layer
+        open_close_new_parameters = \
+          rank_coarse_model_open_close_layers_parameters.pop(0)
+        # print(f'OC: {len(list(child.parameters()))} {len(open_close_new_parameters)}')
+      
+        for (old_parameter, new_parameter) in zip(
+          child.parameters(), open_close_new_parameters,
+        ): 
+          assert old_parameter.shape == new_parameter.shape, \
+                 f'{old_parameter.shape}, {new_parameter.shape}'
+          old_parameter[:] = new_parameter[:]
+
+    ## Send start signal to next rank
+    if rank != (num_procs - 1):
+      content = k, coarse_model_lp_parameters, lp_new_parameters, \
+                next_rank_to_provide_params
+      message = (state_tag, content)
+      comm.send(message, dest=(rank + 1))
+
+    else:
+      assert k % cf == 0, f'k={k}, cf={cf}'
+      assert not coarse_model_lp_parameters
+    assert not rank_coarse_model_open_close_layers_parameters
+
+  comm.Barrier()  # (Maybe unnecessary) To ~synchronize them (in order to avoid any future timeout)
 
   root_print(rank, '-> Done.')
 
