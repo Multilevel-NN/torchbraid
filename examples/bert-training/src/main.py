@@ -45,10 +45,10 @@ import torchbraid
 import torchbraid.utils
 import sys
 
-# from network_architecture import ParallelNet
+from network_architecture import ParallelNet
 from mpi4py import MPI
-from datasets import load_dataset, concatenate_datasets
-from transformers import BertTokenizerFast
+from get_dataset import obtain_dataset
+from torch.utils.data import DataLoader
 
 ####################################################################################
 ####################################################################################
@@ -73,6 +73,8 @@ def parse_args():
                       help='Final time for transformer layer-parallel part')
   parser.add_argument('--serial-file', type=str, default=None,
                       help='Save network to file in serial (not parallel) format')
+  parser.add_argument('--seq-len', type=int, default=64,
+                      help='Max sequence length')
 
   # algorithmic settings (batching)
   parser.add_argument('--percent-data', type=float, default=0.05, metavar='N',
@@ -81,9 +83,9 @@ def parse_args():
                       help='input batch size for training (default: 32)')
   parser.add_argument('--epochs', type=int, default=3, metavar='N',
                       help='number of epochs to train (default: 3)')
-  parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
-                      help='learning rate (default: 0.01)')
-
+  parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
+                      help='learning rate (default: 1e-4)')
+  
   # algorithmic settings (layer-parallel)
   parser.add_argument('--lp-max-levels', type=int, default=3, metavar='N',
                       help='Layer parallel max number of levels (default: 3)')
@@ -165,61 +167,60 @@ def parse_args():
 ##
 # Train model for one epoch
 # Return values: per batch losses and training times, model parameters updated in-place
-def train(rank, params, model, train_loader, optimizer, epoch, compose, device):
+def train(rank, params, model, train_loader, optimizer, epoch, compose, device, scheduler):
+  # note that we dont' call the optimizer directly, but use the scheduler instead
   train_times = []
   losses = []
+
+  # Train the model
   model.train()
-  criterion = nn.CrossEntropyLoss(ignore_index=model.pad_id_tgt)
+
+  criterion = nn.CrossEntropyLoss(ignore_index=0)
+
   total_time = 0.0
-  corr, tot = 0, 0
-  for batch_idx, (data, target) in enumerate(train_loader):
+
+  for batch_idx, batch_data in enumerate(train_loader):
+    data, target, segment_label, is_next = batch_data['bert_input'], batch_data['bert_label'], batch_data['segment_label'], batch_data['is_next']
+
     start_time = timer()
-    data, target = data.to(device), target.to(device)
-    optimizer.zero_grad()
+    data, target, segment_label, is_next = data.to(device), target.to(device), segment_label.to(device), is_next.to(device)
 
     batch_fwd_pass_start = time.time()
-    output = model(data)
-    # print(output.reshape(-1, output.shape[-1]).shape, target.reshape(-1).shape)
-    # import sys; sys.exit()
-    loss = compose(criterion, output.reshape(-1, output.shape[-1]), target.reshape(-1))
+    next_sent_output, mask_lm_output = model(data, segment_label)
     batch_fwd_pass_end = time.time()
+
+    next_loss = compose(
+      criterion, next_sent_output, is_next
+    )
+    mask_loss = compose(
+      criterion, mask_lm_output.transpose(1, 2), target
+    )
+    # loss = compose(criterion, output.reshape(-1, output.shape[-1]), target.reshape(-1))
+    loss = next_loss + mask_loss
+    scheduler.zero_grad()
 
     batch_bwd_pass_start = time.time()
     loss.backward()
     batch_bwd_pass_end = time.time()
-
-    stop_time = timer()
-    optimizer.step()
+    scheduler.step_and_update_lr()
     
-    # if rank == 0: 
-    #   root_print(rank, f'rank{rank}, batch_idx {batch_idx}, data {data}, target {target}, loss {loss}')
-    #   for p in model.parameters(): root_print(rank, f'{p.shape}, {p.ravel()[:10]}')
-    #   sys.exit()
-
-    # if rank == 0:
-        # root_print(rank, f'Batch idx: {batch_idx}')
-    #     root_print(rank, f'Batch fwd pass time: {batch_fwd_pass_end - batch_fwd_pass_start}')
-    #     root_print(rank, f'Batch bwd pass time: {batch_bwd_pass_end - batch_bwd_pass_start}')
-    if batch_idx == 10:
-      # print(data, target)
-      # print(output)
-      break
-
-    # print(output.shape, target.shape, output.argmax(dim=-1).shape)
-    preds = output.argmax(dim=-1)
-    corr += ((preds == target) * (target != model.pad_id_tgt)).sum().item()
-    tot += (target != model.pad_id_tgt).sum().item()
+    stop_time = timer()
+    # optimizer.step()
+    
+    # if batch_idx == 5:
+    #   break
 
     total_time += stop_time - start_time
     train_times.append(stop_time - start_time)
     losses.append(loss.item())
 
     if batch_idx % params.log_interval == 0:
-      root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+      root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tLR: {:.2f}'.format(
         epoch, batch_idx * len(data), len(train_loader.dataset),
-               100. * batch_idx / len(train_loader), loss.item()))
+               100. * batch_idx / len(train_loader), loss.item(), 
+               scheduler.get_current_lr()))
 
-  root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+  root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.2e}'.format(
     epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
            100. * (batch_idx + 1) / len(train_loader), loss.item()))
 
@@ -230,42 +231,72 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device):
 # Evaluate model on validation data
 # Return: number of correctly classified test items, total number of test items, loss on test data set
 def test(rank, model, test_loader, compose, device):
+  # Evaluate the model
   model.eval()
-  test_loss = 0
-  # correct = 0
-  # criterion = nn.CrossEntropyLoss()
 
-  corr, tot = 0, 0
-  criterion = nn.CrossEntropyLoss(ignore_index=model.pad_id_tgt)
+  test_loss = 0
+  criterion = nn.CrossEntropyLoss(ignore_index=0)
 
   with torch.no_grad():
-    for data, target in test_loader:
-      data, target = data.to(device), target.to(device)
-      output = model(data)
-      # print(rank, output.shape)
-      test_loss += compose(criterion, output.reshape(-1, output.shape[-1]), target.reshape(-1)).item()
+    for _, batch_data in enumerate(test_loader):
+      data, target, segment_label, is_next = batch_data['bert_input'], batch_data['bert_label'], batch_data['segment_label'], batch_data['is_next']
+      
+      data, target, segment_label, is_next = data.to(device), target.to(device), segment_label.to(device), is_next.to(device)
+      next_sent_output, mask_lm_output = model(data, segment_label)
 
-      if rank == 0:
-        # pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-        # correct += pred.eq(target.view_as(pred)).sum().item()
-        pred = output.argmax(dim=-1)
-        corr += ((pred == target) * (target != model.pad_id_tgt)).sum().item()
-        tot += (target != model.pad_id_tgt).sum().item()
+      next_loss = compose(
+        criterion, next_sent_output, is_next
+      )
+      mask_loss = compose(
+        criterion, mask_lm_output.transpose(1, 2), target
+      )
+      test_loss += next_loss + mask_loss
 
   test_loss /= len(test_loader.dataset)
 
   # root_print(rank, '\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-  root_print(rank, 'Test set: Average loss: {:.4f}, Accuracy: {}/{} ({:.4f}%)'.format(
-    test_loss, corr, tot, corr/tot if tot > 0 else 0.))#correct, len(test_loader.dataset),
-    #100. * correct / len(test_loader.dataset)))
-  return corr, tot, test_loss#correct, len(test_loader.dataset), test_loss
-
+  root_print(rank, 'Test set: Average loss: {:.4f}'.format(test_loss))
+  return test_loss
 
 ##
 # Parallel printing helper function  
 def root_print(rank, s):
   if rank == 0:
     print(s)
+
+class ScheduledOptim():
+    '''A simple wrapper class for learning rate scheduling'''
+    def __init__(self, optimizer, d_model, n_warmup_steps):
+        self._optimizer = optimizer
+        self.n_warmup_steps = n_warmup_steps
+        self.n_current_steps = 0
+        self.init_lr = np.power(d_model, -0.5)
+
+    def step_and_update_lr(self):
+        "Step with the inner optimizer"
+        self._update_learning_rate()
+        self._optimizer.step()
+
+    def zero_grad(self):
+        "Zero out the gradients by the inner optimizer"
+        self._optimizer.zero_grad()
+
+    def _get_lr_scale(self):
+        return np.min([
+            np.power(self.n_current_steps, -0.5),
+            np.power(self.n_warmup_steps, -1.5) * self.n_current_steps])
+    
+    def get_current_lr(self):
+       return self.init_lr * self._get_lr_scale()
+
+    def _update_learning_rate(self):
+        ''' Learning rate scheduling per step '''
+
+        self.n_current_steps += 1
+        lr = self.init_lr * self._get_lr_scale()
+
+        for param_group in self._optimizer.param_groups:
+            param_group['lr'] = lr
 
 
 def main():
@@ -292,142 +323,117 @@ def main():
   # Finish assembling training and test datasets
   root_print(rank, f'Loading {int(args.percent_data * 100)}% of dataset')
 
-  # We will just use the bookcorpus set + wikipedia simple for smaller sizes
-  bookcorpus_train = load_dataset('bookcorpus', split=f'train[:{int(args.percent_data * 100)}%]')
-  wiki_train = load_dataset("wikipedia", "20220301.simple", split=f'train[:{int(args.percent_data * 100)}%]')
-  wiki_train = wiki_train.remove_columns([col for col in wiki_train.column_names if col != "text"]) # Only keep text
-  assert bookcorpus_train.features.type == wiki_train.features.type
-  raw_datasets = concatenate_datasets([bookcorpus_train, wiki_train])
+  # Get dataloader
+  sequence_length = args.seq_len
+  ds, vocab_size = obtain_dataset(percent_data = args.percent_data, seq_len=sequence_length)
+  train_size, test_size = int(len(ds) * 0.8), len(ds) - int(len(ds) * 0.8)  # 80/20 split by default
+  train_ds, test_ds = torch.utils.data.random_split(ds, [train_size, test_size])
 
-  # Load pretrained 
-  tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
-  root_print(rank, f"The max length for the tokenizer is: {tokenizer.model_max_length}")
+  train_loader = DataLoader(
+    train_ds, batch_size=args.batch_size, shuffle=True, pin_memory=True
+  )
+  test_loader = DataLoader(
+    test_ds, batch_size=args.batch_size, shuffle=True, pin_memory=True
+  )
 
-  def group_texts(examples):
-    tokenized_inputs = tokenizer(
-        examples["text"], return_special_tokens_mask=True, truncation=True, max_length=tokenizer.model_max_length
-    )
-    return tokenized_inputs
-
-  # preprocess dataset
-  #tokenized_datasets = raw_datasets.map(group_texts, batched=True, remove_columns=["text"])
-  #root_print(rank, tokenized_datasets)
+  root_print(
+    rank, f'Data processed. Proceeding to train.'
+  )
 
 	# Diagnostic information
-	# root_print(rank, '-- procs    = {}\n'
-	# 									'-- channels = {}\n'
-	# 									'-- Tf       = {}\n'
-	# 									'-- steps    = {}\n'
-	# 									'-- max_levels     = {}\n'
-	# 									'-- max_bwd_iters  = {}\n'
-	# 									'-- max_fwd_iters  = {}\n'
-	# 									'-- cfactor        = {}\n'
-	# 									'-- fine fcf       = {}\n'
-	# 									'-- skip down      = {}\n'.format(procs, args.channels, 
-	# 																										args.Tf, args.steps,
-	# 																										args.lp_max_levels,
-	# 																										args.lp_bwd_max_iters,
-	# 																										args.lp_fwd_max_iters,
-	# 																										args.lp_cfactor,
-	# 																										args.lp_fine_fcf,
-	# 																										not args.lp_use_downcycle) )
+  root_print(rank, '-- procs    = {}\n'
+										'-- Tf       = {}\n'
+										'-- steps    = {}\n'
+										'-- max_levels     = {}\n'
+										'-- max_bwd_iters  = {}\n'
+										'-- max_fwd_iters  = {}\n'
+										'-- cfactor        = {}\n'
+										'-- fine fcf       = {}\n'
+										'-- skip down      = {}\n'.format(procs, 
+																											args.Tf, args.steps,
+																											args.lp_max_levels,
+																											args.lp_bwd_max_iters,
+																											args.lp_fwd_max_iters,
+																											args.lp_cfactor,
+																											args.lp_fine_fcf,
+																											not args.lp_use_downcycle))
 
+	# Create layer-parallel network
+	# Note this can be done on only one processor, but will be slow
+  model = ParallelNet(vocab_size=vocab_size,
+                  model_dimension=args.model_dimension, 
+                  seq_len=sequence_length,
+                  num_heads=args.num_heads,
+									local_steps=local_steps,
+									max_levels=args.lp_max_levels,
+									bwd_max_iters=args.lp_bwd_max_iters,
+									fwd_max_iters=args.lp_fwd_max_iters,
+									print_level=args.lp_print_level,
+									braid_print_level=args.lp_braid_print_level,
+									cfactor=args.lp_cfactor,
+									fine_fcf=args.lp_fine_fcf,
+									skip_downcycle=not args.lp_use_downcycle,
+									fmg=False, 
+									Tf=args.Tf,
+									relax_only_cg=False,
+									user_mpi_buf=args.lp_user_mpi_buf).to(device)
+  
+	# Declare optimizer  
+  # print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
+  weight_decay=0.01
+  betas=(0.9, 0.999)
+  warmup_steps=10000
+  optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=betas, weight_decay=weight_decay)
+  optim_schedule = ScheduledOptim(
+    optimizer, args.model_dimension, n_warmup_steps=warmup_steps
+  )
+  # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
-	# # Create layer-parallel network
-	# # Note this can be done on only one processor, but will be slow
-	# model = ParallelNet(args.model_dimension, args.num_heads,
-	# 								local_steps=local_steps,
-	# 								max_levels=args.lp_max_levels,
-	# 								bwd_max_iters=args.lp_bwd_max_iters,
-	# 								fwd_max_iters=args.lp_fwd_max_iters,
-	# 								print_level=args.lp_print_level,
-	# 								braid_print_level=args.lp_braid_print_level,
-	# 								cfactor=args.lp_cfactor,
-	# 								fine_fcf=args.lp_fine_fcf,
-	# 								skip_downcycle=not args.lp_use_downcycle,
-	# 								fmg=False, 
-	# 								Tf=args.Tf,
-	# 								relax_only_cg=False,
-	# 								user_mpi_buf=args.lp_user_mpi_buf).to(device)
+	# Carry out parallel training
+  batch_losses = [] 
+  batch_times = []
+  epoch_times = [] 
+  test_times = []
 
-	# # if rank == 0:
-	# #   for p in model.parameters():
-	# #     root_print(rank, f'{p.dtype}, {p.shape}, {p.ravel()[:10]}')
-	# # sys.exit()
+  torch.manual_seed(0)
+  for epoch in range(1, args.epochs + 1):
+    epoch_time_start = time.time()
+    start_time = timer()
+    [losses, train_times] = train(rank=rank, params=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=epoch,
+          compose=model.compose, device=device, scheduler=optim_schedule)
+    epoch_times += [timer() - start_time]
+    batch_losses += losses
+    batch_times += train_times
 
-	# model.pad_id_src = vocabs['forms']['<p>']
-	# model.pad_id_tgt = vocabs['xpos']['<p>']
-
-	# # Detailed XBraid timings are output to these files for the forward and backward phases
-	# model.parallel_nn.fwd_app.setTimerFile(
-	# 	f'b_fwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
-	# model.parallel_nn.bwd_app.setTimerFile(
-	# 	f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
-
-	# # Declare optimizer  
-	# print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
-	# optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
-	# # if rank == 0: root_print(rank, optimizer)
-	# # sys.exit()
-
-	# # Carry out parallel training
-	# batch_losses = [] 
-	# batch_times = []
-	# epoch_times = [] 
-	# test_times = []
-	# validat_correct_counts = []
-
-	# torch.manual_seed(0)
-	# epoch_time_start = time.time()
-	# for epoch in range(1, args.epochs + 1):
-	# 	start_time = timer()
-	# 	[losses, train_times] = train(rank=rank, params=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=epoch,
-	# 				compose=model.compose, device=device)
-	# 	epoch_times += [timer() - start_time]
-	# 	batch_losses += losses
-	# 	batch_times += train_times
-
-	# 	start_time = timer()
-	# 	validat_correct, validat_size, validat_loss = test(rank=rank, model=model, test_loader=test_loader, compose=model.compose, device=device)
-	# 	test_times += [timer() - start_time]
-	# 	validat_correct_counts += [validat_correct]
-
-	# 	# epoch_time_end = time.time()
-	# 	# if rank == 0: root_print(rank, f'Epoch time: s{epoch_time_end - epoch_time_start} seconds')
-	# 	# epoch_time_start = time.time()
+    start_time = timer()
+    validat_loss = test(rank=rank, model=model, test_loader=test_loader, compose=model.compose, device=device)
+    test_times += [timer() - start_time]
+    
+    epoch_time_end = time.time()
+    if rank == 0: root_print(rank, f'Epoch time: {epoch_time_end - epoch_time_start} seconds')
 
 	# # Print out Braid internal timings, if desired
 	# #timer_str = model.parallel_nn.getTimersString()
 	# #root_print(rank, timer_str)
 
-	# # Note: the MNIST example is not meant to exhibit performance
-	# #root_print(rank,
-	# #           f'TIME PER EPOCH: {"{:.2f}".format(stats.mean(epoch_times))} '
-	# #           f'{("(1 std dev " + "{:.2f}".format(stats.mean(epoch_times))) if len(epoch_times) > 1 else ""}')
-	# if rank == 0:
-	# 	fig, ax1 = plt.subplots()
-	# 	ax1.plot(batch_losses, color='b', linewidth=2)
-	# 	ax1.grid(True, color='k', linestyle='-', linewidth=0.4)
-	# 	ax1.set_xlabel(r"Batch number", fontsize=13)
-	# 	ax1.set_ylabel(r"Loss", fontsize=13, color='b')
-		
-	# 	ax2 = ax1.twinx()
-	# 	epoch_points = np.arange(1, len(validat_correct_counts)+1) * len(train_loader)
-	# 	validation_percentage = np.array(validat_correct_counts) / validat_size
-	# 	ax2.plot( epoch_points, validation_percentage, color='r', linestyle='dashed', linewidth=2, marker='o')
-	# 	ax2.set_ylabel(r"Validation rate", fontsize=13, color='r')
-	# 	plt.savefig('mnist_layerparallel_training.png', bbox_inches="tight")
+	# Note: the MNIST example is not meant to exhibit performance
+	#root_print(rank,
+	#           f'TIME PER EPOCH: {"{:.2f}".format(stats.mean(epoch_times))} '
+	#           f'{("(1 std dev " + "{:.2f}".format(stats.mean(epoch_times))) if len(epoch_times) > 1 else ""}')
+  if rank == 0:
+    _, ax1 = plt.subplots()
+    ax1.plot(batch_losses, color='b', linewidth=2)
+    ax1.grid(True, color='k', linestyle='-', linewidth=0.4)
+    ax1.set_xlabel(r"Batch number", fontsize=13)
+    ax1.set_ylabel(r"Loss", fontsize=13, color='b')
+    
+    ax2 = ax1.twinx()
+    epoch_points = np.arange(1, len(validat_loss)+1) * len(train_loader)
+    ax2.plot( epoch_points, validat_loss, color='r', linestyle='dashed', linewidth=2, marker='o')
+    ax2.set_ylabel(r"Validation rate", fontsize=13, color='r')
+    plt.savefig('bert_layerparallel_training.png', bbox_inches="tight")
 
-	# 	# Save to files
-	# 	import pickle
-
-	# 	with open(f'data_run_{args.lp_bwd_max_iters}_{args.lp_fwd_max_iters}_{args.lp_max_levels}', 'wb') as fp:
-	# 		pickle.dump([batch_losses, epoch_points, validation_percentage], fp)
-
-	# if args.serial_file is not None:
-	# 	# Model can be reloaded in serial format with: model = torch.load(filename)
-	# 	model.saveSerialNet(args.serial_file)
 
 if __name__ == '__main__':
   main()
-
+  print('Finished.')

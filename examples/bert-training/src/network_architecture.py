@@ -18,32 +18,12 @@ from torchbraid.mgopt import root_print, compute_levels
 from timeit import default_timer as timer
 
 from mpi4py import MPI
+import math
 
 __all__ = [ 'OpenLayer', 'CloseLayer', 'StepLayer', 'parse_args', 'ParallelNet' ]
 
 # Define BERT Layers
 # Inspired by https://medium.com/data-and-beyond/complete-guide-to-building-bert-model-from-sratch-3e6562228891
-
-class PositionalEmbedding(torch.nn.Module):
-    def __init__(self, d_model, max_len=128):
-        super().__init__()
-
-        # Compute the positional encodings once in log space.
-        pe = torch.zeros(max_len, d_model).float()
-        pe.require_grad = False
-
-        for pos in range(max_len):   
-            # for each dimension of the each position
-            for i in range(0, d_model, 2):   
-                pe[pos, i] = math.sin(pos / (10000 ** ((2 * i)/d_model)))
-                pe[pos, i + 1] = math.cos(pos / (10000 ** ((2 * (i + 1))/d_model)))
-
-        # include the batch size
-        self.pe = pe.unsqueeze(0)   
-        self.register_buffer('pe', pe)
-
-    def forward(self, x):
-        return self.pe
 
 class BERTEmbedding(torch.nn.Module):
     """
@@ -54,7 +34,7 @@ class BERTEmbedding(torch.nn.Module):
         sum of all these features are output of BERTEmbedding
     """
 
-    def __init__(self, vocab_size, embed_size, seq_len=64, dropout=0.0):
+    def __init__(self, vocab_size, embed_size, seq_len=64):
         """
         :param vocab_size: total vocab size
         :param embed_size: embedding size of token embedding
@@ -67,19 +47,25 @@ class BERTEmbedding(torch.nn.Module):
         # padding_idx is not updated during training, remains as fixed pad (0)
         self.token = torch.nn.Embedding(vocab_size, embed_size, padding_idx=0)
         self.segment = torch.nn.Embedding(3, embed_size, padding_idx=0)
-        self.position = PositionalEmbedding(d_model=embed_size, max_len=seq_len)
-        self.dropout = torch.nn.Dropout(p=dropout)
-       
+        self.position = torch.nn.Embedding(seq_len, embed_size)
+        self.norm = nn.LayerNorm(embed_size)
+
+        # We know this isn't dynamic
+        seq_len = seq_len
+        pos = torch.arange(seq_len, dtype=torch.long)
+        # pos = pos.unsqueeze(0).expand_as(sequence)  # (seq_len,) -> (batch_size, seq_len)
+        self.register_buffer("pos", pos)
+
     def forward(self, sequence, segment_label):
-        x = self.token(sequence) + self.position(sequence) + self.segment(segment_label)
-        return self.dropout(x)
+        # x = self.token(sequence) + self.position(pos) + self.segment(segment_label)
+        x = self.token(sequence) + self.position(self.pos.unsqueeze(0).expand_as(sequence)) + self.segment(segment_label)
+        return self.norm(x)
 
 ### attention layers
 class MultiHeadedAttention(torch.nn.Module):
     
     def __init__(self, heads, d_model, dropout=0.1):
         super(MultiHeadedAttention, self).__init__()
-        
         assert d_model % heads == 0
         self.d_k = d_model // heads
         self.heads = heads
@@ -142,97 +128,6 @@ class FeedForward(torch.nn.Module):
         out = self.fc2(self.dropout(out))
         return out
 
-class EncoderLayer(torch.nn.Module):
-    def __init__(
-        self, 
-        d_model=768,
-        heads=12, 
-        feed_forward_hidden=768 * 4, 
-        dropout=0.0
-        ):
-        super(EncoderLayer, self).__init__()
-        self.layernorm = torch.nn.LayerNorm(d_model)
-        self.self_multihead = MultiHeadedAttention(heads, d_model)
-        self.feed_forward = FeedForward(d_model, middle_dim=feed_forward_hidden)
-        self.dropout = torch.nn.Dropout(dropout)
-
-    def forward(self, embeddings, mask):
-        # embeddings: (batch_size, max_len, d_model)
-        # encoder mask: (batch_size, 1, 1, max_len)
-        # result: (batch_size, max_len, d_model)
-        interacted = self.dropout(self.self_multihead(embeddings, embeddings, embeddings, mask))
-        # residual layer
-        interacted = self.layernorm(interacted + embeddings)
-        # bottleneck
-        feed_forward_out = self.dropout(self.feed_forward(interacted))
-        encoded = self.layernorm(feed_forward_out + interacted)
-        return encoded
-
-class BERT(torch.nn.Module):
-    """
-    BERT model : Bidirectional Encoder Representations from Transformers.
-    """
-
-    def __init__(self, vocab_size, d_model=768, n_layers=12, heads=12, dropout=0.1):
-        """
-        :param vocab_size: vocab_size of total words
-        :param hidden: BERT model hidden size
-        :param n_layers: numbers of Transformer blocks(layers)
-        :param attn_heads: number of attention heads
-        :param dropout: dropout rate
-        """
-
-        super().__init__()
-        self.d_model = d_model
-        self.n_layers = n_layers
-        self.heads = heads
-
-        # paper noted they used 4 * hidden_size for ff_network_hidden_size
-        self.feed_forward_hidden = d_model * 4
-
-        # embedding for BERT, sum of positional, segment, token embeddings
-        self.embedding = BERTEmbedding(vocab_size=vocab_size, embed_size=d_model)
-
-        # multi-layers transformer blocks, deep network
-        self.encoder_blocks = torch.nn.ModuleList(
-            [EncoderLayer(d_model, heads, d_model * 4, dropout) for _ in range(n_layers)])
-
-    def forward(self, x, segment_info):
-        # attention masking for padded token
-        # (batch_size, 1, seq_len, seq_len)
-        # Start with (bs, seq_len) -> unsqueeze -> (bs, 1, seq_len) -> repeat -> (bs, seq_len, seq_len) -> unsqueeze -> (bs, 1, seq_len, seq_len)
-        mask = (x > 0).unsqueeze(1).repeat(1, x.size(1), 1).unsqueeze(1)
-
-        # embedding the indexed sequence to sequence of vectors
-        x = self.embedding(x, segment_info)
-
-        # running over multiple transformer blocks
-        for encoder in self.encoder_blocks:
-            x = encoder.forward(x, mask)
-        return x
-
-class BERTLM(torch.nn.Module):
-    """
-    BERT Language Model
-    Next Sentence Prediction Model + Masked Language Model
-    """
-
-    def __init__(self, bert: BERT, vocab_size):
-        """
-        :param bert: BERT model which should be trained
-        :param vocab_size: total vocab size for masked_lm
-        """
-
-        super().__init__()
-        self.bert = bert
-        self.next_sentence = NextSentencePrediction(self.bert.d_model)
-        self.mask_lm = MaskedLanguageModel(self.bert.d_model, vocab_size)
-
-    def forward(self, x, segment_label):
-        x = self.bert(x, segment_label)
-        return self.next_sentence(x), self.mask_lm(x)
-
-
 ####################################################################################
 ####################################################################################
 # Network architecture is Open + BERT Encoders + multiple closing layers
@@ -241,16 +136,13 @@ class OpenLayer(nn.Module):
     """
     Simply embeds and adds positional encodings
     """
-    def __init__(self, vocab_size, d_model=768):
+    def __init__(self, vocab_size, d_model=768, seq_len=64):
         super(OpenLayer, self).__init__()
         self.d_model = d_model
-        self.embedding = BERTEmbedding(vocab_size=vocab_size, embed_size=d_model)
+        self.embedding = BERTEmbedding(vocab_size=vocab_size, embed_size=d_model, seq_len=seq_len)
 
     def forward(self, x, segment_info):
         # attention masking for padded token
-        # Start with (bs, seq_len) -> unsqueeze -> (bs, 1, seq_len) -> repeat -> (bs, seq_len, seq_len) -> unsqueeze -> (bs, 1, seq_len, seq_len)
-        # (batch_size, 1, seq_len, seq_len)
-        mask = (x > 0).unsqueeze(1).repeat(1, x.size(1), 1).unsqueeze(1)
 
         # embedding the indexed sequence to sequence of vectors
         x = self.embedding(x, segment_info)
@@ -261,7 +153,7 @@ class CloseLayerNSP(nn.Module):
     2-class classification model : is_next, is_not_next
     """
     def __init__(self, hidden):
-        super(CloseLayer, self).__init__()
+        super(CloseLayerNSP, self).__init__()
     
         self.linear = torch.nn.Linear(hidden, 2)
         self.softmax = torch.nn.LogSoftmax(dim=-1)
@@ -275,7 +167,7 @@ class CloseLayerMLM(nn.Module):
     n-class classification problem, n-class = vocab_size
     """
     def __init__(self, hidden, vocab_size):
-        super(CloseLayer, self).__init__()
+        super(CloseLayerMLM, self).__init__()
 
         self.linear = torch.nn.Linear(hidden, vocab_size)
         self.softmax = torch.nn.LogSoftmax(dim=-1)
@@ -291,17 +183,19 @@ class StepLayer(nn.Module):
         super(StepLayer, self).__init__()
 
         self.d_model = model_dimension
-
-
-
         self.num_heads = num_heads
-        self.feed_forward = FeedForward(d_model, middle_dim=self.d_model * 4)
-        self.mha = MultiHeadedAttention(heads, d_model, dropout=0.0)
 
-        self.ln1 = nn.LayerNorm(self.d)
-        self.ln2 = nn.LayerNorm(self.d)
+        self.feed_forward = FeedForward(self.d_model, middle_dim=self.d_model * 4)
+        self.mha = MultiHeadedAttention(self.num_heads, self.d_model, dropout=0.0)
 
-        self.mask = None
+        self.ln1 = nn.LayerNorm(self.d_model)
+        self.ln2 = nn.LayerNorm(self.d_model)
+
+        # super(EncoderLayer, self).__init__()
+        # self.layernorm = torch.nn.LayerNorm(d_model)
+        # self.self_multihead = MultiHeadedAttention(heads, d_model)
+        # self.feed_forward = FeedForward(d_model, middle_dim=feed_forward_hidden)
+        # self.dropout = torch.nn.Dropout(dropout)
 
     def forward(self, x):
         # Need to use global mask; passing in stuff might be hard
@@ -315,7 +209,6 @@ class StepLayer(nn.Module):
 
         x2 = self.ln2(x + x1)
         x2 = self.feed_forward(x2)
-
 
         # ContinuousBlock - dxdtEncoder1DBlock
         # x0 = x
@@ -345,7 +238,7 @@ class StepLayer(nn.Module):
 # local_steps: number of ResNet layers per processor
 # all other parameter definitions are in argument parser comments below
 class ParallelNet(nn.Module):
-    def __init__(self, vocab_size, model_dimension=768, num_heads=12,
+    def __init__(self, vocab_size, model_dimension=768, num_heads=12, seq_len=64,
         local_steps=8, Tf=1.0,max_levels=1, bwd_max_iters=1,
                fwd_max_iters=2, print_level=0, braid_print_level=0, cfactor=4,
                fine_fcf=False, skip_downcycle=True, fmg=False, relax_only_cg=0,
@@ -381,9 +274,9 @@ class ParallelNet(nn.Module):
 
         # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels)
         # on processors not equal to 0, these will be None (there are no parameters to train there)
-        self.open_nn = compose(OpenLayer, vocab_size, model_dimension)
+        self.open_nn = compose(OpenLayer, vocab_size, model_dimension, seq_len)
         self.close_nn_nsp = compose(CloseLayerNSP, model_dimension)
-        self.close_nn_mlm = compose(CloseLayerMLM, model_dimension)
+        self.close_nn_mlm = compose(CloseLayerMLM, model_dimension, vocab_size)
 
     def saveSerialNet(self, name):
         # Model can be reloaded in serial format with: model = torch.load(filename)
@@ -396,12 +289,14 @@ class ParallelNet(nn.Module):
     def forward(self, x, segment_info):
         # We need the mask to be passed through, so using global allows us 
         # to pass through without interfering with the parallel_nn
+        
+        # Start with (bs, seq_len) -> unsqueeze -> (bs, 1, seq_len) -> repeat -> (bs, seq_len, seq_len) -> unsqueeze -> (bs, 1, seq_len, seq_len)
         global mask
         mask = (x > 0).unsqueeze(1).repeat(1, x.size(1), 1).unsqueeze(1)
 
         # by passing this through 'o' (mean composition: e.g. self.open_nn o x)
         # this makes sure this is run on only processor 0
-        x = self.compose(self.open_nn, x)
+        x = self.compose(self.open_nn, x, segment_info)
 
         # TODO: output mask to make sure this is fine
         x = self.parallel_nn(x)
