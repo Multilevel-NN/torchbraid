@@ -254,6 +254,7 @@ def get_optimizer(model, args):  # Declare optimizer
 def interpolate_weights(
   coarse_model, fine_model, cf, rank, num_procs, comm, 
   coarse_optimizer=None, fine_optimizer=None, interpolate_momentum=False,
+  interpolation_mode='constant',
 ):
   def replace_layer_weights(old_parameters, new_parameters):
     for (old_parameter, new_parameter) in zip(
@@ -269,52 +270,106 @@ def interpolate_weights(
   if interpolate_momentum: root_print(rank, '...(and momentum)...')
 
   if num_procs == 1:
-    with torch.no_grad():
-      root_print(rank, 'Code shortcut: #Nodes=1')
+    root_print(rank, 'Code shortcut: #Nodes=1')
+    if interpolation_mode == 'constant':
+      root_print(rank, 'Interpolation-mode=constant')
+      with torch.no_grad():
+        coarse_model_lp_parameters                = []
+        coarse_model_open_close_layers_parameters = []
 
-      coarse_model_lp_parameters                = []
-      coarse_model_open_close_layers_parameters = []
+        for child in coarse_model.children():
+          if isinstance(child, torchbraid.LayerParallel):
+            for layer in child.layer_models:
+              coarse_model_lp_parameters.append(
+                list(layer.parameters())
+              )
 
-      for child in coarse_model.children():
-        if isinstance(child, torchbraid.LayerParallel):
-          for layer in child.layer_models:
-            coarse_model_lp_parameters.append(
-              list(layer.parameters())
+          else:
+            coarse_model_open_close_layers_parameters.append(
+              list(child.parameters())
             )
 
-        else:
-          coarse_model_open_close_layers_parameters.append(
-            list(child.parameters())
-          )
+        for child in fine_model.children():
+          if isinstance(child, torchbraid.LayerParallel):
+            for k, layer in enumerate(child.layer_models):
+              if k % cf == 0:
+                lp_new_parameters = coarse_model_lp_parameters.pop(0)
 
-      for child in fine_model.children():
-        if isinstance(child, torchbraid.LayerParallel):
-          for k, layer in enumerate(child.layer_models):
-            if k % cf == 0:
-              lp_new_parameters = coarse_model_lp_parameters.pop(0)
+              # for (old_parameter, new_parameter) in zip(
+              #   layer.parameters(), lp_new_parameters,
+              # ):
+              #   old_parameter[:] = new_parameter[:]
+              #   fine_optimizer    .state[old_parameter]['momentum_buffer'] = \
+              #     coarse_optimizer.state[new_parameter]['momentum_buffer']
+              replace_layer_weights(layer.parameters(), lp_new_parameters)
+
+          else:
+            open_close_new_parameters = \
+              coarse_model_open_close_layers_parameters.pop(0)
 
             # for (old_parameter, new_parameter) in zip(
-            #   layer.parameters(), lp_new_parameters,
+            #   child.parameters(), open_close_new_parameters,
             # ):
             #   old_parameter[:] = new_parameter[:]
-            #   fine_optimizer    .state[old_parameter]['momentum_buffer'] = \
-            #     coarse_optimizer.state[new_parameter]['momentum_buffer']
-            replace_layer_weights(layer.parameters(), lp_new_parameters)
+            replace_layer_weights(child.parameters(), open_close_new_parameters)
 
-        else:
-          open_close_new_parameters = \
-            coarse_model_open_close_layers_parameters.pop(0)
+        assert not coarse_model_lp_parameters and \
+               not coarse_model_open_close_layers_parameters 
 
-          # for (old_parameter, new_parameter) in zip(
-          #   child.parameters(), open_close_new_parameters,
-          # ):
-          #   old_parameter[:] = new_parameter[:]
-          replace_layer_weights(child.parameters(), open_close_new_parameters)
+    elif interpolation_mode == 'linear':
+      root_print(rank, 'Interpolation-mode=linear')
 
-      assert not coarse_model_lp_parameters and \
-             not coarse_model_open_close_layers_parameters 
+      def interpolate_weights_from_layers(layers, idx, mode='constant'):
+        if   mode == 'constant': 
+          raise Exception('Not implemented here, but above')
 
-      return
+        elif mode == 'linear':
+          layer_k, layer_kp1 = layers
+
+          interpolated_parameters = []
+          assert len(list(layer_k  .parameters())) == \
+                 len(list(layer_kp1.parameters()))
+
+          for (layer_k_parameter, layer_kp1_parameter) in zip(
+            layer_k.parameters(), layer_kp1.parameters(),
+          ):
+            interpolated_parameter = \
+              (1 - j) * layer_k_parameter + j * layer_kp1_parameter
+            interpolated_parameters.append(interpolated_parameter)
+
+          return interpolated_parameters
+
+      with torch.no_grad():
+        for (coarse_model_child, fine_model_child) in zip(
+          coarse_model.children(), fine_model.children(),
+        ):
+          if isinstance(fine_model_child, torchbraid.LayerParallel):
+            assert isinstance(coarse_model_child, torchbraid.LayerParallel)
+
+            N_coarse = len(coarse_model_child.layer_models)
+
+            for k in range(N_coarse):
+              coarse_layer_on_left  = coarse_model_child.layer_models[k]
+              coarse_layer_on_right = [*coarse_model_child.layer_models, None][k+1]
+
+              for j in range(cf):
+                fine_layer = fine_model_child.layer_models[cf*k + j]
+
+                lp_new_parameters = interpolate_weights_from_layers(
+                  (coarse_layer_on_left, coarse_layer_on_right), j, 'linear',
+                )
+                replace_layer_weights(
+                  fine_layer.parameters(), lp_new_parameters,
+                )
+
+          else:
+            replace_layer_weights(
+              fine_model_child.parameters(), coarse_model_child.parameters(),
+            )
+
+    else: raise Exception('Unknown interpolation-mode')
+
+    return
 
   if interpolate_momentum: 
     assert coarse_optimizer is not None and fine_optimizer is not None, \
@@ -571,7 +626,7 @@ def main():
     if previous_model is not None: 
       interpolate_weights(
         previous_model, model, args.ni_cfactor, rank, num_procs, comm,
-        previous_optimizer, optimizer, True,
+        previous_optimizer, optimizer, True, args.ni_interpolation,
       )
 
     # root_print(rank, 'after')
