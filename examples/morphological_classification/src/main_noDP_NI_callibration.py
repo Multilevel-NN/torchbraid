@@ -165,8 +165,8 @@ def validate(rank, model, validation_data_loader, compose, device, debug=False):
 
 ##
 # Parallel printing helper function  
-def root_print(rank, s):
-  if rank == 0: print(s)
+def root_print(rank, *s):
+  if rank == 0: print(*s)
 
 def obtain_ds_dl(
   training_data_path, validation_data_path, batch_size, max_len,
@@ -247,14 +247,78 @@ def get_optimizer(model, args):  # Declare optimizer
   optimizer = optim.SGD(
     model.parameters(), 
     lr=args.lr, 
-    momentum=args.momentum
+    momentum=args.momentum,
   )
   return optimizer
 
 def interpolate_weights(
-  coarse_model, fine_model, cf, rank, num_procs, comm,
+  coarse_model, fine_model, cf, rank, num_procs, comm, 
+  coarse_optimizer=None, fine_optimizer=None, interpolate_momentum=False,
 ):
-  root_print(rank, 'Interpolating weights V2...')
+  def replace_layer_weights(old_parameters, new_parameters):
+    for (old_parameter, new_parameter) in zip(
+      old_parameters, new_parameters,
+    ):
+      old_parameter[:] = new_parameter[:]
+
+      if interpolate_momentum:
+        fine_optimizer    .state[old_parameter]    ['momentum_buffer'] = \
+          coarse_optimizer.state[new_parameter].get('momentum_buffer').clone()
+
+  root_print(rank, 'Interpolating weights...')
+  if interpolate_momentum: root_print(rank, '...(and momentum)...')
+
+  if num_procs == 1:
+    with torch.no_grad():
+      root_print(rank, 'Code shortcut: #Nodes=1')
+
+      coarse_model_lp_parameters                = []
+      coarse_model_open_close_layers_parameters = []
+
+      for child in coarse_model.children():
+        if isinstance(child, torchbraid.LayerParallel):
+          for layer in child.layer_models:
+            coarse_model_lp_parameters.append(
+              list(layer.parameters())
+            )
+
+        else:
+          coarse_model_open_close_layers_parameters.append(
+            list(child.parameters())
+          )
+
+      for child in fine_model.children():
+        if isinstance(child, torchbraid.LayerParallel):
+          for k, layer in enumerate(child.layer_models):
+            if k % cf == 0:
+              lp_new_parameters = coarse_model_lp_parameters.pop(0)
+
+            # for (old_parameter, new_parameter) in zip(
+            #   layer.parameters(), lp_new_parameters,
+            # ):
+            #   old_parameter[:] = new_parameter[:]
+            #   fine_optimizer    .state[old_parameter]['momentum_buffer'] = \
+            #     coarse_optimizer.state[new_parameter]['momentum_buffer']
+            replace_layer_weights(layer.parameters(), lp_new_parameters)
+
+        else:
+          open_close_new_parameters = \
+            coarse_model_open_close_layers_parameters.pop(0)
+
+          # for (old_parameter, new_parameter) in zip(
+          #   child.parameters(), open_close_new_parameters,
+          # ):
+          #   old_parameter[:] = new_parameter[:]
+          replace_layer_weights(child.parameters(), open_close_new_parameters)
+
+      assert not coarse_model_lp_parameters and \
+             not coarse_model_open_close_layers_parameters 
+
+      return
+
+  if interpolate_momentum: 
+    assert coarse_optimizer is not None and fine_optimizer is not None, \
+    'if interpolate-momentum, coarse & fine optimizers must be provided'
 
   rank_coarse_model_lp_parameters                = []
   rank_coarse_model_open_close_layers_parameters = []
@@ -277,7 +341,8 @@ def interpolate_weights(
     if rank == 0:
       k, coarse_model_lp_parameters, lp_new_parameters, \
         next_rank_to_provide_params = 0, [], None, 0
-
+      coarse_optimizer_state = coarse_optimizer.state \
+                               if interpolate_momentum else None
     else:
       rank_turn = False
 
@@ -285,14 +350,19 @@ def interpolate_weights(
         message = comm.recv(source=MPI.ANY_SOURCE)
         tag, content = message
 
-        if tag == state_tag:
+        if re.match(send_parameters_pattern, tag):
+          message_source = int(re.search(send_parameters_pattern, tag)[1])
+          coarse_optimizer_state = coarse_optimizer.state \
+                                   if interpolate_momentum else None
+          message = (rank_coarse_model_lp_parameters, coarse_optimizer_state)
+          comm.send(message, dest=message_source)
+
+        elif tag == state_tag:
           k, coarse_model_lp_parameters, lp_new_parameters, \
             next_rank_to_provide_params = content
           rank_turn = True
 
-        elif re.match(send_parameters_pattern, tag):
-          message_source = int(re.search(send_parameters_pattern, tag)[1])
-          comm.send(rank_coarse_model_lp_parameters, dest=message_source)
+        else: raise Exception(f'Unknown request: {tag}')
 
     for child in fine_model.children():
       if isinstance(child, torchbraid.LayerParallel):
@@ -307,10 +377,12 @@ def interpolate_weights(
               else:
                 tag = send_parameters_pattern.replace('(\d+)', f'{rank}')
                 content = None
-                message = (tag, content)
-                comm.send(content, dest=next_rank_to_provide_params)
-                coarse_model_lp_parameters = \
+                message_to_send = (tag, content)
+                comm.send(message_to_send, dest=next_rank_to_provide_params)
+                message_received = \
                   comm.recv(source=next_rank_to_provide_params)
+                coarse_model_lp_parameters, coarse_optimizer_state = \
+                  message_received
                 # print(f'LP1aII: {len(list(layer.parameters()))} {len(lp_new_parameters)}')
           
               next_rank_to_provide_params += 1
@@ -489,15 +561,25 @@ def main():
     # root_print(rank, 'before')
     # for p in model.parameters():
     #   root_print(rank, p.ravel()[:3].tolist() + p.ravel()[-3:].tolist())
+    # if level == 0:
+    #   for p in previous_model.parameters(): 
+    #     root_print(rank, previous_optimizer.state[p])
+    #   root_print(rank, 'f')
+    #   for p in model.parameters(): 
+    #     root_print(rank, optimizer.state[p])
 
     if previous_model is not None: 
       interpolate_weights(
         previous_model, model, args.ni_cfactor, rank, num_procs, comm,
+        previous_optimizer, optimizer, True,
       )
 
     # root_print(rank, 'after')
-    # for p in model.parameters():
-    #   root_print(rank, p.ravel()[:3].tolist() + p.ravel()[-3:].tolist())
+    # # for p in model.parameters():
+    # #   root_print(rank, p.ravel()[:3].tolist() + p.ravel()[-3:].tolist())
+    # if level == 0:
+    #   for p in model.parameters():
+    #     root_print(rank, optimizer.state[p])
 
     root_print(
       rank, f'Level={level}, ' \
@@ -565,6 +647,7 @@ def main():
       epoch += 1
 
     previous_model = model
+    previous_optimizer = optimizer
     previous_model_best_accuracy = current_model_best_accuracy
 
   root_print(rank, 'Training finished.')
