@@ -253,240 +253,260 @@ def get_optimizer(model, args):  # Declare optimizer
 
 def interpolate_weights(
   coarse_model, fine_model, cf, rank, num_procs, comm, 
-  coarse_optimizer=None, fine_optimizer=None, interpolate_momentum=False,
-  interpolation_mode='constant',
+  interpolation_mode='constant', interpolate_momentum=False, 
+  coarse_optimizer=None, fine_optimizer=None,
 ):
-  def replace_layer_weights(old_parameters, new_parameters):
-    for (old_parameter, new_parameter) in zip(
-      old_parameters, new_parameters,
-    ):
-      old_parameter[:] = new_parameter[:]
-
-      if interpolate_momentum:
-        fine_optimizer    .state[old_parameter]    ['momentum_buffer'] = \
-          coarse_optimizer.state[new_parameter].get('momentum_buffer').clone()
-
-  root_print(rank, 'Interpolating weights...')
-  if interpolate_momentum: root_print(rank, '...(and momentum)...')
-
-  if num_procs == 1:
-    root_print(rank, 'Code shortcut: #Nodes=1')
-    if interpolation_mode == 'constant':
-      root_print(rank, 'Interpolation-mode=constant')
-      with torch.no_grad():
-        coarse_model_lp_parameters                = []
-        coarse_model_open_close_layers_parameters = []
-
-        for child in coarse_model.children():
-          if isinstance(child, torchbraid.LayerParallel):
-            for layer in child.layer_models:
-              coarse_model_lp_parameters.append(
-                list(layer.parameters())
-              )
-
-          else:
-            coarse_model_open_close_layers_parameters.append(
-              list(child.parameters())
-            )
-
-        for child in fine_model.children():
-          if isinstance(child, torchbraid.LayerParallel):
-            for k, layer in enumerate(child.layer_models):
-              if k % cf == 0:
-                lp_new_parameters = coarse_model_lp_parameters.pop(0)
-
-              # for (old_parameter, new_parameter) in zip(
-              #   layer.parameters(), lp_new_parameters,
-              # ):
-              #   old_parameter[:] = new_parameter[:]
-              #   fine_optimizer    .state[old_parameter]['momentum_buffer'] = \
-              #     coarse_optimizer.state[new_parameter]['momentum_buffer']
-              replace_layer_weights(layer.parameters(), lp_new_parameters)
-
-          else:
-            open_close_new_parameters = \
-              coarse_model_open_close_layers_parameters.pop(0)
-
-            # for (old_parameter, new_parameter) in zip(
-            #   child.parameters(), open_close_new_parameters,
-            # ):
-            #   old_parameter[:] = new_parameter[:]
-            replace_layer_weights(child.parameters(), open_close_new_parameters)
-
-        assert not coarse_model_lp_parameters and \
-               not coarse_model_open_close_layers_parameters 
-
-    elif interpolation_mode == 'linear':
-      root_print(rank, 'Interpolation-mode=linear')
-
-      def interpolate_weights_from_layers(layers, idx, mode='constant'):
-        if   mode == 'constant': 
-          raise Exception('Not implemented here, but above')
-
-        elif mode == 'linear':
-          layer_k, layer_kp1 = layers
-
-          interpolated_parameters = []
-          assert len(list(layer_k  .parameters())) == \
-                 len(list(layer_kp1.parameters()))
-
-          for (layer_k_parameter, layer_kp1_parameter) in zip(
-            layer_k.parameters(), layer_kp1.parameters(),
-          ):
-            interpolated_parameter = \
-              (1 - j) * layer_k_parameter + j * layer_kp1_parameter
-            interpolated_parameters.append(interpolated_parameter)
-
-          return interpolated_parameters
-
-      with torch.no_grad():
-        for (coarse_model_child, fine_model_child) in zip(
-          coarse_model.children(), fine_model.children(),
-        ):
-          if isinstance(fine_model_child, torchbraid.LayerParallel):
-            assert isinstance(coarse_model_child, torchbraid.LayerParallel)
-
-            N_coarse = len(coarse_model_child.layer_models)
-
-            for k in range(N_coarse):
-              coarse_layer_on_left  = coarse_model_child.layer_models[k]
-              coarse_layer_on_right = [*coarse_model_child.layer_models, None][k+1]
-
-              for j in range(cf):
-                fine_layer = fine_model_child.layer_models[cf*k + j]
-
-                lp_new_parameters = interpolate_weights_from_layers(
-                  (coarse_layer_on_left, coarse_layer_on_right), j, 'linear',
-                )
-                replace_layer_weights(
-                  fine_layer.parameters(), lp_new_parameters,
-                )
-
-          else:
-            replace_layer_weights(
-              fine_model_child.parameters(), coarse_model_child.parameters(),
-            )
-
-    else: raise Exception('Unknown interpolation-mode')
-
-    return
+  assert interpolation_mode in ['constant', 'linear']
 
   if interpolate_momentum: 
     assert coarse_optimizer is not None and fine_optimizer is not None, \
     'if interpolate-momentum, coarse & fine optimizers must be provided'
 
-  rank_coarse_model_lp_parameters                = []
-  rank_coarse_model_open_close_layers_parameters = []
+  text = 'Interpolating weights ' \
+       + ('w/ ' if interpolate_momentum else 'w/o ') \
+       + 'momentum...'
+  root_print(rank, text)
+  root_print(rank, f'Interpolation-mode={interpolation_mode}')
 
-  for child in coarse_model.children():
-    if isinstance(child, torchbraid.LayerParallel):
-      for layer in child.layer_models:
-        rank_coarse_model_lp_parameters.append(
-          list(layer.parameters())
-        )
-    else:
-      rank_coarse_model_open_close_layers_parameters.append(
-        list(child.parameters())
-      )
+  if num_procs == 1:
+    root_print(rank, 'Code shortcut: #Nodes=1')
+    
+    def interpolate_weights_from_layers(
+      coarse_layers, interpolation_coefficient, mode,
+    ):
+      if   mode == 'constant': 
+        coarse_layer, = coarse_layers
+        return coarse_layer.parameters()
 
-  state_tag = 'state'
-  send_parameters_pattern = 'send parameters to rank=(\d+)'
+      elif mode == 'linear':
+        coarse_layer_on_left, coarse_layer_on_right = coarse_layers
 
-  with torch.no_grad():
-    if rank == 0:
-      k, coarse_model_lp_parameters, lp_new_parameters, \
-        next_rank_to_provide_params = 0, [], None, 0
-      coarse_optimizer_state = coarse_optimizer.state \
-                               if interpolate_momentum else None
-    else:
-      rank_turn = False
+        if coarse_layer_on_right is None:
+          coarse_layer_on_right = coarse_layer_on_left
 
-      while not rank_turn:
-        message = comm.recv(source=MPI.ANY_SOURCE)
-        tag, content = message
+        assert len(list(coarse_layer_on_left .parameters())) == \
+               len(list(coarse_layer_on_right.parameters()))  # delete for memory efficiency?
 
-        if re.match(send_parameters_pattern, tag):
-          message_source = int(re.search(send_parameters_pattern, tag)[1])
-          coarse_optimizer_state = coarse_optimizer.state \
-                                   if interpolate_momentum else None
-          message = (rank_coarse_model_lp_parameters, coarse_optimizer_state)
-          comm.send(message, dest=message_source)
+        for (coarse_layer_on_left_parameter, coarse_layer_on_right_parameter) \
+          in zip(coarse_layer_on_left .parameters(), 
+                 coarse_layer_on_right.parameters()):
+          yield (1 - interpolation_coefficient) * \
+                  coarse_layer_on_left_parameter \
+              +    interpolation_coefficient    * \
+                  coarse_layer_on_right_parameter
 
-        elif tag == state_tag:
-          k, coarse_model_lp_parameters, lp_new_parameters, \
-            next_rank_to_provide_params = content
-          rank_turn = True
+    def interpolate_momentum_from_layers(
+      coarse_layers, interpolation_coefficient, mode,
+    ):
+      if   mode == 'constant': 
+        coarse_layer, = coarse_layers
+        for coarse_layer_parameter in coarse_layer.parameters():
+          coarse_layer_parameter_momentum = \
+            coarse_optimizer.state[coarse_layer_parameter] \
+                            .get('momentum_buffer')
+          yield coarse_layer_parameter_momentum
 
-        else: raise Exception(f'Unknown request: {tag}')
+      elif mode == 'linear':
+        coarse_layer_on_left, coarse_layer_on_right = coarse_layers
 
-    for child in fine_model.children():
-      if isinstance(child, torchbraid.LayerParallel):
-        for layer in child.layer_models:
-          if k % cf == 0:
-            if not coarse_model_lp_parameters:
-              if rank == next_rank_to_provide_params:
-                coarse_model_lp_parameters = \
-                  rank_coarse_model_lp_parameters
-                # print(f'LP1aI: {len(list(layer.parameters()))} {len(lp_new_parameters)}')
+        if coarse_layer_on_right is None:
+          coarse_layer_on_right = coarse_layer_on_left
 
-              else:
-                tag = send_parameters_pattern.replace('(\d+)', f'{rank}')
-                content = None
-                message_to_send = (tag, content)
-                comm.send(message_to_send, dest=next_rank_to_provide_params)
-                message_received = \
-                  comm.recv(source=next_rank_to_provide_params)
-                coarse_model_lp_parameters, coarse_optimizer_state = \
-                  message_received
-                # print(f'LP1aII: {len(list(layer.parameters()))} {len(lp_new_parameters)}')
+        assert len(list(coarse_layer_on_left .parameters())) == \
+               len(list(coarse_layer_on_right.parameters()))  # delete for memory efficiency?
+
+        for (coarse_layer_on_left_parameter, coarse_layer_on_right_parameter) \
+          in zip(coarse_layer_on_left .parameters(), 
+                 coarse_layer_on_right.parameters()):
+          coarse_layer_on_left_parameter_momentum  = \
+            coarse_optimizer.state[coarse_layer_on_left_parameter ] \
+                            .get('momentum_buffer')
+          coarse_layer_on_right_parameter_momentum = \
+            coarse_optimizer.state[coarse_layer_on_right_parameter] \
+                            .get('momentum_buffer')
+          yield (1 - interpolation_coefficient) * \
+                  coarse_layer_on_left_parameter_momentum \
+              +    interpolation_coefficient    * \
+                  coarse_layer_on_right_parameter_momentum
+
+    # def clone(x): return x.clone() if x is not None else None
+
+    def replace_layer_weights(
+      old_parameters, new_parameters, new_momentums=None,
+    ):
+      for (old_parameter, new_parameter) in zip(
+        old_parameters, new_parameters,
+      ): old_parameter[:] = new_parameter[:]
+
+        if new_momentums is not None:
+          fine_optimizer.state[old_parameter]['momentum_buffer'] = \
+            next(new_momentums)
+
+      if new_momentums is not None: assert next(new_momentums, None) is None
+
+    with torch.no_grad():
+      for (coarse_model_child, fine_model_child) in zip(
+        coarse_model.children(), fine_model.children(),
+      ):
+        if isinstance(fine_model_child, torchbraid.LayerParallel):
+          assert isinstance(coarse_model_child, torchbraid.LayerParallel)
+
+          N_coarse = len(coarse_model_child.layer_models)
+
+          for k in range(N_coarse):
+            coarse_layer_on_left  = coarse_model_child.layer_models[k]
+            coarse_layer_on_right = [*coarse_model_child.layer_models, None] \
+                                    [k+1]
+            for j in range(cf):
+              fine_layer_idx = cf*k + j
+              if fine_layer_idx >= len(fine_model_child.layer_models): return
+              fine_layer = fine_model_child.layer_models[fine_layer_idx]
+              interpolation_coefficient = j/cf
+
+              lp_new_parameters = interpolate_weights_from_layers(
+                layers=(coarse_layer_on_left, coarse_layer_on_right), 
+                interpolation_coefficient=interpolation_coefficient,
+                mode=interpolation_mode,
+              )
+              lp_new_momentums = interpolate_momentum_from_layers(
+                layers=(coarse_layer_on_left, coarse_layer_on_right), 
+                interpolation_coefficient=interpolation_coefficient,
+                mode=interpolation_mode,
+              ) if interpolate_momentum else None
+
+              replace_layer_weights(
+                old_parameters=fine_layer.parameters(),
+                new_parameters=lp_new_parameters,
+                new_momentums=lp_new_momentums,
+              )
+
+        else:
+          open_close_new_momentums = (
+            coarse_optimizer.state[open_close_parameter].get('momentum_buffer') \
+            for open_close_parameter in coarse_model_child.parameters()
+          ) if interpolate_momentum else None
+          replace_layer_weights(
+            old_parameters=fine_model_child.parameters(),
+            new_parameters=coarse_model_child.parameters(),
+            new_momentums=open_close_new_momentums,
+          )
+
+    # else: raise Exception('Unknown interpolation-mode')
+
+  else: raise Exception('Remaining to implement: linear interp. w/ momentum w/ #Nodes > 1')
+
+  # rank_coarse_model_lp_parameters                = []
+  # rank_coarse_model_open_close_layers_parameters = []
+
+  # for child in coarse_model.children():
+  #   if isinstance(child, torchbraid.LayerParallel):
+  #     for layer in child.layer_models:
+  #       rank_coarse_model_lp_parameters.append(
+  #         list(layer.parameters())
+  #       )
+  #   else:
+  #     rank_coarse_model_open_close_layers_parameters.append(
+  #       list(child.parameters())
+  #     )
+
+  # state_tag = 'state'
+  # send_parameters_pattern = 'send parameters to rank=(\d+)'
+
+  # with torch.no_grad():
+  #   if rank == 0:
+  #     k, coarse_model_lp_parameters, lp_new_parameters, \
+  #       next_rank_to_provide_params = 0, [], None, 0
+  #     coarse_optimizer_state = coarse_optimizer.state \
+  #                              if interpolate_momentum else None
+  #   else:
+  #     rank_turn = False
+
+  #     while not rank_turn:
+  #       message = comm.recv(source=MPI.ANY_SOURCE)
+  #       tag, content = message
+
+  #       if re.match(send_parameters_pattern, tag):
+  #         message_source = int(re.search(send_parameters_pattern, tag)[1])
+  #         coarse_optimizer_state = coarse_optimizer.state \
+  #                                  if interpolate_momentum else None
+  #         message = (rank_coarse_model_lp_parameters, coarse_optimizer_state)
+  #         comm.send(message, dest=message_source)
+
+  #       elif tag == state_tag:
+  #         k, coarse_model_lp_parameters, lp_new_parameters, \
+  #           next_rank_to_provide_params = content
+  #         rank_turn = True
+
+  #       else: raise Exception(f'Unknown request: {tag}')
+
+  #   for child in fine_model.children():
+  #     if isinstance(child, torchbraid.LayerParallel):
+  #       for layer in child.layer_models:
+  #         if k % cf == 0:
+  #           if not coarse_model_lp_parameters:
+  #             if rank == next_rank_to_provide_params:
+  #               coarse_model_lp_parameters = \
+  #                 rank_coarse_model_lp_parameters
+  #               # print(f'LP1aI: {len(list(layer.parameters()))} {len(lp_new_parameters)}')
+
+  #             else:
+  #               tag = send_parameters_pattern.replace('(\d+)', f'{rank}')
+  #               content = None
+  #               message_to_send = (tag, content)
+  #               comm.send(message_to_send, dest=next_rank_to_provide_params)
+  #               message_received = \
+  #                 comm.recv(source=next_rank_to_provide_params)
+  #               coarse_model_lp_parameters, coarse_optimizer_state = \
+  #                 message_received
+  #               # print(f'LP1aII: {len(list(layer.parameters()))} {len(lp_new_parameters)}')
           
-              next_rank_to_provide_params += 1
+  #             next_rank_to_provide_params += 1
 
-            else: 
-              # print(f'LP1b: {len(list(layer.parameters()))} {len(lp_new_parameters)}')
-              pass
+  #           else: 
+  #             # print(f'LP1b: {len(list(layer.parameters()))} {len(lp_new_parameters)}')
+  #             pass
 
-            lp_new_parameters = coarse_model_lp_parameters.pop(0)
+  #           lp_new_parameters = coarse_model_lp_parameters.pop(0)
 
-          else:
-            # print(f'LP2: {len(list(layer.parameters()))} {len(lp_new_parameters)}')
-            pass
+  #         else:
+  #           # print(f'LP2: {len(list(layer.parameters()))} {len(lp_new_parameters)}')
+  #           pass
 
-          for j, (old_parameter, new_parameter) in enumerate(zip(
-            layer.parameters(), lp_new_parameters,
-          )): 
-            # print(f'j={j}')
-            assert old_parameter.shape == new_parameter.shape, \
-                   f'{old_parameter.shape}, {new_parameter.shape}'
-            old_parameter[:] = new_parameter[:]
+  #         for j, (old_parameter, new_parameter) in enumerate(zip(
+  #           layer.parameters(), lp_new_parameters,
+  #         )): 
+  #           # print(f'j={j}')
+  #           assert old_parameter.shape == new_parameter.shape, \
+  #                  f'{old_parameter.shape}, {new_parameter.shape}'
+  #           old_parameter[:] = new_parameter[:]
 
-          k += 1
+  #         k += 1
 
-      else:  # Open/Close layer
-        open_close_new_parameters = \
-          rank_coarse_model_open_close_layers_parameters.pop(0)
-        # print(f'OC: {len(list(child.parameters()))} {len(open_close_new_parameters)}')
+  #     else:  # Open/Close layer
+  #       open_close_new_parameters = \
+  #         rank_coarse_model_open_close_layers_parameters.pop(0)
+  #       # print(f'OC: {len(list(child.parameters()))} {len(open_close_new_parameters)}')
       
-        for (old_parameter, new_parameter) in zip(
-          child.parameters(), open_close_new_parameters,
-        ): 
-          assert old_parameter.shape == new_parameter.shape, \
-                 f'{old_parameter.shape}, {new_parameter.shape}'
-          old_parameter[:] = new_parameter[:]
+  #       for (old_parameter, new_parameter) in zip(
+  #         child.parameters(), open_close_new_parameters,
+  #       ): 
+  #         assert old_parameter.shape == new_parameter.shape, \
+  #                f'{old_parameter.shape}, {new_parameter.shape}'
+  #         old_parameter[:] = new_parameter[:]
 
-    ## Send start signal to next rank
-    if rank != (num_procs - 1):
-      content = k, coarse_model_lp_parameters, lp_new_parameters, \
-                next_rank_to_provide_params
-      message = (state_tag, content)
-      comm.send(message, dest=(rank + 1))
+  #   ## Send start signal to next rank
+  #   if rank != (num_procs - 1):
+  #     content = k, coarse_model_lp_parameters, lp_new_parameters, \
+  #               next_rank_to_provide_params
+  #     message = (state_tag, content)
+  #     comm.send(message, dest=(rank + 1))
 
-    else:
-      assert k % cf == 0, f'k={k}, cf={cf}'
-      assert not coarse_model_lp_parameters
-    assert not rank_coarse_model_open_close_layers_parameters
+  #   else:
+  #     assert k % cf == 0, f'k={k}, cf={cf}'
+  #     assert not coarse_model_lp_parameters
+  #   assert not rank_coarse_model_open_close_layers_parameters
 
-  comm.Barrier()  # (Maybe unnecessary) To ~synchronize them (in order to avoid any future timeout)
+  # comm.Barrier()  # (Maybe unnecessary) To ~synchronize them (in order to avoid any future timeout)
 
   root_print(rank, '-> Done.')
 
