@@ -327,9 +327,10 @@ def parse_args():
   parser.add_argument('--debug', action='store_true')
 
   # parser.add_argument('--ni_starting_level', type=int, default=0)
-  parser.add_argument('--ni_cfactor'      , type=int, default=2)
-  parser.add_argument('--ni_num_levels'   , type=int, default=2)
-  parser.add_argument('--ni_interpolation', type=int, default='constant')
+  parser.add_argument('--ni_cfactor'             , type=int, default=2)
+  parser.add_argument('--ni_num_levels'          , type=int, default=2)
+  parser.add_argument('--ni_interpolation'       , type=str, default='constant')
+  parser.add_argument('--ni_interpolate_momentum', type=str, default='True')
 
   ##
   # Do some parameter checking
