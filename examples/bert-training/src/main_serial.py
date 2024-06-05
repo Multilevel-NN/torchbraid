@@ -124,38 +124,7 @@ def parse_args():
   parser.add_argument('--optimizer', type=str, default='SGD')#required=True)
   parser.add_argument('--momentum', type=float, default=.9)
 
-  ##
-  # Do some parameter checking
-  rank  = MPI.COMM_WORLD.Get_rank()
-  procs = MPI.COMM_WORLD.Get_size()
   args = parser.parse_args()
-
-  if procs % args.dp_size != 0:
-    root_print(rank, 1, 1, 'Data parallel size must be an even multiple of the number of processors: %d %d'
-               % (procs, args.dp_size) )
-    sys.exit(0)
-  else:
-    procs_lp = int(procs / args.dp_size)
-
-  ##
-  # Compute number of parallel-in-time multigrid levels 
-  def compute_levels(num_steps, min_coarse_size, cfactor):
-    from math import log, floor
-    # Find L such that ( max_L min_coarse_size*cfactor**L <= num_steps)
-    levels = floor(log(float(num_steps) / min_coarse_size, cfactor)) + 1
-
-    if levels < 1:
-      levels = 1
-    return levels
-
-  if args.lp_max_levels < 1:
-    min_coarse_size = 3
-    args.lp_max_levels = compute_levels(args.steps, min_coarse_size, args.lp_cfactor)
-
-  if args.steps % procs_lp != 0:
-    root_print(rank, 1, 1, 'Steps must be an even multiple of the number of layer parallel processors: %d %d'
-               % (args.steps, procs_lp) )
-    sys.exit(0)
 
   return args
 
@@ -167,7 +136,7 @@ def parse_args():
 ##
 # Train model for one epoch
 # Return values: per batch losses and training times, model parameters updated in-place
-def train(rank, params, model, train_loader, optimizer, epoch, compose, device, scheduler):
+def train(rank, params, model, train_loader, optimizer, epoch, device, scheduler):
   # note that we dont' call the optimizer directly, but use the scheduler instead
   train_times = []
   fwd_times = []
@@ -191,12 +160,8 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device, 
     next_sent_output, mask_lm_output = model(data, segment_label)
     batch_fwd_pass_end = time.time()
     
-    next_loss = compose(
-      criterion, next_sent_output, is_next
-    )
-    mask_loss = compose(
-      criterion, mask_lm_output.reshape(-1, mask_lm_output.shape[-1]), target.reshape(-1)
-    )
+    next_loss = criterion(next_sent_output, is_next)
+    mask_loss = criterion(mask_lm_output.reshape(-1, mask_lm_output.shape[-1]), target.reshape(-1))
 
     loss = next_loss + mask_loss
     scheduler.zero_grad()
@@ -230,7 +195,7 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device, 
 ##
 # Evaluate model on validation data
 # Return: number of correctly classified test items, total number of test items, loss on test data set
-def test(rank, model, test_loader, compose, device):
+def test(rank, model, test_loader, device):
   # Evaluate the model
   model.eval()
 
@@ -244,12 +209,8 @@ def test(rank, model, test_loader, compose, device):
       data, target, segment_label, is_next = data.to(device), target.to(device), segment_label.to(device), is_next.to(device)
       next_sent_output, mask_lm_output = model(data, segment_label)
 
-      next_loss = compose(
-        criterion, next_sent_output, is_next
-      ).item()
-      mask_loss = compose(
-        criterion, mask_lm_output.reshape(-1, mask_lm_output.shape[-1]), target.reshape(-1)
-      ).item()
+      next_loss = criterion(next_sent_output, is_next).item()
+      mask_loss = criterion(mask_lm_output.reshape(-1, mask_lm_output.shape[-1]), target.reshape(-1)).item()
       test_loss += next_loss + mask_loss
 
   test_loss /= len(test_loader)
@@ -300,25 +261,20 @@ class ScheduledOptim():
 
 
 def main():
-  # Begin setting up run-time environment 
-  # Initialize MPI
-  comm = MPI.COMM_WORLD
-  rank = comm.Get_rank()
-  procs = comm.Get_size()
+  # Load serial; no need for MPI and stuff
+  rank = 0 # Dummy argument 
   args = parse_args()
+  print('Loading model')
+  model = torch.load(f'serialnet_bert_{args.steps}')
+  print('Model loaded')
+  model = model.to('cuda')
 
   # Use device or CPU?
   use_cuda = not args.no_cuda and torch.cuda.is_available()
-  device, host = torchbraid.utils.getDevice(comm=comm)
-  if not use_cuda:
-    device = torch.device("cuda" if use_cuda else "cpu")
-  print(f'Run info rank: {rank}: Torch version: {torch.__version__} | Device: {device} | Host: {host}')
+  device = torch.device("cuda" if use_cuda else "cpu")
 
   # Set seed for reproducibility
   torch.manual_seed(args.seed)
-
-  # Compute number of steps in ResNet per processor
-  local_steps = int(args.steps / procs)
 
   # Finish assembling training and test datasets
   root_print(rank, f'Loading {int(args.percent_data * 100)}% of dataset')
@@ -341,16 +297,14 @@ def main():
   )
 
 	# Diagnostic information
-  root_print(rank, '-- procs    = {}\n'
-										'-- Tf       = {}\n'
+  root_print(rank, 	'-- Tf       = {}\n'
 										'-- steps    = {}\n'
 										'-- max_levels     = {}\n'
 										'-- max_bwd_iters  = {}\n'
 										'-- max_fwd_iters  = {}\n'
 										'-- cfactor        = {}\n'
 										'-- fine fcf       = {}\n'
-										'-- skip down      = {}\n'.format(procs, 
-																											args.Tf, args.steps,
+										'-- skip down      = {}\n'.format(args.Tf, args.steps,
 																											args.lp_max_levels,
 																											args.lp_bwd_max_iters,
 																											args.lp_fwd_max_iters,
@@ -358,34 +312,6 @@ def main():
 																											args.lp_fine_fcf,
 																											not args.lp_use_downcycle))
 
-	# Create layer-parallel network
-	# Note this can be done on only one processor, but will be slow
-  model = ParallelNet(vocab_size=vocab_size,
-                  model_dimension=args.model_dimension, 
-                  seq_len=sequence_length,
-                  num_heads=args.num_heads,
-									local_steps=local_steps,
-									max_levels=args.lp_max_levels,
-									bwd_max_iters=args.lp_bwd_max_iters,
-									fwd_max_iters=args.lp_fwd_max_iters,
-									print_level=args.lp_print_level,
-									braid_print_level=args.lp_braid_print_level,
-									cfactor=args.lp_cfactor,
-									fine_fcf=args.lp_fine_fcf,
-									skip_downcycle=not args.lp_use_downcycle,
-									fmg=False, 
-									Tf=args.Tf,
-									relax_only_cg=False,
-									user_mpi_buf=args.lp_user_mpi_buf).to(device)
-  
-  if args.serial_file:
-    model.saveSerialNet(f'serialnet_bert_{args.steps}')
-    print('Saved file')
-    # Quit after saving? 
-    import sys
-    sys.exit()
-
-    
 	# Declare optimizer  
   # print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
   weight_decay=0.01
@@ -408,14 +334,14 @@ def main():
   for epoch in range(1, args.epochs + 1):
     epoch_time_start = time.time()
     [losses, train_times, batch_f_times, batch_b_times] = train(rank=rank, params=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=epoch,
-          compose=model.compose, device=device, scheduler=optim_schedule)
+          device=device, scheduler=optim_schedule)
 
     batch_losses += losses
     batch_times += train_times
     forward_times += batch_f_times
     backward_times += batch_b_times
 
-    valid_loss = test(rank=rank, model=model, test_loader=test_loader, compose=model.compose, device=device)
+    valid_loss = test(rank=rank, model=model, test_loader=test_loader, device=device)
 
     test_losses.append(valid_loss)
     
@@ -441,7 +367,7 @@ def main():
     epoch_points = np.arange(1, len(test_losses)+1) * len(train_loader)
     ax2.plot( epoch_points, test_losses, color='r', linestyle='dashed', linewidth=2, marker='o')
     ax2.set_ylabel(r"Validation rate", fontsize=13, color='r')
-    plt.savefig(f'bert_layerparallel_training_{procs}_{args.steps}.png', bbox_inches="tight")
+    plt.savefig(f'bert_layerparallel_training_serial_{args.steps}.png', bbox_inches="tight")
 
     # Plot and save timings to get approximate 
     # Calculate means, ignoring the first few entries
@@ -475,9 +401,10 @@ def main():
     plt.tight_layout()
 
     # Save the figure
-    plt.savefig(f'timing_data_plots_{procs}_{args.steps}.png')
+    plt.savefig(f'timing_data_plots_serial_{args.steps}.png')
 
 
 if __name__ == '__main__':
+  print('Starting main')
   main()
   print('Finished.')

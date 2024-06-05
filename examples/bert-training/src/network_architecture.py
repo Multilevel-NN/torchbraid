@@ -282,7 +282,8 @@ class ParallelNet(nn.Module):
         # Model can be reloaded in serial format with: model = torch.load(filename)
         serial_nn = self.parallel_nn.buildSequentialOnRoot()
         if self.comm_lp.Get_rank() == 0:
-            s_net = SerialNet(-1, -1, -1, serial_nn=serial_nn, open_nn=self.open_nn, close_nn=self.close_nn)
+            s_net = SerialNet(-1, -1, -1, 
+                              serial_nn=serial_nn, open_nn=self.open_nn, close_nn_nsp=self.close_nn_nsp, close_nn_mlm=self.close_nn_mlm)
             s_net.eval()
             torch.save(s_net, name)
 
@@ -309,32 +310,23 @@ class ParallelNet(nn.Module):
 
 # Serial Network Class (used by the saveSerialNet functionality in ParallelNet)
 class SerialNet(nn.Module):
-  def __init__(self, channels=12, local_steps=8, Tf=1.0, serial_nn=None, open_nn=None, close_nn=None):
+  def __init__(self, channels=12, local_steps=8, Tf=1.0, serial_nn=None, open_nn=None, close_nn_nsp=None, close_nn_mlm=None):
     super(SerialNet, self).__init__()
 
-    if open_nn is None:
-      self.open_nn = OpenLayer(channels)
-    else:
-      self.open_nn = open_nn
+    self.open_nn = open_nn
 
-    if serial_nn is None:
-      step_layer = lambda: StepLayer(channels)
-      numprocs = 1
-      parallel_nn = torchbraid.LayerParallel(MPI.COMM_SELF, step_layer, numprocs * local_steps, Tf,
-                                             max_fwd_levels=1, max_bwd_levels=1, max_iters=1)
-      parallel_nn.setPrintLevel(0, True)
-      self.serial_nn = parallel_nn.buildSequentialOnRoot()
-    else:
-      self.serial_nn = serial_nn
+    self.serial_nn = serial_nn
 
-    if close_nn is None:
-      self.close_nn = CloseLayer(channels)
-    else:
-      self.close_nn = close_nn
+    self.close_nn_nsp = close_nn_nsp
+    self.close_nn_mlm = close_nn_mlm
 
-  def forward(self, x):
-    x = self.open_nn(x)
+  def forward(self, x, segment_info):
+    global mask
+    mask = (x > 0).unsqueeze(1).repeat(1, x.size(1), 1).unsqueeze(1)
+
+    x = self.open_nn(x, segment_info)
     x = self.serial_nn(x)
-    x = self.close_nn(x)
-    return x
+    nsp = self.close_nn_nsp(x)
+    mlm = self.close_nn_mlm(x)
+    return nsp, mlm
 
