@@ -197,39 +197,20 @@ class StepLayer(nn.Module):
         # self.feed_forward = FeedForward(d_model, middle_dim=feed_forward_hidden)
         # self.dropout = torch.nn.Dropout(dropout)
 
-    def forward(self, x):
+    def forward(self, x, dt: float=1.0):    # Default must be there for shape
         # Need to use global mask; passing in stuff might be hard
         global mask
 
-        # Apply simple cont version 
+        # Apply multi-step version
         x1 = self.ln1(x)
-        x1 = self.mha(
+        x1 = dt * self.mha(
             x1, x1, x1, mask
         )
 
         x2 = self.ln2(x + x1)
-        x2 = self.feed_forward(x2)
-
-        # ContinuousBlock - dxdtEncoder1DBlock
-        # x0 = x
-        # x = self.ln1(x)     # also try to remove layernorm
-        # x, _ = self.att(x, x, x, self.mask)
-        # x1 = x
-        # x = x + x0
-
-        # x = self.ln2(x)
-        # # MLPBlock
-        # x = self.fc1(x)
-        # x = nn.ELU()(x)
-        # x = self.fc2(x)
+        x2 = dt * self.feed_forward(x2)
         
-        # x = x + x1
-        # write_log('h', x.shape)
-
-        # x = x.reshape(x.shape[0]*x.shape[2], x.shape[1])
-        # x = torch.cat((x, self.mask), axis=0)
-        
-        return x + x1 + x2
+        return x + x2
 
 ####################################################################################
 ####################################################################################

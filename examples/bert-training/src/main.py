@@ -219,6 +219,7 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device, 
         epoch, batch_idx * len(data), len(train_loader.dataset),
                100. * batch_idx / len(train_loader), loss.item(), 
                scheduler.get_current_lr()))
+      root_print(rank, f'\t Some times: {fwd_times[-3:-1]=} {bwd_times[-3:-1]}')
 
   root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.2e}'.format(
     epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
@@ -390,13 +391,14 @@ def main():
   # print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
   weight_decay=0.01
   betas=(0.9, 0.999)
-  warmup_steps=500
+  warmup_steps=10000
   optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=betas, weight_decay=weight_decay)
   optim_schedule = ScheduledOptim(
     optimizer, args.model_dimension, n_warmup_steps=warmup_steps
   )
   # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
-
+  
+  root_print(rank, f'Training with {warmup_steps=} and {args.lr=}')
 	# Carry out parallel training
   batch_losses = [] 
   test_losses = []

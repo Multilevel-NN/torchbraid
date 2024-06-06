@@ -19,8 +19,11 @@ module load ucx/1.13.1
 module load python/3.10.8
 
 source ~/braids/pip-test/bin/activate
-	
-python main_serial.py --percent-data .01 --steps 32 --epochs 3 --batch-size 32 --model_dimension 384 --num_heads 6
+
+# First generate the model; will auto leave with serial file
+mpirun -n 1 python main.py --serial-file True --percent-data .01 --steps 64 --epochs 3 --batch-size 32 --model_dimension 384 --num_heads 6
+
+python main_serial.py --percent-data .01 --steps 64 --epochs 3 --batch-size 32 --model_dimension 384 --num_heads 6
 
 # mpirun -n 2 python main.py
 

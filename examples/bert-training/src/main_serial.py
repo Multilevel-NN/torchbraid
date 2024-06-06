@@ -29,8 +29,6 @@
 # ************************************************************************
 # @HEADER
 
-
-import statistics as stats
 from timeit import default_timer as timer
 
 import matplotlib.pyplot as plt
@@ -41,12 +39,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import torchbraid
-import torchbraid.utils
-import sys
 
-from network_architecture import ParallelNet
-from mpi4py import MPI
 from get_dataset import obtain_dataset
 from torch.utils.data import DataLoader
 
@@ -184,6 +177,7 @@ def train(rank, params, model, train_loader, optimizer, epoch, device, scheduler
         epoch, batch_idx * len(data), len(train_loader.dataset),
                100. * batch_idx / len(train_loader), loss.item(), 
                scheduler.get_current_lr()))
+      root_print(rank, f'\t Some times: {fwd_times[-3:-1]=} {bwd_times[-3:-1]}')
 
   root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.2e}'.format(
     epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
@@ -223,7 +217,7 @@ def test(rank, model, test_loader, device):
 # Parallel printing helper function  
 def root_print(rank, s):
   if rank == 0:
-    print(s)
+    print(s, flush=True)
 
 class ScheduledOptim():
     '''A simple wrapper class for learning rate scheduling'''
@@ -316,12 +310,13 @@ def main():
   # print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
   weight_decay=0.01
   betas=(0.9, 0.999)
-  warmup_steps=500
+  warmup_steps=10000
   optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=betas, weight_decay=weight_decay)
   optim_schedule = ScheduledOptim(
     optimizer, args.model_dimension, n_warmup_steps=warmup_steps
   )
   # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+  root_print(rank, f'Training with {warmup_steps=} and {args.lr=}')
 
 	# Carry out parallel training
   batch_losses = [] 
