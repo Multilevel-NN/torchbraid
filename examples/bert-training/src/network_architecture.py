@@ -203,14 +203,14 @@ class StepLayer(nn.Module):
 
         # Apply multi-step version
         x1 = self.ln1(x)
-        x1 = dt * self.mha(
+        x1 = x + dt * self.mha(
             x1, x1, x1, mask
         )
 
-        x2 = self.ln2(x + x1)
-        x2 = dt * self.feed_forward(x2)
+        x2 = self.ln2(x1)
+        x2 = x1 + dt * self.feed_forward(x2)
         
-        return x + x2
+        return x2
 
 ####################################################################################
 ####################################################################################
