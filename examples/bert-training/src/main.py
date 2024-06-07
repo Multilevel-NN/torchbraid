@@ -219,7 +219,7 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device, 
         epoch, batch_idx * len(data), len(train_loader.dataset),
                100. * batch_idx / len(train_loader), loss.item(), 
                scheduler.get_current_lr()))
-      root_print(rank, f'\t Some times: {fwd_times[-3:-1]=} {bwd_times[-3:-1]}')
+      root_print(rank, f'\t Some times: {fwd_times[-4:-1]=} {bwd_times[-4:-1]=} {train_times[-4:-1]=}')
 
   root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.2e}'.format(
     epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
@@ -322,7 +322,10 @@ def main():
   local_steps = int(args.steps / procs)
 
   # Finish assembling training and test datasets
-  root_print(rank, f'Loading {int(args.percent_data * 100)}% of dataset')
+  if args.percent_data <= 1:
+    root_print(rank, f'Loading {int(args.percent_data * 100)}% of dataset')
+  else:
+    root_print(rank, f'Loading approx {args.percent_data} elements from each dataset')
 
   # Get dataloader
   sequence_length = args.seq_len
@@ -397,7 +400,7 @@ def main():
     optimizer, args.model_dimension, n_warmup_steps=warmup_steps
   )
   # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
-  
+
   root_print(rank, f'Training with {warmup_steps=} and {args.lr=}')
 	# Carry out parallel training
   batch_losses = [] 
@@ -442,10 +445,15 @@ def main():
     ax2 = ax1.twinx()
     epoch_points = np.arange(1, len(test_losses)+1) * len(train_loader)
     ax2.plot( epoch_points, test_losses, color='r', linestyle='dashed', linewidth=2, marker='o')
-    ax2.set_ylabel(r"Validation rate", fontsize=13, color='r')
-    plt.savefig(f'bert_layerparallel_training_{procs}_{args.steps}.png', bbox_inches="tight")
+    ax2.set_ylabel(r"Validation loss", fontsize=13, color='r')
+    plt.savefig(f'bert_layerparallel_training_{procs}_{args.steps}_{args.lp_fwd_max_iters}.png', bbox_inches="tight")
 
-    # Plot and save timings to get approximate 
+    # Save to file
+    # Save the NumPy array to a file
+    np.save(f'test_losses_f{procs}_{args.steps}_{args.lp_fwd_max_iters}.npy', np.array(batch_losses))
+    np.save(f'valid_losses_f{procs}_{args.steps}_{args.lp_fwd_max_iters}.npy', np.array(test_losses))
+
+    # )Plot and save timings to get approximate 
     # Calculate means, ignoring the first few entries
     mean_batch = np.mean(batch_times[3:])
     mean_forward = np.mean(forward_times[3:])
@@ -477,7 +485,7 @@ def main():
     plt.tight_layout()
 
     # Save the figure
-    plt.savefig(f'timing_data_plots_{procs}_{args.steps}.png')
+    plt.savefig(f'timing_data_plots_{procs}_{args.steps}_{args.lp_fwd_max_iters}.png')
 
 
 if __name__ == '__main__':

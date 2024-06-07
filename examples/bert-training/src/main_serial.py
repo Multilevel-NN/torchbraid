@@ -177,7 +177,7 @@ def train(rank, params, model, train_loader, optimizer, epoch, device, scheduler
         epoch, batch_idx * len(data), len(train_loader.dataset),
                100. * batch_idx / len(train_loader), loss.item(), 
                scheduler.get_current_lr()))
-      root_print(rank, f'\t Some times: {fwd_times[-3:-1]=} {bwd_times[-3:-1]}')
+      root_print(rank, f'\t Some times: {fwd_times[-4:-1]=} {bwd_times[-4:-1]=} {train_times[-4:-1]=}')
 
   root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.2e}'.format(
     epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
@@ -363,6 +363,9 @@ def main():
     ax2.plot( epoch_points, test_losses, color='r', linestyle='dashed', linewidth=2, marker='o')
     ax2.set_ylabel(r"Validation rate", fontsize=13, color='r')
     plt.savefig(f'bert_layerparallel_training_serial_{args.steps}.png', bbox_inches="tight")
+
+    np.save(f'test_losses_serial_{args.steps}.npy', np.array(batch_losses))
+    np.save(f'valid_losses_serial_{args.steps}.npy', np.array(test_losses))
 
     # Plot and save timings to get approximate 
     # Calculate means, ignoring the first few entries

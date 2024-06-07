@@ -136,8 +136,12 @@ def obtain_dataset(percent_data:float = 0.01, seq_len: int = 128):
     See Jupyter for logic here
     """
     # Hard code for now
-    bookcorpus_train = load_dataset('bookcorpus', split=f'train[:{int(percent_data * 100)}%]')
-    wiki_train = load_dataset("wikipedia", "20220301.simple", split=f'train[:{int(percent_data * 100)}%]')
+    if percent_data > 1:
+        split = f'train[:{int(percent_data)}]'
+    else:
+        split = f'train[:{int(percent_data * 100)}%]'
+    bookcorpus_train = load_dataset('bookcorpus', split=split)
+    wiki_train = load_dataset("wikipedia", "20220301.simple", split=split)
 
     # bookcorpus_train = load_dataset('bookcorpus', split=f'train[0:25000]')
     # wiki_train = load_dataset("wikipedia", "20220301.simple", split=f'train[0:25000]')

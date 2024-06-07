@@ -20,10 +20,46 @@ module load python/3.10.8
 
 source ~/braids/pip-test/bin/activate
 
-# First generate the model; will auto leave with serial file
-mpirun -n 1 python main.py --serial-file True --percent-data .01 --steps 64 --epochs 3 --batch-size 32 --model_dimension 384 --num_heads 6
 
-python main_serial.py --percent-data .01 --steps 64 --epochs 3 --batch-size 32 --model_dimension 384 --num_heads 6
+# -------------------- GENERATE TIMINGS ------------------------------ (not accuracy/long runs)
+BATCH_SIZE=128
+EPOCHS=2
+PDATA=3000
+# First generate the model; will auto leave with serial file
+mpirun -n 1 python main.py --serial-file True --percent-data=$PDATA --steps 32 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --model_dimension 384 --num_heads 6
+python main_serial.py --percent-data=$PDATA --steps 32 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --model_dimension 384 --num_heads 6
+rm serialnet_bert_32
+
+# First generate the model; will auto leave with serial file
+mpirun -n 1 python main.py --serial-file True --percent-data=$PDATA --steps 64 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --model_dimension 384 --num_heads 6
+python main_serial.py --percent-data=$PDATA --steps 64 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --model_dimension 384 --num_heads 6
+rm serialnet_bert_64
+
+# First generate the model; will auto leave with serial file
+mpirun -n 1 python main.py --serial-file True --percent-data=$PDATA --steps 128 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --model_dimension 384 --num_heads 6
+python main_serial.py --percent-data=$PDATA --steps 128 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --model_dimension 384 --num_heads 6
+rm serialnet_bert_128
+
+# ----------------------------------------------------------
+
+# -------------------- GENERATE ACCURACY ------------------------------ 
+# First generate the model; will auto leave with serial file
+#mpirun -n 1 python main.py --serial-file True --percent-data .01 --steps 32 --epochs 2 --batch-size 32 --model_dimension 384 --num_heads 6
+#python main_serial.py --percent-data .01 --steps 32 --epochs 3 --batch-size 32 --model_dimension 384 --num_heads 6
+#rm serialnet_bert_32
+
+# First generate the model; will auto leave with serial file
+#mpirun -n 1 python main.py --serial-file True --percent-data .01 --steps 64 --epochs 2 --batch-size 32 --model_dimension 384 --num_heads 6
+#python main_serial.py --percent-data .01 --steps 64 --epochs 3 --batch-size 32 --model_dimension 384 --num_heads 6
+#rm serialnet_bert_64
+
+# First generate the model; will auto leave with serial file
+#mpirun -n 1 python main.py --serial-file True --percent-data .01 --steps 128 --epochs 2 --batch-size 32 --model_dimension 384 --num_heads 6
+#python main_serial.py --percent-data .01 --steps 128 --epochs 3 --batch-size 32 --model_dimension 384 --num_heads 6
+#rm serialnet_bert_128
+
+# ----------------------------------------------------------
+
 
 # mpirun -n 2 python main.py
 
