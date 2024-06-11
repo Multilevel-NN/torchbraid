@@ -5,7 +5,8 @@ import tqdm
 
 # lang_src, lang_tgt = 'de', 'en'
 lang_src, lang_tgt = 'en', 'de'
-dir_data = '../data/deen_translation/'
+# dir_data = '../data/deen_translation/'
+dir_data = ''
 if 'data' not in os.listdir('..'): dir_data = '../' + dir_data
 fn = {
   'train': {

@@ -101,8 +101,8 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device):
 
     stop_time = timer()
     optimizer.step()
-    
-    # if rank == 0: 
+
+    # if rank == 0:
     #   root_print(rank, f'rank{rank}, batch_idx {batch_idx}, data {data}, target {target}, loss {loss}')
     #   for p in model.parameters(): root_print(rank, f'{p.shape}, {p.ravel()[:10]}')
     #   sys.exit()
@@ -220,8 +220,11 @@ def main():
 
   # Finish assembling training and test datasets
   root_print(rank, 'Loading dataset')
-  data_path_train = '/users/msalvado/MLT/ML_PQ/data/en_gum-ud-train.conllu.txt'
-  data_path_dev = '/users/msalvado/MLT/ML_PQ/data/en_gum-ud-dev.conllu.txt'
+  # data_path_train = '/users/msalvado/MLT/ML_PQ/data/en_gum-ud-train.conllu.txt'
+  # data_path_dev = '/users/msalvado/MLT/ML_PQ/data/en_gum-ud-dev.conllu.txt'
+  data_path_train = 'en_gum-ud-train.conllu.txt'
+  data_path_dev = 'en_gum-ud-dev.conllu.txt'
+
   train_ds, eval_ds, train_dl, eval_dl, vocabs = obtain_ds_dl(data_path_train, data_path_dev, args.batch_size, max_len=2048)
   train_set, test_set, train_loader, test_loader = train_ds, eval_ds, train_dl, eval_dl
   # root_print(rank, f'{len(train_loader)}, {next(iter(train_loader))}')
