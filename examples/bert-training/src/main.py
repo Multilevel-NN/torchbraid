@@ -263,7 +263,7 @@ def test(rank, model, test_loader, compose, device):
 # Parallel printing helper function  
 def root_print(rank, s):
   if rank == 0:
-    print(s)
+    print(s, flush='True')
 
 class ScheduledOptim():
     '''A simple wrapper class for learning rate scheduling'''
