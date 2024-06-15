@@ -126,10 +126,11 @@ class ForwardODENetApp(BraidApp):
         """
         ind = bisect_right(self.indices,global_index)
         layer = self.functors[ind]()
-        if self.counts[ind]==1:
+        if 0 and self.counts[ind]==1:
           # if its just one time step, assume the does not want an ODE layer
           layer = ForwardODENetApp.PlainBlock(layer)
         else:
+          print('Marc modification: forced ODEBlock')
           layer = ForwardODENetApp.ODEBlock(layer)
     
         layer = layer.to(device)

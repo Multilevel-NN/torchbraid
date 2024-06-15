@@ -23,8 +23,7 @@ from mpi4py import MPI
 
 from model_utils.positional_encoding import PositionalEncoding
 from model_utils.F_enc import F_enc
-from model_utils.F_dec_SA import F_dec_SA
-from model_utils.F_dec_MHA_FF import F_dec_MHA_FF
+from model_utils.F_dec import F_dec
 
 __all__ = [
   'OpenLayer', 'CloseLayer', 'StepLayer', 'parse_args', 'ParallelNet',
@@ -161,14 +160,14 @@ class StepLayer_enc(nn.Module):
     # print(f'x={x}')
     return x
 
-class StepLayer_dec_SA(nn.Module):
+class StepLayer_dec(nn.Module):
   def __init__(
-    self, model_dimension, num_heads, dropout, batch_size, source_length, 
-    device,
+    self, model_dimension, num_heads, dim_ff, dropout, batch_size, 
+    source_length, device,
   ):
     super().__init__()
     torch.manual_seed(0)
-    self.F = F_dec_SA(model_dimension, num_heads, dropout, False)
+    self.F = F_dec(model_dimension, num_heads, dim_ff, dropout, False)
 
     self.zeros_tensor = torch.zeros(
       size=(source_length, batch_size, model_dimension), device=device,
@@ -179,39 +178,15 @@ class StepLayer_dec_SA(nn.Module):
     mem, y = x
     y = self.F(
       x=y, 
+      memory=mem,
       tgt_mask=tgt_attention_mask, 
       tgt_key_padding_mask=tgt_padding_mask, 
-    )
-    x = torch.stack((self.zeros_tensor[:, :mem.shape[1]], y))
-    # t1 = time.time()
-    # print(f'Fwd time decoder layer: {t1 - t0} seconds')
-
-    return x
-
-class StepLayer_dec_CA_MLP(nn.Module):
-  def __init__(self, model_dimension, num_heads, dim_ff, dropout, batch_size, 
-               source_length, device):
-    super().__init__()
-    torch.manual_seed(0)
-    self.F = F_dec_MHA_FF(
-      model_dimension, num_heads, dim_ff, dropout, False,
-    )
-    self.zeros_tensor = torch.zeros(
-      size=(source_length, batch_size, model_dimension), device=device,
-    )
-
-  def forward(self, x):
-    # t0 = time.time()
-    mem, y = x
-    y = self.F(
-      x=y, 
-      memory=mem, 
       mem_key_padding_mask=mem_padding_mask,
     )
     x = torch.stack((self.zeros_tensor[:, :mem.shape[1]], y))
     # t1 = time.time()
     # print(f'Fwd time decoder layer: {t1 - t0} seconds')
-    # print(f'y={x}')
+    print(f'y={x}')
 
     return x
 
@@ -241,27 +216,27 @@ class ParallelNet(nn.Module):
       model_dimension, num_heads, dim_ff, dropout, batch_size, target_length, 
       device,
     )
-    # step_layer_dec = lambda: StepLayer_dec(d=model_dimension, num_heads=num_heads, dim_ff=dim_ff, batch_size=batch_size, source_length=source_length, target_length=target_length, device=device)
-    step_layer_dec_selfonly = lambda: StepLayer_dec_SA(
-      model_dimension, num_heads, dropout, batch_size, source_length, device,
-    )
-    step_layer_dec_crossmlponly = lambda: StepLayer_dec_CA_MLP(
-      model_dimension, num_heads, dim_ff, dropout, batch_size, source_length, 
-      device,
+    step_layer_dec = lambda: StepLayer_dec(
+      model_dimension=model_dimension, num_heads=num_heads, dim_ff=dim_ff, 
+      dropout=dropout, batch_size=batch_size, source_length=source_length, 
+      device=device,
     )
 
-    # layers = [step_layer_enc, step_layer_dec]
-    # num_steps = [local_steps*numprocs, local_steps*numprocs]#[num_encoder_layers, num_decoder_layers]
+    layers = [step_layer_enc, step_layer_dec]
+    num_steps = [local_steps*numprocs, local_steps*numprocs]#[num_encoder_layers, num_decoder_layers]
+    # layers = [step_layer_enc]
+    # num_steps = [local_steps*numprocs]
+
     # num_steps = [local_steps*numprocs * 5//4, local_steps*numprocs * 3//4]
-    layers, num_steps = [], []
-    for i in range(local_steps * numprocs): 
-      layers.append(step_layer_enc)
-      num_steps.append(1)
-    for i in range(local_steps * numprocs):
-      layers.append(step_layer_dec_selfonly)
-      num_steps.append(1)
-      layers.append(step_layer_dec_crossmlponly)
-      num_steps.append(1)
+    # layers, num_steps = [], []
+    # for i in range(local_steps * numprocs): 
+    #   layers.append(step_layer_enc)
+    #   num_steps.append(1)
+    # for i in range(local_steps * numprocs):
+    #   layers.append(step_layer_dec_selfonly)
+    #   num_steps.append(1)
+    #   layers.append(step_layer_dec_crossmlponly)
+    #   num_steps.append(1)
 
     self.parallel_nn = torchbraid.LayerParallel(
       comm_lp, 
@@ -532,6 +507,7 @@ def parse_args():
 
 ####################################################################################
 ####################################################################################
+
 
 
 

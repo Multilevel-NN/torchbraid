@@ -609,7 +609,9 @@ def main():
 
   # datetime = dt.datetime.now().strftime('%Y%m%d%H%M%S')
   # load_save_path = f'../stored_models/n{num_procs}_{datetime}.pt'
-  load_save_path = f'../stored_models/n{num_procs}_Tf{args.Tf}.pt'
+  shortcut_ni_interpolation        = ['Co', 'Li'][int(args.ni_interpolation        == 'linear')]
+  shortcut_ni_interpolate_momentum = ['F' , 'T' ][int(args.ni_interpolate_momentum == 'True'  )]
+  load_save_path = f'../stored_models/n{num_procs}_In{shortcut_ni_interpolation}_InMo{shortcut_ni_interpolate_momentum}.pt'
   if args.load:
     checkpoint = torch.load(load_save_path)
     model    .load_state_dict(checkpoint.pop('model_state'    ))
@@ -638,7 +640,7 @@ def main():
   interpolate_momentum = args.ni_interpolate_momentum == 'True'
 
   previous_model = None
-  patience = 10
+  patience = lambda level: 10 if level != 0 else 20
   previous_model_best_accuracy = -1.
   for level in range(ni_starting_level, 1):
     level_global_steps =  args.steps // args.ni_cfactor**(-level)
@@ -677,7 +679,7 @@ def main():
     epoch = 0
     current_model_best_accuracy = -1.
 
-    while too_slow_improvement_ctr < patience or \
+    while too_slow_improvement_ctr < patience(level) or \
           validation_accuracy < previous_model_best_accuracy:
       if epoch > 0:
         start_time = timer()

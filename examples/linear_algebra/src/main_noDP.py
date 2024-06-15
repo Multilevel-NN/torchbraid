@@ -65,7 +65,9 @@ import torchbraid.utils
 from torchvision import datasets, transforms
 import sys
 
-from network_architecture import parse_args, ParallelNet, SerialNet
+from network_architecture import parse_args, ParallelNet, SerialNet; print('no-joint')
+# from network_architecture_joint import parse_args, ParallelNet, SerialNet; print('joint')
+# from network_architecture_semijoint import parse_args, ParallelNet, SerialNet; print('semijoint')
 from mpi4py import MPI
 
 from cosine_warmup_scheduler import CosineWarmupScheduler
@@ -98,7 +100,18 @@ def train_epoch(
     )
     batch_fwd_pass_end = time.time()
 
+    # print(f'src={src}')
+    # print(f'input_tgt={input_tgt}')
+    # print(f'output_tgt={output_tgt}')
+    # print(f'output={output}')
+
+    # for p in model.parameters(): 
+    #   print(p.ravel()[:3].tolist() + p.ravel()[-3:].tolist())
+
+    # sys.exit()
+
     batch_bwd_pass_start = time.time()
+    loss.clip(max=.1)
     loss.backward()
     batch_bwd_pass_end = time.time()
 
@@ -110,7 +123,7 @@ def train_epoch(
       print(f'rank={rank}, Batch idx: {batch_idx}')
       print(f'rank={rank}, Batch fwd pass time: {batch_fwd_pass_end - batch_fwd_pass_start}')
       print(f'rank={rank}, Batch bwd pass time: {batch_bwd_pass_end - batch_bwd_pass_start}')
-      if batch_idx == 11: import sys; sys.exit()
+      if batch_idx == 11: sys.exit()
 
     predictions = output.argmax(dim=-1)
     correct = (
@@ -118,12 +131,20 @@ def train_epoch(
       + (output_tgt  == target_vocabulary.pad_id)
     ).prod(axis=-1).sum().item()
     total = output_tgt.shape[0]
+    # print(f'predictions={predictions}')
+    # print(f'output_tgt={output_tgt}')
+    # correct = (
+    #     (predictions == output_tgt              ) \
+    #   * (output_tgt  != target_vocabulary.pad_id)
+    # ).sum().item()
+    # total = (output_tgt != target_vocabulary.pad_id).sum().item()
 
     times.append(stop_time - start_time)
     losses    .append(loss.item()                       )
     accuracies.append(correct/total if total > 0 else 0.)
 
-    if debug and batch_idx == 1: break
+    # if debug and batch_idx == 1: break
+    # root_print(rank, f'loss={loss}')
 
     if batch_idx == 5000: break
 
@@ -155,12 +176,19 @@ def validate(
         output_tgt.reshape(-1),
       )
 
+      # sys.exit()
+
       predictions = output.argmax(dim=-1)
       correct += (
         (predictions == output_tgt              ) \
       + (output_tgt  == target_vocabulary.pad_id)
       ).prod(axis=-1).sum().item()
       total += output_tgt.shape[0]
+      # correct += (
+      #     (predictions == output_tgt              ) \
+      #   * (output_tgt  != target_vocabulary.pad_id)
+      # ).sum().item()
+      # total += (output_tgt != target_vocabulary.pad_id).sum().item()
 
       losses.append(loss.item())
 
@@ -270,7 +298,8 @@ def main():
     model.parallel_nn.bwd_app.setTimerFile(
       f'b_bwd_s_{args.steps}_bs_{args.batch_size}_p_{num_procs}')
 
-  elif num_procs == 1:
+  else:
+    assert num_procs == 1, 'If enforce_serial, num_procs must be 1'
     root_print(rank, 'Building SerialNet...')
     model = SerialNet(
       args.model_dimension, args.num_heads, args.dim_ff, args.dropout, 
@@ -280,7 +309,7 @@ def main():
     ).to(device)
     model.compose = lambda op, *p: op(*p)
 
-  else: raise Exception('If enforce_serial, num_procs must be 1')
+  print(f'model={model}')
 
   # print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
   # Declare optimizer  
