@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=lang-model
-#SBATCH --time=08:30:00
-#SBATCH --output=ml.out
-#SBATCH --error=ml.err
+#SBATCH --time=20:30:00
+#SBATCH --output=ml_multi.out
+#SBATCH --error=ml_multi.err
 #SBATCH --nodelist=sn[5-16]
 
-#SBATCH --nodes=1
+#SBATCH --nodes=2
 #SBATCH --partition=ampere
 #SBATCH --ntasks-per-node=1
 
@@ -20,4 +20,7 @@ module load python/3.10.8
 
 source ~/braids/pip-test/bin/activate
 
-mpirun -n 1 python main.py --percent-data .01 --steps 32 --epochs 4 --batch-size 32 --lp-max-levels 1 --lp-bwd-max-iters 1 --lp-fwd-max-iters 3 --lp-cfactor 4 --model_dimension 384 --num_heads 6 --lp-print-level 0 --lp-braid-print-level 0 --Tf 1
+mpirun -n 2 python main.py --percent-data .01 --steps 32 --epochs 2 --batch-size 32 --lp-max-levels 2 --lp-bwd-max-iters 1 --lp-fwd-max-iters 3 --lp-cfactor 4 --model_dimension 384 --num_heads 6 --lp-print-level 1 --lp-braid-print-level 1 --Tf 1 --serial-file True
+mpirun -n 2 python main.py --percent-data .01 --steps 64 --epochs 2 --batch-size 32 --lp-max-levels 2 --lp-bwd-max-iters 1 --lp-fwd-max-iters 3 --lp-cfactor 4 --model_dimension 384 --num_heads 6 --lp-print-level 1 --lp-braid-print-level 1 --Tf 1 --serial-file True
+
+

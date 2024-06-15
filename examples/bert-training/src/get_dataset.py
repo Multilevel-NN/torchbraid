@@ -6,7 +6,7 @@ import random
 from torch.utils.data import Dataset
 
 # Modified from https://medium.com/data-and-beyond/complete-guide-to-building-bert-model-from-sratch-3e6562228891
-class BERTDataset(Dataset):
+class MyBERTDataset(Dataset):
     """
     Construct a BERT Dataset by 
 
@@ -33,38 +33,56 @@ class BERTDataset(Dataset):
         t2_random, t2_label = self.random_word(t2)
 
         # Step 3: now put it all together with CLS, SEP and finish with PAD
-        t1 = [self.tokenizer.vocab['[CLS]']] + t1_random + [self.tokenizer.vocab['[SEP]']]
-        t2 = t2_random + [self.tokenizer.vocab['[SEP]']]
-        t1_label = [self.tokenizer.vocab['[PAD]']] + t1_label + [self.tokenizer.vocab['[PAD]']]
-        t2_label = t2_label + [self.tokenizer.vocab['[PAD]']]
+        # Assuming t1_random and t2_random are already PyTorch tensors
+        CLS_token = torch.tensor([self.tokenizer.vocab['[CLS]']], dtype=t1_random.dtype, device=t1_random.device)
+        SEP_token = torch.tensor([self.tokenizer.vocab['[SEP]']], dtype=t1_random.dtype, device=t1_random.device)
+        PAD_token = torch.tensor([self.tokenizer.vocab['[PAD]']], dtype=t1_label.dtype, device=t1_label.device)
+
+        # For t1 and t1_label
+        t1 = torch.cat((CLS_token, t1_random, SEP_token))  # Insert [CLS] at the beginning and append [SEP] at the end
+        t1_label = torch.cat((PAD_token, t1_label, PAD_token))  # Insert [PAD] at the beginning and append [PAD] at the end
+        
+        # For t2 and t2_label
+        t2 = torch.cat((t2_random, SEP_token))  # Append [SEP] at the end
+        t2_label = torch.cat((t2_label, PAD_token))  # Append [PAD] at the end
 
         # Step 4; combine into 1
-        segment_label = ([1 for _ in range(len(t1))] + [2 for _ in range(len(t2))])[:self.seq_len]
-        bert_input = (t1 + t2)[:self.seq_len]
-        bert_label = (t1_label + t2_label)[:self.seq_len]
-        padding = [self.tokenizer.vocab['[PAD]'] for _ in range(self.seq_len - len(bert_input))]
-        bert_input.extend(padding), bert_label.extend(padding), segment_label.extend(padding)
+        segment_label_t1 = torch.ones(len(t1), dtype=torch.long, device=t1.device)
+        segment_label_t2 = torch.full((len(t2),), 2, dtype=torch.long, device=t2.device)  # Using 2 for the second segment
+        segment_label = torch.cat((segment_label_t1, segment_label_t2))[:self.seq_len]
+        
+        # Concatenate t1 and t2 for bert_input and their labels
+        bert_input = torch.cat((t1, t2))[:self.seq_len]
+        bert_label = torch.cat((t1_label, t2_label))[:self.seq_len]
+        
+        # Padding
+        PAD_token = self.tokenizer.vocab['[PAD]']
+        if len(bert_input) < self.seq_len:
+            padding_length = self.seq_len - len(bert_input)
+            padding = torch.full((padding_length,), PAD_token, dtype=bert_input.dtype, device=bert_input.device)
+            bert_input = torch.cat((bert_input, padding))
+            bert_label = torch.cat((bert_label, padding))
+            segment_label = torch.cat((segment_label, padding))
         
         output = {"bert_input": bert_input,
                   "bert_label": bert_label,
                   "segment_label": segment_label,
                   "is_next": is_next_label}
 
-        return {key: torch.tensor(value) for key, value in output.items()}
+        return output
+
     def get_sent(self, index):
         """
         Grab random sentence pair by splitting the tokens randomly. This only samples the first part, but it's okay. 
 
         Randomly generates split, then randomly gives correct second or incorrect second sentence
         """
-        
         # Strip [CLS], [SEP] from each entry and truncate (- 3 so that we need to put back in CLS, and two SEPs)
         tokens = self.tokenized_data[index]['input_ids'][1:-1]
         num_tokens = len(tokens)
         if num_tokens > self.seq_len - 3:
             tokens = tokens[0:self.seq_len - 3]
             num_tokens = len(tokens)
-        # print(index, tokens, self.tokenizer.decode(tokens))
 
         ind_split = random.randrange(1, num_tokens - 1) 
 
@@ -73,7 +91,7 @@ class BERTDataset(Dataset):
 
         # negative or positive pair, for next sentence prediction
         if random.random() > 0.5:
-            return t1, t2, 1
+            return torch.tensor(t1), torch.tensor(t2), 1
         else:
             # Need to grab random line and make it correct so that length is less than or equal to original t2
             rand_sentence = self.tokenized_data[random.randrange(len(self.tokenized_data))]['input_ids'][1:-1]
@@ -83,55 +101,53 @@ class BERTDataset(Dataset):
                 new_ind = random.randrange(0, len(rand_sentence) - len(t2))
                 t2 = rand_sentence[new_ind:new_ind + len(t2)]
 
-            return t1, t2, 0
+            return torch.tensor(t1), torch.tensor(t2), 0
 
     def random_word(self, sentence):
-        output_label = []
-        output = []
-
-        for i, token_id in enumerate(sentence):
-            prob = random.random()
-            
-            # 15% of the tokens would be replaced
-            if prob < 0.15:
-                prob /= 0.15
-
-                # 80% chance change token to mask token
-                if prob < 0.8:
-                    output.append(self.tokenizer.vocab['[MASK]'])
-
-                # 10% chance change token to random token (don't want to give it bad tokens, start from 1000 which is where BERT Tokenizer has good tokens
-                elif prob < 0.9:
-                    output.append(random.randrange(1000, len(self.tokenizer.vocab)))
-
-                # 10% chance change token to current token
-                else:
-                    output.append(token_id)
-
-                output_label.append(token_id)
-
-            else:
-                output.append(token_id)
-                output_label.append(0)
-
-        # flattening (don't have to do this)
-        # output = list(itertools.chain(*[[x] if not isinstance(x, list) else x for x in output]))
-        # output_label = list(itertools.chain(*[[x] if not isinstance(x, list) else x for x in output_label]))
-        assert len(output) == len(output_label)
-
-        return output, output_label
-        
+        # Assuming 'sentence' is a PyTorch tensor
+        output_label = torch.zeros_like(sentence)
+        output = sentence.clone()  # Create a copy of the input tensor for output
+    
+        # Calculate probabilities for each token in one go
+        probs = torch.rand(sentence.size())
+        mask_indices = (probs < 0.15).nonzero(as_tuple=True)[0]  # Indices where tokens will be modified
+    
+        # Calculate sub-probabilities for actions within the 15% chance
+        action_probs = torch.rand(mask_indices.size(0))
+    
+        # 80% chance change token to mask token
+        mask_tokens = mask_indices[action_probs < 0.8]
+        output[mask_tokens] = self.tokenizer.vocab['[MASK]']
+    
+        # 10% chance change token to random token
+        random_tokens = mask_indices[(action_probs >= 0.8) & (action_probs < 0.9)]
+        if len(random_tokens) > 0:
+            output[random_tokens] = torch.randint(1000, len(self.tokenizer.vocab), (len(random_tokens),))
+    
+        # For the 10% chance to keep the same token, no action is needed as we've copied the original tokens
+    
+        # Update output_label for changed tokens
+        output_label[mask_indices] = sentence[mask_indices]
+    
+        return output, output_label        
 
 def obtain_dataset(percent_data:float = 0.01, seq_len: int = 128):
     """
     See Jupyter for logic here
     """
     # Hard code for now
-    # bookcorpus_train = load_dataset('bookcorpus', split=f'train[:{int(percent_data * 100)}%]')
-    # wiki_train = load_dataset("wikipedia", "20220301.simple", split=f'train[:{int(percent_data * 100)}%]')
+    if percent_data > 1:
+        split = f'train[:{int(percent_data)}]'
+    else:
+        split = f'train[:{int(percent_data * 100)}%]'
+    bookcorpus_train = load_dataset('bookcorpus', split=split, trust_remote_code=True)
+    wiki_train = load_dataset("wikipedia", "20220301.simple", split=split, trust_remote_code=True)
 
-    bookcorpus_train = load_dataset('bookcorpus', split=f'train[0:50000]')
-    wiki_train = load_dataset("wikipedia", "20220301.simple", split=f'train[0:50000]')
+    # bookcorpus_train = load_dataset('bookcorpus', split=f'train[0:25000]')
+    # wiki_train = load_dataset("wikipedia", "20220301.simple", split=f'train[0:25000]')
+
+    # bookcorpus_train = load_dataset('bookcorpus', split=f'train[0:100]')
+    # wiki_train = load_dataset("wikipedia", "20220301.simple", split=f'train[0:100]')
 
     wiki_train = wiki_train.remove_columns([col for col in wiki_train.column_names if col != "text"]) # Only keep text
     assert bookcorpus_train.features.type == wiki_train.features.type
@@ -151,12 +167,9 @@ def obtain_dataset(percent_data:float = 0.01, seq_len: int = 128):
         return len(examples['input_ids']) > 6
 
     # preprocess dataset
-    tokenized_datasets = raw_datasets.map(group_texts, batched=True, remove_columns=["text"]).filter(
-        filter_short
+    tokenized_datasets = raw_datasets.map(group_texts, batched=True, remove_columns=["text"], num_proc=8).filter(
+        filter_short, num_proc=8
     )
     # print(tokenized_datasets)
 
-    return BERTDataset(tokenized_datasets, tokenizer, seq_len), tokenizer.vocab_size
-
-if __name__ == "__main__":
-    print("Run with main please.")
+    return MyBERTDataset(tokenized_datasets, tokenizer, seq_len), tokenizer.vocab_size
