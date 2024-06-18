@@ -105,13 +105,17 @@ class OpenLayer(nn.Module):
     return y, tgt_attention_mask, tgt_padding_mask
 
   def forward(self, src, tgt):
+    global src_padding_mask, tgt_padding_mask, mem_padding_mask, \
+           tgt_attention_mask
+
     x, src_padding_mask, mem_padding_mask   = self.embed_src(src)
     y, tgt_attention_mask, tgt_padding_mask = self.embed_tgt(tgt)
 
-    return (
-      x, y, tgt_attention_mask, src_padding_mask, tgt_padding_mask, 
-      mem_padding_mask,
-    )
+    # return (
+    #   x, y, tgt_attention_mask, src_padding_mask, tgt_padding_mask, 
+    #   mem_padding_mask,
+    # )
+    return torch.stack((x, y))
 # end layer
 
 class CloseLayer(nn.Module):
@@ -186,7 +190,7 @@ class StepLayer_dec(nn.Module):
     x = torch.stack((self.zeros_tensor[:, :mem.shape[1]], y))
     # t1 = time.time()
     # print(f'Fwd time decoder layer: {t1 - t0} seconds')
-    print(f'y={x}')
+    # print(f'y={x}')
 
     return x
 
@@ -294,9 +298,20 @@ class ParallelNet(nn.Module):
     global tgt_attention_mask, src_padding_mask, tgt_padding_mask, \
            mem_padding_mask
 
-    (x, y, tgt_attention_mask, src_padding_mask, tgt_padding_mask, 
-    mem_padding_mask,) = self.compose(self.open_nn, src, tgt)
-    x = torch.stack((x, y))
+    tgt_attention_mask = 'asfd'
+    src_padding_mask   = 'asdf'
+    tgt_padding_mask   = 'asdf'
+    mem_padding_mask   = 'asdf'
+
+    # (x, y, tgt_attention_mask, src_padding_mask, tgt_padding_mask, 
+    # mem_padding_mask,) = self.compose(self.open_nn, src, tgt)
+    # x = torch.stack((x, y))
+    x = self.compose(self.open_nn, src, tgt)
+
+    tgt_attention_mask, src_padding_mask, tgt_padding_mask, mem_padding_mask = \
+      self.comm_lp.bcast([tgt_attention_mask, src_padding_mask, 
+                          tgt_padding_mask  , mem_padding_mask,], root=0)
+
     t0_continuous_block_time = time.time()
     x = self.parallel_nn(x)
     t1_continuous_block_time = time.time()
@@ -323,25 +338,16 @@ class SerialNet(nn.Module):
       model_dimension, num_heads, dim_ff, dropout, batch_size, target_length, 
       device,
     )
-    step_layer_dec_selfonly = lambda: StepLayer_dec_SA(
-      model_dimension, num_heads, dropout, batch_size, source_length, device,
-    )
-    step_layer_dec_crossmlponly = lambda: StepLayer_dec_CA_MLP(
-      model_dimension, num_heads, dim_ff, dropout, batch_size, source_length, 
-      device,
+    step_layer_dec = lambda: StepLayer_dec(
+      model_dimension=model_dimension, num_heads=num_heads, dim_ff=dim_ff, 
+      dropout=dropout, batch_size=batch_size, source_length=source_length, 
+      device=device,
     )
 
     numprocs = 1
 
-    layers, num_steps = [], []
-    for i in range(local_steps * numprocs): 
-      layers.append(step_layer_enc)
-      num_steps.append(1)
-    for i in range(local_steps * numprocs):
-      layers.append(step_layer_dec_selfonly)
-      num_steps.append(1)
-      layers.append(step_layer_dec_crossmlponly)
-      num_steps.append(1)
+    layers = [step_layer_enc, step_layer_dec]
+    num_steps = [local_steps*numprocs, local_steps*numprocs]#[num_encoder_layers, num_decoder_layers]
 
     if serial_nn is None:
       parallel_nn = torchbraid.LayerParallel(
@@ -368,12 +374,10 @@ class SerialNet(nn.Module):
       self.close_nn = close_nn
 
   def forward(self, src, tgt):
-    global tgt_attention_mask, src_padding_mask, tgt_padding_mask, \
-           mem_padding_mask
+    # global tgt_attention_mask, src_padding_mask, tgt_padding_mask, \
+    #        mem_padding_mask
 
-    (x, y, tgt_attention_mask, src_padding_mask, tgt_padding_mask, 
-    mem_padding_mask,) = self.open_nn(src, tgt)
-    x = torch.stack((x, y))
+    x = self.open_nn(src, tgt)
     x = self.serial_nn(x)
     mem, y = x
     y = self.close_nn(y)

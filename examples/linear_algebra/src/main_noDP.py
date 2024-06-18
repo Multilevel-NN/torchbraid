@@ -65,8 +65,8 @@ import torchbraid.utils
 from torchvision import datasets, transforms
 import sys
 
-from network_architecture import parse_args, ParallelNet, SerialNet; print('no-joint')
-# from network_architecture_joint import parse_args, ParallelNet, SerialNet; print('joint')
+# from network_architecture import parse_args, ParallelNet, SerialNet; print('split')
+from network_architecture_joint import parse_args, ParallelNet, SerialNet; print('joint')
 # from network_architecture_semijoint import parse_args, ParallelNet, SerialNet; print('semijoint')
 from mpi4py import MPI
 
@@ -119,7 +119,7 @@ def train_epoch(
     optimizer.step()
     if batch_scheduler is not None: batch_scheduler.step()
 
-    if 0:
+    if 1:
       print(f'rank={rank}, Batch idx: {batch_idx}')
       print(f'rank={rank}, Batch fwd pass time: {batch_fwd_pass_end - batch_fwd_pass_start}')
       print(f'rank={rank}, Batch bwd pass time: {batch_bwd_pass_end - batch_bwd_pass_start}')
@@ -386,16 +386,16 @@ def main():
       + f', training accuracy: {training_accuracies[-1]*100}%',
       )
 
-    validation_loss, validation_accuracy = validate(
-      rank=rank, model=model, validation_data_loader=validation_data_loader,
-      compose=model.compose, device=device, 
-      target_vocabulary=target_vocabulary, debug=args.debug,
-    )
-    root_print(
-      rank, 
-      f'Validation loss: {validation_loss}' \
-    + f', validation accuracy: {validation_accuracy*100}%',
-    )
+    # validation_loss, validation_accuracy = validate(
+    #   rank=rank, model=model, validation_data_loader=validation_data_loader,
+    #   compose=model.compose, device=device, 
+    #   target_vocabulary=target_vocabulary, debug=args.debug,
+    # )
+    # root_print(
+    #   rank, 
+    #   f'Validation loss: {validation_loss}' \
+    # + f', validation accuracy: {validation_accuracy*100}%',
+    # )
 
   root_print(rank, 'Training finished.')
 

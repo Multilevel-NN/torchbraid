@@ -106,13 +106,17 @@ class OpenLayer(nn.Module):
     return y, tgt_attention_mask, tgt_padding_mask
 
   def forward(self, src, tgt):
+    global src_padding_mask, tgt_padding_mask, mem_padding_mask, \
+           tgt_attention_mask
+
     x, src_padding_mask, mem_padding_mask   = self.embed_src(src)
     y, tgt_attention_mask, tgt_padding_mask = self.embed_tgt(tgt)
 
-    return (
-      x, y, tgt_attention_mask, src_padding_mask, tgt_padding_mask, 
-      mem_padding_mask,
-    )
+    # return (
+    #   x, y, tgt_attention_mask, src_padding_mask, tgt_padding_mask, 
+    #   mem_padding_mask,
+    # )
+    return torch.stack((x, y))
 # end layer
 
 class CloseLayer(nn.Module):
@@ -319,9 +323,20 @@ class ParallelNet(nn.Module):
     global tgt_attention_mask, src_padding_mask, tgt_padding_mask, \
            mem_padding_mask
 
-    (x, y, tgt_attention_mask, src_padding_mask, tgt_padding_mask, 
-    mem_padding_mask,) = self.compose(self.open_nn, src, tgt)
-    x = torch.stack((x, y))
+    tgt_attention_mask = 'asfd'
+    src_padding_mask   = 'asdf'
+    tgt_padding_mask   = 'asdf'
+    mem_padding_mask   = 'asdf'
+
+    # (x, y, tgt_attention_mask, src_padding_mask, tgt_padding_mask, 
+    # mem_padding_mask,) = self.compose(self.open_nn, src, tgt)
+    # x = torch.stack((x, y))
+    x = self.compose(self.open_nn, src, tgt)
+
+    tgt_attention_mask, src_padding_mask, tgt_padding_mask, mem_padding_mask = \
+      self.comm_lp.bcast([tgt_attention_mask, src_padding_mask, 
+                          tgt_padding_mask  , mem_padding_mask,], root=0)
+
     t0_continuous_block_time = time.time()
     x = self.parallel_nn(x)
     t1_continuous_block_time = time.time()
@@ -393,12 +408,12 @@ class SerialNet(nn.Module):
       self.close_nn = close_nn
 
   def forward(self, src, tgt):
-    global tgt_attention_mask, src_padding_mask, tgt_padding_mask, \
-           mem_padding_mask
-
-    (x, y, tgt_attention_mask, src_padding_mask, tgt_padding_mask, 
-    mem_padding_mask,) = self.open_nn(src, tgt)
-    x = torch.stack((x, y))
+    # global tgt_attention_mask, src_padding_mask, tgt_padding_mask, \
+    #        mem_padding_mask
+    # (x, y, tgt_attention_mask, src_padding_mask, tgt_padding_mask, 
+    # mem_padding_mask,) = self.open_nn(src, tgt)
+    # x = torch.stack((x, y))
+    x = self.open_nn(src, tgt)
     x = self.serial_nn(x)
     mem, y = x
     y = self.close_nn(y)
