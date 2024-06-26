@@ -1,3 +1,4 @@
+import time
 import torch.nn as nn
 
 class F_enc(nn.TransformerEncoderLayer):
@@ -8,10 +9,15 @@ class F_enc(nn.TransformerEncoderLayer):
     )
 
   def forward(self, x, src_mask, src_key_padding_mask):
+    t0 = time.time()
     SA_x = self.sa_block(
       x, attn_mask=src_mask, key_padding_mask=src_key_padding_mask,
     )
+    t1 = time.time()
     FF_x = self.ff_block(x + SA_x)
+    t2 = time.time()
+
+    if 1: print(f'ENC: SA_time={t1-t0:.4f}, FF_time={t2-t1:.4f}')
 
     return SA_x + FF_x
 

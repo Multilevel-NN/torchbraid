@@ -1,3 +1,4 @@
+import time
 import torch.nn as nn
 
 class F_dec_MHA_FF(nn.TransformerDecoderLayer):
@@ -10,11 +11,15 @@ class F_dec_MHA_FF(nn.TransformerDecoderLayer):
   def forward(
     self, x, memory, mem_key_padding_mask,
   ):
+    t0 = time.time()
     MHA_x = self.mha_block(
       x, mem=memory, attn_mask=None, 
       key_padding_mask=mem_key_padding_mask,
     )
+    t1 = time.time()
     FF_x = self.ff_block(x + MHA_x)
+    t2 = time.time()
+    if 1: print(f'MHA-time={t1-t0:.4f}, FF-time={t2-t1:.4f}')
     
     return MHA_x + FF_x
 

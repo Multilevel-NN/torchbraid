@@ -66,8 +66,8 @@ class OpenLayer(nn.Module):
   def embed_src(self, src):  # src: [b, L]
     ## Padding masks for attention
     # src_padding_mask = torch.where(src.eq(self.pad_token_id), -np.inf, 0)  # src_padding_mask: [b, L]
-    src_padding_mask = (src == self.source_vocabulary.pad_id)  # src_padding_mask: [b, L]
-    mem_padding_mask = src_padding_mask                        # mem_padding_mask: [b, L]
+    # src_padding_mask = (src == self.source_vocabulary.pad_id)  # src_padding_mask: [b, L]
+    # mem_padding_mask = src_padding_mask                        # mem_padding_mask: [b, L]
 
     src = src.transpose(0, 1)   # (L, b)
 
@@ -80,17 +80,17 @@ class OpenLayer(nn.Module):
     ## Positional encoding
     x = self.positional_encoder(x)  # x: [L, b, d]
 
-    return x, src_padding_mask, mem_padding_mask
+    return x#, src_padding_mask, mem_padding_mask
 
   def embed_tgt(self, tgt):  # y: [b, L']
     ## Causal mask for attention
-    Lp = tgt.shape[1]
-    tgt_attention_mask = nn.Transformer.generate_square_subsequent_mask(sz=Lp) \
-                         .to(self.device)    # (Lp, Lp)
+    # Lp = tgt.shape[1]
+    # tgt_attention_mask = nn.Transformer.generate_square_subsequent_mask(sz=Lp) \
+    #                      .to(self.device)    # (Lp, Lp)
 
     ## Padding mask for attention
     # tgt_padding_mask = torch.where(tgt.eq(self.pad_token_id), -np.inf, 0)  # tgt_padding_mask: [b, L']
-    tgt_padding_mask = (tgt == self.target_vocabulary.pad_id)  # tgt_padding_mask: [b, L']
+    # tgt_padding_mask = (tgt == self.target_vocabulary.pad_id)  # tgt_padding_mask: [b, L']
 
     tgt = tgt.transpose(0, 1)   # (L', b)
 
@@ -103,14 +103,16 @@ class OpenLayer(nn.Module):
     ## Positional encoding
     y = self.positional_encoder(y)  # y: [L', b, d]
 
-    return y, tgt_attention_mask, tgt_padding_mask
+    return y#, tgt_attention_mask, tgt_padding_mask
 
   def forward(self, src, tgt):
-    global src_padding_mask, tgt_padding_mask, mem_padding_mask, \
-           tgt_attention_mask
+    # global src_padding_mask, tgt_padding_mask, mem_padding_mask, \
+    #        tgt_attention_mask
 
-    x, src_padding_mask, mem_padding_mask   = self.embed_src(src)
-    y, tgt_attention_mask, tgt_padding_mask = self.embed_tgt(tgt)
+    # x, src_padding_mask, mem_padding_mask   = self.embed_src(src)
+    # y, tgt_attention_mask, tgt_padding_mask = self.embed_tgt(tgt)
+    x = self.embed_src(src)
+    y = self.embed_tgt(tgt)
 
     # return (
     #   x, y, tgt_attention_mask, src_padding_mask, tgt_padding_mask, 
@@ -156,7 +158,7 @@ class StepLayer_enc(nn.Module):
     x, y = x
     x = self.F(x=x,
       src_mask=None,
-      src_key_padding_mask=src_padding_mask,
+      src_key_padding_mask=None,#src_padding_mask,
     )
     # x = torch.stack((x, torch.zeros_like(y)))
     x = torch.stack((x, self.zeros_tensor[:, :y.shape[1]]))
@@ -183,8 +185,8 @@ class StepLayer_dec_SA(nn.Module):
     mem, y = x
     y = self.F(
       x=y, 
-      tgt_mask=tgt_attention_mask, 
-      tgt_key_padding_mask=tgt_padding_mask, 
+      tgt_mask=None,#tgt_attention_mask, 
+      tgt_key_padding_mask=None,#tgt_padding_mask, 
     )
     x = torch.stack((self.zeros_tensor[:, :mem.shape[1]], y))
     # t1 = time.time()
@@ -210,7 +212,7 @@ class StepLayer_dec_CA_MLP(nn.Module):
     y = self.F(
       x=y, 
       memory=mem, 
-      mem_key_padding_mask=mem_padding_mask,
+      mem_key_padding_mask=None,#mem_padding_mask,
     )
     x = torch.stack((self.zeros_tensor[:, :mem.shape[1]], y))
     # t1 = time.time()
@@ -320,41 +322,33 @@ class ParallelNet(nn.Module):
   def forward(self, src, tgt):
     # by passing this through 'o' (mean composition: e.g. self.open_nn o x)
     # this makes sure this is run on only processor 0
-    global tgt_attention_mask, src_padding_mask, tgt_padding_mask, \
-           mem_padding_mask
+    # global tgt_attention_mask, src_padding_mask, tgt_padding_mask, \
+    #        mem_padding_mask
 
-    tgt_attention_mask = 'asfd'
-    src_padding_mask   = 'asdf'
-    tgt_padding_mask   = 'asdf'
-    mem_padding_mask   = 'asdf'
+    # tgt_attention_mask = 'asfd'
+    # src_padding_mask   = 'asdf'
+    # tgt_padding_mask   = 'asdf'
+    # mem_padding_mask   = 'asdf'
 
     # (x, y, tgt_attention_mask, src_padding_mask, tgt_padding_mask, 
     # mem_padding_mask,) = self.compose(self.open_nn, src, tgt)
     # x = torch.stack((x, y))
-    t0_open_layer_time = time.time()
     x = self.compose(self.open_nn, src, tgt)
-    t1_open_layer_time = time.time()
 
-    t0_masks_comm_time = time.time()
-    tgt_attention_mask, src_padding_mask, tgt_padding_mask, mem_padding_mask = \
-      self.comm_lp.bcast([tgt_attention_mask, src_padding_mask, 
-                          tgt_padding_mask  , mem_padding_mask,], root=0)
-    t1_masks_comm_time = time.time()
+    # tgt_attention_mask, src_padding_mask, tgt_padding_mask, mem_padding_mask = \
+    #   self.comm_lp.bcast([tgt_attention_mask, src_padding_mask, 
+    #                       tgt_padding_mask  , mem_padding_mask,], root=0)
 
     t0_continuous_block_time = time.time()
     x = self.parallel_nn(x)
     t1_continuous_block_time = time.time()
-
-    t0_close_layer_time = time.time()
     mem, y = x
     y = self.compose(self.close_nn, y)
-    t1_close_layer_time = time.time()
 
     lp_rank = self.comm_lp.Get_rank()
     dp_rank = self.comm_dp.Get_rank() if self.comm_dp is not None else None
-    if 1:
-      # print(f'''lp_rank={lp_rank}, dp_rank={dp_rank}: {t1_continuous_block_time - t0_continuous_block_time :.4f}''')
-      print(f'''lp_rank={lp_rank}, dp_rank={dp_rank}, open={t1_open_layer_time - t0_open_layer_time:.4f}, masks-comm={t1_masks_comm_time - t0_masks_comm_time}, CB={t1_continuous_block_time - t0_continuous_block_time :.4f}, close={t1_close_layer_time - t0_close_layer_time}''')
+    if 0:
+      print(f'''lp_rank={lp_rank}, dp_rank={dp_rank}: {t1_continuous_block_time - t0_continuous_block_time :.4f}''')
 
     return y
 

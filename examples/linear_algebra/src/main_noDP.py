@@ -65,9 +65,10 @@ import torchbraid.utils
 from torchvision import datasets, transforms
 import sys
 
-# from network_architecture import parse_args, ParallelNet, SerialNet; print('split')
-from network_architecture_joint import parse_args, ParallelNet, SerialNet; print('joint')
+from network_architecture import parse_args, ParallelNet, SerialNet; print('split')
+# from network_architecture_joint import parse_args, ParallelNet, SerialNet; print('joint')
 # from network_architecture_semijoint import parse_args, ParallelNet, SerialNet; print('semijoint')
+# from network_architecture_womasks import parse_args, ParallelNet, SerialNet; print('split-womasks')
 from mpi4py import MPI
 
 from cosine_warmup_scheduler import CosineWarmupScheduler
@@ -293,10 +294,17 @@ def main():
     ).to(device)
 
     # Detailed XBraid timings are output to these files for the forward and backward phases
+    model.parallel_nn.fwd_app.setBraidTimers(flag=1)
     model.parallel_nn.fwd_app.setTimerFile(
-      f'b_fwd_s_{args.steps}_bs_{args.batch_size}_p_{num_procs}')
+      #f'b_fwd_s_{args.steps}_bs_{args.batch_size}_p_{num_procs}'
+      '/users/msalvado/fwd'
+    )
+    model.parallel_nn.bwd_app.setBraidTimers(flag=1)
     model.parallel_nn.bwd_app.setTimerFile(
-      f'b_bwd_s_{args.steps}_bs_{args.batch_size}_p_{num_procs}')
+      #f'b_bwd_s_{args.steps}_bs_{args.batch_size}_p_{num_procs}'
+      '/users/msalvado/bwd'
+    )
+    print('model.parallel_nn.bwd_app braid and timers initialized')
 
   else:
     assert num_procs == 1, 'If enforce_serial, num_procs must be 1'
