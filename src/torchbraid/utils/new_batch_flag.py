@@ -61,9 +61,9 @@ class NBFlag:
     """
     Convenience function to change the state of flag
     """
-    # print(f'IN UPDATE NB FLAG 1 {nb_flag=} {state=}')
+    # print(f'IN UPDATE NB FLAG 1 {nb_flag=} {nb_flag.device}')
     nb_flag += 1
-    # print(f'in update: {nb_flag=}')
+    #print(f'in update: {nb_flag=}')
     # print(f'IN UPDATE NB FLAG 2 {nb_flag=} {hex(id(nb_flag))=} {state=}')
 
   @staticmethod

@@ -60,7 +60,9 @@ class LPDropout(NBFlagMixin, nn.Module):
         # self.register_buffer("nb_flag", nb_flag) 
 
         self.int_counter = torch.tensor(1)
-        # self.register_buffer("int_counter", int_counter)
+        self.custom_multiple = torch.randint(2, 10000, (1,)) # This should be unique to each dropout, making each layer's different
+        #self.register_buffer("int_counter", int_counter)
+        #print(f'{self.custom_multiple=} ')
 
         self.mask = None
 
@@ -73,7 +75,7 @@ class LPDropout(NBFlagMixin, nn.Module):
         if self.mask is None: 
             torch.manual_seed(0)
 
-            # print(f'\t Generating mask; init could be due to dry run')
+            #print(f'\t Generating mask; init could be due to dry run')
 
             binomial = torch.distributions.binomial.Binomial(probs=1-self.p)
             self.mask = binomial.sample(input.size()) * (1.0/(1-self.p)) 
@@ -84,10 +86,11 @@ class LPDropout(NBFlagMixin, nn.Module):
         if self.int_counter != self.nb_flag:
             self.int_counter = self.nb_flag.detach().clone()
 
-            torch.manual_seed(self.int_counter)
+            torch.manual_seed(self.int_counter + self.custom_multiple)
             binomial = torch.distributions.binomial.Binomial(probs=1-self.p)
             self.mask = binomial.sample(input.size()) * (1.0/(1-self.p))
-            # print(f'\tGenerating mask:{self.nb_flag=} {self.int_counter=} {hex(id(self))=} {self.mask=}')
+            #print(f'\t Generated mask:{self.nb_flag=} {self.int_counter=} {hex(id(self))=} {self.mask[0, 0, 0]=}')
+            #print(f'\t {self.mask[0, 0, 0:3]=}')
 
             
         return input * self.mask
