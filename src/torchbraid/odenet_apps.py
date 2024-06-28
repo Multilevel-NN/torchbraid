@@ -56,7 +56,6 @@ class ForwardODENetApp(BraidApp):
     """This is a helper class to wrap layers that should be ODE time steps."""
     def __init__(self,layer):
       super(ForwardODENetApp.ODEBlock, self).__init__()
-
       self.layer = layer
 
       param = [v for v in signature(self.layer.forward).parameters.values()]
@@ -68,12 +67,12 @@ class ForwardODENetApp(BraidApp):
 
     def forward(self, dt, x,*args,**kwargs):
       if self.dt_custom:
-        # Note that we do not do the residual layer here; assumed handled explicitly
+        # For multi-step case
         y = self.layer(x, dt, *args, **kwargs)
+        # print('in multi')
       else:
         y = dt*self.layer(x,*args,**kwargs)
         y.add_(x)
-
       return y
   # end ODEBlock
 
@@ -84,7 +83,14 @@ class ForwardODENetApp(BraidApp):
 
       self.layer = layer
 
+      if len(signature(self.layer.forward).parameters) == 1:
+        self.dt_custom = False
+      else:
+        self.dt_custom = True
+
     def forward(self,dt, x,*args,**kwargs):
+      if self.dt_custom:
+        return self.layer(x, dt, *args, **kwargs)
       return self.layer(x,*args,**kwargs)
   # end ODEBlock
 
@@ -446,6 +452,7 @@ class ForwardODENetApp(BraidApp):
 
   def run(self,x,extra_args,extra_kwargs):
     self.layers_data_structure.incrementLayerNBFlag()
+    # print('Incremented flag???')
     
     self.beginUpdateWeights()
     self.endUpdateWeights()
