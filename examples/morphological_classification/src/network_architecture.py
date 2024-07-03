@@ -201,7 +201,7 @@ class ParallelNet(nn.Module):
     x = self.parallel_nn(x)
     t1 = time.time()
     x = self.compose(self.close_nn, x)
-    if 0: print(f'rank={self.rank}, CB-time: {t1 - t0} seconds')
+    if 1: print(f'lp_rank={self.rank}, CB-time: {t1 - t0} seconds')
 
     return x
 
@@ -328,7 +328,7 @@ def parse_args():
 
   # parser.add_argument('--ni_starting_level', type=int, default=0)
   parser.add_argument('--ni_cfactor'             , type=int, default=2)
-  parser.add_argument('--ni_num_levels'          , type=int, default=2)
+  parser.add_argument('--ni_num_levels'          , type=int, default=1)
   parser.add_argument('--ni_interpolation'       , type=str, default='constant')
   parser.add_argument('--ni_interpolate_momentum', type=str, default='True')
 

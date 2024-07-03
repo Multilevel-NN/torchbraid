@@ -17,7 +17,7 @@ class F_enc(nn.TransformerEncoderLayer):
     FF_x = self.ff_block(x + SA_x)
     t2 = time.time()
 
-    if 1: print(f'ENC: SA_time={t1-t0:.4f}, FF_time={t2-t1:.4f}')
+    if 0: print(f'ENC: SA_time={t1-t0:.4f}, FF_time={t2-t1:.4f}')
 
     return SA_x + FF_x
 

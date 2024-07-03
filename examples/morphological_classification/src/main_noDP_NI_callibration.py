@@ -106,11 +106,12 @@ def train_epoch(
     optimizer.step()
     if batch_scheduler is not None: batch_scheduler.step()
 
-    if 0:
+    if 1:
       print(f'rank={rank}, Batch idx: {batch_idx}')
       print(f'rank={rank}, Batch fwd pass time: {batch_fwd_pass_end - batch_fwd_pass_start}')
       print(f'rank={rank}, Batch bwd pass time: {batch_bwd_pass_end - batch_bwd_pass_start}')
       if batch_idx == 11: import sys; sys.exit()
+      if batch_idx ==  2: import sys; sys.exit()
 
     predictions = output.argmax(dim=-1)
     correct = (

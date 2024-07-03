@@ -19,7 +19,7 @@ class F_dec_MHA_FF(nn.TransformerDecoderLayer):
     t1 = time.time()
     FF_x = self.ff_block(x + MHA_x)
     t2 = time.time()
-    if 1: print(f'MHA-time={t1-t0:.4f}, FF-time={t2-t1:.4f}')
+    if 0: print(f'MHA-time={t1-t0:.4f}, FF-time={t2-t1:.4f}')
     
     return MHA_x + FF_x
 

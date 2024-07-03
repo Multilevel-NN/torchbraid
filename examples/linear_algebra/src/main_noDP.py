@@ -125,6 +125,7 @@ def train_epoch(
       print(f'rank={rank}, Batch fwd pass time: {batch_fwd_pass_end - batch_fwd_pass_start}')
       print(f'rank={rank}, Batch bwd pass time: {batch_bwd_pass_end - batch_bwd_pass_start}')
       if batch_idx == 11: sys.exit()
+      if batch_idx ==  2: sys.exit()
 
     predictions = output.argmax(dim=-1)
     correct = (

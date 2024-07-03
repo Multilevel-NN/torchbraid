@@ -15,7 +15,7 @@ class F_dec_SA(nn.TransformerDecoderLayer):
       x, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask,
     )
     t1 = time.time()
-    if 1: print(f'DEC: SA-time={t1-t0:.4f}')
+    if 0: print(f'DEC: SA-time={t1-t0:.4f}')
     
     return SA_x
 

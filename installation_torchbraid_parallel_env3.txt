@@ -1,0 +1,32 @@
+cd
+conda deactivate
+rm -rf .cache/
+rm -rf .local/lib/python3.9/site-packages/
+module load daint-gpu cray-python 
+cd $SCRATCH
+rm -rf envs/tb3_18_02_2024
+rm -rf torchbraid3_18_02_2024
+mkdir torchbraid3_18_02_2024
+cd torchbraid3_18_02_2024
+git clone https://github.com/Multilevel-NN/torchbraid.git -b transformer2
+export MPICC=cc
+conda create --prefix $SCRATCH/envs/tb3_18_02_2024 cudatoolkit-dev=11.7 pytorch-cuda=11.7 pytorch=1.13  -c conda-forge -c nvidia -c pytorch -y
+conda activate /scratch/snx3000/msalvado/envs/tb3_18_02_2024
+LDFLAGS="-L$CONDA_PREFIX/lib/ -lcudart -lcuda" MPICC=cc pip install mpi4py --no-cache --force-reinstall
+/opt/python/3.9.4.1/bin/python3.9 -m pip install --upgrade pip
+export MPICC=cc
+cd torchbraid
+vim setup.py # --> 58:'numpy==1.22', 59:'torch', 60:'torchvision', 28: [...,'MPICC=cc']  # 1.16.5 !! 
+# install_requires = [
+  'setuptools',
+  'mpi4py',
+  'cython==0.29.32',
+  'numpy',
+  'torch==2.0.1',
+  'torchvision==0.15.2',
+  'matplotlib'
+]
+cd ..
+MPICC=cc CC=cc LDSHARED="cc -pthread -shared -Wl,-rpath,/opt/python/3.9.4.1/lib,-build-id -fPIC" pip install torchbraid/
+export MPICH_RDMA_ENABLED_CUDA=1
+srun -lu -N 4  -A c24 -C gpu  python -u  torchbraid/examples/mnist/mnist_script.py
