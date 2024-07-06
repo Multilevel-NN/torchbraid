@@ -53,6 +53,18 @@ from torch.utils.data import DataLoader
 ####################################################################################
 ####################################################################################
 
+def int_or_tuple(value):
+  try:
+    # Check if the value is an integer
+    return int(value)
+  except ValueError:
+    # Check if the value is a tuple-like object
+    try:
+      elements = tuple(map(int, value.strip('()').split(',')))
+      return elements
+    except ValueError:
+      raise argparse.ArgumentTypeError("Invalid value. Must be an integer or a tuple-like object.")
+        
 # Parse command line 
 def parse_args():
   """
@@ -87,8 +99,8 @@ def parse_args():
                       help='learning rate (default: 1e-4)')
   
   # algorithmic settings (layer-parallel)
-  parser.add_argument('--lp-max-levels', type=int, default=3, metavar='N',
-                      help='Layer parallel max number of levels (default: 3)')
+  parser.add_argument('--lp-max-levels', type=int_or_tuple, default=(1,2), metavar='N',
+                      help='Layer parallel max number of levels (default: (1,2) one forward, 2 backwards)')
   parser.add_argument('--lp-bwd-max-iters', type=int, default=1, metavar='N',
                       help='Layer parallel max backward iterations (default: 1)')
   parser.add_argument('--lp-fwd-max-iters', type=int, default=2, metavar='N',
@@ -136,21 +148,6 @@ def parse_args():
     sys.exit(0)
   else:
     procs_lp = int(procs / args.dp_size)
-
-  ##
-  # Compute number of parallel-in-time multigrid levels 
-  def compute_levels(num_steps, min_coarse_size, cfactor):
-    from math import log, floor
-    # Find L such that ( max_L min_coarse_size*cfactor**L <= num_steps)
-    levels = floor(log(float(num_steps) / min_coarse_size, cfactor)) + 1
-
-    if levels < 1:
-      levels = 1
-    return levels
-
-  if args.lp_max_levels < 1:
-    min_coarse_size = 3
-    args.lp_max_levels = compute_levels(args.steps, min_coarse_size, args.lp_cfactor)
 
   if args.steps % procs_lp != 0:
     root_print(rank, 1, 1, 'Steps must be an even multiple of the number of layer parallel processors: %d %d'
