@@ -56,7 +56,7 @@ install_requires = [
   'mpi4py',
   'cython==0.29.32',
   'numpy',
-  'torch==2.0.1',
+  'torch==2.2.0',
   'torchvision==0.15.2',
   'matplotlib'
 ]
