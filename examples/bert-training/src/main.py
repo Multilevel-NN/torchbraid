@@ -211,6 +211,9 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device, 
     bwd_times.append(batch_bwd_pass_end - batch_bwd_pass_start)
     losses.append(loss.item())
 
+    if batch_idx == 400: 
+        break
+
     if batch_idx % params.log_interval == 0:
       root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tLR: {:.2e}'.format(
         epoch, batch_idx * len(data), len(train_loader.dataset),
@@ -443,7 +446,7 @@ def main():
     epoch_points = np.arange(1, len(test_losses)+1) * len(train_loader)
     ax2.plot( epoch_points, test_losses, color='r', linestyle='dashed', linewidth=2, marker='o')
     ax2.set_ylabel(r"Validation loss", fontsize=13, color='r')
-    plt.savefig(f'bert_layerparallel_training_{procs}_{args.steps}_{args.lp_fwd_max_iters}.png', bbox_inches="tight")
+    plt.savefig(f'bert_layerparallel_training_{procs}_{args.steps}_{args.lp_fwd_max_iters}_{args.lp_max_levels}.png', bbox_inches="tight")
 
     # Save to file
     # Save the NumPy array to a file
@@ -482,7 +485,7 @@ def main():
     plt.tight_layout()
 
     # Save the figure
-    plt.savefig(f'timing_data_plots_{procs}_{args.steps}_{args.lp_fwd_max_iters}.png')
+    plt.savefig(f'timing_data_plots_{procs}_{args.steps}_{args.lp_max_levels}.png')
 
 
 if __name__ == '__main__':

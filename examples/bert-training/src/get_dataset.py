@@ -44,26 +44,28 @@ class MyBERTDataset(Dataset):
 
         # Step 4: combine into one
         # Step 4a: if too long, truncate evenly first
-        if len(t1_random) + len(t1_random) + 3 > self.seq_len:   # plus 3 for number of tokens additional
-            # Usually won't happen, can be more inefficient
-            total_length = len(t1_random) + len(t2_random) + 3 
+        if len(t1_random) + len(t2_random) + 3 > self.seq_len:   # plus 3 for number of tokens additional
+            total_length = len(t1_random) + len(t2_random) + 3 # Include 3 additional tokens
             excess_length = total_length - self.seq_len # This is the total number tokens which needs to be truncated
 
-            # Truncate proportionally            
+            # Truncate proportionally
             len_t1 = len(t1_random) - int(len(t1_random) / total_length * excess_length)
             len_t2 = len(t2_random) - int(len(t2_random) / total_length * excess_length)
 
-            # Do dumb corrections 
-            if len_t1 + len_t2 + 3 > self.seq_len:
-                len_t2 -= (len_t1 + len_t2 + 3)  - self.seq_len
+            # Ensure the total length is exactly self.seq_len; a bit dumb and inefficient but it's okay
+            while len_t1 + len_t2 + 3 > self.seq_len:
+                if len_t1 > len_t2:
+                    len_t1 -= 1
+                else:
+                    len_t2 -= 1            
 
             t1_random = t1_random[:len_t1]
             t2_random = t2_random[:len_t2]
             t1_label = t1_label[:len_t1]
             t2_label = t2_label[:len_t2]
 
-            assert len(t1_random) + len(t2_random) + 3 == self.seq_len
-            
+            assert len(t1_random) + len(t2_random) + 3 == self.seq_len, f'{len(t1_random) + len(t2_random) + 3=} {len(t1_random) - len_t1} {len(t2_random) - len_t2}, {self.seq_len}'
+
         # For t1 and t1_label
         t1 = torch.cat((CLS_token, t1_random, SEP_token))  # Insert [CLS] at the beginning and append [SEP] at the end
         t1_label = torch.cat((PAD_token, t1_label, PAD_token))  # Insert [PAD] at the beginning and append [PAD] at the end
@@ -87,7 +89,7 @@ class MyBERTDataset(Dataset):
             bert_label = torch.cat((bert_label, padding))
             segment_label = torch.cat((segment_label, padding))
 
-        assert len(bert_input) == self.seq_len
+        assert len(bert_input) == self.seq_len, f"{len(bert_input)=} {self.seq_len=} {bert_input=}"
         assert len(bert_label) == self.seq_len
         assert len(segment_label) == self.seq_len
         
@@ -157,7 +159,7 @@ def preprocess_paragraphs(paragraphs, nlp):
         sentences = [sent.text.strip() for sent in doc.sents]
         if len(sentences) >= 2:
             # There might be an issue where half the data is overly related; e.g. (sentence 1, sentence 2), (sentence 2, sentence 3) sentence 2 appears twice! 
-            sentence_pairs = [(sentences[i], sentences[i+1]) for i in range(len(sentences) - 1)] 
+            sentence_pairs = [(sentences[i], sentences[i+1]) for i in range(len(sentences) - 1) if len(sentences[i]) > 1 and len(sentences[i + 1]) > 1] 
             sentence_pairs_batch.extend(sentence_pairs)   
     return sentence_pairs_batch
 
@@ -205,7 +207,7 @@ def obtain_dataset(percent_data:float = 0.01, seq_len: int = 128):
         result = preprocess_articles(batch, nlp)
         return result
         
-    processed_dataset = wiki_train.map(my_map, batched=True, remove_columns=wiki_train.column_names, batch_size=32)
+    processed_dataset = wiki_train.map(my_map, batched=True, remove_columns=wiki_train.column_names, batch_size=32, load_from_cache_file=False)
 
     # Load pretrained tokenizer
     tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
@@ -217,7 +219,7 @@ def obtain_dataset(percent_data:float = 0.01, seq_len: int = 128):
         return tokenized_inputs
     
     # preprocess dataset
-    tokenized_datasets = processed_dataset.map(group_texts, batched=True,  num_proc=8) # remove_columns=["text"],
+    tokenized_datasets = processed_dataset.map(group_texts, batched=True,  num_proc=8, load_from_cache_file=False) # remove_columns=["text"],
         
     return MyBERTDataset(tokenized_datasets, tokenizer, seq_len), tokenizer.vocab_size
 
