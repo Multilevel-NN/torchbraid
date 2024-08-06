@@ -352,7 +352,7 @@ class ParallelNet(nn.Module):
 
     lp_rank = self.comm_lp.Get_rank()
     dp_rank = self.comm_dp.Get_rank() if self.comm_dp is not None else None
-    if 1:
+    if 0:
       # print(f'''lp_rank={lp_rank}, dp_rank={dp_rank}: {t1_continuous_block_time - t0_continuous_block_time :.4f}''')
       print(f'''lp_rank={lp_rank}, dp_rank={dp_rank}, open={t1_open_layer_time - t0_open_layer_time:.4f}, masks-comm={t1_masks_comm_time - t0_masks_comm_time}, CB={t1_continuous_block_time - t0_continuous_block_time :.4f}, close={t1_close_layer_time - t0_close_layer_time}''')
 
@@ -505,6 +505,8 @@ def parse_args():
   parser.add_argument('--scheduler', type=str, default=None)
   parser.add_argument('--debug', action='store_true')
   parser.add_argument('--enforce_serial', action='store_true')
+  parser.add_argument('--save', action='store_true')
+  parser.add_argument('--scale', action='store_true')
 
   ##
   # Do some parameter checking

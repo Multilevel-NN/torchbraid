@@ -462,6 +462,7 @@ def parse_args():
   parser.add_argument('--scheduler', type=str, default=None)
   parser.add_argument('--debug', action='store_true')
   parser.add_argument('--enforce_serial', action='store_true')
+  parser.add_argument('--scale', action='store_true')
 
   ##
   # Do some parameter checking

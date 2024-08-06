@@ -65,8 +65,8 @@ import torchbraid.utils
 from torchvision import datasets, transforms
 import sys
 
-from network_architecture import parse_args, ParallelNet, SerialNet; print('split')
-# from network_architecture_joint import parse_args, ParallelNet, SerialNet; print('joint')
+# from network_architecture import parse_args, ParallelNet, SerialNet; print('split')
+from network_architecture_joint import parse_args, ParallelNet, SerialNet; print('joint')
 # from network_architecture_semijoint import parse_args, ParallelNet, SerialNet; print('semijoint')
 # from network_architecture_womasks import parse_args, ParallelNet, SerialNet; print('split-womasks')
 from mpi4py import MPI
@@ -81,7 +81,7 @@ from data import obtain_data
 # Return values: per batch losses and training times, model parameters updated in-place
 def train_epoch(
   rank, params, model, training_data_loader, optimizer, batch_scheduler, 
-  epoch, compose, device, target_vocabulary, debug,
+  epoch, compose, device, target_vocabulary, debug, scale,
 ):
   losses, accuracies, times = [], [], []
   model.train()
@@ -120,12 +120,12 @@ def train_epoch(
     optimizer.step()
     if batch_scheduler is not None: batch_scheduler.step()
 
-    if 1:
+    if scale:
       print(f'rank={rank}, Batch idx: {batch_idx}')
       print(f'rank={rank}, Batch fwd pass time: {batch_fwd_pass_end - batch_fwd_pass_start}')
       print(f'rank={rank}, Batch bwd pass time: {batch_bwd_pass_end - batch_bwd_pass_start}')
       if batch_idx == 11: sys.exit()
-      if batch_idx ==  2: sys.exit()
+      # if batch_idx ==  2: sys.exit()
 
     predictions = output.argmax(dim=-1)
     correct = (
@@ -144,9 +144,6 @@ def train_epoch(
     times.append(stop_time - start_time)
     losses    .append(loss.item()                       )
     accuracies.append(correct/total if total > 0 else 0.)
-
-    # if debug and batch_idx == 1: break
-    # root_print(rank, f'loss={loss}')
 
     if batch_idx == 5000: break
 
@@ -194,8 +191,6 @@ def validate(
 
       losses.append(loss.item())
 
-      if debug and batch_idx == 1: break
-      
       if batch_idx == 500: break
 
   loss = np.mean(losses)
@@ -350,7 +345,7 @@ def main():
   root_print(rank, f'epoch_scheduler={epoch_scheduler}')
   root_print(rank, f'batch_scheduler={batch_scheduler}')
 
-  # load_save_path = f'../stored_models/n{num_procs}_seed{args.seed}.pt'
+  load_save_path = f'../stored_models/n{num_procs}_N{args.steps}_cf{args.lp_cfactor}.pt'
   # if args.load:
   #   checkpoint = torch.load(load_save_path)
   #   model    .load_state_dict(checkpoint.pop('model_state'    ))
@@ -373,6 +368,7 @@ def main():
         training_data_loader=training_data_loader, optimizer=optimizer, 
         batch_scheduler=batch_scheduler, epoch=epoch, compose=model.compose, 
         device=device, target_vocabulary=target_vocabulary, debug=args.debug,
+        scale=args.scale,
       )
       training_losses    .append(np.mean(training_loss    ))
       training_accuracies.append(np.mean(training_accuracy))
@@ -380,13 +376,13 @@ def main():
 
       if epoch_scheduler is not None: epoch_scheduler.step()
 
-      # if args.save: 
-      #   checkpoint = {
-      #     'model_state': model.state_dict(), 
-      #     'optimizer_state': optimizer.state_dict(), 
-      #     'last_epoch': epoch,
-      #   }
-        # torch.save(checkpoint, load_save_path)
+      if args.save: 
+        checkpoint = {
+          'model_state': model.state_dict(), 
+          'optimizer_state': optimizer.state_dict(), 
+          'last_epoch': epoch,
+        }
+        torch.save(checkpoint, load_save_path)
 
       root_print(rank, f'Epoch {epoch}, Training time: {training_times[-1]}')
       root_print(
@@ -395,16 +391,17 @@ def main():
       + f', training accuracy: {training_accuracies[-1]*100}%',
       )
 
-    # validation_loss, validation_accuracy = validate(
-    #   rank=rank, model=model, validation_data_loader=validation_data_loader,
-    #   compose=model.compose, device=device, 
-    #   target_vocabulary=target_vocabulary, debug=args.debug,
-    # )
-    # root_print(
-    #   rank, 
-    #   f'Validation loss: {validation_loss}' \
-    # + f', validation accuracy: {validation_accuracy*100}%',
-    # )
+    if not args.scale:
+      validation_loss, validation_accuracy = validate(
+        rank=rank, model=model, validation_data_loader=validation_data_loader,
+        compose=model.compose, device=device, 
+        target_vocabulary=target_vocabulary, debug=args.debug,
+      )
+      root_print(
+        rank, 
+        f'Validation loss: {validation_loss}' \
+      + f', validation accuracy: {validation_accuracy*100}%',
+      )
 
   root_print(rank, 'Training finished.')
 
