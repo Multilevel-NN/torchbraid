@@ -79,11 +79,15 @@ def init_weights(module):
 def train(rank, params, model, optimizer, epoch, compose, device, criterion,
   train_loader, scheduler):
   train_times = []
+  fwd_times = []
+  bwd_times = []
+
   losses = []
   total_time = 0.0
   corr, tot = 0, 0
 
   model.train()
+
   for batch_idx, (data, target) in enumerate(train_loader):
     # print(batch_idx, data.shape, target.shape)
     start_time = timer()
@@ -91,9 +95,10 @@ def train(rank, params, model, optimizer, epoch, compose, device, criterion,
 
     batch_fwd_pass_start = time.time()
     output = model(data)
+    batch_fwd_pass_end = time.time()
+
     loss = compose(criterion, output.reshape(-1, output.shape[-1]), target.reshape(-1))
     #loss += .0001 * model.get_forward_reg()
-    batch_fwd_pass_end = time.time()
     
     optimizer.zero_grad(set_to_none=True)
 
@@ -107,25 +112,33 @@ def train(rank, params, model, optimizer, epoch, compose, device, criterion,
 
     total_time += stop_time - start_time
     train_times.append(stop_time - start_time)
+    fwd_times.append(batch_fwd_pass_end - batch_fwd_pass_start)
+    bwd_times.append(batch_bwd_pass_end - batch_bwd_pass_start)
+
     losses.append(loss.item())
+
+    if batch_idx == 3500:
+        break
 
     if batch_idx % params.log_interval == 0:
       root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} LR {:.2e}'.format(
         epoch, batch_idx * len(data), len(train_loader.dataset),
                100. * batch_idx / len(train_loader), loss.item(), float(scheduler.get_lr()[0])))
-      root_print(
-         rank, f'\t Magnitude of data {torch.norm(data.float()):.3e} output {torch.norm(output):.3e} target {torch.norm(target.float()):.3e}'
-      )
+
+    del loss, output
+      #root_print(
+      #   rank, f'\t Magnitude of data {torch.norm(data.float()):.3e} output {torch.norm(output):.3e} target {torch.norm(target.float()):.3e}'
+      #)
       #root_print(
       #  rank, f'\t {model.get_forward_reg()=:.3e}'
       #)
 
-  root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} LR {:.2e}'.format(
-    epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
-           100. * (batch_idx + 1) / len(train_loader), loss.item(), float(scheduler.get_lr()[0])))
+  # root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} LR {:.2e}'.format(
+  #   epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
+  #          100. * (batch_idx + 1) / len(train_loader), loss.item(), float(scheduler.get_lr()[0])))
 
 
-  return losses, train_times
+  return losses, train_times, fwd_times, bwd_times
 
 ##
 # Evaluate model on validation data
@@ -133,7 +146,7 @@ def train(rank, params, model, optimizer, epoch, compose, device, criterion,
 def test(rank, model, test_loader, compose, device):
   model.eval()
   test_loss = 0
-  criterion = nn.CrossEntropyLoss()
+  criterion = nn.CrossEntropyLoss(ignore_index=-1)
 
   with torch.no_grad():
     for (data, target) in test_loader:
@@ -215,10 +228,10 @@ def main():
 
   # Create dataloader 
   train_dataset = TextDataset(train_data, args.context_window)
-  train_loader  = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, drop_last=True)
+  train_loader  = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, drop_last=True, pin_memory=True)
 
   val_dataset   = TextDataset(val_data, args.context_window)
-  val_loader    = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, drop_last=True)
+  val_loader    = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, drop_last=True, pin_memory=True)
 
   # Diagnostic information
   root_print(rank, '-- procs    = {}\n'
@@ -254,55 +267,32 @@ def main():
                   Tf=args.Tf,
                   relax_only_cg=False,
                   user_mpi_buf=args.lp_user_mpi_buf).to(device)
-  # model.saveSerialNet('serialnet_pretrain')
 
-  # torch.manual_seed(0)
-  # model.open_nn    .apply(init_weights)
-  # model.close_nn   .apply(init_weights)
-  # model.parallel_nn.apply(init_weights)
+  if args.serial_file:
+      model.saveSerialNet(f'serialnet_gpt_{args.steps}')
+      print('Saved file')
 
-  # if rank == 0:
-  #   for p in model.parameters():
-  #     root_print(rank, f'{p.shape} {p.ravel()[:10]}')
-  # sys.exit()
-  
-
-  # Detailed XBraid timings are output to these files for the forward and backward phases
-  #model.parallel_nn.fwd_app.setTimerFile(
-  #  f'b_fwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
-  #model.parallel_nn.bwd_app.setTimerFile(
-  #  f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
+      import sys
+      sys.exit()
 
   # Declare optimizer  
   print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
   print(f'rank {rank}: {sum(p.numel() for p in model.parameters() if p.requires_grad)}')
-  # optimizer = optim.AdamW(model.parameters(), lr=args.lr)
-  # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.98), eps=1e-09)
-  optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.98), eps=1e-09, weight_decay=0.01)
+  optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.95), eps=1e-09, weight_decay=1e-1)
 
   # Choose shorter warm-up if using shakespeare
-  warmup = 50 if args.input_text == 'shakespeare' else 1000
+  warmup = 2000
   scheduler = CosineWarmupScheduler(optimizer, warmup=int(warmup), 
                                       max_iters=args.epochs*len(train_loader))
-  criterion = nn.CrossEntropyLoss()
-
-  # For better timings (especially with GPUs) do a little warm up
-  if args.warm_up:
-    warm_up_timer = timer()
-    train(rank=rank, params=args, model=model, optimizer=optimizer, epoch=0,
-          compose=model.compose, device=device, criterion=criterion)
-    model.parallel_nn.timer_manager.resetTimers()
-    model.parallel_nn.fwd_app.resetBraidTimer()
-    model.parallel_nn.bwd_app.resetBraidTimer()
-    if use_cuda:
-      torch.cuda.synchronize()
-    root_print(rank, f'\nWarm up timer {timer() - warm_up_timer}\n')
+  criterion = nn.CrossEntropyLoss(ignore_index=-1)
 
   # Carry out parallel training
   batch_losses = [] 
   test_losses = []
   batch_times = []
   epoch_times = [] 
+  forward_times = []
+  backward_times = []
   test_times = []
   # validat_correct_counts = []
 
@@ -312,19 +302,22 @@ def main():
     torch.manual_seed(epoch)
 
     start_time = timer()
-    [losses, train_times] = train(rank=rank, params=args, model=model, optimizer=optimizer, epoch=epoch,
+    [losses, train_times, batch_f_times, batch_b_times] = train(rank=rank, params=args, model=model, optimizer=optimizer, epoch=epoch,
           compose=model.compose, device=device, criterion=criterion,
           train_loader=train_loader, scheduler=scheduler)
     epoch_times += [timer() - start_time]
     batch_losses += losses
     batch_times += train_times
+    forward_times += batch_f_times
+    backward_times += batch_b_times
     
     start_time = timer()
-    validat_loss = test(rank=rank, model=model, test_loader=val_loader, compose=model.compose, device=device)
+    # validat_loss = test(rank=rank, model=model, test_loader=val_loader, compose=model.compose, device=device)
+    validat_loss = losses[-1]
     test_times += [timer() - start_time] 
     test_losses.append(validat_loss)
 
-    if epoch == 4:
+    if epoch == args.endepochs:
       # Don't need to run that many to see that it's off
       break
   
@@ -352,14 +345,62 @@ def main():
     # validation_percentage = np.array(validat_correct_counts) / validat_size
     ax2.plot( epoch_points, test_losses, color='r', linestyle='dashed', linewidth=2, marker='o')
     ax2.set_ylabel(r"Validation Loss", fontsize=13, color='r')
-    plt.savefig(f'data_run_{args.lp_bwd_max_iters}_{args.lp_fwd_max_iters}_{args.lp_max_levels}.png', bbox_inches="tight")
+    plt.savefig(f'data_run_{procs=}_{args.lp_bwd_max_iters}_{args.lp_fwd_max_iters}_{args.lp_max_levels}.png', bbox_inches="tight")
 
     # Save to files
     import pickle
 
-    with open(f'data_run_{args.lp_bwd_max_iters}_{args.lp_fwd_max_iters}_{args.lp_max_levels}', 'wb') as fp:
+    with open(f'data_run_{procs=}_{args.lp_bwd_max_iters}_{args.lp_fwd_max_iters}_{args.lp_max_levels}', 'wb') as fp:
       pickle.dump([batch_losses, epoch_points, test_losses], fp)
 
+    # )Plot and save timings to get approximate 
+    # Calculate means, ignoring the first few entries
+    mean_batch = np.mean(batch_times[3:])
+    mean_forward = np.mean(forward_times[3:])
+    mean_backward = np.mean(backward_times[3:])
+
+    from datetime import datetime
+    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    # Create figure and axes
+    _, axs = plt.subplots(3, 1, figsize=(10, 15))
+
+    # Plotting
+    axs[0].plot(batch_times[3:], label='Batch Times', color='blue', marker='o')
+    axs[0].set_title(f'Mean Batch Time: {mean_batch:.2f} (Generated at {current_time})')
+    axs[0].set_xlabel('Batches')
+    axs[0].set_ylabel('Time')
+    axs[0].legend()
+
+    axs[1].plot(forward_times[3:], label='Forward Times', color='green', marker='o')
+    axs[1].set_title(f'Mean Forward Time: {mean_forward:.2f}')
+    axs[1].set_xlabel('Batches')
+    axs[1].set_ylabel('Time')
+    axs[1].legend()
+
+    axs[2].plot(backward_times[3:], label='Backward Times', color='red', marker='o')
+    axs[2].set_title(f'Mean Backward Time: {mean_backward:.2f}')
+    axs[2].set_xlabel('Batches')
+    axs[2].set_ylabel('Time')
+    axs[2].legend()
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Save the figure
+    plt.savefig(f'timing_data_plots_{procs}_{args.steps}_{args.lp_max_levels}.png')
+
+    # Convert lists to numpy arrays
+    batch_times_array = np.array(batch_times)
+    forward_times_array = np.array(forward_times)
+    backward_times_array = np.array(backward_times)
+
+    # Save arrays to a .npz file
+    np.savez(f'times_data_{procs}_{args.steps}_{args.lp_max_levels}.npz', batch_times=batch_times_array, forward_times=forward_times_array, backward_times=backward_times_array)
+
+
+  max_memory_allocated = torch.cuda.max_memory_allocated(device)
+  print(f"Maximum CUDA memory allocated on {device}: {max_memory_allocated / (1024 ** 2):.2f} MB")
   if args.serial_file is not None:
     # Model can be reloaded in serial format with: model = torch.load(filename)
     model.saveSerialNet(args.serial_file)

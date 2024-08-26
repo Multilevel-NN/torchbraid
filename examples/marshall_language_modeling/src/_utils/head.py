@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchbraid.utils import LPDropout
+#from torchbraid.utils import LPDropout
 
 class Head(nn.Module):
   def __init__(self, head_size, model_dimension, context_window, dropout):
@@ -12,7 +12,7 @@ class Head(nn.Module):
     self.register_buffer(
         'tril', torch.tril(torch.ones(context_window, context_window))
     )
-    self.dropout = LPDropout(dropout)
+    #self.dropout = LPDropout(dropout)
 
   def forward(self, x):
     # input of size (batch, time-step, channels)
@@ -24,7 +24,7 @@ class Head(nn.Module):
     wei = q @ k.transpose(-2,-1) * k.shape[-1]**-0.5 # (B, T, hs) @ (B, hs, T) -> (B, T, T)
     wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf')) # (B, T, T)
     wei = F.softmax(wei, dim=-1) # (B, T, T)
-    wei = self.dropout(wei)
+    #wei = self.dropout(wei)
     # perform the weighted aggregation of the values
     v = self.value(x) # (B,T,hs)
     out = wei @ v # (B, T, T) @ (B, T, hs) -> (B, T, hs)

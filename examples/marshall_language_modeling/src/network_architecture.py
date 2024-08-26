@@ -66,16 +66,16 @@ class CloseLayer(nn.Module):
 # f = open('llog3.txt', 'w')
 # f.close()
 class StepLayer(nn.Module):
-  def __init__(self, **kwargs):
+  def __init__(self, model_dimension, num_heads, context_window, dropout, **kwargs):
     super().__init__()
     # torch.manual_seed(0)
     
-    self.block = Block(**kwargs)
+    self.block = Block(model_dimension, num_heads, context_window, dropout, **kwargs)
 
   def forward(self, x,dt:float=1.0): 
     #print(f'{dt=}')
-    x = self.block(x, dt)
-    return x
+    x1 = self.block(x, dt)
+    return x1
 
 ####################################################################################
 ####################################################################################
@@ -91,13 +91,21 @@ class ParallelNet(nn.Module):
                user_mpi_buf=False, comm_lp=MPI.COMM_WORLD):
     super(ParallelNet, self).__init__()
 
-    step_layer = lambda: StepLayer(model_dimension=model_dimension, num_heads=num_heads, context_window=context_window, dropout=0.2)
+    step_layer = lambda: StepLayer(model_dimension=model_dimension, num_heads=num_heads, context_window=context_window, dropout=0.1)
     self.comm_lp = comm_lp
     numprocs = self.comm_lp.Get_size()
 
+    if not isinstance(max_levels, int):
+        max_fwd_levels = max_levels[0]
+        max_bwd_levels = max_levels[1]
+    else:
+        max_fwd_levels = max_levels
+        max_bwd_levels = max_levels
+
+
     self.parallel_nn = torchbraid.LayerParallel(comm_lp, step_layer, local_steps*numprocs, Tf,
-                                                max_fwd_levels=max_levels, 
-                                                max_bwd_levels=max_levels,
+                                                max_fwd_levels=max_fwd_levels, 
+                                                max_bwd_levels=max_bwd_levels,
                                                 max_iters=2, user_mpi_buf=user_mpi_buf)
     self.parallel_nn.setBwdMaxIters(bwd_max_iters)
     self.parallel_nn.setFwdMaxIters(fwd_max_iters)
@@ -127,8 +135,9 @@ class ParallelNet(nn.Module):
   def saveSerialNet(self, name):
     # Model can be reloaded in serial format with: model = torch.load(filename)
     serial_nn = self.parallel_nn.buildSequentialOnRoot()
+
     if self.comm_lp.Get_rank() == 0:
-      s_net = SerialNet(-1, -1, -1, serial_nn=serial_nn, open_nn=self.open_nn, close_nn=self.close_nn)
+      s_net = SerialNet(-1, -1, -1,-1, serial_nn=serial_nn, open_nn=self.open_nn, close_nn=self.close_nn)
       s_net.eval()
       torch.save(s_net, name)
 
@@ -149,25 +158,9 @@ class SerialNet(nn.Module):
   def __init__(self, model_dimension, num_heads, vocabulary_size, context_window, local_steps=8, Tf=1.0, serial_nn=None, open_nn=None, close_nn=None):
     super(SerialNet, self).__init__()
 
-    if serial_nn is None:
-      step_layer = lambda: StepLayer(model_dimension=model_dimension, num_heads=num_heads, context_window=context_window, dropout=0.)
-      numprocs = 1
-      parallel_nn = torchbraid.LayerParallel(MPI.COMM_SELF, step_layer, numprocs * local_steps, Tf,
-                                             max_fwd_levels=1, max_bwd_levels=1, max_iters=1)
-      parallel_nn.setPrintLevel(0, True)
-      self.serial_nn = parallel_nn.buildSequentialOnRoot()
-    else:
-      self.serial_nn = serial_nn
-
-    if open_nn is None:
-      self.open_nn = OpenLayer(model_dimension, vocabulary_size, context_window)
-    else:
-      self.open_nn = open_nn
-
-    if close_nn is None:
-      self.close_nn = CloseLayer(model_dimension, vocabulary_size)
-    else:
-      self.close_nn = close_nn
+    self.serial_nn = serial_nn
+    self.open_nn = open_nn
+    self.close_nn = close_nn
 
   def forward(self, x):
     x = self.open_nn(x)
@@ -179,6 +172,19 @@ class SerialNet(nn.Module):
 ####################################################################################
 ####################################################################################
 
+def int_or_tuple(value):
+  try:
+    # Check if the value is an integer
+    return int(value)
+  except ValueError:
+    # Check if the value is a tuple-like object
+    try:
+      elements = tuple(map(int, value.strip('()').split(',')))
+      return elements
+    except ValueError:
+      raise argparse.ArgumentTypeError("Invalid value. Must be an integer or a tuple-like object.")
+
+
 # Parse command line 
 def parse_args():
   """
@@ -186,7 +192,7 @@ def parse_args():
   """
 
   # Command line settings
-  parser = argparse.ArgumentParser(description='MNIST example argument parser')
+  parser = argparse.ArgumentParser(description='Parser for GPT2 network')
   parser.add_argument('--seed', type=int, default=1, metavar='S',
                       help='random seed (default: 1)')
   parser.add_argument('--log-interval', type=int, default=10, metavar='N',
@@ -207,12 +213,14 @@ def parse_args():
                       help='input batch size for training (default: 50)')
   parser.add_argument('--epochs', type=int, default=3, metavar='N',
                       help='number of epochs to train (default: 3)')
-  parser.add_argument('--lr', type=float, default=5e-5, metavar='LR',
-                      help='learning rate (default:5e-5)')
+  parser.add_argument('--endepochs', type=int, default=-1, metavar='N',
+          help='Early epoch stopping; defaulting of negative 1 means we run until epoch is reached (default: 3)')
+  parser.add_argument('--lr', type=float, default=6e-4, metavar='LR',
+                      help='learning rate (default:6e-4)')
 
   # algorithmic settings (layer-parallel)
-  parser.add_argument('--lp-max-levels', type=int, default=3, metavar='N',
-                      help='Layer parallel max number of levels (default: 3)')
+  parser.add_argument('--lp-max-levels', type=int_or_tuple, default=(1,2), metavar='N',
+                      help='Layer parallel max number of levels (default: (1,2)) which is one forward and two backwards')
   parser.add_argument('--lp-bwd-max-iters', type=int, default=1, metavar='N',
                       help='Layer parallel max backward iterations (default: 1)')
   parser.add_argument('--lp-fwd-max-iters', type=int, default=2, metavar='N',
@@ -277,9 +285,9 @@ def parse_args():
       levels = 1
     return levels
 
-  if args.lp_max_levels < 1:
-    min_coarse_size = 3
-    args.lp_max_levels = compute_levels(args.steps, min_coarse_size, args.lp_cfactor)
+  #if args.lp_max_levels < 1:
+  #  min_coarse_size = 3
+  #  args.lp_max_levels = compute_levels(args.steps, min_coarse_size, args.lp_cfactor)
 
   if args.steps % procs_lp != 0:
     root_print(rank, 1, 1, 'Steps must be an even multiple of the number of layer parallel processors: %d %d'
