@@ -61,6 +61,7 @@ import torchbraid.utils
 from network_architecture import parse_args, ParallelNet, SerialNet
 from mpi4py import MPI
 
+from bleu       import corpus_bleu
 from data       import get_data
 from generation import generate
 from optimizer  import get_optimizer
@@ -151,16 +152,16 @@ def validate(
         batch, model, criterion, label_smoother, compose, device, rank, 1,
       )
       mean_loss = mean_loss + loss if mean_loss is not None else loss
-      preds = generate(model, src, output_tgt.shape[1], 
-                       do_sample=False, num_beams=1,
-                       length_penalty=1., num_return_sequences=1, top_k=10, top_p=.95)
+      preds = generate(model, src, output_tgt.shape[1]) 
       extend_sentences(originals, references, candidates, 
                        src_vocab, tgt_vocab, src, output_tgt, preds)
 
   mean_loss /= len(data_loader)
   mean_loss = mean_loss.item()
 
-  return mean_loss
+  bleu_score = corpus_bleu(candidates=candidates, references=references)
+
+  return mean_loss, bleu_score
 
 ##
 # Parallel printing helper function  
