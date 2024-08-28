@@ -144,6 +144,92 @@ class StepLayer_dec(nn.Module):
     # print(f'Fwd time decoder layer: {t1 - t0} seconds')
 
     return z
+
+class StepLayer_dec_SA(nn.Module):
+  def __init__(self, d_model, nhead, dropout, batch_size, max_sequence_length, 
+                                                                      device):
+    super().__init__()
+    torch.manual_seed(0)
+    self.self_attn = nn.MultiheadAttention(
+      d_model, nhead, dropout=dropout, batch_first=False, bias=True, 
+      device=device,
+    )
+    self.norm1 = nn.LayerNorm(d_model, eps=1e-5, #bias=True, 
+                                                 device=device)
+    self.dropout1 = nn.Dropout(dropout)
+
+    self.zeros_tensor = torch.zeros(
+               size=(max_sequence_length, batch_size, d_model), device=device)
+
+  def _sa_block(self, x, attn_mask, key_padding_mask):
+    x = self.self_attn(
+      x, x, x, attn_mask=attn_mask, key_padding_mask=key_padding_mask, 
+      is_causal=False, need_weights=False,
+    )[0]
+    return self.dropout1(x)
+
+  def forward(self, z):
+    # t0 = time.time()
+    x, y = z
+
+    y = (sa_y := self._sa_block(self.norm1(y), 
+                                tgt_mask, tgt_key_padding_mask)) \
+
+    z = torch.stack((self.zeros_tensor[:x.shape[0], :x.shape[1]], y))
+    # t1 = time.time()
+    # print(f'Fwd time decoder layer: {t1 - t0} seconds')
+
+    return z
+
+class StepLayer_dec_MHA_FF(nn.Module):
+  def __init__(self, d_model, nhead, dim_feedforward, dropout, batch_size, 
+                                              max_sequence_length, device):
+    super().__init__()
+    torch.manual_seed(0)
+    self.multihead_attn = nn.MultiheadAttention(
+                           d_model, nhead, dropout=dropout, batch_first=False, 
+                                                     bias=True, device=device)    
+    # Implementation of Feedforward model
+    self.linear1 = nn.Linear(d_model, dim_feedforward, 
+                             bias=True, device=device)
+    self.dropout = nn.Dropout(dropout)
+    self.linear2 = nn.Linear(dim_feedforward, d_model, 
+                             bias=True, device=device)
+
+    self.norm2 = nn.LayerNorm(d_model, eps=1e-5, #bias=True, 
+                                                 device=device)
+    self.norm3 = nn.LayerNorm(d_model, eps=1e-5, #bias=True, 
+                                                 device=device)
+    self.dropout2 = nn.Dropout(dropout)
+    self.dropout3 = nn.Dropout(dropout)
+
+    self.zeros_tensor = torch.zeros(
+               size=(max_sequence_length, batch_size, d_model), device=device)
+
+  def _ff_block(self, x):
+      x = self.linear2(self.dropout(self.linear1(x).relu()))
+      return self.dropout3(x)
+
+  def _mha_block(self, x, mem, attn_mask, key_padding_mask):
+      x = self.multihead_attn(
+        x, mem, mem, attn_mask=attn_mask, key_padding_mask=key_padding_mask, 
+        is_causal=False, need_weights=False
+      )[0]
+      return self.dropout2(x)
+
+  def forward(self, z):
+    # t0 = time.time()
+    x, y = z
+
+    y = (mha_y := self._mha_block(self.norm2(y), x, None, 
+                                                     memory_key_padding_mask)) \
+      + ( ff_y := self._ff_block (self.norm3(y + mha_y)))
+
+    z = torch.stack((self.zeros_tensor[:x.shape[0], :x.shape[1]], y))
+    # t1 = time.time()
+    # print(f'Fwd time decoder layer: {t1 - t0} seconds')
+
+    return z
 ####################################################################################
 ####################################################################################
 
@@ -153,7 +239,7 @@ class StepLayer_dec(nn.Module):
 class ParallelNet(nn.Module):
   def __init__(
     self, d_model, nhead, dim_feedforward, dropout, source_vocabulary, 
-    target_vocabulary, batch_size, max_sequence_length, device, 
+    target_vocabulary, batch_size, max_sequence_length, device, split_decoder,
     local_steps=8, Tf=1.0, max_levels=1, bwd_max_iters=1, 
     fwd_max_iters=2, print_level=0, braid_print_level=0, cfactor=4, 
     fine_fcf=False, skip_downcycle=True, fmg=False, relax_only_cg=0, 
@@ -170,6 +256,7 @@ class ParallelNet(nn.Module):
     self.batch_size          = batch_size       
     self.max_sequence_length = max_sequence_length
     self.device              = device           
+    self.split_decoder       = split_decoder           
     self.comm_lp             = comm_lp
     self.comm_dp             = comm_dp
 
@@ -178,23 +265,25 @@ class ParallelNet(nn.Module):
     step_layer_enc = lambda: StepLayer_enc(
                                    d_model, nhead, dim_feedforward, dropout, 
                                    batch_size, max_sequence_length, device)
-    # step_layer_dec = lambda: StepLayer_dec(d=d_model, nhead=nhead, dim_feedforward=dim_feedforward, batch_size=batch_size, source_length=source_length, target_length=target_length, device=device)
-    step_layer_dec = lambda: StepLayer_dec(
+    if not split_decoder:
+      step_layer_dec = lambda: StepLayer_dec(
                                      d_model, nhead, dim_feedforward, dropout, 
                                      batch_size, max_sequence_length, device)
+      layers    = [   step_layer_enc   ,    step_layer_dec   ]
+      num_steps = [local_steps*numprocs, local_steps*numprocs]
 
-    layers = [step_layer_enc, step_layer_dec]
-    num_steps = [local_steps*numprocs, local_steps*numprocs]#[num_encoder_layers, num_decoder_layers]
-    # num_steps = [local_steps*numprocs * 5//4, local_steps*numprocs * 3//4]
-    # layers, num_steps = [], []
-    # for i in range(local_steps * numprocs): 
-    #   layers.append(step_layer_enc)
-    #   num_steps.append(1)
-    # for i in range(local_steps * numprocs):
-    #   layers.append(step_layer_dec_selfonly)
-    #   num_steps.append(1)
-    #   layers.append(step_layer_dec_crossmlponly)
-    #   num_steps.append(1)
+    else:
+      step_layer_sa     = lambda: StepLayer_dec_SA(d_model, nhead, dropout, 
+                                      batch_size, max_sequence_length, device)
+      step_layer_mha_ff = lambda: StepLayer_dec_MHA_FF(d_model, nhead, 
+            dim_feedforward, dropout, batch_size, max_sequence_length, device)
+
+      layers, num_steps = [], []
+      for i in range(local_steps * numprocs): 
+        layers.append(step_layer_enc   ); num_steps.append(1)
+      for i in range(local_steps * numprocs):
+        layers.append(step_layer_sa    ); num_steps.append(1)
+        layers.append(step_layer_mha_ff); num_steps.append(1)
 
     self.parallel_nn = torchbraid.LayerParallel(
       comm_lp, 
@@ -285,7 +374,7 @@ class ParallelNet(nn.Module):
 class SerialNet(nn.Module):
   def __init__(
     self, d_model, nhead, dim_feedforward, dropout, source_vocabulary, 
-    target_vocabulary, batch_size, max_sequence_length, device, 
+    target_vocabulary, batch_size, max_sequence_length, device, split_decoder,
     local_steps=8, Tf=1.0, serial_nn=None, open_nn=None, close_nn=None,
   ):
     super(SerialNet, self).__init__()
@@ -299,17 +388,33 @@ class SerialNet(nn.Module):
     self.batch_size          = batch_size       
     self.max_sequence_length = max_sequence_length
     self.device              = device           
+    self.split_decoder       = split_decoder
+
+    numprocs = 1
 
     step_layer_enc = lambda: StepLayer_enc(
                                    d_model, nhead, dim_feedforward, dropout, 
                                    batch_size, max_sequence_length, device)
-    step_layer_dec = lambda: StepLayer_dec(
+
+    if not split_decoder:
+      step_layer_dec = lambda: StepLayer_dec(
                                      d_model, nhead, dim_feedforward, dropout, 
                                      batch_size, max_sequence_length, device)
-    numprocs = 1
+      layers    = [   step_layer_enc   ,    step_layer_dec   ]
+      num_steps = [local_steps*numprocs, local_steps*numprocs]
 
-    layers = [step_layer_enc, step_layer_dec]
-    num_steps = [local_steps*numprocs, local_steps*numprocs]
+    else:
+      step_layer_sa     = lambda: StepLayer_dec_SA(d_model, nhead, dropout, 
+                                      batch_size, max_sequence_length, device)
+      step_layer_mha_ff = lambda: StepLayer_dec_MHA_FF(d_model, nhead, 
+            dim_feedforward, dropout, batch_size, max_sequence_length, device)
+
+      layers, num_steps = [], []
+      for i in range(local_steps * numprocs): 
+        layers.append(step_layer_enc   ); num_steps.append(1)
+      for i in range(local_steps * numprocs):
+        layers.append(step_layer_sa    ); num_steps.append(1)
+        layers.append(step_layer_mha_ff); num_steps.append(1)
 
     if serial_nn is None:
       parallel_nn = torchbraid.LayerParallel(
@@ -406,22 +511,31 @@ def parse_args():
                       help='Data parallelism (used if value != 1)')
 
   ## additional arguments
-  parser.add_argument('--d_model'              , type=int  , default= 256 )
-  parser.add_argument('--nhead'                , type=int  , default=   8 )
-  parser.add_argument('--dim_feedforward'      , type=int  , default=1024 )
-  parser.add_argument('--drop_last'            , action='store_true'      )
-  parser.add_argument('--dropout'              , type=float, default=   0.)
-  parser.add_argument('--gradient_accumulation', type=int  , default=   1 )
-  parser.add_argument('--num_warmup_steps'     , type=int  , default=4000 )
-  parser.add_argument('--debug'                , action='store_true'      )
-  parser.add_argument('--enforce_serial'       , action='store_true'      )
-  parser.add_argument('--scale'                , action='store_true'      )
+  parser.add_argument('--d_model'              , type=int  , default=  256      )
+  parser.add_argument('--nhead'                , type=int  , default=    8      )
+  parser.add_argument('--dim_feedforward'      , type=int  , default= 1024      )
+  parser.add_argument('--drop_last'            , action='store_true'            )
+  parser.add_argument('--dropout'              , type=float, default=    0.     )
+  parser.add_argument('--gradient_accumulation', type=int  , default=    1      )
+  parser.add_argument('--num_warmup_steps'     , type=int  , default= 4000      )
+  parser.add_argument('--debug'                , action='store_true'            )
+  parser.add_argument('--enforce_serial'       , action='store_true'            )
+  parser.add_argument('--scale'                , action='store_true'            )
+  parser.add_argument('--split_decoder'        , action='store_true'            )
+  parser.add_argument('--initialize_parameters', action='store_true'            )
+  # parser.add_argument('--seed'                 , type=int  , default=    0      )
+  parser.add_argument('--tokenization'         , type=str  , default='news-web' )
+  parser.add_argument('--vocab_size'           , type=int  , default=32000      )
 
   ##
   # Do some parameter checking
   rank  = MPI.COMM_WORLD.Get_rank()
   procs = MPI.COMM_WORLD.Get_size()
   args = parser.parse_args()
+
+  ## Temp
+  args.nhead = (args.d_model * 8) // 512
+  args.dim_feedforward = 4 * args.d_model
 
   if procs % args.dp_size != 0:
     root_print(

@@ -2,15 +2,18 @@ import inspect
 
 def AutoInitializer(Base):
   class Wrapper(Base):
+    signature = inspect.signature(Base).parameters
+
     def __init__(self, *args, **provided_kwargs):
-      parameters = inspect.signature(Base).parameters
-      arg_nms = parameters.keys()
+      arg_nms = self.signature.keys()
       kwargs = {
-        k: v.default for (k, v) in list(parameters.items())[len(args):]
+        k: v.default for (k, v) in list(self.signature.items())[len(args):]
       }
       kwargs.update(provided_kwargs)
       missing_arguments = list(filter(
-        lambda k: kwargs[k] == inspect._empty, kwargs.keys()
+        lambda k: (kwargs[k] == inspect._empty) and \
+                                                (k not in ['args', 'kwargs']),
+        kwargs.keys(),
       ))
       if missing_arguments:
         missing_arguments = [f"'{arg}'" for arg in missing_arguments]

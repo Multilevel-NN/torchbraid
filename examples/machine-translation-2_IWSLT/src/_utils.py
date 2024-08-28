@@ -19,17 +19,19 @@ class Monitor:
 @AutoInitializer
 class Chronometer(Monitor):
   def __init__(self, period): self.t0 = -inf
+  def __repr__(self): return f'Chronometer w/ period {self.period} minutes'
 
   def is_time(self):
     t1 = time.time()
     
     if t1 - self.t0 > self.period * 60: 
+      print(f'Time! {self.t0}, {t1}')
       self.t0 = t1
       return True
 
     else: return False
 
-  def start(self): self.t0 = time.time()
+  def start(self): self.t0 = time.time(); print(f'Initial time: {self.t0}')
 
 class FakeObject:
   def __getattribute__(self, x): return lambda *args, **kwargs: None
@@ -37,6 +39,7 @@ class FakeObject:
 @AutoInitializer
 class Loop(Monitor):
   def __init__(self, frequency): self.ctr = -inf
+  def __repr__(self): return f'Loop w/ frequency {self.frequency} batches'
   def is_time (self): return self.ctr % self.frequency == 0
   def start(self): self.ctr = 0
   def step(self): self.ctr += 1
@@ -59,7 +62,7 @@ class LabelSmoothingDistribution(nn.Module):
     smooth_target_distributions.scatter_(
       1, trg_token_ids_batch, self.confidence_value,
     )
-    smooth_target_distributions[:, self.pad_token_id] = 0.
+    # smooth_target_distributions[:, self.pad_token_id] = 0.
     smooth_target_distributions.masked_fill_(
       trg_token_ids_batch == self.pad_token_id, 0.,
     )

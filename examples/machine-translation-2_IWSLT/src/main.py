@@ -51,23 +51,19 @@
 from timeit import default_timer as timer
 
 import numpy as np
+import sys
 import time
 import torch
 import torch.nn as nn
 import torchbraid
 import torchbraid.utils
-import sys
 
-from network_architecture import parse_args, ParallelNet, SerialNet; print('split')
-# from network_architecture_joint import parse_args, ParallelNet, SerialNet; print('joint')
-# from network_architecture_semijoint import parse_args, ParallelNet, SerialNet; print('semijoint')
-# from network_architecture_womasks import parse_args, ParallelNet, SerialNet; print('split-womasks')
+from network_architecture import parse_args, ParallelNet, SerialNet
 from mpi4py import MPI
 
 from data       import get_data
 from generation import generate
 from optimizer  import get_optimizer
-from training   import train, validate, test
 from _utils     import LabelSmoothingDistribution
 
 # torch.set_default_dtype(torch.float64)
@@ -76,7 +72,7 @@ def bwd(loss, optimizer, do_step):
   loss.backward()
   if do_step: optimizer.step(); optimizer.zero_grad()
 
-def fwd(batch, model, criterion, label_smoother, compose, device, rank):
+def fwd(batch, model, criterion, label_smoother, compose, device, rank, gradient_accumulation):
   src, tgt = batch
   src, tgt = src.to(device), tgt.to(device)
 
@@ -86,6 +82,7 @@ def fwd(batch, model, criterion, label_smoother, compose, device, rank):
   output = model(src, input_tgt)
   loss = compose(criterion, output.reshape(-1, output.shape[-1]), 
                             output_tgt_distribution)
+  loss /= gradient_accumulation
   return output, loss, src, input_tgt, output_tgt
 
 ##
@@ -103,7 +100,7 @@ def train_epoch(
   for batch_idx, batch in enumerate(training_data_loader):
     batch_fwd_pass_start = time.time()
     output, loss, src, input_tgt, output_tgt = fwd(
-               batch, model, criterion, label_smoother, compose, device, rank)
+               batch, model, criterion, label_smoother, compose, device, rank, gradient_accumulation)
     batch_fwd_pass_end = time.time()
 
     gradient_accumulation_ctr += 1
@@ -131,36 +128,36 @@ def train_epoch(
 
   return mean_loss, training_time, gradient_accumulation_ctr
 
-def extend_sentences(
-  originals, references, candidates, src_vocab, tgt_vocab, src, tgt, preds
-):
-  originals .extend([ src_vocab.decode(x, break_at_pad=True) for x in  src  ])
-  references.extend([[tgt_vocab.decode(x)]                   for x in  tgt  ])
-  candidates.extend([ tgt_vocab.decode(x)                    for x in  preds])
+def extend_sentences(originals, references, candidates, src_vocab, tgt_vocab, 
+                                                             src, tgt, preds):
+  originals .extend([ src_vocab.decode(x)  for x in  src  ])
+  references.extend([[tgt_vocab.decode(x)] for x in  tgt  ])
+  candidates.extend([ tgt_vocab.decode(x)  for x in  preds])
 
 ##
 # Evaluate model on validation data
 # Return: number of correctly classified test items, total number of test items, loss on test data set
 def validate(
-  rank, model, criterion, label_smoother, validation_data_loader, compose, 
-  src_vocab, tgt_vocab, device, target_vocabulary, debug,
+  rank, model, criterion, label_smoother, data_loader, compose, src_vocab, 
+  tgt_vocab, device, target_vocabulary, debug,
 ):
   model.eval()
   mean_loss = None
   originals, references, candidates = [], [], []
 
   with torch.no_grad():
-    for batch_idx, batch in enumerate(validation_data_loader):
+    for batch_idx, batch in enumerate(data_loader):
       output, loss, src, _, output_tgt = fwd(
-        batch, model, criterion, label_smoother, compose, device, rank
+        batch, model, criterion, label_smoother, compose, device, rank, 1,
       )
       mean_loss = mean_loss + loss if mean_loss is not None else loss
       preds = generate(model, src, output_tgt.shape[1], 
-                       do_sample=False, num_beams=1)
+                       do_sample=False, num_beams=1,
+                       length_penalty=1., num_return_sequences=1, top_k=10, top_p=.95)
       extend_sentences(originals, references, candidates, 
                        src_vocab, tgt_vocab, src, output_tgt, preds)
 
-  mean_loss /= len(validation_data_loader)
+  mean_loss /= len(data_loader)
   mean_loss = mean_loss.item()
 
   return mean_loss
@@ -171,6 +168,10 @@ def root_print(rank, s):
   if rank == 0: print(s)
 
 def main():
+  print(f'Torch-version: {torch.__version__}')
+  print(f'Sys path     : {sys.path}')
+  print(f'Torch file   : {torch.__file__}')
+
   # Begin setting up run-time environment 
   # MPI information
   comm = MPI.COMM_WORLD
@@ -195,6 +196,7 @@ def main():
   # Finish assembling training and test datasets
   root_print(rank, 'Loading data set...')
   datasets, data_loaders, vocabs = get_data(device, args.debug, 1, False, 
+                         args.tokenization, args.vocab_size, args.scale,
                          batch_size=args.batch_size, drop_last=args.drop_last)
   source_vocabulary, target_vocabulary = vocabs['de'], vocabs['en']
 
@@ -233,7 +235,7 @@ def main():
     model = ParallelNet(
       args.d_model, args.nhead, args.dim_feedforward, args.dropout,
       source_vocabulary, target_vocabulary, args.batch_size, 
-      max_sequence_length, device, 
+      max_sequence_length, device, args.split_decoder,
       local_steps=local_steps,
       max_levels=args.lp_max_levels,
       bwd_max_iters=args.lp_bwd_max_iters,
@@ -268,7 +270,8 @@ def main():
     model = SerialNet(
       args.d_model, args.nhead, args.dim_feedforward, args.dropout, 
       source_vocabulary, target_vocabulary, args.batch_size, 
-      max_sequence_length, device, local_steps=local_steps, Tf=args.Tf,
+      max_sequence_length, device, args.split_decoder, 
+      local_steps=local_steps, Tf=args.Tf,
     ).to(device)
     model.compose = lambda op, *p: op(*p)
 
@@ -278,10 +281,8 @@ def main():
   optimizer = get_optimizer(model, args.num_warmup_steps)
   print(f'Optimizer: {optimizer}')
   criterion = nn.KLDivLoss(reduction='batchmean')
-  label_smoother = LabelSmoothingDistribution(
-    .1, target_vocabulary.pad_id, len(target_vocabulary), device,
-  )
-
+  label_smoother = LabelSmoothingDistribution(.1, target_vocabulary.pad_id, 
+                                              len(target_vocabulary), device)
   # Carry out parallel training
   training_losses  , training_bleus  , training_times   = [], [], []
   validation_losses, validation_bleus, validation_times = [], [], []
@@ -290,8 +291,8 @@ def main():
   root_print(rank, 'Starting training...')
   for epoch in range(args.epochs+1):
     if epoch > 0:
-      epoch_training_losses, epoch_training_time, gradient_accumulation_ctr \
-       = train_epoch(
+      epoch_mean_loss, epoch_training_time, gradient_accumulation_ctr = \
+       train_epoch(
         rank=rank, params=args, model=model, optimizer=optimizer,
         criterion=criterion, label_smoother=label_smoother, 
         training_data_loader=training_data_loader, epoch=epoch, 
@@ -300,7 +301,7 @@ def main():
         scale=args.scale, gradient_accumulation_ctr=gradient_accumulation_ctr,
         gradient_accumulation=args.gradient_accumulation,
       )
-      training_losses.append(np.mean(epoch_training_losses))
+      training_losses.append(epoch_mean_loss)
       training_times .append(epoch_training_time)
 
       root_print(rank, f'Epoch {epoch}, Training time: {training_times[-1]}')
@@ -311,9 +312,9 @@ def main():
       validation_loss, validation_bleu = validate(
         rank=rank, model=model, criterion=criterion, 
         label_smoother=label_smoother, src_vocab=source_vocabulary, 
-        tgt_vocab=target_vocabulary, 
-        validation_data_loader=validation_data_loader, compose=model.compose,
-        device=device, target_vocabulary=target_vocabulary, debug=args.debug,
+        tgt_vocab=target_vocabulary, data_loader=validation_data_loader, 
+        compose=model.compose, device=device, 
+        target_vocabulary=target_vocabulary, debug=args.debug,
       )
       root_print(rank, f'Validation loss: {validation_loss}, '
                        f'validation bleu: {validation_bleu}')
