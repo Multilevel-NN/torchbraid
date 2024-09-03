@@ -140,7 +140,7 @@ def extend_sentences(originals, references, candidates, src_vocab, tgt_vocab,
 # Return: number of correctly classified test items, total number of test items, loss on test data set
 def validate(
   rank, model, criterion, label_smoother, data_loader, compose, src_vocab, 
-  tgt_vocab, device, target_vocabulary, debug,
+  tgt_vocab, device, target_vocabulary, debug, gradient_accumulation,
 ):
   model.eval()
   mean_loss = None
@@ -149,7 +149,8 @@ def validate(
   with torch.no_grad():
     for batch_idx, batch in enumerate(data_loader):
       output, loss, src, _, output_tgt = fwd(
-        batch, model, criterion, label_smoother, compose, device, rank, 1,
+        batch, model, criterion, label_smoother, compose, device, rank, 
+        gradient_accumulation,
       )
       mean_loss = mean_loss + loss if mean_loss is not None else loss
       preds = generate(model, src, output_tgt.shape[1]) 
@@ -160,6 +161,10 @@ def validate(
   mean_loss = mean_loss.item()
 
   bleu_score = corpus_bleu(candidates=candidates, references=references)
+  idx = np.random.randint(0, len(originals))
+  print(f'Original  : {originals [idx]}')
+  print(f'Candidate : {candidates[idx]}')
+  print(f'References: {references[idx][0]}')
 
   return mean_loss, bleu_score
 
@@ -276,6 +281,14 @@ def main():
     ).to(device)
     model.compose = lambda op, *p: op(*p)
 
+  if args.initialize_parameters:
+    print('Initializing parameters...')
+    torch.manual_seed(args.seed + 10)  # remove eventually
+    for parameter in model.parameters():
+      if parameter.ndim > 1: nn.init.xavier_uniform_(parameter)
+#       print(parameter.ravel()[:5].tolist(), parameter.ravel()[-5:].tolist())
+#     sys.exit()
+
   print(f'Model: {model}')
   # print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
   # Declare optimizer  
@@ -315,7 +328,8 @@ def main():
         label_smoother=label_smoother, src_vocab=source_vocabulary, 
         tgt_vocab=target_vocabulary, data_loader=validation_data_loader, 
         compose=model.compose, device=device, 
-        target_vocabulary=target_vocabulary, debug=args.debug,
+        target_vocabulary=target_vocabulary, debug=args.debug, 
+        gradient_accumulation=args.gradient_accumulation,
       )
       root_print(rank, f'Validation loss: {validation_loss}, '
                        f'validation bleu: {validation_bleu}')
