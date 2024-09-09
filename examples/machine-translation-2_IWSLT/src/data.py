@@ -49,8 +49,8 @@ class Dataset(tDataset):
       if debug and k ==   20: break  # debug
       if scale and k == 1000: break  # debug
 
-    max_sequence_length = max(max(len(de_tokens), len(en_tokens)-1) 
-                            for (de_tokens, en_tokens) in tokenized_sentences)
+    max_sequence_length = 274# max(max(len(de_tokens), len(en_tokens)-1) 
+                             #   for (de_tokens, en_tokens) in tokenized_sentences)
     print(f'max_sequence_length: {max_sequence_length}')
 
     num_sentences = len(tokenized_sentences)
@@ -107,8 +107,8 @@ class SPDataset(tDataset):
       if debug and k == 20: break  # debug
       if scale and k == 1000: break  # debug
 
-    max_sequence_length = max(max(len(de_ids), len(en_ids)-1) 
-                            for (de_ids, en_ids) in encoded_sentences)
+    max_sequence_length = 274#max(max(len(de_ids), len(en_ids)-1) 
+                             #  for (de_ids, en_ids) in encoded_sentences)
     print(f'max_sequence_length: {max_sequence_length}')
 
     num_sentences = len(encoded_sentences)

@@ -30,6 +30,8 @@ class OpenLayer(nn.Module):
   def __init__(self, d_model, dropout, src_vocab, tgt_vocab, device):
     super().__init__()
 
+    torch.manual_seed(0)
+
     self.d_model   = d_model
     self.dropout   = dropout
     self.src_vocab = src_vocab
@@ -84,6 +86,7 @@ class OpenLayer(nn.Module):
 class CloseLayer(nn.Module):
   def __init__(self, d_model, tgt_vocab):
     super().__init__()
+    torch.manual_seed(0)
 
     self.lm_head = nn.Linear(d_model, len(tgt_vocab))
     self.log_softmax = nn.LogSoftmax(dim=-1)
@@ -240,7 +243,7 @@ class ParallelNet(nn.Module):
   def __init__(
     self, d_model, nhead, dim_feedforward, dropout, source_vocabulary, 
     target_vocabulary, batch_size, max_sequence_length, device, split_decoder,
-    local_steps=8, Tf=1.0, max_levels=1, bwd_max_iters=1, 
+    local_steps=8, Tf=1.0, max_levels=1, serial_fwd=False, bwd_max_iters=1, 
     fwd_max_iters=2, print_level=0, braid_print_level=0, cfactor=4, 
     fine_fcf=False, skip_downcycle=True, fmg=False, relax_only_cg=0, 
     user_mpi_buf=False, comm_lp=MPI.COMM_WORLD, comm_dp=None,
@@ -259,6 +262,7 @@ class ParallelNet(nn.Module):
     self.split_decoder       = split_decoder           
     self.comm_lp             = comm_lp
     self.comm_dp             = comm_dp
+    self.serial_fwd          = serial_fwd
 
     numprocs = self.comm_lp.Get_size()
 
@@ -285,11 +289,13 @@ class ParallelNet(nn.Module):
         layers.append(step_layer_sa    ); num_steps.append(1)
         layers.append(step_layer_mha_ff); num_steps.append(1)
 
+    print(f'#fwd-levels used: {max_levels if not self.serial_fwd else 1}')
+
     self.parallel_nn = torchbraid.LayerParallel(
       comm_lp, 
       layers, num_steps, #step_layer, local_steps*numprocs, 
       Tf,
-      max_fwd_levels=max_levels,#1,#max_levels, 
+      max_fwd_levels=max_levels if not self.serial_fwd else 1,#1,#max_levels, 
       max_bwd_levels=max_levels,
       max_iters=2, user_mpi_buf=user_mpi_buf,
     )
@@ -389,6 +395,7 @@ class SerialNet(nn.Module):
     self.max_sequence_length = max_sequence_length
     self.device              = device           
     self.split_decoder       = split_decoder
+    self.comm_lp             = None
 
     numprocs = 1
 
@@ -526,6 +533,9 @@ def parse_args():
   # parser.add_argument('--seed'                 , type=int  , default=    0      )
   parser.add_argument('--tokenization'         , type=str  , default='news-web' )
   parser.add_argument('--vocab_size'           , type=int  , default=32000      )
+  parser.add_argument('--load'                 , type=str  , default=''         )
+  parser.add_argument('--num_training_batches' , type=int  , default= 2000      )
+  parser.add_argument('--serial_fwd'           , action='store_true'            )
 
   ##
   # Do some parameter checking

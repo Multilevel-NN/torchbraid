@@ -105,6 +105,9 @@ def train_epoch(
                batch, model, criterion, label_smoother, compose, device, rank, gradient_accumulation)
     batch_fwd_pass_end = time.time()
 
+    print(f'rank: {rank}, loss: {loss}')
+    sys.exit()
+
     gradient_accumulation_ctr += 1
 
     batch_bwd_pass_start = time.time()
@@ -251,7 +254,6 @@ def main():
       max_sequence_length, device, args.split_decoder,
       local_steps=local_steps,
       max_levels=args.lp_max_levels,
-      serial_fwd=args.serial_fwd,
       bwd_max_iters=args.lp_bwd_max_iters,
       fwd_max_iters=args.lp_fwd_max_iters,
       print_level=args.lp_print_level,
@@ -341,7 +343,7 @@ def main():
       root_print(rank, f'Training loss: {training_losses[-1]}')#, '
                        # f'training bleu: {training_bleus[-1]}')
 
-    if not args.scale:
+    if 0 and not args.scale:
       t0 = time.time()
       validation_loss, validation_bleu = validate(
         rank=rank, model=model, criterion=criterion, 
