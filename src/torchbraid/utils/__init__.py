@@ -41,7 +41,9 @@ from .bufpackunpack import buffer_size, pack_buffer, unpack_buffer
 
 # import custom LP modules and support
 from .done_flag import DoneFlag, DoneFlagMixin
+from .new_batch_flag import NBFlag, NBFlagMixin
 from .lp_batchnorm import LPBatchNorm2d
+from .lp_dropout import LPDropout
 
 try:
   # use the global one
