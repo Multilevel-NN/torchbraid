@@ -121,26 +121,94 @@ class StepLayer_enc(nn.Module):
     # print(f'x={x}')
     return z
 
+# class StepLayer_dec(nn.Module):
+#   def __init__(self, d_model, nhead, dim_feedforward, dropout, batch_size, 
+#                                               max_sequence_length, device):
+#     super().__init__()
+#     torch.manual_seed(0)
+#     self.decoder_layer = nn.TransformerDecoderLayer(d_model, nhead, 
+#                                                     dim_feedforward, dropout)
+#     self.zeros_tensor = torch.zeros(
+#                size=(max_sequence_length, batch_size, d_model), device=device)
+# 
+#   def forward(self, z):
+#     # t0 = time.time()
+#     layer = self.decoder_layer
+#     x, y = z
+# 
+#     y = ( sa_y := layer._sa_block (layer.norm1(y), 
+#                                    tgt_mask, tgt_key_padding_mask)) \
+#       + (mha_y := layer._mha_block(layer.norm2(y + sa_y), x,
+#                                    None, memory_key_padding_mask)) \
+#       + ( ff_y := layer._ff_block (layer.norm3(y + sa_y + mha_y)))
+# 
+#     z = torch.stack((self.zeros_tensor[:x.shape[0], :x.shape[1]], y))
+#     # t1 = time.time()
+#     # print(f'Fwd time decoder layer: {t1 - t0} seconds')
+# 
+#     return z
+
 class StepLayer_dec(nn.Module):
   def __init__(self, d_model, nhead, dim_feedforward, dropout, batch_size, 
                                               max_sequence_length, device):
     super().__init__()
     torch.manual_seed(0)
-    self.decoder_layer = nn.TransformerDecoderLayer(d_model, nhead, 
-                                                    dim_feedforward, dropout)
+    # self.decoder_layer = nn.TransformerDecoderLayer(d_model, nhead, 
+    #                                                 dim_feedforward, dropout)
+    self.self_attn = nn.MultiheadAttention(
+      d_model, nhead, dropout=dropout, batch_first=False, bias=True, 
+      device=device,
+    )
+    self.multihead_attn = nn.MultiheadAttention(
+                           d_model, nhead, dropout=dropout, batch_first=False, 
+                                                     bias=True, device=device)    
+    # Implementation of Feedforward model
+    self.linear1 = nn.Linear(d_model, dim_feedforward, 
+                             bias=True, device=device)
+    self.dropout = nn.Dropout(dropout)
+    self.linear2 = nn.Linear(dim_feedforward, d_model, 
+                             bias=True, device=device)
+
+    self.norm1 = nn.LayerNorm(d_model, eps=1e-5, #bias=True, 
+                                                 device=device)
+    self.norm2 = nn.LayerNorm(d_model, eps=1e-5, #bias=True, 
+                                                 device=device)
+    self.norm3 = nn.LayerNorm(d_model, eps=1e-5, #bias=True, 
+                                                 device=device)
+    self.dropout1 = nn.Dropout(dropout)
+    self.dropout2 = nn.Dropout(dropout)
+    self.dropout3 = nn.Dropout(dropout)
+
     self.zeros_tensor = torch.zeros(
                size=(max_sequence_length, batch_size, d_model), device=device)
 
+  def _sa_block(self, x, attn_mask, key_padding_mask):
+    x = self.self_attn(
+      x, x, x, attn_mask=attn_mask, key_padding_mask=key_padding_mask, 
+      is_causal=False, need_weights=False,
+    )[0]
+    return self.dropout1(x)
+
+  def _mha_block(self, x, mem, attn_mask, key_padding_mask):
+      x = self.multihead_attn(
+        x, mem, mem, attn_mask=attn_mask, key_padding_mask=key_padding_mask, 
+        is_causal=False, need_weights=False
+      )[0]
+      return self.dropout2(x)
+
+  def _ff_block(self, x):
+      x = self.linear2(self.dropout(self.linear1(x).relu()))
+      return self.dropout3(x)
+
   def forward(self, z):
     # t0 = time.time()
-    layer = self.decoder_layer
     x, y = z
 
-    y = ( sa_y := layer._sa_block (layer.norm1(y), 
+    y = ( sa_y := self._sa_block (self.norm1(y), 
                                    tgt_mask, tgt_key_padding_mask)) \
-      + (mha_y := layer._mha_block(layer.norm2(y + sa_y), x,
+      + (mha_y := self._mha_block(self.norm2(y + sa_y), x,
                                    None, memory_key_padding_mask)) \
-      + ( ff_y := layer._ff_block (layer.norm3(y + sa_y + mha_y)))
+      + ( ff_y := self._ff_block (self.norm3(y + sa_y + mha_y)))
 
     z = torch.stack((self.zeros_tensor[:x.shape[0], :x.shape[1]], y))
     # t1 = time.time()
