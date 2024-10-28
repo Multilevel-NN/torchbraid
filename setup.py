@@ -6,8 +6,18 @@ import numpy
 from Cython.Build import cythonize, build_ext
 from setuptools import setup, Extension, find_packages
 
+import shutil
+
+
 # MPICC is needed to compile xbraid; environ is not persistent and will revert to original choice
-os.environ["CC"] = mpi4py.get_config()['mpicc']
+#os.environ["CC"] = mpi4py.get_config()['mpicc']
+if 'mpicc' in mpi4py.get_config():
+  os.environ["CC"] = mpi4py.get_config()['mpicc'] # for mpi4py < 4.0
+  print(f'  TorchBraid - mpi4py v{mpi4py.__version__}: extracting \"mpicc\" from mpi4py.get_config()')
+else:
+  path = shutil.which('mpicc') # pull from $PATH
+  os.environ["CC"] = path # up to date use default $PATH mpi4py
+  print(f'  TorchBraid - mpi4py v{mpi4py.__version__}: using "mpicc" from $PATH: "{path}"')
 
 braid_dir = './src/xbraid/braid'
 
