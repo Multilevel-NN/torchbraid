@@ -74,9 +74,11 @@ class MyBERTDataset(Dataset):
         t2 = torch.cat((t2_random, SEP_token))  # Append [SEP] at the end
         t2_label = torch.cat((t2_label, PAD_token))  # Append [PAD] at the end
 
-        segment_label_t1 = torch.ones(len(t1), dtype=torch.long, device=t1.device)
-        segment_label_t2 = torch.full((len(t2),), 2, dtype=torch.long, device=t2.device)  # Using 2 for the second segment
+        segment_label_t1 = torch.zeros(len(t1), dtype=torch.long, device=t1.device)
+        segment_label_t2 = torch.ones((len(t2),), dtype=torch.long, device=t2.device)  # Using 2 for the second segment
         segment_label = torch.cat((segment_label_t1, segment_label_t2))
+
+        attention_mask = torch.ones_like(segment_label)
         
         # Concatenate t1 and t2 for bert_input and their labels
         bert_input = torch.cat((t1, t2))
@@ -85,18 +87,25 @@ class MyBERTDataset(Dataset):
         if len(bert_label) <= self.seq_len: # Need to pad
             padding_length = self.seq_len - len(bert_input)
             padding = torch.full((padding_length,), self.tokenizer.vocab['[PAD]'], dtype=bert_input.dtype, device=bert_input.device)
+            
             bert_input = torch.cat((bert_input, padding))
-            bert_label = torch.cat((bert_label, padding))
-            segment_label = torch.cat((segment_label, padding))
 
+            bert_label = torch.cat((bert_label, padding))
+
+            segment_label = torch.cat((segment_label, torch.ones_like(padding)))
+            
+            attention_mask = torch.cat((attention_mask, padding))
+            
         assert len(bert_input) == self.seq_len, f"{len(bert_input)=} {self.seq_len=} {bert_input=}"
-        assert len(bert_label) == self.seq_len
-        assert len(segment_label) == self.seq_len
+        assert len(bert_label) == self.seq_len, f"{len(bert_label)=} {self.seq_len=} {bert_input=}"
+        assert len(segment_label) == self.seq_len, f"{len(segment_label)=} {self.seq_len=} {bert_input=}"
+        assert len(attention_mask) == self.seq_len, f"{len(attention_mask)=} {self.seq_len=} {bert_input=}"
         
         output = {"bert_input": bert_input,
                   "bert_label": bert_label,
                   "segment_label": segment_label,
-                  "is_next": is_next_label}
+                  "is_next": is_next_label, 
+                  "attention_mask": attention_mask}
 
         return output
 

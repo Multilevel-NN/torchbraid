@@ -25,6 +25,8 @@ __all__ = [ 'OpenLayer', 'CloseLayer', 'StepLayer', 'parse_args', 'ParallelNet' 
 # Define BERT Layers
 # Inspired by https://medium.com/data-and-beyond/complete-guide-to-building-bert-model-from-sratch-3e6562228891
 
+# We're slowly just porting in the Huggingface stuff
+
 class BERTEmbedding(torch.nn.Module):
     """
     BERT Embedding which is consisted with under features

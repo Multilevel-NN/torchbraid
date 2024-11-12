@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=lang-model-2
-#SBATCH --time=80:30:00
-#SBATCH --output=ml_multi_2.out
-#SBATCH --error=ml_multi_2.err
+#SBATCH --job-name=lang-model-1
+#SBATCH --time=10:30:00
+#SBATCH --output=ml_multi_1.out
+#SBATCH --error=ml_multi_1.err
 #SBATCH --nodelist=sn[5-16]
 
-#SBATCH --nodes=2
+#SBATCH --nodes=1
 #SBATCH --partition=ampere
 #SBATCH --ntasks-per-node=1
 
@@ -57,13 +57,12 @@ PDATA=5000
 
 # Long run to see if timings are bad.... 
 
-BATCH_SIZE=256
-EPOCHS=1
-#PDATA=100000  #20000
-PDATA=800  #20000
+BATCH_SIZE=256 #256
+EPOCHS=5
+PDATA=1000  #20000
 
 #mpirun -n 2 python main.py --percent-data=$PDATA --steps 64 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --lp-max-levels "(1, 2)" --lp-bwd-max-iters 1 --lp-fwd-max-iters 1 --lp-cfactor 4 --model_dimension 384 --num_heads 6 --lp-print-level 0 --lp-braid-print-level 0 --Tf 1
-mpirun -n 2 python main.py --percent-data=$PDATA --steps 16 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --lp-max-levels "(1, 2)" --lp-bwd-max-iters 1 --lp-fwd-max-iters 1 --lp-cfactor 4 --model_dimension 768 --num_heads 6 --lp-print-level 3 --lp-braid-print-level 3 --Tf 1
+mpirun -n 1 python main.py --percent-data=$PDATA --steps 12 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --lp-max-levels "(1, 2)" --lp-bwd-max-iters 1 --lp-fwd-max-iters 1 --lp-cfactor 4 --model_dimension 768 --num_heads 6 --lp-print-level 0 --lp-braid-print-level 0 --Tf 1
 
 
 
