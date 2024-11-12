@@ -6,14 +6,14 @@ class FeedForward(nn.Module):
     super().__init__()
     self.net = nn.Sequential(
       #nn.Linear(model_dimension, 1, bias=False),
-      nn.Linear(model_dimension, model_dimension, bias=True),
+      #nn.Linear(model_dimension, model_dimension, bias=True),
 
-      #nn.Linear(model_dimension, 1 * model_dimension, bias=False),
+      nn.Linear(model_dimension, 4 * model_dimension),
       #nn.Linear(2, model_dimension, bias=False),
       #nn.Linear(model_dimension, 1),
       nn.GELU(),
       #nn.Linear(1, model_dimension, bias=False),
-      #nn.Linear(1 * model_dimension, model_dimension, bias=False),
+      nn.Linear(4 * model_dimension, model_dimension),
       #LPDropout(dropout),
     )
 

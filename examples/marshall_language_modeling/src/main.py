@@ -89,7 +89,8 @@ def train(rank, params, model, optimizer, epoch, compose, device, criterion,
   model.train()
 
   for batch_idx, (data, target) in enumerate(train_loader):
-    # print(batch_idx, data.shape, target.shape)
+    # torch.cuda.nvtx.range_push(f"Iteration {batch_idx}")    # print(batch_idx, data.shape, target.shape)
+
     start_time = timer()
     data, target = data.to(device), target.to(device)
 
@@ -117,7 +118,8 @@ def train(rank, params, model, optimizer, epoch, compose, device, criterion,
 
     losses.append(loss.item())
 
-    if batch_idx == 3500:
+    torch.cuda.nvtx.range_pop()
+    if batch_idx == 1000:
         break
 
     if batch_idx % params.log_interval == 0:

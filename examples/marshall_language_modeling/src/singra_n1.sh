@@ -24,4 +24,7 @@ BATCH_SIZE=8
 EPOCHS=10
 PDATA=0.005
 rm timing_data_plots_1_32*
-mpirun -n 1 python main.py --steps 32 --epochs=$EPOCHS --endepoch 1 --input_text openwebtext --percent-data=$PDATA --batch-size=$BATCH_SIZE --lp-max-levels "(1,2)" --lp-bwd-max-iters 1 --lp-fwd-max-iters 1 --lp-cfactor 4 --model_dimension 16 --num_heads 1 --lp-print-level 0 --lp-braid-print-level 0 --Tf 1 --context_window 512
+
+#nsys profile -o profile_report mpirun -n 1 python main.py --steps 32 --epochs=$EPOCHS --endepoch 1 --input_text openwebtext --percent-data=$PDATA --batch-size=$BATCH_SIZE --lp-max-levels "(1,2)" --lp-bwd-max-iters 1 --lp-fwd-max-iters 1 --lp-cfactor 4 --model_dimension 16 --num_heads 4 --lp-print-level 0 --lp-braid-print-level 0 --Tf 1 --context_window 512
+mpirun -n 1 nsys profile -o profile_report_%q{OMPI_COMM_WORLD_RANK} python main.py --steps 32 --epochs=$EPOCHS --endepoch 1 --input_text openwebtext --percent-data=$PDATA --batch-size=$BATCH_SIZE --lp-max-levels "(1,2)" --lp-bwd-max-iters 1 --lp-fwd-max-iters 1 --lp-cfactor 4 --model_dimension 16 --num_heads 4 --lp-print-level 0 --lp-braid-print-level 0 --Tf 1 --context_window 512
+#mpirun -n 1 python main.py --steps 32 --epochs=$EPOCHS --endepoch 1 --input_text openwebtext --percent-data=$PDATA --batch-size=$BATCH_SIZE --lp-max-levels "(1,2)" --lp-bwd-max-iters 1 --lp-fwd-max-iters 1 --lp-cfactor 4 --model_dimension 16 --num_heads 4 --lp-print-level 0 --lp-braid-print-level 0 --Tf 1 --context_window 512

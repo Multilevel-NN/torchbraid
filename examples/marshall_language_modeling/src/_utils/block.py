@@ -22,17 +22,16 @@ class Block(nn.Module):
     #self.dropout2 = LPDropout(dropout)
 
   def forward(self, x, dt:float=1.0):
-    x1 = self.ln1(x)
+    #x1 = self.ln1(x)
     #x1 = x + dt * self.mha(
     #        x1, x1, x1, mask
     #)
 
     #x2 = self.ln2(x1)
     #x2 = x1 + dt * self.feed_forward(x2)
-    return x1
+    #return x1
 
 
-    """
     # Original
     x = x + dt * self.sa(self.ln1(x))
     x = x + dt * self.ffwd(self.ln2(x))
@@ -40,4 +39,3 @@ class Block(nn.Module):
     #x = x + dt * self.fc1(self.ln2(x))
     #x = x + dt * self.ffwd(x)
     return x
-    """

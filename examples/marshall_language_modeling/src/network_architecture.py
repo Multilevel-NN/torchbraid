@@ -23,6 +23,9 @@ from mpi4py import MPI
 
 from _utils.block import Block
 
+from _utils.feed_forward_network import FeedForward
+from _utils.multi_head_attention import MultiHeadAttention
+
 __all__ = [ 'OpenLayer', 'CloseLayer', 'StepLayer', 'parse_args', 'ParallelNet' ]
 
 ####################################################################################
@@ -63,19 +66,48 @@ class CloseLayer(nn.Module):
     return x
 # end layer
 
+#class BertFeedForward(torch.nn.Module): 
+#    "Implements FFN equation." 
+#    def __init__(self, d_model, middle_dim=2048, dropout=0.0): 
+#        super(FeedForward, self).__init__() 
+#         
+#        self.fc1 = torch.nn.Linear(d_model, middle_dim) 
+#        self.fc2 = torch.nn.Linear(middle_dim, d_model) 
+#        self.activation = torch.nn.GELU() 
+# 
+#    def forward(self, x): 
+#        out = self.activation(self.fc1(x)) 
+#        out = self.fc2(out)
+#        return out 
+#
+
 # f = open('llog3.txt', 'w')
 # f.close()
 class StepLayer(nn.Module):
   def __init__(self, model_dimension, num_heads, context_window, dropout, **kwargs):
+  #def __init__(self, **kwargs):
     super().__init__()
     # torch.manual_seed(0)
-    
-    self.block = Block(model_dimension, num_heads, context_window, dropout, **kwargs)
+    #print(f'{kwargs=}')
+    #self.block = Block(model_dimension, num_heads, context_window, dropout, **kwargs)
+    #self.block = Block(**kwargs)
+
+    # Self definition
+    head_size = model_dimension // num_heads
+    self.sa = MultiHeadAttention(
+     num_heads, head_size, model_dimension, context_window, dropout
+    )
+    self.ffwd = FeedForward(model_dimension, dropout)
+    # self.ffwd = FeedForward(model_dimension, model_dimension * 1, dropout)
+    self.ln1 = nn.LayerNorm(model_dimension)
+    self.ln2 = nn.LayerNorm(model_dimension)
+
 
   def forward(self, x,dt:float=1.0): 
     #print(f'{dt=}')
-    x1 = self.block(x, dt)
-    return x1
+    x = x + dt * self.sa(self.ln1(x))
+    #x1 = self.block(x, dt)
+    return x
 
 ####################################################################################
 ####################################################################################
