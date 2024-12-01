@@ -6,8 +6,23 @@ import numpy
 from Cython.Build import cythonize, build_ext
 from setuptools import setup, Extension, find_packages
 
-if "CC" not in os.environ.keys():
-  os.environ["CC"] = mpi4py.get_config()['mpicc']
+import shutil
+
+
+# MPICC is needed to compile xbraid; environ is not persistent and will revert to original choice
+#os.environ["CC"] = mpi4py.get_config()['mpicc']
+if 'mpicc' in mpi4py.get_config():
+  os.environ["CC"] = mpi4py.get_config()['mpicc'] # for mpi4py < 4.0
+  print(f'  TorchBraid - mpi4py v{mpi4py.__version__}: extracting \"mpicc\" from mpi4py.get_config()')
+else:
+  if "MPICC" in os.environ:
+    path = os.environ["MPICC"] 
+  else:
+    path = shutil.which('mpicc') # pull from $PATH
+
+  os.environ["MPICC"] = path # up to date use default $PATH mpi4py
+  os.environ["CC"] = path # up to date use default $PATH mpi4py
+  print(f'  TorchBraid - mpi4py v{mpi4py.__version__}: using "mpicc": "{path}"')
 
 braid_dir = './src/xbraid/braid'
 
@@ -25,7 +40,7 @@ class myMake(build_ext):
       subprocess.check_call(['git', 'clone', 'https://github.com/XBraid/xbraid.git'], cwd='./src')
 
     print('building xbraid...')
-    subprocess.check_call(['make', 'debug=no', 'braid', 'MPICC=cc'], cwd='./src/xbraid')
+    subprocess.check_call(['make', 'debug=no', 'braid', f'MPICC={os.environ["CC"]}'], cwd='./src/xbraid')
 
 
 braid_sources = ['access.c', 'adjoint.c', 'base.c', 'braid.c', 'braid_status.c',
@@ -54,10 +69,10 @@ extension = [Extension(
 install_requires = [
   'setuptools',
   'mpi4py',
-  'cython==0.29.32',
+  'cython>=0.29.32',
   'numpy',
-  'torch==2.0.1',
-  'torchvision==0.15.2',
+  'torch>=2.0.1',
+  'torchvision>=0.15.2',
   'matplotlib'
 ]
 

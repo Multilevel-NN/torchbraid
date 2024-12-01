@@ -150,7 +150,7 @@ def train(rank, params, model, train_loader, optimizer, epoch, device, scheduler
     data, target, segment_label, is_next = data.to(device), target.to(device), segment_label.to(device), is_next.to(device)
 
     batch_fwd_pass_start = time.time()
-    next_sent_output, mask_lm_output = model(data, segment_label)
+    mask_lm_output, next_sent_output = model(data, segment_label)
     batch_fwd_pass_end = time.time()
     
     next_loss = criterion(next_sent_output, is_next)
@@ -171,6 +171,9 @@ def train(rank, params, model, train_loader, optimizer, epoch, device, scheduler
     fwd_times.append(batch_fwd_pass_end - batch_fwd_pass_start)
     bwd_times.append(batch_bwd_pass_end - batch_bwd_pass_start)
     losses.append(loss.item())
+
+    # Generate new dropout mask 
+    model.new_mask()
 
     if batch_idx % params.log_interval == 0:
       root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tLR: {:.2e}'.format(
@@ -201,7 +204,7 @@ def test(rank, model, test_loader, device):
       data, target, segment_label, is_next = batch_data['bert_input'], batch_data['bert_label'], batch_data['segment_label'], batch_data['is_next']
       
       data, target, segment_label, is_next = data.to(device), target.to(device), segment_label.to(device), is_next.to(device)
-      next_sent_output, mask_lm_output = model(data, segment_label)
+      mask_lm_output, next_sent_output  = model(data, segment_label)
 
       next_loss = criterion(next_sent_output, is_next).item()
       mask_loss = criterion(mask_lm_output.reshape(-1, mask_lm_output.shape[-1]), target.reshape(-1)).item()
@@ -271,7 +274,10 @@ def main():
   torch.manual_seed(args.seed)
 
   # Finish assembling training and test datasets
-  root_print(rank, f'Loading {int(args.percent_data * 100)}% of dataset')
+  if args.percent_data <= 1:
+    root_print(rank, f'Loading {int(args.percent_data * 100)}% of dataset')
+  else:
+    root_print(rank, f'Loading approx {args.percent_data} elements from each dataset')
 
   # Get dataloader
   sequence_length = args.seq_len
@@ -330,6 +336,9 @@ def main():
     epoch_time_start = time.time()
     [losses, train_times, batch_f_times, batch_b_times] = train(rank=rank, params=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=epoch,
           device=device, scheduler=optim_schedule)
+
+    checkpoint = {    'model_state': model.state_dict() }
+    torch.save(checkpoint, f'model_serial_checkpoint_{rank}_{epoch=}')
 
     batch_losses += losses
     batch_times += train_times
@@ -400,6 +409,15 @@ def main():
 
     # Save the figure
     plt.savefig(f'timing_data_plots_serial_{args.steps}.png')
+
+    # Convert lists to numpy arrays
+    batch_times_array = np.array(batch_times)
+    forward_times_array = np.array(forward_times)
+    backward_times_array = np.array(backward_times)
+
+    # Save arrays to a .npz file
+    np.savez('times_data_serial_{args.steps}.npz', batch_times=batch_times_array, forward_times=forward_times_array, backward_times=backward_times_array)
+
 
 
 if __name__ == '__main__':

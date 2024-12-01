@@ -175,7 +175,7 @@ def main():
   procs = comm.Get_size()
   args = parse_args()
 
-  # root_print(rank, 'TORCHBRAID REV: %s' % torchbraid.utils.git_rev())
+  root_print(rank, 'TORCHBRAID REV: %s' % torchbraid.utils.git_rev())
   root_print(rank,f'INPUT Args: {args}')
 
   if procs % args.dp_size == 0:

@@ -6,8 +6,30 @@ import torch
 from tqdm import tqdm
 from transformers import GPT2TokenizerFast
 
+## Following taken from nanoGPT for openwebtext
+import numpy as np
+import tiktoken
+from datasets import load_dataset # huggingface datasets
 
 def obtain_data(data_dir, input_text, tokenization, percent_data=1):
+  # Honestly should've rewrote this to just download from huggingface...
+  if input_text == 'openwebtext':
+    # If using openwebtext, please create the correct preprocess data using the notebook first
+    train_data_path = os.path.join(data_dir, 'train.bin')
+    val_data_path = os.path.join(data_dir, 'val.bin')
+    enc = tiktoken.get_encoding("gpt2")
+    train_data = np.memmap(train_data_path, dtype=np.uint16, mode='r').astype(np.int64)
+    val_data = np.memmap(val_data_path, dtype=np.uint16, mode='r').astype(np.int64)
+    print(f"Loaded from {train_data_path} and {val_data_path}")
+    print(f'Truncating {len(train_data)=}, {len(val_data)=} {percent_data=}')
+    train_data  = train_data[:int(percent_data * len(train_data))]
+    val_data    = val_data[:int(percent_data * len(val_data))]
+    print(f'{len(train_data)=}, {len(val_data)=}')
+    return train_data, val_data, enc.decode, enc.n_vocab
+
+
+
+
   data_path = os.path.join(data_dir, input_text + '.txt')
   data_file = os.path.join(data_dir, input_text + '.data')
   data = []
@@ -54,7 +76,6 @@ def obtain_data(data_dir, input_text, tokenization, percent_data=1):
   print(f'{len(train_data)=}, {len(val_data)=}')
 
   return train_data, val_data, decode, vocab_size
-
 
 
 

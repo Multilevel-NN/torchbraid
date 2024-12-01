@@ -25,6 +25,8 @@ __all__ = [ 'OpenLayer', 'CloseLayer', 'StepLayer', 'parse_args', 'ParallelNet' 
 # Define BERT Layers
 # Inspired by https://medium.com/data-and-beyond/complete-guide-to-building-bert-model-from-sratch-3e6562228891
 
+# We're slowly just porting in the Huggingface stuff
+
 class BERTEmbedding(torch.nn.Module):
     """
     BERT Embedding which is consisted with under features
@@ -230,8 +232,17 @@ class ParallelNet(nn.Module):
         self.comm_lp = comm_lp
         numprocs = self.comm_lp.Get_size()
 
+        # Seperate max_levels to forward and backawrd
+        if not isinstance(max_levels, int):
+            max_fwd_levels = max_levels[0]
+            max_bwd_levels = max_levels[1]
+        else:
+            max_fwd_levels = max_levels
+            max_bwd_levels = max_levels
+
+
         self.parallel_nn = torchbraid.LayerParallel(comm_lp, step_layer, local_steps*numprocs, Tf,
-                                                    max_fwd_levels=max_levels, max_bwd_levels=max_levels,
+                                                    max_fwd_levels=max_fwd_levels, max_bwd_levels=max_bwd_levels,
                                                     max_iters=2, user_mpi_buf=user_mpi_buf)
         self.parallel_nn.setBwdMaxIters(bwd_max_iters)
         self.parallel_nn.setFwdMaxIters(fwd_max_iters)

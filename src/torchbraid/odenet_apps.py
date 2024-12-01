@@ -49,17 +49,30 @@ import copy
 from bisect import bisect_right
 from mpi4py import MPI
 
+from inspect import signature, Parameter
+
 class ForwardODENetApp(BraidApp):
   class ODEBlock(nn.Module):
     """This is a helper class to wrap layers that should be ODE time steps."""
     def __init__(self,layer):
       super(ForwardODENetApp.ODEBlock, self).__init__()
-
       self.layer = layer
 
-    def forward(self,dt, x,*args,**kwargs):
-      y = dt*self.layer(x,*args,**kwargs)
-      y.add_(x)
+      param = [v for v in signature(self.layer.forward).parameters.values()]
+
+      if len(param)<=1 or param[1].kind==Parameter.VAR_POSITIONAL or param[1].kind==Parameter.VAR_KEYWORD:
+        self.dt_custom = False
+      else:
+        self.dt_custom = True
+
+    def forward(self, dt, x,*args,**kwargs):
+      if self.dt_custom:
+        # For multi-step case
+        y = self.layer(x, dt, *args, **kwargs)
+        # print('in multi')
+      else:
+        y = dt*self.layer(x,*args,**kwargs)
+        y.add_(x)
       return y
   # end ODEBlock
 
@@ -70,7 +83,14 @@ class ForwardODENetApp(BraidApp):
 
       self.layer = layer
 
+      if len(signature(self.layer.forward).parameters) == 1:
+        self.dt_custom = False
+      else:
+        self.dt_custom = True
+
     def forward(self,dt, x,*args,**kwargs):
+      if self.dt_custom:
+        return self.layer(x, dt, *args, **kwargs)
       return self.layer(x,*args,**kwargs)
   # end ODEBlock
 
@@ -107,13 +127,24 @@ class ForwardODENetApp(BraidApp):
         # this block of code prepares the data for easy sorting
         [self.counts,self.functors] = list(zip(*layers))
         self.indices = list(itertools.accumulate(self.counts))
+
+        # Helper flags are needed
         self.done_flag = tb_utils.DoneFlag.allocate()
+        self.nb_flag = tb_utils.NBFlag.allocate()
 
-      def updateLayerDoneFlag(self,new_state):
-        tb_utils.DoneFlag.update(self.done_flag,new_state)
+        # print(f"LayersData: {self.nb_flag=} {self.done_flag=}")
 
-      def registerLayerDoneFlag(self,layer):
-        tb_utils.DoneFlag.module_register(layer,self.done_flag)
+      def incrementLayerNBFlag(self):
+        tb_utils.NBFlag.increment(self.nb_flag)
+
+      def registerLayerNBFlag(self, layer):
+        tb_utils.NBFlag.module_register(layer, self.nb_flag)
+
+      def updateLayerDoneFlag(self, new_state):
+        tb_utils.DoneFlag.update(self.done_flag, new_state)
+
+      def registerLayerDoneFlag(self, layer):
+        tb_utils.DoneFlag.module_register(layer, self.done_flag)
 
       def getNumLayers(self):
         """Get the global number of layers of concern for layer-parallel."""
@@ -132,9 +163,20 @@ class ForwardODENetApp(BraidApp):
         else:
           print('Marc modification: forced ODEBlock')
           layer = ForwardODENetApp.ODEBlock(layer)
-    
+
         layer = layer.to(device)
-        tb_utils.DoneFlag.module_register(layer,self.done_flag)
+
+        # if MPI.COMM_WORLD.Get_rank() == 0:
+        #   print(f'Registering flags {layer=}')
+        #   for l in layer.modules():
+        #     if hasattr(l,  'register_nb'):
+        #       print(l, hasattr(l,  'register_nb'))
+        #       print(f'{l.register_nb=}')
+        #       print(f'{l.register_nb=}')
+
+        tb_utils.DoneFlag.module_register(layer, self.done_flag)
+        tb_utils.NBFlag.module_register(layer, self.nb_flag)
+
         return layer
 
       def layerWeights(self,layer):
@@ -171,7 +213,7 @@ class ForwardODENetApp(BraidApp):
 
   # end class LayersDataStructure
 
-  def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_pair=None,user_mpi_buf=False,nsplines=0, splinedegree=1):
+  def __init__(self,comm,layers,Tf,max_levels,max_iters,timer_manager,spatial_ref_funcs=None,levels_to_coarsen=None,user_mpi_buf=False,nsplines=0, splinedegree=1):
     """
     """
     self.layers_data_structure = ForwardODENetApp.LayersDataStructure(layers)
@@ -183,7 +225,7 @@ class ForwardODENetApp(BraidApp):
                       Tf,
                       max_levels,
                       max_iters,
-                      spatial_ref_pair=spatial_ref_pair,
+                      spatial_ref_pair=spatial_ref_funcs[:2] if spatial_ref_funcs is not None else None,
                       user_mpi_buf=user_mpi_buf,
                       require_storage=True)
 
@@ -196,6 +238,17 @@ class ForwardODENetApp(BraidApp):
     my_rank       = self.getMPIComm().Get_rank()
     num_ranks     = self.getMPIComm().Get_size()
     self.my_rank = my_rank
+
+    # need access to the user's coarsen function to coarsen state vectors
+    # from the fine level in getPrimalWithGrad
+    if spatial_ref_funcs is not None:
+      self.spatial_coarsen = spatial_ref_funcs[0]
+      self.coarsen_shape = spatial_ref_funcs[2]
+      self.levels_to_coarsen = levels_to_coarsen
+    else:
+      self.spatial_coarsen = None
+      self.coarsen_shape = None
+      self.levels_to_coarsen = None
 
     # If this is a SpliNet, create spline basis and overwrite local self.start_layer/end_layer 
     self.splinet = False
@@ -270,9 +323,11 @@ class ForwardODENetApp(BraidApp):
 
   def to(self, *args, **kwargs):
     # make sure all the layers have registered the done flag
-    # this makes sure the any poijnter sharing is preserved
+    # this makes sure the any pointer sharing is preserved
     for l in self.layer_dict.values():
       self.layers_data_structure.registerLayerDoneFlag(l)
+    for l in self.layer_dict.values():
+      self.layers_data_structure.registerLayerNBFlag(l)
 
   @staticmethod 
   def batchSize(ten):
@@ -290,7 +345,6 @@ class ForwardODENetApp(BraidApp):
     for off proeccosr elements x with be a zero-d array with the batch
     size included.
     """
-
     batch_size = ForwardODENetApp.batchSize(x)
 
     if batch_size in self.state_shapes: 
@@ -300,10 +354,9 @@ class ForwardODENetApp(BraidApp):
       shapes = [x.shape]
       for layer_constr in self.layers_data_structure.functors:
         # build the layer on the proper device
-        layer = layer_constr().to(self.device) 
-     
+        layer = layer_constr().to(self.device)
+        # print('\t ', type(layer))
         x = layer(x,*extra_args,**extra_kwargs)
-          
         shapes += [x.shape]
     else:
       shapes = None
@@ -355,7 +408,21 @@ class ForwardODENetApp(BraidApp):
   def getFeatureShapes(self,tidx,level):
     i = self.getFineTimeIndex(tidx,level)
     ind = bisect_right(self.layers_data_structure.indices,i)
-    return [self.shape0[ind],]
+    shape = self.shape0[ind]
+
+    # spatial coarsening changes the shapes on the coarse grid
+    if level > 0 and self.levels_to_coarsen is not None:
+      cshape = list(shape)
+      # coarsen shape
+      for l in range(level):
+        if l in self.levels_to_coarsen:
+          # call user provided function to determine coarsened shape
+          # this function should accept a tuple of integers and return the same
+          cshape = self.coarsen_shape(cshape, l)
+      
+      shape = torch.Size(cshape)
+
+    return [shape,]
 
   def getParameterShapes(self,tidx,level):
     return []
@@ -385,6 +452,9 @@ class ForwardODENetApp(BraidApp):
         self.requests = None
 
   def run(self,x,extra_args,extra_kwargs):
+    self.layers_data_structure.incrementLayerNBFlag()
+    # print('Incremented flag???')
+    
     self.beginUpdateWeights()
     self.endUpdateWeights()
 
@@ -399,11 +469,11 @@ class ForwardODENetApp(BraidApp):
 
     self.extra_args = list()
     self.extra_kwargs = dict()
-
     if y is not None:
       return y[0]
     else:
       return None
+    
   # end forward
 
   def timer(self,name):
@@ -423,7 +493,6 @@ class ForwardODENetApp(BraidApp):
     required to propagate from tstart to tstop, with the initial
     condition x. The level is defined by braid
     """
-
     self.layers_data_structure.updateLayerDoneFlag(done)
 
     ts_index = self.getGlobalTimeIndex(tstart)
@@ -479,6 +548,12 @@ class ForwardODENetApp(BraidApp):
         return (y,x), layer
     
     t_x = b_x.tensor()
+
+    # call the user's coarsen function on every level lower than this one
+    if self.spatial_coarsen:
+      for l in range(level):
+        t_x = self.spatial_coarsen(t_x, l)
+
     x = t_x.detach()
     y = t_x.detach().clone()
 
@@ -599,7 +674,10 @@ class BackwardODENetApp(BraidApp):
   def getFeatureShapes(self,tidx,level):
     fine_idx = self.getFineTimeIndex(tidx,level)
     # need to map back to the global fine index on the forward grid
-    return self.fwd_app.getFeatureShapes(self.num_steps-fine_idx,0)
+    if self.fwd_app.levels_to_coarsen is None:
+      return self.fwd_app.getFeatureShapes(self.num_steps-fine_idx,0)
+    else:
+      return self.fwd_app.getFeatureShapes(self.num_steps-fine_idx,level)
 
   def eval(self,w,tstart,tstop,level,done):
     """

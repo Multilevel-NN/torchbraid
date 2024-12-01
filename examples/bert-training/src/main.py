@@ -45,7 +45,8 @@ import torchbraid
 import torchbraid.utils
 import sys
 
-from network_architecture import ParallelNet
+# from network_architecture import ParallelNet
+from network_architecture_v2 import ParallelNet
 from mpi4py import MPI
 from get_dataset import obtain_dataset
 from torch.utils.data import DataLoader
@@ -53,6 +54,18 @@ from torch.utils.data import DataLoader
 ####################################################################################
 ####################################################################################
 
+def int_or_tuple(value):
+  try:
+    # Check if the value is an integer
+    return int(value)
+  except ValueError:
+    # Check if the value is a tuple-like object
+    try:
+      elements = tuple(map(int, value.strip('()').split(',')))
+      return elements
+    except ValueError:
+      raise argparse.ArgumentTypeError("Invalid value. Must be an integer or a tuple-like object.")
+        
 # Parse command line 
 def parse_args():
   """
@@ -87,8 +100,8 @@ def parse_args():
                       help='learning rate (default: 1e-4)')
   
   # algorithmic settings (layer-parallel)
-  parser.add_argument('--lp-max-levels', type=int, default=3, metavar='N',
-                      help='Layer parallel max number of levels (default: 3)')
+  parser.add_argument('--lp-max-levels', type=int_or_tuple, default=(1,2), metavar='N',
+                      help='Layer parallel max number of levels (default: (1,2) one forward, 2 backwards)')
   parser.add_argument('--lp-bwd-max-iters', type=int, default=1, metavar='N',
                       help='Layer parallel max backward iterations (default: 1)')
   parser.add_argument('--lp-fwd-max-iters', type=int, default=2, metavar='N',
@@ -137,21 +150,6 @@ def parse_args():
   else:
     procs_lp = int(procs / args.dp_size)
 
-  ##
-  # Compute number of parallel-in-time multigrid levels 
-  def compute_levels(num_steps, min_coarse_size, cfactor):
-    from math import log, floor
-    # Find L such that ( max_L min_coarse_size*cfactor**L <= num_steps)
-    levels = floor(log(float(num_steps) / min_coarse_size, cfactor)) + 1
-
-    if levels < 1:
-      levels = 1
-    return levels
-
-  if args.lp_max_levels < 1:
-    min_coarse_size = 3
-    args.lp_max_levels = compute_levels(args.steps, min_coarse_size, args.lp_cfactor)
-
   if args.steps % procs_lp != 0:
     root_print(rank, 1, 1, 'Steps must be an even multiple of the number of layer parallel processors: %d %d'
                % (args.steps, procs_lp) )
@@ -188,9 +186,9 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device, 
     data, target, segment_label, is_next = data.to(device), target.to(device), segment_label.to(device), is_next.to(device)
 
     batch_fwd_pass_start = time.time()
-    next_sent_output, mask_lm_output = model(data, segment_label)
+    mask_lm_output, next_sent_output = model(data, segment_label)
     batch_fwd_pass_end = time.time()
-    
+
     next_loss = compose(
       criterion, next_sent_output, is_next
     )
@@ -214,6 +212,9 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device, 
     bwd_times.append(batch_bwd_pass_end - batch_bwd_pass_start)
     losses.append(loss.item())
 
+    # Generate new dropout mask 
+    model.new_mask()
+    
     if batch_idx % params.log_interval == 0:
       root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tLR: {:.2e}'.format(
         epoch, batch_idx * len(data), len(train_loader.dataset),
@@ -241,9 +242,8 @@ def test(rank, model, test_loader, compose, device):
   with torch.no_grad():
     for _, batch_data in enumerate(test_loader):
       data, target, segment_label, is_next = batch_data['bert_input'], batch_data['bert_label'], batch_data['segment_label'], batch_data['is_next']
-      
       data, target, segment_label, is_next = data.to(device), target.to(device), segment_label.to(device), is_next.to(device)
-      next_sent_output, mask_lm_output = model(data, segment_label)
+      mask_lm_output, next_sent_output = model(data, segment_label)
 
       next_loss = compose(
         criterion, next_sent_output, is_next
@@ -332,12 +332,13 @@ def main():
   ds, vocab_size = obtain_dataset(percent_data = args.percent_data, seq_len=sequence_length)
   train_size, test_size = int(len(ds) * 0.8), len(ds) - int(len(ds) * 0.8)  # 80/20 split by default
   train_ds, test_ds = torch.utils.data.random_split(ds, [train_size, test_size])
-
+  print(f'{vocab_size=}')
+  print(train_ds[0])
   train_loader = DataLoader(
-    train_ds, batch_size=args.batch_size, shuffle=True, pin_memory=True, drop_last=True
+    train_ds, batch_size=args.batch_size, shuffle=False, pin_memory=True, drop_last=True
   )
   test_loader = DataLoader(
-    test_ds, batch_size=args.batch_size, shuffle=True, pin_memory=True, drop_last=True
+    test_ds, batch_size=args.batch_size, shuffle=False, pin_memory=True, drop_last=True
   )
 
   root_print(
@@ -381,7 +382,11 @@ def main():
 									Tf=args.Tf,
 									relax_only_cg=False,
 									user_mpi_buf=args.lp_user_mpi_buf).to(device)
-  
+  root_print(rank, 'Saving untrained.')
+  model.saveSerialNet(f'serialnet_bert_{args.steps}')
+  # root_print(rank, 'Saved!!!')
+  # model.saveSerialNet(f'serial_net_hf_bert_{args.steps}_{procs}_untrain')
+  root_print(rank, 'Model created and saved; proceeding to train.')
   if args.serial_file:
     model.saveSerialNet(f'serialnet_bert_{args.steps}')
     print('Saved file')
@@ -389,7 +394,9 @@ def main():
     import sys
     sys.exit()
 
-    
+  model.parallel_nn.fwd_app.setBraidTimers(flag=1)
+  model.parallel_nn.fwd_app.setTimerFile(
+      f'timing_test_p_{procs}')
 	# Declare optimizer  
   # print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
   weight_decay=0.01
@@ -414,6 +421,8 @@ def main():
     epoch_time_start = time.time()
     [losses, train_times, batch_f_times, batch_b_times] = train(rank=rank, params=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=epoch,
           compose=model.compose, device=device, scheduler=optim_schedule)
+    checkpoint = {    'model_state': model.state_dict()}
+    torch.save(checkpoint, f'model_checkpoint_{procs=}_{rank}_{epoch=}')
 
     batch_losses += losses
     batch_times += train_times
@@ -427,14 +436,6 @@ def main():
     epoch_time_end = time.time()
     if rank == 0: root_print(rank, f'Epoch time: {epoch_time_end - epoch_time_start} seconds')
 
-	# # Print out Braid internal timings, if desired
-	# #timer_str = model.parallel_nn.getTimersString()
-	# #root_print(rank, timer_str)
-
-	# Note: the MNIST example is not meant to exhibit performance
-	#root_print(rank,
-	#           f'TIME PER EPOCH: {"{:.2f}".format(stats.mean(epoch_times))} '
-	#           f'{("(1 std dev " + "{:.2f}".format(stats.mean(epoch_times))) if len(epoch_times) > 1 else ""}')
   if rank == 0:
     _, ax1 = plt.subplots()
     ax1.plot(batch_losses, color='b', linewidth=2)
@@ -446,7 +447,7 @@ def main():
     epoch_points = np.arange(1, len(test_losses)+1) * len(train_loader)
     ax2.plot( epoch_points, test_losses, color='r', linestyle='dashed', linewidth=2, marker='o')
     ax2.set_ylabel(r"Validation loss", fontsize=13, color='r')
-    plt.savefig(f'bert_layerparallel_training_{procs}_{args.steps}_{args.lp_fwd_max_iters}.png', bbox_inches="tight")
+    plt.savefig(f'bert_layerparallel_training_{procs}_{args.steps}_{args.lp_fwd_max_iters}_{args.lp_max_levels}.png', bbox_inches="tight")
 
     # Save to file
     # Save the NumPy array to a file
@@ -485,7 +486,10 @@ def main():
     plt.tight_layout()
 
     # Save the figure
-    plt.savefig(f'timing_data_plots_{procs}_{args.steps}_{args.lp_fwd_max_iters}.png')
+    plt.savefig(f'timing_data_plots_{procs}_{args.steps}_{args.lp_max_levels=}.png')
+    np.savez('timing_{procs=}_{args.steps=}_{args.lp_max_levels=}.npy', 
+            batch_times=np.array(batch_times), forward_times=np.array(forward_times), backward_times=np.array(backward_times)
+    )
 
 
 if __name__ == '__main__':
