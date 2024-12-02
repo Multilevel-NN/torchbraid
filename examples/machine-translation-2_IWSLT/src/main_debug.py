@@ -127,7 +127,7 @@ def train_epoch(
     training_time += batch_fwd_pass_time + batch_bwd_pass_time
 
     if batch_idx == num_batches: break#2000: break
-    # break  # debug
+    break  # debug
 
   mean_loss /= len(training_data_loader)
   mean_loss = mean_loss.item()
@@ -161,7 +161,7 @@ def validate(
       preds = generate(model, src, output_tgt.shape[1]) 
       extend_sentences(originals, references, candidates, 
                        src_vocab, tgt_vocab, src, output_tgt, preds)
-      # break  # debug
+      break  # debug
 
   mean_loss /= len(data_loader)
   mean_loss = mean_loss.item()
