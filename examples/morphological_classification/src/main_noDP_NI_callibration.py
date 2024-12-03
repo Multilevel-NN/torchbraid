@@ -111,7 +111,7 @@ def train_epoch(
       print(f'rank={rank}, Batch fwd pass time: {batch_fwd_pass_end - batch_fwd_pass_start}')
       print(f'rank={rank}, Batch bwd pass time: {batch_bwd_pass_end - batch_bwd_pass_start}')
       if batch_idx == 11: import sys; sys.exit()
-      if batch_idx ==  2: import sys; sys.exit()
+      # if batch_idx ==  2: import sys; sys.exit()
 
     predictions = output.argmax(dim=-1)
     correct = (
@@ -711,27 +711,27 @@ def main():
         + f', training accuracy: {training_accuracies[-1]*100}%',
         )
 
-      validation_loss, validation_accuracy = validate(
-        rank=rank, model=model, validation_data_loader=validation_data_loader,
-        compose=model.compose, device=device, debug=args.debug,
-      )
-      root_print(
-        rank, 
-        f'Validation loss: {validation_loss}' \
-      + f', validation accuracy: {validation_accuracy*100}%',
-      )
+      # validation_loss, validation_accuracy = validate(
+      #   rank=rank, model=model, validation_data_loader=validation_data_loader,
+      #   compose=model.compose, device=device, debug=args.debug,
+      # )
+      # root_print(
+      #   rank, 
+      #   f'Validation loss: {validation_loss}' \
+      # + f', validation accuracy: {validation_accuracy*100}%',
+      # )
 
-      validation_accuracy = comm.bcast(validation_accuracy, root=0)
+      # validation_accuracy = comm.bcast(validation_accuracy, root=0)
 
-      if validation_accuracy >= next_validation_accuracy_goal:
-        too_slow_improvement_ctr = 0
-        next_validation_accuracy_goal = validation_accuracy + .005
-      else:
-        too_slow_improvement_ctr += 1
+      # if validation_accuracy >= next_validation_accuracy_goal:
+      #   too_slow_improvement_ctr = 0
+      #   next_validation_accuracy_goal = validation_accuracy + .005
+      # else:
+      #   too_slow_improvement_ctr += 1
 
-      current_model_best_accuracy = max(
-        current_model_best_accuracy, validation_accuracy,
-      )
+      # current_model_best_accuracy = max(
+      #   current_model_best_accuracy, validation_accuracy,
+      # )
 
       epoch += 1
 
