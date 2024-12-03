@@ -52,16 +52,17 @@ PDATA=4000
 
 # -------------------- GENERATE ACCURACY ------------------------------ 
 BATCH_SIZE=256
-EPOCHS=10
-PDATA=100000 #50000
+EPOCHS=1
+#PDATA=300000 #50000
+PDATA=2000
 
 # First generate the model; will auto leave with serial file
 #mpirun -n 1 python main.py --serial-file True --percent-data=$PDATA --steps 64 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --model_dimension 384 --num_heads 6
 #python main_serial.py --percent-data=$PDATA --steps 64 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --model_dimension 384 --num_heads 6
 #rm serialnet_bert_64
 
-mpirun -n 1 python main.py --serial-file True --percent-data=1000 --steps 32 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --model_dimension 384 --num_heads 6
-python main_serial.py --percent-data=$PDATA --steps 32 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --model_dimension 384 --num_heads 6
+mpirun -n 1 python main.py --serial-file True --percent-data=1000 --steps 36 --epochs=$EPOCHS --batch-size=$BATCH_SIZE 
+python main_serial.py --percent-data=$PDATA --steps 36 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --log-interval 1
 #rm serialnet_bert_32
 
 

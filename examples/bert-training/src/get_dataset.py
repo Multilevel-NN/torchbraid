@@ -163,7 +163,7 @@ def preprocess_paragraphs(paragraphs, nlp):
     """Preprocess a batch of paragraphs."""
     sentence_pairs_batch = []
     # for paragraph in paragraphs:
-    docs = nlp.pipe(paragraphs, batch_size=32)
+    docs = nlp.pipe(paragraphs, batch_size=128)
     for doc in docs:
         sentences = [sent.text.strip() for sent in doc.sents]
         if len(sentences) >= 2:
@@ -211,12 +211,14 @@ def obtain_dataset(percent_data:float = 0.01, seq_len: int = 128):
     # raw_datasets = concatenate_datasets([bookcorpus_train, wiki_train])
 
     # We process the dataset to obtain sentence pairs
+    spacy.require_gpu()
     nlp = spacy.load("en_core_web_sm", disable=["ner", "tagger"])
+    print(f'Using GPU with spacy: {spacy.prefer_gpu()}')
     def my_map(batch):
         result = preprocess_articles(batch, nlp)
         return result
         
-    processed_dataset = wiki_train.map(my_map, batched=True, remove_columns=wiki_train.column_names, batch_size=32, load_from_cache_file=False)
+    processed_dataset = wiki_train.map(my_map, batched=True, remove_columns=wiki_train.column_names, batch_size=64, load_from_cache_file=False)
 
     # Load pretrained tokenizer
     tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
