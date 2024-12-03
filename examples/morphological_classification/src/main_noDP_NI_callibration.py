@@ -546,8 +546,8 @@ def main():
 
   ## DATA
   root_print(rank, 'Loading data set...')
-  training_data_path = '/users/msalvado/MLT/ML_PQ/data/en_gum-ud-train.conllu.txt'
-  validation_data_path = '/users/msalvado/MLT/ML_PQ/data/en_gum-ud-dev.conllu.txt'
+  training_data_path = '/lustre/fswork/projects/rech/emb/ump43xm/torchbraid/torchbraid/examples/morphological_classification/data/en_gum-ud-train.conllu.txt'
+  validation_data_path = '/lustre/fswork/projects/rech/emb/ump43xm/torchbraid/torchbraid/examples/morphological_classification/data/en_gum-ud-dev.conllu.txt'
   (
     training_data_set, validation_data_set, training_data_loader, 
     validation_data_loader, vocabs,
