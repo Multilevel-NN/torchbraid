@@ -100,6 +100,11 @@ def train_epoch(
   training_time = 0.
   
   for batch_idx, batch in enumerate(training_data_loader):
+    # Before proceeding, get some new masks
+    if not isinstance(model, SerialNet) and \
+       gradient_accumulation_ctr%gradient_accumulation == 0:
+      model.new_mask(batch[0])
+
     batch_fwd_pass_start = time.time()
     output, loss, src, input_tgt, output_tgt = fwd(
                batch, model, criterion, label_smoother, compose, device, rank, gradient_accumulation)
@@ -110,10 +115,6 @@ def train_epoch(
     batch_bwd_pass_start = time.time()
     bwd(loss, optimizer, gradient_accumulation_ctr%gradient_accumulation == 0)
     batch_bwd_pass_end = time.time()
-
-    # Before proceeding, get some new masks
-    if not isinstance(model, SerialNet) and gradient_accumulation_ctr%gradient_accumulation == 0:
-        model.new_mask()
 
     batch_fwd_pass_time = batch_fwd_pass_end - batch_fwd_pass_start
     batch_bwd_pass_time = batch_bwd_pass_end - batch_bwd_pass_start
