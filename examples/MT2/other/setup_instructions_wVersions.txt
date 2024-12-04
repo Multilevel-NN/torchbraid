@@ -1,0 +1,19 @@
+conda create -n original-transf_MT_20240717 python=3.11.9
+conda activate original-transf_MT_20240717
+# conda install pytorch::pytorch==2.2.2 torchvision==0.15.2a0 torchaudio==2.2.2 -c pytorch
+conda install pytorch::pytorch==2.2.2 torchvision==0.15.2 torchaudio==2.2.2 -c pytorch
+conda install -c conda-forge spacy==3.7.2
+python -m spacy download en_core_web_sm
+python -m spacy download de_core_news_sm
+conda install anaconda::ipython
+conda install anaconda::numpy
+conda install conda-forge::matplotlib
+conda install -c huggingface -c conda-forge datasets==2.20.0
+pip install nltk==3.8.1
+pip install tensorboard==2.17.0
+# if run tensorboard here: pip install tensorboard-plugin-customizable-plots==1.1.3
+pip install mypy==1.10.1
+pip install sentencepiece==0.2.0
+pip install wandb==0.17.7
+pip install sacrebleu==2.3.1
+pip install torchmetrics==1.4.1

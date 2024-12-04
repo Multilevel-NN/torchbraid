@@ -1,0 +1,12 @@
+- the main.py script should run inside the src directory
+- "data" and "tokenizers" directories should be 'at the same level' as the src directory (they will be accessed like ../data/ and ../tokenizers)
+- inside the "other" directory:
+  - there is the load_modules_MT2.sh file, which loads some modules in our cluster. I don't think it'll be useful for you but just in case.
+  - there is the setup description of how the environment was created (libraries and versions)
+  - there is a job example used in our cluster. I guess it will be similar to yours.
+
+Thanks!
+
+Marshall notes: 
+----
+Need to create stored models

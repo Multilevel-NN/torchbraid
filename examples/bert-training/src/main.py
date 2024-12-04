@@ -185,8 +185,10 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device, 
     start_time = timer()
     data, target, segment_label, is_next = data.to(device), target.to(device), segment_label.to(device), is_next.to(device)
 
+    torch.cuda.synchronize()
     batch_fwd_pass_start = time.time()
     mask_lm_output, next_sent_output = model(data, segment_label)
+    torch.cuda.synchronize()
     batch_fwd_pass_end = time.time()
 
     next_loss = compose(
@@ -199,8 +201,10 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device, 
     loss = next_loss + mask_loss
     scheduler.zero_grad()
 
+    torch.cuda.synchronize()
     batch_bwd_pass_start = time.time()
     loss.backward()
+    torch.cuda.synchronize()
     batch_bwd_pass_end = time.time()
     scheduler.step_and_update_lr()
     
@@ -272,6 +276,9 @@ class ScheduledOptim():
         self.n_warmup_steps = n_warmup_steps
         self.n_current_steps = 0
         self.init_lr = np.power(d_model, -0.5)
+
+        if self.init_lr > 3.18e-3:
+            self.init_lr = 3.18e-3
 
     def step_and_update_lr(self):
         "Step with the inner optimizer"
@@ -399,9 +406,10 @@ def main():
       f'timing_test_p_{procs}')
 	# Declare optimizer  
   # print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
+  # https://datascience.stackexchange.com/questions/64583/what-are-the-good-parameter-ranges-for-bert-hyperparameters-while-finetuning-it
   weight_decay=0.01
   betas=(0.9, 0.999)
-  warmup_steps=10000
+  warmup_steps=1000
   optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=betas, weight_decay=weight_decay)
   optim_schedule = ScheduledOptim(
     optimizer, args.model_dimension, n_warmup_steps=warmup_steps
