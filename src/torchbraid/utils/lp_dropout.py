@@ -11,6 +11,7 @@ seeding the masks with this flag term, meaning that on each batch, the dropout i
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from mpi4py import MPI
 
 from torchbraid.utils import *
 
@@ -19,7 +20,7 @@ __all__ = ['LPDropout']
 
 class LPDropout(NBFlagMixin, nn.Module):
     __constants__ = ['p', 'inplace']
-    def __init__(self, p: float=0.2):
+    def __init__(self, p: float=0.2, t: int=0):
         """
         Same as regular Dropout, however, will only update on each new training call and not every call.
         Note that the seed is set for now to the flag value, meaning that every batch is the same dropout 
@@ -53,6 +54,7 @@ class LPDropout(NBFlagMixin, nn.Module):
             raise ValueError(f"dropout probability has to be between 0 and 1, but got {p}")
 
         self.register_buffer("p", torch.tensor(p))
+        self.register_buffer("t", torch.tensor(t))
 
         self.nb_flag = NBFlag.allocate()
 
@@ -66,6 +68,17 @@ class LPDropout(NBFlagMixin, nn.Module):
 
         self.mask = None
 
+    def generate_new_mask(self, input: torch.Tensor = None):
+        """
+        To be called after a batch; generates a new mask
+        """
+        # print('In this file!?')
+        binomial = torch.distributions.binomial.Binomial(probs=1-self.p)
+        if input: 
+            self.mask = binomial.sample(input) * (1.0/(1-self.p))
+        else:
+            self.mask = binomial.sample(self.mask.size()) * (1.0/(1-self.p))
+        
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # If not training; it's just identity
         if not self.training:
@@ -75,24 +88,25 @@ class LPDropout(NBFlagMixin, nn.Module):
         if self.mask is None: 
             torch.manual_seed(0)
 
-            #print(f'\t Generating mask; init could be due to dry run')
+        #     # print(f'\t Generating mask; init could be due to dry run')
 
             binomial = torch.distributions.binomial.Binomial(probs=1-self.p)
             self.mask = binomial.sample(input.size()) * (1.0/(1-self.p)) 
 
-            # print(f'\t Generating mask; init could be due to dry run {self.mask=}')
-            
-        # Else if counter-mismatch, only happen if new batch 
-        if self.int_counter != self.nb_flag:
-            self.int_counter = self.nb_flag.detach().clone()
+            if self.int_counter > 1:
+                print(f'\t Suspicious generating mask; init could be due to dry run {self.nb_flag=} {self.int_counter=} {hex(id(self))=} {self.custom_multiple=}', flush=True)
+            # print(f'\t Mask adhoc {self.nb_flag=} {self.int_counter=} {hex(id(self))=} {self.custom_multiple=}', flush=True)
 
-            torch.manual_seed(self.int_counter + self.custom_multiple)
-            binomial = torch.distributions.binomial.Binomial(probs=1-self.p)
-            self.mask = binomial.sample(input.size()) * (1.0/(1-self.p))
-            #print(f'\t Generated mask:{self.nb_flag=} {self.int_counter=} {hex(id(self))=} {self.mask[0, 0, 0]=}')
-            #print(f'\t {self.mask[0, 0, 0:3]=}')
+        # # Else if counter-mismatch, only happen if new batch 
+        # if self.int_counter != self.nb_flag:
+        #     self.int_counter = self.nb_flag.detach().clone()
 
-            
+        #     torch.manual_seed(self.int_counter + self.t)
+        #     binomial = torch.distributions.binomial.Binomial(probs=1-self.p)
+        #     self.mask = binomial.sample(input.size()) * (1.0/(1-self.p))
+        #     print(f'\t Generated mask:{self.nb_flag=} {self.int_counter=} {hex(id(self))=} {self.custom_multiple=} {self.t=}', flush=True)
+        #     #print(f'\t {self.mask[0, 0, 0:3]=}')
+        # print(f'\t Using mask:{hex(id(self))=} {self.custom_multiple=} {self.mask.flatten()[0:10]}', flush=True)
         return input * self.mask
 
     def extra_repr(self) -> str:
