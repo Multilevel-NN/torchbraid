@@ -112,7 +112,7 @@ def train_epoch(
     batch_bwd_pass_end = time.time()
 
     # Before proceeding, get some new masks
-    if gradient_accumulation_ctr%gradient_accumulation == 0:
+    if not isinstance(model, SerialNet) and gradient_accumulation_ctr%gradient_accumulation == 0:
         model.new_mask()
 
     batch_fwd_pass_time = batch_fwd_pass_end - batch_fwd_pass_start
@@ -312,8 +312,8 @@ def main():
   label_smoother = LabelSmoothingDistribution(.1, target_vocabulary.pad_id, 
                                               len(target_vocabulary), device)
   if (loading_path := args.load):
-    try   : checkpoint = torch.load(f'../stored_models/{loading_path}_cp1.pt')
-    except: checkpoint = torch.load(f'../stored_models/{loading_path}_cp2.pt')
+    try   : checkpoint = torch.load(f'../stored_models/id{loading_path}_rank{rank}_cp1.pt')
+    except: checkpoint = torch.load(f'../stored_models/id{loading_path}_rank{rank}_cp2.pt')
     model    .load_state_dict(checkpoint[    'model_state'])
     optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])
     optimizer.current_step_number = checkpoint['optimizer_csn']
@@ -368,8 +368,8 @@ def main():
         checkpoint = {    'model_state':               model.state_dict(),
                       'optimizer_state': optimizer.optimizer.state_dict(),
                       'optimizer_csn'  : optimizer.current_step_number   ,}
-        torch.save(checkpoint, f'../stored_models/{run_id}_cp1.pt')
-        torch.save(checkpoint, f'../stored_models/{run_id}_cp2.pt')
+        torch.save(checkpoint, f'../stored_models/id{run_id}_rank{rank}_cp1.pt')
+        torch.save(checkpoint, f'../stored_models/id{run_id}_rank{rank}_cp2.pt')
 
   root_print(rank, 'Training finished.')
 
