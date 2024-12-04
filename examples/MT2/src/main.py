@@ -103,7 +103,7 @@ def train_epoch(
     # Before proceeding, get some new masks
     if not isinstance(model, SerialNet) and \
        gradient_accumulation_ctr%gradient_accumulation == 0:
-      model.new_mask(batch[0])
+      model.new_mask(batch[0].shape)
 
     batch_fwd_pass_start = time.time()
     output, loss, src, input_tgt, output_tgt = fwd(
