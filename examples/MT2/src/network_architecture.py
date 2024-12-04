@@ -124,6 +124,29 @@ class StepLayer_enc(nn.Module):
     # print(f'x={x}')
     return z
 
+class usual_StepLayer_enc(nn.Module):
+  def __init__(self, d_model, nhead, dim_feedforward, dropout, batch_size,
+                                              max_sequence_length, device):
+    super().__init__()
+    torch.manual_seed(0)
+    self.encoder_layer = nn.TransformerEncoderLayer(d_model, nhead,
+                                                    dim_feedforward, dropout)
+    self.zeros_tensor = torch.zeros(
+               size=(max_sequence_length, batch_size, d_model), device=device)
+
+  def forward(self, z):
+    # t0 = time.time()
+    layer = self.encoder_layer
+    x, y = z
+    x = (sa_x := layer._sa_block(layer.norm1(x), None, src_key_padding_mask)) \
+      + (ff_x := layer._ff_block(layer.norm2(x + sa_x)))
+
+    z = torch.stack((x, self.zeros_tensor[:y.shape[0], :y.shape[1]]))
+    # t1 = time.time()
+    # print(f'Fwd time encoder layer: {t1 - t0} seconds')
+    # print(f'x={x}')
+    return z
+
 class StepLayer_dec(nn.Module):
   def __init__(self, d_model, nhead, dim_feedforward, dropout, batch_size, 
                                               max_sequence_length, device):
@@ -140,6 +163,33 @@ class StepLayer_dec(nn.Module):
     x, y = z
 
     y = ( sa_y := layer._sa_block (layer.norm1(y), 
+                                   tgt_mask, tgt_key_padding_mask)) \
+      + (mha_y := layer._mha_block(layer.norm2(y + sa_y), x,
+                                   None, memory_key_padding_mask)) \
+      + ( ff_y := layer._ff_block (layer.norm3(y + sa_y + mha_y)))
+
+    z = torch.stack((self.zeros_tensor[:x.shape[0], :x.shape[1]], y))
+    # t1 = time.time()
+    # print(f'Fwd time decoder layer: {t1 - t0} seconds')
+
+    return z
+
+class usual_StepLayer_dec(nn.Module):
+  def __init__(self, d_model, nhead, dim_feedforward, dropout, batch_size,
+                                              max_sequence_length, device):
+    super().__init__()
+    torch.manual_seed(0)
+    self.decoder_layer = nn.TransformerDecoderLayer(d_model, nhead,
+                                                    dim_feedforward, dropout)
+    self.zeros_tensor = torch.zeros(
+               size=(max_sequence_length, batch_size, d_model), device=device)
+
+  def forward(self, z):
+    # t0 = time.time()
+    layer = self.decoder_layer
+    x, y = z
+
+    y = ( sa_y := layer._sa_block (layer.norm1(y),
                                    tgt_mask, tgt_key_padding_mask)) \
       + (mha_y := layer._mha_block(layer.norm2(y + sa_y), x,
                                    None, memory_key_padding_mask)) \
@@ -416,12 +466,12 @@ class SerialNet(nn.Module):
 
     numprocs = 1
 
-    step_layer_enc = lambda: StepLayer_enc(
+    step_layer_enc = lambda: usual_StepLayer_enc(
                                    d_model, nhead, dim_feedforward, dropout, 
                                    batch_size, max_sequence_length, device)
 
     if not split_decoder:
-      step_layer_dec = lambda: StepLayer_dec(
+      step_layer_dec = lambda: usual_StepLayer_dec(
                                      d_model, nhead, dim_feedforward, dropout, 
                                      batch_size, max_sequence_length, device)
       layers    = [   step_layer_enc   ,    step_layer_dec   ]
