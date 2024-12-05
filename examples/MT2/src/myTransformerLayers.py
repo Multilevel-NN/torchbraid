@@ -1060,7 +1060,10 @@ class TransformerEncoderLayer(Module):
             need_weights=False,
             is_causal=is_causal,
         )[0]
-        return self.dropout1(x)
+        print('enc bf sa drop')
+        x = self.dropout1(x)
+        print('enc af sa drop')
+        return x
 
     # feed forward block
     def _ff_block(self, x: Tensor) -> Tensor:
