@@ -68,6 +68,8 @@ from generation import generate
 from optimizer  import get_optimizer
 from _utils     import LabelSmoothingDistribution
 
+print(f'Python version info: {sys.version_info}')
+
 # torch.set_default_dtype(torch.float64)
 
 def bwd(loss, optimizer, do_step):
