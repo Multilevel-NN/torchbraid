@@ -74,7 +74,7 @@ class LPDropout(NBFlagMixin, nn.Module):
         """
         # print('In this file!?')
         binomial = torch.distributions.binomial.Binomial(probs=1-self.p)
-        if input: 
+        if input is not None: 
             self.mask = binomial.sample(input) * (1.0/(1-self.p))
         else:
             self.mask = binomial.sample(self.mask.size()) * (1.0/(1-self.p))
