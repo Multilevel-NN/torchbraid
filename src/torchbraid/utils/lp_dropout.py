@@ -20,7 +20,9 @@ __all__ = ['LPDropout']
 
 class LPDropout(NBFlagMixin, nn.Module):
     __constants__ = ['p', 'inplace']
-    def __init__(self, p: float=0.2, t: int=0):
+    def __init__(self, p, device,  t=0, dtype=None):
+        factory_kwargs = {"device": device, "dtype": dtype}
+
         """
         Same as regular Dropout, however, will only update on each new training call and not every call.
         Note that the seed is set for now to the flag value, meaning that every batch is the same dropout 
@@ -52,35 +54,37 @@ class LPDropout(NBFlagMixin, nn.Module):
         super().__init__()
         if p < 0 or p > 1:
             raise ValueError(f"dropout probability has to be between 0 and 1, but got {p}")
-
-        self.register_buffer("p", torch.tensor(p))
-        self.register_buffer("t", torch.tensor(t))
+        self.device = device
+        self.register_buffer("p", torch.tensor(p, device=device))
+        self.register_buffer("t", torch.tensor(t, device=device))
 
         self.nb_flag = NBFlag.allocate()
 
         # This seems like it causes issues, when .to(device) is called; we don't want two flags around
         # self.register_buffer("nb_flag", nb_flag) 
 
-        self.int_counter = torch.tensor(1)
+        self.int_counter = torch.tensor(1, device=device)
         self.custom_multiple = torch.randint(2, 10000, (1,)) # This should be unique to each dropout, making each layer's different
         #self.register_buffer("int_counter", int_counter)
         #print(f'{self.custom_multiple=} ')
+        
 
         self.mask = None
 
-    def generate_new_mask(self, input: torch.Tensor = None):
+    def generate_new_mask(self, input: torch.Tensor = None, device = None):
         """
         To be called after a batch; generates a new mask
         """
         # print('In this file!?')
         binomial = torch.distributions.binomial.Binomial(probs=1-self.p)
         if input is not None: 
-            self.mask = binomial.sample(input) * (1.0/(1-self.p))
+            self.mask = binomial.sample(input) * (1.0/(1-self.p)).to(self.device)
         else:
-            self.mask = binomial.sample(self.mask.size()) * (1.0/(1-self.p))
+            self.mask = binomial.sample(self.mask.size()) * (1.0/(1-self.p)).to(self.device)
         
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # If not training; it's just identity
+        input.to(self.device)
         if not self.training:
             return input
         
@@ -91,7 +95,7 @@ class LPDropout(NBFlagMixin, nn.Module):
         #     # print(f'\t Generating mask; init could be due to dry run')
 
             binomial = torch.distributions.binomial.Binomial(probs=1-self.p)
-            self.mask = binomial.sample(input.size()) * (1.0/(1-self.p)).to(input.device) 
+            self.mask = binomial.sample(input.size()) * (1.0/(1-self.p)).to(self.device)
 
             if self.int_counter > 1:
                 print(f'\t Suspicious generating mask; init could be due to dry run {self.nb_flag=} {self.int_counter=} {hex(id(self))=} {self.custom_multiple=}', flush=True)
@@ -111,3 +115,4 @@ class LPDropout(NBFlagMixin, nn.Module):
 
     def extra_repr(self) -> str:
         return f'p={self.p}'
+

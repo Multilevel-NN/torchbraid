@@ -12,11 +12,11 @@ from torch.nn.init import xavier_uniform_
 
 from torch.nn import MultiheadAttention
 from torch.nn import ModuleList
-# from torch.nn import Dropout # Using LPDropout 
+#from torch.nn import Dropout # Using LPDropout 
 from torchbraid.utils import LPDropout as Dropout
 from torch.nn import Linear
 from torch.nn import Module
-# from torch.nn import LayerNorm # Running old PyTorch, need the LayerNorm built for bias values. 
+from torch.nn import LayerNorm # Running old PyTorch, need the LayerNorm built for bias values. 
 
 
 __all__ = [
@@ -855,14 +855,16 @@ class TransformerEncoderLayer(Module):
         )
         # Implementation of Feedforward model
         self.linear1 = Linear(d_model, dim_feedforward, bias=bias, **factory_kwargs)
-        self.dropout = Dropout(dropout)
+        device = factory_kwargs.get('device', torch.device('cpu'))
+
+        self.dropout = Dropout(dropout, device=device)
         self.linear2 = Linear(dim_feedforward, d_model, bias=bias, **factory_kwargs)
 
         self.norm_first = norm_first
         self.norm1 = LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
         self.norm2 = LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
-        self.dropout1 = Dropout(dropout)
-        self.dropout2 = Dropout(dropout)
+        self.dropout1 = Dropout(dropout, device=device)
+        self.dropout2 = Dropout(dropout, device=device)
 
         # Legacy string support for activation function.
         if isinstance(activation, str):
@@ -1145,16 +1147,18 @@ class TransformerDecoderLayer(Module):
         )
         # Implementation of Feedforward model
         self.linear1 = Linear(d_model, dim_feedforward, bias=bias, **factory_kwargs)
-        self.dropout = Dropout(dropout)
+        device = factory_kwargs.get('device', torch.device('cpu'))
+
+        self.dropout = Dropout(dropout, device=device)
         self.linear2 = Linear(dim_feedforward, d_model, bias=bias, **factory_kwargs)
 
         self.norm_first = norm_first
         self.norm1 = LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
         self.norm2 = LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
         self.norm3 = LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
-        self.dropout1 = Dropout(dropout)
-        self.dropout2 = Dropout(dropout)
-        self.dropout3 = Dropout(dropout)
+        self.dropout1 = Dropout(dropout, device=device)
+        self.dropout2 = Dropout(dropout, device=device)
+        self.dropout3 = Dropout(dropout, device=device)
 
         # Legacy string support for activation function.
         if isinstance(activation, str):
@@ -1243,6 +1247,9 @@ class TransformerDecoderLayer(Module):
         key_padding_mask: Optional[Tensor],
         is_causal: bool = False,
     ) -> Tensor:
+        
+        # print("attn_mask ", attn_mask.device,  "   x ", x.device, "       key_padding_mask ", key_padding_mask.device)
+
         x = self.self_attn(
             x,
             x,
