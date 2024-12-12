@@ -115,14 +115,14 @@ class StepLayer_enc(nn.Module):
     # t0 = time.time()
     layer = self.encoder_layer
     x, y = z
-    # x = (sa_x := layer._sa_block(layer.norm1(x), None, src_key_padding_mask)) \
-    #   + (ff_x := layer._ff_block(layer.norm2(x + sa_x)))
-    print('enc pre-sa')
-    sa_x = layer._sa_block(layer.norm1(x), None, src_key_padding_mask)
-    print('enc pre-ff')
-    ff_x = layer._ff_block(layer.norm2(x + sa_x))
-    print('enc post-ff')
-    x = sa_x + ff_x
+    x = (sa_x := layer._sa_block(layer.norm1(x), None, src_key_padding_mask)) \
+      + (ff_x := layer._ff_block(layer.norm2(x + sa_x)))
+    # print('enc pre-sa')
+    # sa_x = layer._sa_block(layer.norm1(x), None, src_key_padding_mask)
+    # print('enc pre-ff')
+    # ff_x = layer._ff_block(layer.norm2(x + sa_x))
+    # print('enc post-ff')
+    # x = sa_x + ff_x
 
     z = torch.stack((x, self.zeros_tensor[:y.shape[0], :y.shape[1]]))
     # t1 = time.time()
@@ -167,22 +167,21 @@ class StepLayer_dec(nn.Module):
     # t0 = time.time()
     layer = self.decoder_layer
     x, y = z
-
-    # y = ( sa_y := layer._sa_block (layer.norm1(y), 
-    #                                tgt_mask, tgt_key_padding_mask)) \
-    #   + (mha_y := layer._mha_block(layer.norm2(y + sa_y), x,
-    #                                None, memory_key_padding_mask)) \
-    #   + ( ff_y := layer._ff_block (layer.norm3(y + sa_y + mha_y)))
-    print('dec pre-sa')
-    sa_y = layer._sa_block (layer.norm1(y), 
-                                   tgt_mask, tgt_key_padding_mask)
-    print('dec pre-mha')
-    mha_y = layer._mha_block(layer.norm2(y + sa_y), x,
-                                   None, memory_key_padding_mask)
-    print('dec pre-ff')
-    ff_y = layer._ff_block (layer.norm3(y + sa_y + mha_y))
-    print('dec post-ff')
-    y = sa_y + mha_y + ff_y
+    y = ( sa_y := layer._sa_block (layer.norm1(y), 
+                                   tgt_mask, tgt_key_padding_mask)) \
+      + (mha_y := layer._mha_block(layer.norm2(y + sa_y), x,
+                                   None, memory_key_padding_mask)) \
+      + ( ff_y := layer._ff_block (layer.norm3(y + sa_y + mha_y)))
+    # print('dec pre-sa')
+    # sa_y = layer._sa_block (layer.norm1(y), 
+    #                                tgt_mask, tgt_key_padding_mask)
+    # print('dec pre-mha')
+    # mha_y = layer._mha_block(layer.norm2(y + sa_y), x,
+    #                                None, memory_key_padding_mask)
+    # print('dec pre-ff')
+    # ff_y = layer._ff_block (layer.norm3(y + sa_y + mha_y))
+    # print('dec post-ff')
+    # y = sa_y + mha_y + ff_y
 
     z = torch.stack((self.zeros_tensor[:x.shape[0], :x.shape[1]], y))
     # t1 = time.time()
@@ -407,7 +406,8 @@ class ParallelNet(nn.Module):
       # print(layer)
       if isinstance(layer, Dropout):
         # print('Generating')
-        layer.generate_new_mask(x)
+        if layer.mask is not None:
+          layer.generate_new_mask(x)
 
   def saveSerialNet(self, name):
     # Model can be reloaded in serial format with: model = torch.load(filename)

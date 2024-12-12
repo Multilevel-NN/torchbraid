@@ -187,9 +187,12 @@ def get_data(device, debug, num_beams, download_tokenizers, tokenization,
     dataset = Dataset_class(raw_datasets[split], *Dataset_args(split))
     data_loader_config_dict[ 'collate_fn'  ] = None
     data_loader_config_dict['batch_sampler'] = None
+    # data_loader_config_dict_copy = \
+    #    {k: v for (k, v) in data_loader_config_dict.items()} \
+    #  | {'shuffle': shuffle_data}
     data_loader_config_dict_copy = \
-       {k: v for (k, v) in data_loader_config_dict.items()} \
-     | {'shuffle': shuffle_data}
+      {k: v for (k, v) in data_loader_config_dict.items()}
+    data_loader_config_dict_copy.update({'shuffle': shuffle_data})
 
     if split == 'validation':
       data_loader_config_dict_copy['batch_size'] //= num_beams

@@ -68,6 +68,8 @@ from generation import generate
 from optimizer  import get_optimizer
 from _utils     import LabelSmoothingDistribution
 
+print(f'Python version info: {sys.version_info}')
+
 # torch.set_default_dtype(torch.float64)
 
 def bwd(loss, optimizer, do_step):
@@ -103,7 +105,10 @@ def train_epoch(
     # Before proceeding, get some new masks
     if not isinstance(model, SerialNet) and \
        gradient_accumulation_ctr%gradient_accumulation == 0:
-      model.new_mask(batch[0].shape)
+      model.new_mask()
+      # model.new_mask(batch[0].shape)
+      # print(batch[0].shape, batch[1].shape)
+      # model.new_mask(batch[0].shape)
 
     batch_fwd_pass_start = time.time()
     output, loss, src, input_tgt, output_tgt = fwd(

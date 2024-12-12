@@ -1060,9 +1060,9 @@ class TransformerEncoderLayer(Module):
             need_weights=False,
             is_causal=is_causal,
         )[0]
-        print('enc bf sa drop')
+        # print('enc bf sa drop')
         x = self.dropout1(x)
-        print('enc af sa drop')
+        # print('enc af sa drop')
         return x
 
     # feed forward block
