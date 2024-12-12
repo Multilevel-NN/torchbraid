@@ -1,6 +1,13 @@
 # TorchBraid
 
-XBraid interface to PyTorch
+This package implements a layer-parallel approach to training neural ODEs, and neural networks. 
+Algorithmically multigrid-in-time is used to expose parallelism in the forward and backward
+propagation phases used to compute the gradient. The neural network interface is build on
+PyTorch, while the backend uses XBraid (a C library) for multigrid-in-time.
+
+If you are having trouble with the GPU/MPI interaction, including low communication as a result
+of unneccessary host-device transfers (e.g. not using GPU aware MPI), please 
+see [GPU Direct Communication](#gpu-direct-communication).
 
 ## Build TorchBraid: pip (recommended):
 
@@ -19,7 +26,9 @@ XBraid interface to PyTorch
 
     You can also install directly from github using  
     `pip install git+ssh://git@github.com/Multilevel-NN/TorchBraid.git`  
-    or the HTTP equivalent. 
+    or the HTTP equivalent.
+
+  1. Test the installation: See [Run Unit Tests](#run-unit-tests)
 
 ## Build TorchBraid: Conda
   
@@ -31,10 +40,9 @@ conda activate tb-env
 pip install git+ssh://git@github.com/Multilevel-NN/TorchBraid.git  # or local equivalent 
 ```
 
-For testing the
+For testing see [Run Unit Tests](#run-unit-tests)
 
-
-## Run unit tests 
+## Run Unit Tests
 
   * Make
 
@@ -60,7 +68,7 @@ For testing the
 
 ## GPU direct communication
 
-Torchbraid uses direct GPU communication when running simulations on GPUs. For this, Torchbraid requires a 
+TorchBraid uses direct GPU communication when running simulations on GPUs. For this, Torchbraid requires a 
 CUDA-aware MPI version ( see [here](https://developer.nvidia.com/blog/introduction-cuda-aware-mpi/)
 or [here](https://www.open-mpi.org/faq/?category=runcuda) for more information). A simple first test to determine if 
 your system supports CUDA-aware MPI is to execute the command
