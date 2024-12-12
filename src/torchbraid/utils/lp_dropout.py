@@ -91,7 +91,7 @@ class LPDropout(NBFlagMixin, nn.Module):
         #     # print(f'\t Generating mask; init could be due to dry run')
 
             binomial = torch.distributions.binomial.Binomial(probs=1-self.p)
-            self.mask = binomial.sample(input.size()) * (1.0/(1-self.p)) 
+            self.mask = binomial.sample(input.size()) * (1.0/(1-self.p)).to(input.device) 
 
             if self.int_counter > 1:
                 print(f'\t Suspicious generating mask; init could be due to dry run {self.nb_flag=} {self.int_counter=} {hex(id(self))=} {self.custom_multiple=}', flush=True)
