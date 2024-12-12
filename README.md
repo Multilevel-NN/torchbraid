@@ -86,36 +86,7 @@ segmentation fault), your MPI version does not support direct GPU communication.
 
 ## Build TorchBraid: Makefile (advanced):
 
-### Requirements:
-  + python libs:
-    cython
-    mpi4py
-    pytorch
-  + build of xbraid
-  + MPI compiler
-
-Note, the cython version is pretty important, particularly if torch layers are shipped directly by braid.
-
-### Setup for Conda (with native MPI support)
-
-### Build xbraid:
-  1. Download from git@github.com:XBraid/xbraid.git
-  1. The master branch should work fine
-  1. From the xbraid directory run `make debug=no braid`
-
-### Build TorchBraid
-  1. Copy makefile.inc.example to makefile.inc 
-  1. Modify makefile.inc to include your build specifics
-  1. Type make
-  1. You will need to add the TorchBraid directory to your python path. E.g.:
-     1. `export PYTHONPATH=${PYTHONPATH}:/path/to/TorchBraid/src`
-    This makes sure that the python search path for modules is setup.
-
-Take look at code in the examples directory.
-
-### To clean the directory:
-
-   `make clean`
+[Link to the Make instructions](MAKEINSTRUCTIONS.md)
 
 ## Publications
 
