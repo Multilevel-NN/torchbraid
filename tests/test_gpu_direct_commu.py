@@ -27,6 +27,8 @@ def test_gpu_direct():
       torch.allclose(ten2, ten3)
   except AssertionError as e:
     err_msg = f'Assertion Failure - {e}'
+  except RuntimeError as e:
+    err_msg = f'RuntimeError Failure - {e}'
   else:
     passed = True
 
@@ -44,10 +46,10 @@ def test_gpu_direct():
     passed_rank1 = comm.recv(source=1, tag=90)
 
     if passed_rank0 and passed_rank1:
-      print('PASSED: GPU aware MPI is availble')
+      print('PASSED: GPU aware MPI is available')
     else:
       print()
-      print('FAILED: GPU aware MPI is not available')
+      print('FAILED: GPU aware MPI is NOT available')
 
 if __name__ == '__main__':
     test_gpu_direct()
