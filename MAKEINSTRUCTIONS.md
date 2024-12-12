@@ -6,6 +6,10 @@ its not the recommended approach. Regardless, here are some partial instructions
 If you want a recommended way please see the [PIP Install](README.md#build-torchbraid-pip-recommended)
 
 ## Requirements:
+
+Here are the requirements as of 12/12/2024. It is possible that these were not updated, please check [setpy.py](setup.py)
+for the most up to date (or, again use [PIP Install](README.md#build-torchbraid-pip-recommended))
+
   + python libs:
     cython>=0.29.32,
     mpi4py,
