@@ -20,7 +20,7 @@ int gpumpi_direct_support()
     printf("This MPI library cannot determine if there is CUDA-aware support.\n");
 #endif /* MPIX_CUDA_AWARE_SUPPORT */
 
-    printf("--run time:");
+    printf("-- run time:");
 #if defined(MPIX_CUDA_AWARE_SUPPORT)
     if (1 == MPIX_Query_cuda_support()) {
         printf("This MPI library has CUDA-aware support.\n");
