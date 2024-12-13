@@ -318,7 +318,7 @@ def main():
   criterion = nn.KLDivLoss(reduction='batchmean')
   label_smoother = LabelSmoothingDistribution(.1, target_vocabulary.pad_id, 
                                               len(target_vocabulary), device)
-  if (loading_path := args.load):
+  if True: #(loading_path := args.load):
     # try   : checkpoint = torch.load(f'../stored_models/id{loading_path}_rank{rank}_cp1.pt')
     # except: checkpoint = torch.load(f'../stored_models/id{loading_path}_rank{rank}_cp2.pt')
     # model    .load_state_dict(checkpoint[    'model_state'])
