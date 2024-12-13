@@ -83,6 +83,30 @@ to check that this value is true. One way to test whether direct GPU communicati
 If the test works, your MPI version supports direct GPU communication. You should see output that looks like
 
 ```
+
+******************************************************************
+* This script is to be run with two MPI ranks and                *
+* tests the availability of GPU/MPI direct                       *
+* communication. This is _required_ for TorchBraid when          *
+* GPUs are used. This test will fail if either:                  *
+*                                                                *
+*    1. Torch was not built with GPUs, or GPUs are unavailable   * 
+*    2. GPU aware MPI is not available (NVLINK with Nvidia)      *
+*                                                                *
+* If the test is successful, the last line on rank 0 will output *
+*                                                                *
+*    "PASSED: GPU aware MPI is available"                        *
+*                                                                *
+* While failures are indicated by:                               *
+*                                                                *
+*    "FAILED: GPU aware MPI is NOT available"                    *
+*                                                                *
+* Followed by a brief explaination of the type of failure seen.  *
+* It's possible that a segfault can occur on some untested.      *
+* platforms. That should be viewed as GPU aware MPI not being    *
+* available.                                                     *
+******************************************************************
+
 Check For GPU-Direct Support
 -- compile time: This MPI library has CUDA-aware support.
 -- run time:This MPI library has CUDA-aware support.
@@ -98,6 +122,30 @@ If the final line says FAILED then your MPI version does not support direct GPU 
 For instance, if you don't have CUDA enabled, then the error will look like:
 
 ```
+
+******************************************************************
+* This script is to be run with two MPI ranks and                *
+* tests the availability of GPU/MPI direct                       *
+* communication. This is _required_ for TorchBraid when          *
+* GPUs are used. This test will fail if either:                  *
+*                                                                *
+*    1. Torch was not built with GPUs, or GPUs are unavailable   * 
+*    2. GPU aware MPI is not available (NVLINK with Nvidia)      *
+*                                                                *
+* If the test is successful, the last line on rank 0 will output *
+*                                                                *
+*    "PASSED: GPU aware MPI is available"                        *
+*                                                                *
+* While failures are indicated by:                               *
+*                                                                *
+*    "FAILED: GPU aware MPI is NOT available"                    *
+*                                                                *
+* Followed by a brief explaination of the type of failure seen.  *
+* It's possible that a segfault can occur on some untested.      *
+* platforms. That should be viewed as GPU aware MPI not being    *
+* available.                                                     *
+******************************************************************
+
 Check For GPU-Direct Support
 -- compile time: This MPI library does NOT have CUDA-aware support.
 -- run time:This MPI library does not have CUDA-aware support.
