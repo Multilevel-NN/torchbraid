@@ -94,8 +94,15 @@ Check For GPU-Direct Support
 PASSED: GPU aware MPI is available
 ```
 
-If the final line says FAILED or a segmentation fault occurs, then your
-MPI version does not support direct GPU communication.
+If the final line says FAILED then your MPI version does not support direct GPU communication.
+For instance, if you don't have CUDA enabled, then the error will look like:
+
+```
+```
+
+We also check the `MPIX_Query_cuda_support` command available in most MPI libraries. Finally, it's 
+possible, due to the range of implementations, that the script will raise a seg fault
+if the GPU direct communication is not supported.
 
 ## Build TorchBraid: Makefile (advanced):
 
