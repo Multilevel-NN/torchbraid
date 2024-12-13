@@ -80,9 +80,22 @@ to check that this value is true. One way to test whether direct GPU communicati
 
 `make tests-direct-gpu`
 
-If the test works, your MPI version supports direct GPU communication. If the test throws an error (typically a 
-segmentation fault), your MPI version does not support direct GPU communication.
+If the test works, your MPI version supports direct GPU communication. You should see output that looks like
 
+```
+Check For GPU-Direct Support
+-- compile time: This MPI library has CUDA-aware support.
+-- run time:This MPI library has CUDA-aware support.
+
+Check For GPU-Direct Support
+-- compile time: This MPI library has CUDA-aware support.
+-- run time:This MPI library has CUDA-aware support.
+
+PASSED: GPU aware MPI is available
+```
+
+If the final line says FAILED or a segmentation fault occurs, then your
+MPI version does not support direct GPU communication.
 
 ## Build TorchBraid: Makefile (advanced):
 
