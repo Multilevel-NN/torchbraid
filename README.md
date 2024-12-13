@@ -80,7 +80,8 @@ to check that this value is true. One way to test whether direct GPU communicati
 
 `make tests-direct-gpu`
 
-If the test works, your MPI version supports direct GPU communication. You should see output that looks like
+If the test works, your MPI version supports direct GPU communication. You should see output that looks like (note
+that the output header that tries to explain how the test result should be interpreted).
 
 ```
 
