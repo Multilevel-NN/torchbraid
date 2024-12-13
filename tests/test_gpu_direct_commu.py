@@ -3,9 +3,39 @@ import unittest
 from mpi4py import MPI
 from torchbraid.test_fixtures import check_gpu_direct_mpi
 
+message = """
+******************************************************************
+* This script is to be run with two MPI ranks and                *
+* tests the availability of GPU/MPI direct                       *
+* communication. This is _required_ for TorchBraid when          *
+* GPUs are used. This test will fail if either:                  *
+*                                                                *
+*    1. Torch was not built with GPUs, or GPUs are unavailable   * 
+*    2. GPU aware MPI is not available (NVLINK with Nvidia)      *
+*                                                                *
+* If the test is successful, the last line on rank 0 will output *
+*                                                                *
+*    "PASSED: GPU aware MPI is available"                        *
+*                                                                *
+* While failures are indicated by:                               *
+*                                                                *
+*    "FAILED: GPU aware MPI is NOT available"                    *
+*                                                                *
+* Followed by a brief explaination of the type of failure seen.  *
+* It's possible that a segfault can occur on some untested.      *
+* platforms. That should be viewed as GPU aware MPI not being    *
+* available.                                                     *
+******************************************************************
+"""
+
 def simple_gpu_direct():
   comm = MPI.COMM_WORLD
   rank = comm.Get_rank()
+
+  if rank==0:
+    print(message)
+
+  comm.Barrier()
 
   # do the quick check first
   chk = check_gpu_direct_mpi()
