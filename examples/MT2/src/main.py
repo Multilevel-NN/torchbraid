@@ -201,7 +201,8 @@ def main():
   root_print(rank, f'args: {args}')
 
   datetime = dt.datetime.now().strftime('%Y%m%d%H%M%S')
-  run_id = f'{datetime}_{args.lp_fwd_max_iters=}_{args.lp_bwd_max_iters=}_{args.seed=}_{str(np.random.randint(0, 1000000000)).zfill(9)}'
+  # run_id = f'{datetime}_{args.lp_fwd_max_iters=}_{args.lp_bwd_max_iters=}_{args.seed=}_{str(np.random.randint(0, 1000000000)).zfill(9)}'
+  run_id = f'{datetime}_{str(np.random.randint(0, 1000000000)).zfill(9)}'
   root_print(rank, f'run_id: {run_id}')
 
   # Use device or CPU?
@@ -318,12 +319,34 @@ def main():
   label_smoother = LabelSmoothingDistribution(.1, target_vocabulary.pad_id, 
                                               len(target_vocabulary), device)
   if (loading_path := args.load):
-    try   : checkpoint = torch.load(f'../stored_models/id{loading_path}_rank{rank}_cp1.pt')
-    except: checkpoint = torch.load(f'../stored_models/id{loading_path}_rank{rank}_cp2.pt')
-    model    .load_state_dict(checkpoint[    'model_state'])
-    optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])
-    optimizer.current_step_number = checkpoint['optimizer_csn']
-    print(f'Model and optimizer loaded successfully')
+    # try   : checkpoint = torch.load(f'../stored_models/id{loading_path}_rank{rank}_cp1.pt')
+    # except: checkpoint = torch.load(f'../stored_models/id{loading_path}_rank{rank}_cp2.pt')
+    # model    .load_state_dict(checkpoint[    'model_state'])
+    # optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])
+    # optimizer.current_step_number = checkpoint['optimizer_csn']
+    # print(f'Model and optimizer loaded successfully')
+    stored_models_list = os.listdir(f'../stored_models')
+    stored_models_list = sorted(list(filter(lambda nm: nm.startswith('id'))))
+    root_print(
+      rank, 
+      f'There are currently {len(stored_models_list)//(2*num_procs)} stored models'
+    )
+
+    if len(stored_models_list) > 0:
+      stored_models_list = stored_models_list[-2*num_procs:]
+      stored_models_list = list(filter(
+        lambda nm: re.match(f'.*rank{rank}.*', nm), stored_models_list
+      ))
+      assert len(stored_models_list) == 2
+      try: 
+        checkpoint = torch.load(f'../stored_models/{stored_models_list[0]}')
+      except: 
+        checkpoint = torch.load(f'../stored_models/{stored_models_list[1]}')
+
+      model.load_state_dict(checkpoint['model_state'])
+      optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])
+      optimizer.current_step_number = checkpoint['optimizer_csn']
+      print(f'Model and optimizer loaded successfully')
 
   # Carry out parallel training
   training_losses  , training_bleus  , training_times   = [], [], []
