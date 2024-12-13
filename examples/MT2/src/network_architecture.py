@@ -13,7 +13,7 @@ import torchbraid.utils
 from   torchbraid.mgopt  import root_print, compute_levels
 import myTransformerLayers
 from torchbraid.utils import LPDropout as Dropout
-
+#from torch.nn import  Dropout
 
 from mpi4py              import MPI
 
@@ -41,8 +41,8 @@ class OpenLayer(nn.Module):
     self.tgt_vocab = tgt_vocab
     self.device    = device
 
-    self.src_embedding = nn.Embedding(len(src_vocab), d_model)
-    self.tgt_embedding = nn.Embedding(len(tgt_vocab), d_model)
+    self.src_embedding = nn.Embedding(len(src_vocab), d_model, device=device)
+    self.tgt_embedding = nn.Embedding(len(tgt_vocab), d_model, device=device)
     self.positional_encoding = PositionalEncoding(d_model, dropout, False)
 
   def forward(self, src, tgt):  #/ src: [b, Ls]
@@ -87,11 +87,11 @@ class OpenLayer(nn.Module):
 # end layer
 
 class CloseLayer(nn.Module):
-  def __init__(self, d_model, tgt_vocab):
+  def __init__(self, d_model, tgt_vocab, device):
     super().__init__()
     torch.manual_seed(0)
 
-    self.lm_head = nn.Linear(d_model, len(tgt_vocab))
+    self.lm_head = nn.Linear(d_model, len(tgt_vocab), device)
     self.log_softmax = nn.LogSoftmax(dim=-1)
 
   def forward(self, y):  # y: [L', b, d]
@@ -107,7 +107,7 @@ class StepLayer_enc(nn.Module):
     super().__init__()
     torch.manual_seed(0)
     self.encoder_layer = myTransformerLayers.TransformerEncoderLayer(d_model, nhead, 
-                                                    dim_feedforward, dropout)
+                                                    dim_feedforward, dropout, device=device)
     self.zeros_tensor = torch.zeros(
                size=(max_sequence_length, batch_size, d_model), device=device)
 
@@ -136,7 +136,7 @@ class usual_StepLayer_enc(nn.Module):
     super().__init__()
     torch.manual_seed(0)
     self.encoder_layer = nn.TransformerEncoderLayer(d_model, nhead,
-                                                    dim_feedforward, dropout)
+                                                    dim_feedforward, dropout, device=device)
     self.zeros_tensor = torch.zeros(
                size=(max_sequence_length, batch_size, d_model), device=device)
 
@@ -159,7 +159,7 @@ class StepLayer_dec(nn.Module):
     super().__init__()
     torch.manual_seed(0)
     self.decoder_layer = myTransformerLayers.TransformerDecoderLayer(d_model, nhead, 
-                                                    dim_feedforward, dropout)
+                                                    dim_feedforward, dropout, device=device)
     self.zeros_tensor = torch.zeros(
                size=(max_sequence_length, batch_size, d_model), device=device)
 
@@ -195,7 +195,7 @@ class usual_StepLayer_dec(nn.Module):
     super().__init__()
     torch.manual_seed(0)
     self.decoder_layer = nn.TransformerDecoderLayer(d_model, nhead,
-                                                    dim_feedforward, dropout)
+                                                    dim_feedforward, dropout, device=device)
     self.zeros_tensor = torch.zeros(
                size=(max_sequence_length, batch_size, d_model), device=device)
 
@@ -228,7 +228,7 @@ class StepLayer_dec_SA(nn.Module):
     )
     self.norm1 = nn.LayerNorm(d_model, eps=1e-5, #bias=True, 
                                                  device=device)
-    self.dropout1 = Dropout(dropout)
+    self.dropout1 = Dropout(dropout, device=device)
 
     self.zeros_tensor = torch.zeros(
                size=(max_sequence_length, batch_size, d_model), device=device)
@@ -265,7 +265,7 @@ class StepLayer_dec_MHA_FF(nn.Module):
     # Implementation of Feedforward model
     self.linear1 = nn.Linear(d_model, dim_feedforward, 
                              bias=True, device=device)
-    self.dropout = Dropout(dropout)
+    self.dropout = Dropout(dropout, device=device)
     self.linear2 = nn.Linear(dim_feedforward, d_model, 
                              bias=True, device=device)
 
@@ -273,8 +273,11 @@ class StepLayer_dec_MHA_FF(nn.Module):
                                                  device=device)
     self.norm3 = nn.LayerNorm(d_model, eps=1e-5, #bias=True, 
                                                  device=device)
-    self.dropout2 = Dropout(dropout)
-    self.dropout3 = Dropout(dropout)
+
+    print("---------------device ", device, " --------------- ")
+
+    self.dropout2 = Dropout(dropout, device=device)
+    self.dropout3 = Dropout(dropout, device=device)
 
     self.zeros_tensor = torch.zeros(
                size=(max_sequence_length, batch_size, d_model), device=device)
@@ -396,7 +399,7 @@ class ParallelNet(nn.Module):
     self.open_nn = compose(OpenLayer, 
                d_model, 0, source_vocabulary, target_vocabulary, device)
     self.close_nn = compose(CloseLayer, 
-               d_model, target_vocabulary)
+               d_model, target_vocabulary, device)
 
   def new_mask(self, x=None): 
     """
@@ -407,7 +410,7 @@ class ParallelNet(nn.Module):
       if isinstance(layer, Dropout):
         # print('Generating')
         if layer.mask is not None:
-          layer.generate_new_mask(x)
+          layer.generate_new_mask(x, self.device)
 
   def saveSerialNet(self, name):
     # Model can be reloaded in serial format with: model = torch.load(filename)
@@ -442,6 +445,16 @@ class ParallelNet(nn.Module):
                                     memory_key_padding_mask], root=0
     )
     t1_masks_comm_time = time.time()
+    
+    lp_rank = self.comm_lp.Get_rank()
+    gpu_id = torch.cuda.current_device()
+    device = torch.device(f"cuda:{gpu_id}")
+    #print("MPI Rank:", lp_rank, "GPU Name:", gpu_id, " device   ", device)
+
+    tgt_mask =tgt_mask.to(device)
+    src_key_padding_mask = src_key_padding_mask.to(device) 
+    tgt_key_padding_mask = tgt_key_padding_mask.to(device)
+    memory_key_padding_mask = memory_key_padding_mask.to(device)
 
     t0_continuous_block_time = time.time()
     z = self.parallel_nn(z)
@@ -518,11 +531,11 @@ class SerialNet(nn.Module):
 
     if open_nn is None:
       self.open_nn = OpenLayer(d_model, dropout, source_vocabulary, 
-                                                 target_vocabulary, device)
+                                                 target_vocabulary, device=device)
     else: self.open_nn = open_nn
 
     if close_nn is None: self.close_nn = CloseLayer(d_model, 
-                                                    target_vocabulary)
+                                                    target_vocabulary, device=device)
     else: self.close_nn = close_nn
 
   def forward(self, src, tgt):
@@ -672,5 +685,6 @@ def parse_args():
 
 ####################################################################################
 ####################################################################################
+
 
 

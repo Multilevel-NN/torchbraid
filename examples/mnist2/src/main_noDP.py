@@ -73,6 +73,7 @@ from mpi4py import MPI
 datasets.MNIST('./digit-data', download=True)
 datasets.FashionMNIST('./fashion-data', download=True)
 
+
 ##
 # Train model for one epoch
 # Return values: per batch losses and training times, model parameters updated in-place
