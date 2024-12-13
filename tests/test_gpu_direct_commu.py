@@ -30,8 +30,9 @@ def test_gpu_direct():
   rank = comm.Get_rank()
 
   if not simple_gpu_direct():
-    print()
-    print('FAILED: GPU aware MPI is NOT available - "MPIX_Query_cuda_support" test failed.')
+    if rank==0:
+      print()
+      print('FAILED: GPU aware MPI is NOT available - "MPIX_Query_cuda_support" test failed.')
     return
 
   passed = False
