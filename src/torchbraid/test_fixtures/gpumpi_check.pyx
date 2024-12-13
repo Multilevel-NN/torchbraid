@@ -32,20 +32,13 @@
 # cython: profile=True
 # cython: linetrace=True
 
-from cpython.mem cimport PyMem_Malloc, PyMem_Free
-from cpython.ref cimport PyObject
+cdef extern from "gpumpi_check.h":
+    int gpumpi_direct_support()
 
-cdef extern from *:
+def check_gpu_direct_mpi():
     """
-    #include "mpi.h"
-    #include "mpi-ext.h" /* Needed for CUDA-aware check */
-
-    #if defined(MPIX_CUDA_AWARE_SUPPORT)
-    int CUDA_AWARE_SUPPORT=1;
-    #else
-    int CUDA_AWARE_SUPPORT=0;
-    #endif
+    Call into MPI to determine if it supports GPU aware MPI.
+    This is designed to work with OpenMPI, it may be inconsistent
+    with other MPI implementations.
     """
-
-def check_cuda_aware():
-    print('CUDA AWARE: ', CUDA_AWARE_SUPPORT)
+    return bool(gpumpi_direct_support())
