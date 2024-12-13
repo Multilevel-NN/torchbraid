@@ -98,6 +98,15 @@ If the final line says FAILED then your MPI version does not support direct GPU 
 For instance, if you don't have CUDA enabled, then the error will look like:
 
 ```
+Check For GPU-Direct Support
+-- compile time: This MPI library does NOT have CUDA-aware support.
+-- run time:This MPI library does not have CUDA-aware support.
+
+Check For GPU-Direct Support
+-- compile time: This MPI library does NOT have CUDA-aware support.
+-- run time:This MPI library does not have CUDA-aware support.
+
+FAILED: GPU aware MPI is NOT available - "MPIX_Query_cuda_support" test failed.
 ```
 
 We also check the `MPIX_Query_cuda_support` command available in most MPI libraries. Finally, it's 
