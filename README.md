@@ -111,7 +111,8 @@ FAILED: GPU aware MPI is NOT available - "MPIX_Query_cuda_support" test failed.
 
 We also check the `MPIX_Query_cuda_support` command available in most MPI libraries. Finally, it's 
 possible, due to the range of implementations, that the script will raise a seg fault
-if the GPU direct communication is not supported.
+if the GPU direct communication is not supported. If such a case arises, then feel free to reach out
+with a description of the MPI implementation and version, CUDA version, and the platform being run on.
 
 ## Build TorchBraid: Makefile (advanced):
 
