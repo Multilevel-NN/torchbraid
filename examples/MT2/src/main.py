@@ -318,8 +318,11 @@ def main():
   label_smoother = LabelSmoothingDistribution(.1, target_vocabulary.pad_id, 
                                               len(target_vocabulary), device)
   if (loading_path := args.load):
-    try   : checkpoint = torch.load(f'../stored_models/id{loading_path}_rank{rank}_cp1.pt')
-    except: checkpoint = torch.load(f'../stored_models/id{loading_path}_rank{rank}_cp2.pt')
+    gpu_id = torch.cuda.current_device()
+    device = torch.device(f"cuda:{gpu_id}")
+    
+    try   : checkpoint = torch.load(f'../stored_models/id{loading_path}_rank{rank}_gpu{device}_cp1.pt')
+    except: checkpoint = torch.load(f'../stored_models/id{loading_path}_rank{rank}_gpu{device}_cp2.pt')
     model    .load_state_dict(checkpoint[    'model_state'])
     optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])
     optimizer.current_step_number = checkpoint['optimizer_csn']
@@ -370,12 +373,16 @@ def main():
 
       if validation_bleu > best_bleu:
         best_bleu = validation_bleu
-        
+
+        gpu_id = torch.cuda.current_device()
+        device = torch.device(f"cuda:{gpu_id}")
+
+
         checkpoint = {    'model_state':               model.state_dict(),
                       'optimizer_state': optimizer.optimizer.state_dict(),
                       'optimizer_csn'  : optimizer.current_step_number   ,}
-        torch.save(checkpoint, f'../stored_models/id{run_id}_rank{rank}_cp1.pt')
-        torch.save(checkpoint, f'../stored_models/id{run_id}_rank{rank}_cp2.pt')
+        torch.save(checkpoint, f'../stored_models/id{run_id}_rank{rank}_gpu{device}_cp1.pt')
+        torch.save(checkpoint, f'../stored_models/id{run_id}_rank{rank}_gpu{device}_cp2.pt')
 
   root_print(rank, 'Training finished.')
 
