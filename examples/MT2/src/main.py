@@ -53,6 +53,7 @@ from timeit import default_timer as timer
 import datetime as dt
 import numpy as np
 import os
+import re
 import sys
 import time
 import torch
@@ -335,10 +336,12 @@ def main():
 
     if len(stored_models_list) > 0:
       stored_models_list = stored_models_list[-2*num_procs:]
+      print(stored_models_list)
       stored_models_list = list(filter(
         lambda nm: re.match(f'.*rank{rank}.*', nm), stored_models_list
       ))
-      assert len(stored_models_list) == 2
+      print(stored_models_list)
+      assert len(stored_models_list) == 2, len(stored_models_list)
       try: 
         checkpoint = torch.load(f'../stored_models/{stored_models_list[0]}')
       except: 
