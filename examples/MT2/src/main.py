@@ -52,6 +52,7 @@ from timeit import default_timer as timer
 
 import datetime as dt
 import numpy as np
+import os
 import sys
 import time
 import torch
@@ -326,7 +327,7 @@ def main():
     # optimizer.current_step_number = checkpoint['optimizer_csn']
     # print(f'Model and optimizer loaded successfully')
     stored_models_list = os.listdir(f'../stored_models')
-    stored_models_list = sorted(list(filter(lambda nm: nm.startswith('id'))))
+    stored_models_list = sorted(list(filter(lambda nm: nm.startswith('id'), stored_models_list)))
     root_print(
       rank, 
       f'There are currently {len(stored_models_list)//(2*num_procs)} stored models'
