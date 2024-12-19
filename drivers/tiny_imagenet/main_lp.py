@@ -291,7 +291,7 @@ def main():
   torch.manual_seed(args.seed)
   np.random.seed(args.seed)
 
-  root_print(rank, 'TORCHBRAID REV: %s' % git_rev())
+  #root_print(rank, 'TORCHBRAID REV: %s' % git_rev())
 
   my_device, my_host = getDevice(comm)
 
