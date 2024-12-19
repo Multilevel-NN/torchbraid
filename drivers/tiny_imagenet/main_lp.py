@@ -157,7 +157,13 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mi
       total_time = 0.0
       cumulative_time = 0.0
 
-  root_print(rank, (format_str + ', fp={:.6f}, cm={:.6f}, bp={:.6f}').format(
+  # compute cuda memory highwater mark
+  cudamem = 0.
+  if str(device).startswith('cuda'):
+    cudamem = torch.cuda.max_memory_allocated(device)
+  
+  mb_scaling = 2**20
+  root_print(rank, (format_str + ', fp={:.6f}, cm={:.6f}, bp={:.6f}, cudamemHW={:.6f}').format(
     epoch,
     len(train_loader.dataset),
     len(train_loader.dataset),
@@ -169,6 +175,7 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mi
     total_time_fp / len(train_loader.dataset),
     total_time_cm / len(train_loader.dataset),
     total_time_bp / len(train_loader.dataset),
+    cudamem / mb_scaling       # cuda memory to highwater mark, computed in MB
   ))
 
 
@@ -514,6 +521,19 @@ def main():
         torch.save(scheduler.state_dict(), f'{args.model_dir}/scheduler.{rank}.mdl')
       model.saveParams(rank, args.model_dir)
     # end args
+
+  if str(my_device).startswith('cuda'):
+    cudamem = torch.cuda.max_memory_allocated(my_device)
+    mb_scaling = 2**20
+    if args.use_serial:
+      print(f'CUDA Memory Highwater = {cudamem/mb_scaling:.6f} MB')
+    else:
+      cudamem_list = comm.gather(cudamem,root=0)
+      if rank==0:
+        print(f'CUDA Memory Highwater = {sum(cudamem_list)/mb_scaling:.6f} MB')
+        for p,mem in enumerate(cudamem_list):
+          print(f'   * rank={p}: {mem/mb_scaling:.6f} MB') 
+   
 
   if not args.use_serial:
     timer_str = model.parallel_nn.getTimersString()
