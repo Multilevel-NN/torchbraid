@@ -315,18 +315,12 @@ def main():
   # print(f'Model: {model}')
   # print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
   # Declare optimizer  
-  optimizer = get_optimizer(model, args.num_warmup_steps)
+  optimizer = Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-9, lr=5e-4)#get_optimizer(model, args.num_warmup_steps)
   print(f'Optimizer: {optimizer}')
   criterion = nn.KLDivLoss(reduction='batchmean')
   label_smoother = LabelSmoothingDistribution(.1, target_vocabulary.pad_id, 
                                               len(target_vocabulary), device)
   if True: #(loading_path := args.load):
-    # try   : checkpoint = torch.load(f'../stored_models/id{loading_path}_rank{rank}_cp1.pt')
-    # except: checkpoint = torch.load(f'../stored_models/id{loading_path}_rank{rank}_cp2.pt')
-    # model    .load_state_dict(checkpoint[    'model_state'])
-    # optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])
-    # optimizer.current_step_number = checkpoint['optimizer_csn']
-    # print(f'Model and optimizer loaded successfully')
     stored_models_list = os.listdir(f'../stored_models')
     stored_models_list = sorted(list(filter(lambda nm: nm.startswith('id'), stored_models_list)))
     root_print(
@@ -348,8 +342,8 @@ def main():
         checkpoint = torch.load(f'../stored_models/{stored_models_list[1]}')
 
       model.load_state_dict(checkpoint['model_state'])
-      optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])
-      optimizer.current_step_number = checkpoint['optimizer_csn']
+      optimizer.load_state_dict(checkpoint['optimizer_state'])#optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])
+      # optimizer.current_step_number = checkpoint['optimizer_csn']
       print(f'Model and optimizer loaded successfully')
 
   # Carry out parallel training
@@ -398,9 +392,10 @@ def main():
       if validation_bleu > best_bleu:
         best_bleu = validation_bleu
         
-        checkpoint = {    'model_state':               model.state_dict(),
-                      'optimizer_state': optimizer.optimizer.state_dict(),
-                      'optimizer_csn'  : optimizer.current_step_number   ,}
+        checkpoint = {    'model_state':     model.state_dict(),
+                      'optimizer_state': optimizer.state_dict(),#optimizer.optimizer.state_dict(),
+                      # 'optimizer_csn'  : optimizer.current_step_number,
+        }
         torch.save(checkpoint, f'../stored_models/id{run_id}_rank{rank}_cp1.pt')
         torch.save(checkpoint, f'../stored_models/id{run_id}_rank{rank}_cp2.pt')
 
