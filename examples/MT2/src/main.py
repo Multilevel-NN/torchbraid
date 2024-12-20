@@ -315,7 +315,7 @@ def main():
   # print(f'Model: {model}')
   # print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
   # Declare optimizer  
-  optimizer = Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-9, lr=5e-4)#get_optimizer(model, args.num_warmup_steps)
+  optimizer = torch.optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-9, lr=5e-4)#get_optimizer(model, args.num_warmup_steps)
   print(f'Optimizer: {optimizer}')
   criterion = nn.KLDivLoss(reduction='batchmean')
   label_smoother = LabelSmoothingDistribution(.1, target_vocabulary.pad_id, 
