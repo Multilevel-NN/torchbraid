@@ -163,6 +163,18 @@ class LPModule(nn.Module):
     self.fwd_app.setMaxIters(max_iters)
     self.bwd_app.setMaxIters(max_iters)
 
+  def setFwdMaxLevels(self,max_levels):
+    self.fwd_app.setMaxLevels(max_levels)
+
+  def setBwdMaxLevels(self,max_levels):
+    self.bwd_app.setMaxLevels(max_levels)
+
+  def getFwdMaxLevels(self):
+    return self.fwd_app.getMaxLevels()
+
+  def getBwdMaxLevels(self):
+    return self.bwd_app.getMaxLevels()
+
   def setFwdMaxIters(self,max_iters):
     self.fwd_app.setMaxIters(max_iters)
 

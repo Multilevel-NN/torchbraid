@@ -711,6 +711,15 @@ class BraidApp:
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetMaxIter(core, self.max_iters)
 
+  def getMaxLevels(self):
+    return self.max_levels
+
+  def setMaxLevels(self,max_levels):
+    self.max_levels = max_levels
+
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetMaxLevels(core, self.max_levels)
+
   def setAbsTol(self,abs_tol):
     self.abs_tol = abs_tol
 

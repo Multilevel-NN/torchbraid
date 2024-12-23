@@ -22,6 +22,8 @@ from timeit import default_timer as timer
 
 from torchbraid.utils import MPI, git_rev, getDevice
 
+from lp_iter_scheduler import EmptyLPIterScheduler, SerialLPIterScheduler
+
 __all__ = [ 'parse_args', 'ParallelNet' ]
 
 # Related to:
@@ -386,6 +388,8 @@ def parse_args(mgopt_on=True):
                       help='Optimizer, SGD or Adam')
 
   # algorithmic settings (parallel or serial)
+  parser.add_argument('--lp-iter-scheduler', default=None,
+                      help='A floating point value between 0 and 1, defaults to 0. 1 is serial, 0 is full parallel')
   parser.add_argument('--lp-fwd-levels', type=int, default=3, metavar='N',
                       help='Layer parallel levels for forward solve (default: 3)')
   parser.add_argument('--lp-bwd-levels', type=int, default=3, metavar='N',
@@ -516,6 +520,15 @@ def parse_args(mgopt_on=True):
 
   return args
 
+def get_lp_iter_scheduler(model, args):
+  if not isinstance(args,str):
+    return EmptyLPIterScheduler() 
+
+  try:
+    val = float(args)
+    return SerialLPIterScheduler(model,val) 
+  except ValueError:
+    return EmptyLPIterScheduler() 
 
 def get_lr_scheduler(optimizer, args):
   if (len(args.lr_scheduler) == 0) or args.lr_scheduler[0] == 'step':

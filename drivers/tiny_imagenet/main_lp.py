@@ -68,7 +68,7 @@ from torchvision import datasets, transforms
 from timeit import default_timer as timer
 
 from torchbraid.utils import MeanInitialGuessStorage
-from utils import parse_args, buildNet, ParallelNet, SerialNet, getComm, git_rev, getDevice, get_lr_scheduler, MPI
+from utils import parse_args, buildNet, ParallelNet, SerialNet, getComm, git_rev, getDevice, get_lr_scheduler, MPI, get_lp_iter_scheduler
 
 
 def root_print(rank, s):
@@ -77,9 +77,11 @@ def root_print(rank, s):
     sys.stdout.flush()
 
 
-def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mig_storage):
+def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mig_storage, lp_iter_scheduler):
   log_interval = args.log_interval
   torch.enable_grad()
+
+  lp_iter_scheduler.reset()
 
   model.train()
   criterion = nn.CrossEntropyLoss()
@@ -131,6 +133,7 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mi
     # take step
     stop_time = timer()
     optimizer.step()
+    lp_iter_scheduler.step()
 
     model.startStateCommunication() 
 
@@ -156,6 +159,8 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mi
     if batch_idx==0:
       total_time = 0.0
       cumulative_time = 0.0
+
+  lp_iter_scheduler.reset()
 
   # compute cuda memory highwater mark
   cudamem = 0.
@@ -452,6 +457,8 @@ def main():
         state[k] = v.to(my_device)
   model = model.to(my_device)
 
+  lp_iter_scheduler = get_lp_iter_scheduler(model, args.lp_iter_scheduler)
+
   root_print(rank,'===============MODEL=============\n')
 
   root_print(rank,'===============OPTIMIZER=============\n')
@@ -459,6 +466,9 @@ def main():
 
   root_print(rank,'===============SCHEDULER=============\n')
   root_print(rank,scheduler.state_dict())
+
+  root_print(rank,'===============LP ITER SCHEDULER=============\n')
+  root_print(rank,lp_iter_scheduler)
   root_print(rank,"")
 
   # Warm up gpu's (There has to be a cheaper way than calling a complete train call.
@@ -466,7 +476,7 @@ def main():
   if str(my_device).startswith('cuda'):
     warm_up_timer = timer()
     train(rank=rank, args=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=0,
-          compose=compose, device=my_device, mig_storage=mig_storage)
+          compose=compose, device=my_device, mig_storage=mig_storage,lp_iter_scheduler=lp_iter_scheduler)
     if not args.use_serial:
       model.parallel_nn.timer_manager.resetTimers()
       model.parallel_nn.fwd_app.resetBraidTimer()
@@ -497,7 +507,7 @@ def main():
 
   for epoch in range(1, args.epochs + 1):
     start_time = timer()
-    train(rank, args, model, train_loader, optimizer, epoch, compose, my_device, mig_storage)
+    train(rank, args, model, train_loader, optimizer, epoch, compose, my_device, mig_storage,lp_iter_scheduler)
     end_time = timer()
     epoch_times += [end_time - start_time]
 
