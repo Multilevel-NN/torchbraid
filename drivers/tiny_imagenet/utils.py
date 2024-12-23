@@ -348,6 +348,10 @@ def parse_args(mgopt_on=True):
                       help='Save the model to disk after each epoch (default: False)')
   parser.add_argument('--load-model',action='store_true', default=False,
                       help='Load the model from disk at startup (default: False)')
+  parser.add_argument('--load-optimizer',action='store_true', default=False,
+                      help='Load the optimizer from disk at startup (default: False)')
+  parser.add_argument('--load-lr-scheduler',action='store_true', default=False,
+                      help='Load the LR scheduler from disk at startup (default: False)')
   parser.add_argument('--model-dir',default='./',
                       help='Location to Save the model to (default: ./)')
   

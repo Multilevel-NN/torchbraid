@@ -430,16 +430,20 @@ def main():
 
   torch.manual_seed(args.seed)
   np.random.seed(args.seed)
+
+  if args.load_optimizer:
+    root_print(rank, f'Loading optimizer from \"{args.model_dir}\"')
+    optimizer.load_state_dict(torch.load(f'{args.model_dir}/optimizer.{rank}.mdl',weights_only=True))
+
   if args.lr_scheduler is not None:
-    # scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10, 30], gamma=0.1, verbose=(rank == 0))
     scheduler = get_lr_scheduler(optimizer, args)
+    if args.load_lr_scheduler:
+      root_print(rank, f'Loading LR scheduler from \"{args.model_dir}\"')
+      scheduler.load_state_dict(torch.load(f'{args.model_dir}/scheduler.{rank}.mdl',weights_only=True))
 
   if args.load_model:
-    root_print(rank, f'Loading from \"{args.model_dir}\"')
+    root_print(rank, f'Loading model from \"{args.model_dir}\"')
     model.loadParams(rank, args.model_dir)
-    optimizer.load_state_dict(torch.load(f'{args.model_dir}/optimizer.{rank}.mdl',weights_only=True))
-    if args.lr_scheduler:
-      scheduler.load_state_dict(torch.load(f'{args.model_dir}/scheduler.{rank}.mdl',weights_only=True))
 
   # Move the optimizer state to GPU
   for state in optimizer.state.values():
@@ -448,17 +452,14 @@ def main():
         state[k] = v.to(my_device)
   model = model.to(my_device)
 
-  if rank == 0:
-    print('===============MODEL=============\n')
-  #print(model)
+  root_print(rank,'===============MODEL=============\n')
 
-  if rank == 0:
-    print('===============OPTIMIZER=============\n')
-    print(optimizer)
+  root_print(rank,'===============OPTIMIZER=============\n')
+  root_print(rank,optimizer)
 
-  if rank == 0:
-    print('===============SCHEDULER=============\n')
-    print(scheduler)
+  root_print(rank,'===============SCHEDULER=============\n')
+  root_print(rank,scheduler.state_dict())
+  root_print(rank,"")
 
   # Warm up gpu's (There has to be a cheaper way than calling a complete train call.
   # We just need one small run to "start" the gpu's.
@@ -488,7 +489,8 @@ def main():
   end_time = timer()
   test_times += [end_time - start_time]
     
-  root_print(rank, f'Learning rate for epoch 1: {args.lr}')
+  first_lr = optimizer.state_dict()['param_groups'][0]['lr']
+  root_print(rank, f'Learning rate for epoch 1: {first_lr}')
 
   torch.manual_seed(args.seed)
   np.random.seed(args.seed)
