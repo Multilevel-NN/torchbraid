@@ -437,10 +437,15 @@ def main():
   if args.load_model:
     root_print(rank, f'Loading from \"{args.model_dir}\"')
     model.loadParams(rank, args.model_dir)
-    optimizer.load_state_dict(torch.load(f'{args.model_dir}/optimizer.{rank}.mdl'))
+    optimizer.load_state_dict(torch.load(f'{args.model_dir}/optimizer.{rank}.mdl',weights_only=True))
     if args.lr_scheduler:
-      scheduler.load_state_dict(torch.load(f'{args.model_dir}/scheduler.{rank}.mdl'))
+      scheduler.load_state_dict(torch.load(f'{args.model_dir}/scheduler.{rank}.mdl',weights_only=True))
 
+  # Move the optimizer state to GPU
+  for state in optimizer.state.values():
+    for k, v in state.items():
+      if isinstance(v, torch.Tensor):
+        state[k] = v.to(my_device)
   model = model.to(my_device)
 
   if rank == 0:

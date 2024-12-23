@@ -222,7 +222,7 @@ class SerialNet(nn.Module):
     torch.save(self.state_dict(),f'{model_dir}/serial_model.{rank}.mdl')
 
   def loadParams(self,rank,model_dir):
-    self.load_state_dict(torch.load(f'{model_dir}/serial_model.{rank}.mdl'))
+    self.load_state_dict(torch.load(f'{model_dir}/serial_model.{rank}.mdl',weights_only=True))
 
   def startStateCommunication(self):
     pass # no-op
@@ -315,7 +315,7 @@ class ParallelNet(nn.Module):
     torch.save(self.state_dict(),f'{model_dir}/parallel_model.{rank}.mdl')
 
   def loadParams(self,rank,model_dir):
-    self.load_state_dict(torch.load(f'{model_dir}/parallel_model.{rank}.mdl'))
+    self.load_state_dict(torch.load(f'{model_dir}/parallel_model.{rank}.mdl',weights_only=True))
 
   def startStateCommunication(self):
     self.parallel_nn.startStateCommunication() 
