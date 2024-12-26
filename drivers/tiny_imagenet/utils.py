@@ -215,10 +215,10 @@ class SerialNet(nn.Module):
     return x
 
   def getFwdStats(self):
-    return 1,0.0
+    return self.parallel_nn.getFwdMaxIters(),0.0
     
   def getBwdStats(self):
-    return 1,0.0
+    return self.parallel_nn.getBwdMaxIters(),0.0
 
   def saveParams(self,rank,model_dir):
     torch.save(self.state_dict(),f'{model_dir}/serial_model.{rank}.mdl')

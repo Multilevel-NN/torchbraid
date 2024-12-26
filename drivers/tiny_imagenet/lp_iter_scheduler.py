@@ -26,10 +26,13 @@ class IterLPIterScheduler():
 
     if len(data)>2:
       self.acc_bwd_iters = int(data[2])
-    elif len(data)>1:
+    if len(data)>1:
       self.acc_fwd_iters = int(data[1])
 
     self.itrs = math.ceil(1./float(data[0]))
+
+  def __repr__(self):
+    return f'IterLPIterScheduler: how often={self.itrs}, acc_fwd={self.acc_fwd_iters}, acc_bwd_iters={self.acc_bwd_iters}'
 
   def reset(self):
     self.count = 1
