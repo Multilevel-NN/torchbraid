@@ -182,6 +182,8 @@ def validate(
   root_print(rank, f'Candidate : {candidates[idx]}')
   root_print(rank, f'References: {references[idx][0]}')
 
+  print(f'rank: {rank}, loss: {mean_loss}, bleu: {bleu_score}')
+
   return mean_loss, bleu_score
 
 ##
@@ -339,12 +341,13 @@ def main():
     )
 
     if len(stored_models_list) > 0:
+      print(f'rank: {rank}, stored-filter1: {stored_models_list}')
       stored_models_list = stored_models_list[-2*num_procs:]
-      print(stored_models_list)
+      print(f'rank: {rank}, stored-filter2: {stored_models_list}')
       stored_models_list = list(filter(
         lambda nm: re.match(f'.*rank{rank}.*', nm), stored_models_list
       ))
-      print(stored_models_list)
+      print(f'rank: {rank}, stored-filter3: {stored_models_list}')
       assert len(stored_models_list) == 2, len(stored_models_list)
       try: 
         checkpoint = torch.load(f'../stored_models/{stored_models_list[0]}')
@@ -371,8 +374,8 @@ def main():
       print(f'Model and optimizer loaded successfully')
 
   root_print(rank, 'Starting training...')
-  for epoch in range(1, args.epochs+1):
-    print(list(model.parameters())[-1].flatten()[:-10])
+  # for epoch in range(1, args.epochs+1):
+  #   print(list(model.parameters())[-1].flatten()[:-10])
 
     if epoch > 0:
       epoch_mean_loss, epoch_training_time, gradient_accumulation_ctr = \
@@ -407,6 +410,13 @@ def main():
       root_print(rank, f'Validation time: {t1 - t0} seconds')
       root_print(rank, f'Validation loss: {validation_loss}, '
                        f'validation bleu: {validation_bleu}')
+
+      validation_loss, validation_bleu = comm.bcast(
+        [validation_loss, validation_bleu], 
+        root=0,
+      )
+
+      # validation_losses.append(...)
 
       if validation_bleu > best_bleu:
         best_bleu = validation_bleu
