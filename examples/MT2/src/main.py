@@ -374,7 +374,7 @@ def main():
       print(f'Model and optimizer loaded successfully')
 
   root_print(rank, 'Starting training...')
-  # for epoch in range(1, args.epochs+1):
+  for epoch in range(1, args.epochs+1):
   #   print(list(model.parameters())[-1].flatten()[:-10])
 
     if epoch > 0:
