@@ -52,6 +52,8 @@ from timeit import default_timer as timer
 
 import datetime as dt
 import numpy as np
+import os
+import re
 import sys
 import time
 import torch
@@ -102,6 +104,7 @@ def train_epoch(
   training_time = 0.
   
   for batch_idx, batch in enumerate(training_data_loader):
+    # print(batch)
     # Before proceeding, get some new masks
     if not isinstance(model, SerialNet) and \
        gradient_accumulation_ctr%gradient_accumulation == 0:
@@ -136,7 +139,7 @@ def train_epoch(
     if batch_idx == num_batches: break#2000: break
     # break  # debug
 
-  mean_loss /= len(training_data_loader)
+  mean_loss /= num_batches#len(training_data_loader)
   mean_loss = mean_loss.item()
 
   return mean_loss, training_time, gradient_accumulation_ctr
@@ -201,7 +204,8 @@ def main():
   root_print(rank, f'args: {args}')
 
   datetime = dt.datetime.now().strftime('%Y%m%d%H%M%S')
-  run_id = f'{datetime}_{args.lp_fwd_max_iters=}_{args.lp_bwd_max_iters=}_{args.seed=}_{str(np.random.randint(0, 1000000000)).zfill(9)}'
+  # run_id = f'{datetime}_{args.lp_fwd_max_iters=}_{args.lp_bwd_max_iters=}_{args.seed=}_{str(np.random.randint(0, 1000000000)).zfill(9)}'
+  run_id = f'{datetime}_{str(np.random.randint(0, 1000000000)).zfill(9)}'
   root_print(rank, f'run_id: {run_id}')
 
   # Use device or CPU?
@@ -312,31 +316,64 @@ def main():
   # print(f'Model: {model}')
   # print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
   # Declare optimizer  
-  optimizer = get_optimizer(model, args.num_warmup_steps)
+  optimizer = get_optimizer(model, args.num_warmup_steps)#torch.optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-9, lr=5e-4)
   print(f'Optimizer: {optimizer}')
   criterion = nn.KLDivLoss(reduction='batchmean')
   label_smoother = LabelSmoothingDistribution(.1, target_vocabulary.pad_id, 
                                               len(target_vocabulary), device)
-  if (loading_path := args.load):
-    gpu_id = torch.cuda.current_device()
-    device = torch.device(f"cuda:{gpu_id}")
-    
-    try   : checkpoint = torch.load(f'../stored_models/id{loading_path}_rank{rank}_gpu{device}_cp1.pt')
-    except: checkpoint = torch.load(f'../stored_models/id{loading_path}_rank{rank}_gpu{device}_cp2.pt')
-    model    .load_state_dict(checkpoint[    'model_state'])
-    optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])
-    optimizer.current_step_number = checkpoint['optimizer_csn']
-    print(f'Model and optimizer loaded successfully')
-
+  
   # Carry out parallel training
   training_losses  , training_bleus  , training_times   = [], [], []
   validation_losses, validation_bleus, validation_times = [], [], []
   gradient_accumulation_ctr = 0
-
   best_bleu = float('-inf')
+
+  if args.load:#True: #(loading_path := args.load):
+    stored_models_list = os.listdir(f'../stored_models')
+    stored_models_list = sorted(list(
+      filter(lambda nm: nm.startswith('id'), stored_models_list)
+    ))
+    root_print(
+      rank, 
+      f'There are currently {len(stored_models_list)//(2*num_procs)} stored models'
+    )
+
+    if len(stored_models_list) > 0:
+      stored_models_list = stored_models_list[-2*num_procs:]
+      print(stored_models_list)
+      stored_models_list = list(filter(
+        lambda nm: re.match(f'.*rank{rank}.*', nm), stored_models_list
+      ))
+      print(stored_models_list)
+      assert len(stored_models_list) == 2, len(stored_models_list)
+      try: 
+        checkpoint = torch.load(f'../stored_models/{stored_models_list[0]}')
+      except: 
+        checkpoint = torch.load(f'../stored_models/{stored_models_list[1]}')
+
+      model.load_state_dict(checkpoint['model_state'])
+      optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])#optimizer.load_state_dict(checkpoint['optimizer_state'])
+      optimizer.current_step_number = checkpoint['optimizer_csn']
+
+      training_losses   = checkpoint['training_losses']
+      training_bleus    = checkpoint['training_bleus' ]
+      training_times    = checkpoint['training_times' ]
+      validation_losses = checkpoint['validation_losses']
+      validation_bleus  = checkpoint['validation_bleus' ]
+      validation_times  = checkpoint['validation_times' ]
+      gradient_accumulation_ctr = checkpoint['gradient_accumulation_ctr']
+      best_bleu = checkpoint['best_bleu']
+      training_data_loader   = checkpoint['training_data_loader']
+      validation_data_loader = checkpoint['validation_data_loader']
+      rng_state = checkpoint['rng_state']
+      torch.set_rng_state(rng_state)
+
+      print(f'Model and optimizer loaded successfully')
 
   root_print(rank, 'Starting training...')
   for epoch in range(1, args.epochs+1):
+    print(list(model.parameters())[-1].flatten()[:-10])
+
     if epoch > 0:
       epoch_mean_loss, epoch_training_time, gradient_accumulation_ctr = \
        train_epoch(
@@ -373,16 +410,26 @@ def main():
 
       if validation_bleu > best_bleu:
         best_bleu = validation_bleu
+        
+        checkpoint = {    'model_state':     model.state_dict(),
+                      'optimizer_state': optimizer.optimizer.state_dict(),#optimizer.state_dict(),
+                      'optimizer_csn'  : optimizer.current_step_number,
+                      'training_losses': training_losses,
+                      'training_bleus' : training_bleus,
+                      'training_times' : training_times,
+                    'validation_losses': validation_losses,
+                    'validation_bleus' : validation_bleus,
+                    'validation_times' : validation_times,
+            'gradient_accumulation_ctr': gradient_accumulation_ctr,
+                            'best_bleu': best_bleu,
+                 'training_data_loader': training_data_loader,
+               'validation_data_loader': validation_data_loader,
+                            'rng_state': torch.get_rng_state(),
+        }
+        torch.save(checkpoint, f'../stored_models/id{run_id}_rank{rank}_cp1.pt')
+        torch.save(checkpoint, f'../stored_models/id{run_id}_rank{rank}_cp2.pt')
 
-        gpu_id = torch.cuda.current_device()
-        device = torch.device(f"cuda:{gpu_id}")
-
-
-        checkpoint = {    'model_state':               model.state_dict(),
-                      'optimizer_state': optimizer.optimizer.state_dict(),
-                      'optimizer_csn'  : optimizer.current_step_number   ,}
-        torch.save(checkpoint, f'../stored_models/id{run_id}_rank{rank}_gpu{device}_cp1.pt')
-        torch.save(checkpoint, f'../stored_models/id{run_id}_rank{rank}_gpu{device}_cp2.pt')
+      # if epoch == 2: sys.exit()
 
   root_print(rank, 'Training finished.')
 

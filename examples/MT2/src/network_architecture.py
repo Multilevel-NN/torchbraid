@@ -447,6 +447,7 @@ class ParallelNet(nn.Module):
     t1_masks_comm_time = time.time()
     
     lp_rank = self.comm_lp.Get_rank()
+    # device = z.device
     gpu_id = torch.cuda.current_device()
     device = torch.device(f"cuda:{gpu_id}")
     #print("MPI Rank:", lp_rank, "GPU Name:", gpu_id, " device   ", device)
@@ -629,7 +630,7 @@ def parse_args():
   # parser.add_argument('--seed'                 , type=int  , default=    0      )
   parser.add_argument('--tokenization'         , type=str  , default='news-web' )
   parser.add_argument('--vocab_size'           , type=int  , default=32000      )
-  parser.add_argument('--load'                 , type=str  , default=''         )
+  parser.add_argument('--load'                 , action='store_true'            )
   parser.add_argument('--num_training_batches' , type=int  , default= 2000      )
   parser.add_argument('--serial_fwd'           , action='store_true'            )
 
