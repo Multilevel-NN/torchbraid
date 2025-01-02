@@ -563,15 +563,15 @@ def parse_args():
 
   # Command line settings
   parser = argparse.ArgumentParser(description='MNIST example argument parser')
-  parser.add_argument('--seed', type=int, default=1, metavar='S',
-                      help='random seed (default: 1)')
+  parser.add_argument('--seed', type=int, default=0, metavar='S',
+                      help='random seed (default: 0)')
   parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                       help='how many batches to wait before logging training status')
 
   # artichtectural settings
-  parser.add_argument('--steps', type=int, default=32, metavar='N',
+  parser.add_argument('--steps', type=int, default=6, metavar='N',
                       help='Number of times steps in the resnet layer (default: 32)')
-  parser.add_argument('--Tf',type=float,default=1.0,
+  parser.add_argument('--Tf',type=float,default=6.0,
                       help='Final time for ResNet layer-parallel part')
   parser.add_argument('--serial-file', type=str, default=None,
                       help='Save network to file in serial (not parallel) format')
@@ -579,15 +579,15 @@ def parse_args():
   # algorithmic settings (batching)
   parser.add_argument('--percent-data', type=float, default=0.05, metavar='N',
                       help='how much of the data to read in and use for training/testing')
-  parser.add_argument('--batch-size', type=int, default=50, metavar='N',
+  parser.add_argument('--batch-size', type=int, default=8, metavar='N',
                       help='input batch size for training (default: 50)')
-  parser.add_argument('--epochs', type=int, default=3, metavar='N',
+  parser.add_argument('--epochs', type=int, default=1000000000, metavar='N',
                       help='number of epochs to train (default: 3)')
-  parser.add_argument('--lr', type=float, default=3e-4, metavar='LR',
-                      help='learning rate (default: 0.01)')
+  # parser.add_argument('--lr', type=float, default=3e-4, metavar='LR',
+  #                     help='learning rate (default: 0.01)')
 
   # algorithmic settings (layer-parallel)
-  parser.add_argument('--lp-max-levels', type=int, default=3, metavar='N',
+  parser.add_argument('--lp-max-levels', type=int, default=2, metavar='N',
                       help='Layer parallel max number of levels (default: 3)')
   parser.add_argument('--lp-bwd-max-iters', type=int, default=1, metavar='N',
                       help='Layer parallel max backward iterations (default: 1)')
@@ -597,7 +597,7 @@ def parse_args():
                       help='Layer parallel internal print level (default: 0)')
   parser.add_argument('--lp-braid-print-level', type=int, default=0, metavar='N',
                       help='Layer parallel braid print level (default: 0)')
-  parser.add_argument('--lp-cfactor', type=int, default=4, metavar='N',
+  parser.add_argument('--lp-cfactor', type=int, default=3, metavar='N',
                       help='Layer parallel coarsening factor (default: 4)')
   parser.add_argument('--lp-fine-fcf',action='store_true', default=False,
                       help='Layer parallel fine FCF for forward solve, on or off (default: False)')
@@ -615,24 +615,24 @@ def parse_args():
                       help='Data parallelism (used if value != 1)')
 
   ## additional arguments
-  parser.add_argument('--d_model'              , type=int  , default=  256      )
-  parser.add_argument('--nhead'                , type=int  , default=    8      )
-  parser.add_argument('--dim_feedforward'      , type=int  , default= 1024      )
-  parser.add_argument('--drop_last'            , action='store_true'            )
-  parser.add_argument('--dropout'              , type=float, default=    0.     )
-  parser.add_argument('--gradient_accumulation', type=int  , default=    1      )
-  parser.add_argument('--num_warmup_steps'     , type=int  , default= 4000      )
-  parser.add_argument('--debug'                , action='store_true'            )
-  parser.add_argument('--enforce_serial'       , action='store_true'            )
-  parser.add_argument('--scale'                , action='store_true'            )
-  parser.add_argument('--split_decoder'        , action='store_true'            )
-  parser.add_argument('--initialize_parameters', action='store_true'            )
-  # parser.add_argument('--seed'                 , type=int  , default=    0      )
-  parser.add_argument('--tokenization'         , type=str  , default='news-web' )
-  parser.add_argument('--vocab_size'           , type=int  , default=32000      )
-  parser.add_argument('--load'                 , action='store_true'            )
-  parser.add_argument('--num_training_batches' , type=int  , default= 2000      )
-  parser.add_argument('--serial_fwd'           , action='store_true'            )
+  parser.add_argument('--d_model'              , type=int  , default=  512    )
+  parser.add_argument('--nhead'                , type=int  , default=    8    )
+  parser.add_argument('--dim_feedforward'      , type=int  , default= 2048    )
+  parser.add_argument('--drop_last'            , type=bool , default=True     )
+  parser.add_argument('--dropout'              , type=float, default=    0.1  )
+  parser.add_argument('--gradient_accumulation', type=int  , default=   16    )
+  parser.add_argument('--max_lr'               , type=float, default= 5e-4    )
+  parser.add_argument('--num_warmup_steps'     , type=int  , default= 8000    )
+  parser.add_argument('--debug'                , action='store_true'          )
+  parser.add_argument('--enforce_serial'       , action='store_true'          )
+  parser.add_argument('--scale'                , action='store_true'          )
+  parser.add_argument('--split_decoder'        , action='store_true'          )
+  parser.add_argument('--initialize_parameters', type=bool , default=True     )
+  parser.add_argument('--tokenization'         , type=str  , default='unigram')
+  parser.add_argument('--vocab_size'           , type=int  , default= 8000    )
+  parser.add_argument('--load'                 , type=bool , default=True     )
+  parser.add_argument('--num_training_batches' , type=int  , default=20000    )
+  parser.add_argument('--serial_fwd'           , action='store_true'          )
 
   ##
   # Do some parameter checking
@@ -641,8 +641,8 @@ def parse_args():
   args = parser.parse_args()
 
   ## Temp
-  args.nhead = (args.d_model * 8) // 512
-  args.dim_feedforward = 4 * args.d_model
+  # args.nhead = (args.d_model * 8) // 512
+  # args.dim_feedforward = 4 * args.d_model
 
   if procs % args.dp_size != 0:
     root_print(

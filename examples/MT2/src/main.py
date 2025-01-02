@@ -47,6 +47,11 @@
 # $ mpirun -np 4 python3 mnist_script.py --dataset fashion --steps 24 --channels 8 --percent-data 0.25 --batch-size 100 --epochs 5 
 # trains on 25% of fashion MNIST with 24 steps in the ResNet, 8 channels, 100 images per batch over 5 epochs 
 
+## Run examples
+# ...: 
+#   srun python3 -u main.py --batch-size 8 --epochs 1000000 --d_model 512 --dropout .1 --gradient_accumulation 16 --initialize_parameters --num_warmup_steps 8000 --tokenization unigram --vocab_size 8000 --steps 6 --Tf 6. --lp-max-levels 2 --lp-cfactor 3 --lp-fwd-max-iters 3 --lp-bwd-max-iters 2 --seed 0 --num_training_batches 20000 --load
+# 20240102: 
+#   srun python3 -u main.py --lp-fwd-max-iters 3 --lp-bwd-max-iters 2 --max_lr 5e-4 --num_warmup_steps 8000
 
 from timeit import default_timer as timer
 
@@ -137,7 +142,7 @@ def train_epoch(
     training_time += batch_fwd_pass_time + batch_bwd_pass_time
 
     if batch_idx == num_batches: break#2000: break
-    # break  # debug
+    if debug: break  # debug
 
   mean_loss /= num_batches#len(training_data_loader)
   mean_loss = mean_loss.item()
@@ -171,7 +176,7 @@ def validate(
       preds = generate(model, src, output_tgt.shape[1]) 
       extend_sentences(originals, references, candidates, 
                        src_vocab, tgt_vocab, src, output_tgt, preds)
-      # break  # debug
+      if debug: break  # debug
 
   mean_loss /= len(data_loader)
   mean_loss = mean_loss.item()
@@ -182,7 +187,7 @@ def validate(
   root_print(rank, f'Candidate : {candidates[idx]}')
   root_print(rank, f'References: {references[idx][0]}')
 
-  print(f'rank: {rank}, loss: {mean_loss}, bleu: {bleu_score}')
+  # print(f'rank: {rank}, loss: {mean_loss}, bleu: {bleu_score}')
 
   return mean_loss, bleu_score
 
@@ -208,7 +213,10 @@ def main():
   datetime = dt.datetime.now().strftime('%Y%m%d%H%M%S')
   # run_id = f'{datetime}_{args.lp_fwd_max_iters=}_{args.lp_bwd_max_iters=}_{args.seed=}_{str(np.random.randint(0, 1000000000)).zfill(9)}'
   run_id = f'{datetime}_{str(np.random.randint(0, 1000000000)).zfill(9)}'
+  model_id = f'n{num_procs}_f{args.lp_fwd_max_iters}_b{args.lp_bwd_max_iters}' \
+             f'_lr{args.max_lr}_w{args.num_warmup_steps}'
   root_print(rank, f'run_id: {run_id}')
+  root_print(rank, f'model_id: {model_id}')
 
   # Use device or CPU?
   use_cuda = not args.no_cuda and torch.cuda.is_available()
@@ -318,7 +326,7 @@ def main():
   # print(f'Model: {model}')
   # print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
   # Declare optimizer  
-  optimizer = get_optimizer(model, args.num_warmup_steps)#torch.optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-9, lr=5e-4)
+  optimizer = get_optimizer(model, args.num_warmup_steps, args.max_lr)#torch.optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-9, lr=5e-4)
   print(f'Optimizer: {optimizer}')
   criterion = nn.KLDivLoss(reduction='batchmean')
   label_smoother = LabelSmoothingDistribution(.1, target_vocabulary.pad_id, 
@@ -335,17 +343,18 @@ def main():
     stored_models_list = sorted(list(
       filter(lambda nm: nm.startswith('id'), stored_models_list)
     ))
-    root_print(
-      rank, 
-      f'There are currently {len(stored_models_list)//(2*num_procs)} stored models'
+    root_print(rank, f'There are currently {len(stored_models_list)//(2*num_procs)} stored models')
+    stored_models_list = list(
+      filter(lambda nm: model_id in nm, stored_models_list)
     )
+    root_print(rank, f'...out of which {len(stored_models_list)//(2*num_procs)} coincide with n, fwd/bwd, lr/warmup.')
 
     if len(stored_models_list) > 0:
       print(f'rank: {rank}, stored-filter1: {stored_models_list}')
       stored_models_list = stored_models_list[-2*num_procs:]
       print(f'rank: {rank}, stored-filter2: {stored_models_list}')
       stored_models_list = list(filter(
-        lambda nm: re.match(f'.*rank{rank}.*', nm), stored_models_list
+        lambda nm: re.match(f'.*_rank{rank}_.*', nm), stored_models_list
       ))
       print(f'rank: {rank}, stored-filter3: {stored_models_list}')
       assert len(stored_models_list) == 2, len(stored_models_list)
@@ -418,7 +427,7 @@ def main():
 
       # validation_losses.append(...)
 
-      if validation_bleu > best_bleu:
+      if validation_bleu >= best_bleu:
         best_bleu = validation_bleu
         
         checkpoint = {    'model_state':     model.state_dict(),
@@ -436,8 +445,8 @@ def main():
                'validation_data_loader': validation_data_loader,
                             'rng_state': torch.get_rng_state(),
         }
-        torch.save(checkpoint, f'../stored_models/id{run_id}_rank{rank}_cp1.pt')
-        torch.save(checkpoint, f'../stored_models/id{run_id}_rank{rank}_cp2.pt')
+        torch.save(checkpoint, f'../stored_models/id{run_id}_{model_id}_rank{rank}_cp1.pt')
+        torch.save(checkpoint, f'../stored_models/id{run_id}_{model_id}_rank{rank}_cp2.pt')
 
       # if epoch == 2: sys.exit()
 
