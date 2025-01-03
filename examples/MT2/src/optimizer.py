@@ -22,7 +22,7 @@ class CustomLRAdamOptimizer:
         # current_learning_rate = self.d_model**(-.5) * min(
         #              self.current_step_number**(-.5), 
         #              self.current_step_number * self.num_warmup_steps**(-1.5))
-        current_learning_rate = self.coefficient**(-.5) * min(
+        current_learning_rate = self.coefficient * min(
           self.current_step_number**(-.5), 
           self.current_step_number * self.num_warmup_steps**(-1.5),
         )
