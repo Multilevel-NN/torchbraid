@@ -237,6 +237,7 @@ cdef extern from "braid.h":
     int braid_SetTimerFile(braid_Core core, int length, const char *filestem)
     int braid_ResetTimer(braid_Core core)
     int braid_SetTimings(braid_Core core, int timing_level)
+    int braid_SetResidualComputation(braid_Core core,int resid_compute)
 
     ##
     # Braid Test Routines
