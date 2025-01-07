@@ -264,6 +264,8 @@ class ParallelNet(nn.Module):
     self.parallel_nn.setCRelaxWt(CWt)
     self.parallel_nn.setFwdCRelaxWt(fwd_crelax_wt)
     self.parallel_nn.setMinCoarse(2)
+    self.parallel_nn.setFwdResidualCompute(False)
+    self.parallel_nn.setBwdResidualCompute(False)
 
     if fwd_finalrelax:
         self.parallel_nn.setFwdFinalFCRelax()
