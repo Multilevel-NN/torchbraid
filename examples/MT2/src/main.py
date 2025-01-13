@@ -75,6 +75,8 @@ from generation import generate
 from optimizer  import get_optimizer
 from _utils     import LabelSmoothingDistribution
 
+# os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'  # when debugging with MPS
+
 print(f'Python version info: {sys.version_info}')
 
 # torch.set_default_dtype(torch.float64)
@@ -173,7 +175,7 @@ def validate(
         gradient_accumulation,
       )
       mean_loss = mean_loss + loss if mean_loss is not None else loss
-      preds = generate(model, src, output_tgt.shape[1]) 
+      preds = generate(model, src, output_tgt.shape[1], debug) 
       extend_sentences(originals, references, candidates, 
                        src_vocab, tgt_vocab, src, output_tgt, preds)
       if debug: break  # debug
@@ -219,17 +221,23 @@ def main():
   root_print(rank, f'model_id: {model_id}')
 
   # Use device or CPU?
-  use_cuda = not args.no_cuda and torch.cuda.is_available()
   device, host = torchbraid.utils.getDevice(comm=comm)
-  if not use_cuda: device = torch.device("cuda" if use_cuda else "cpu")
+
+  if args.no_gpu or not torch.cuda.is_available():
+    device = torch.device(
+      f'mps:{rank}' if not args.no_gpu and torch.backends.mps.is_available() else 
+      'cpu'
+    )
   root_print(rank, f'Run info rank: {rank}: Torch version: {torch.__version__} '
         f'| Device: {device} | Host: {host}')
+
+  # print(f'{rank=}, {device=}')
 
   # Set seed for reproducibility
   torch.manual_seed(args.seed)
 
   # Compute number of steps in ResNet per processor
-  local_steps = int(args.steps / num_procs)
+  local_steps = int(args.steps/num_procs)
 
   # Finish assembling training and test datasets
   root_print(rank, 'Loading data set...')
@@ -337,6 +345,8 @@ def main():
   validation_losses, validation_bleus, validation_times = [], [], []
   gradient_accumulation_ctr = 0
   best_bleu = float('-inf')
+
+  print(f'{args.load=}')
 
   if args.load:#True: #(loading_path := args.load):
     stored_models_list = os.listdir(f'../stored_models')
@@ -449,6 +459,7 @@ def main():
         torch.save(checkpoint, f'../stored_models/id{run_id}_{model_id}_rank{rank}_cp2.pt')
 
       # if epoch == 2: sys.exit()
+      # if debug: break
 
   root_print(rank, 'Training finished.')
 

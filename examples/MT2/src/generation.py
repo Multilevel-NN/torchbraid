@@ -6,7 +6,12 @@ import sys
 
 from autoinit import AutoInitializer
 
-def generate(model, src: torch.LongTensor, max_new_tokens: int):  #/ src: [b, Ls]
+def generate(
+  model, 
+  src: torch.LongTensor, 
+  max_new_tokens: int, 
+  debug: bool=False,
+):  #/ src: [b, Ls]
   model.eval()
 
   assert max_new_tokens >= 0
@@ -15,15 +20,22 @@ def generate(model, src: torch.LongTensor, max_new_tokens: int):  #/ src: [b, Ls
                                           vocab.bos_id, vocab.eos_id
 
   with torch.no_grad():
-    tgt = generate_no_beam_search(model, src, max_new_tokens, pad_id, 
-                                                      bos_id, eos_id)[:, 1:]
+    tgt = generate_no_beam_search(
+      model, src, max_new_tokens, pad_id, bos_id, eos_id, debug
+    )[:, 1:]
     padding = tgt.new(tgt.shape[0], max_new_tokens - tgt.shape[1]) \
                  .fill_(pad_id)
     tgt = torch.cat((tgt, padding), axis=-1)
     return tgt
 
 def generate_no_beam_search(
-    model, src: torch.LongTensor, max_new_tokens: int, pad_id, bos_id, eos_id,
+    model, 
+    src: torch.LongTensor, 
+    max_new_tokens: int, 
+    pad_id, 
+    bos_id, 
+    eos_id,
+    debug,
 ):
   batch_size, L = src.shape
   assert max_new_tokens <= L
@@ -71,7 +83,7 @@ def generate_no_beam_search(
     # t1 = time.time()
     # print(f'Rank: {rank}. Generation step(comm) time: {t1 - t0} ({tcomm1 - tcomm0}) seconds')
 
-    if all(finished_sentences): break
+    if all(finished_sentences) or debug: break
 
   return tgt
 

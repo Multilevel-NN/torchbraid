@@ -17,7 +17,7 @@ from torchbraid.utils import LPDropout as Dropout
 
 from mpi4py              import MPI
 
-from generation          import generate
+# from generation          import generate
 from load_save           import load, save
 from positional_encoding import PositionalEncoding
 
@@ -429,14 +429,22 @@ class ParallelNet(nn.Module):
     global tgt_mask, src_key_padding_mask, tgt_key_padding_mask, \
            memory_key_padding_mask
 
-    tgt_mask                = 'asfd'
-    src_key_padding_mask    = 'asdf'
-    tgt_key_padding_mask    = 'asdf'
-    memory_key_padding_mask = 'asdf'
+    if (rank := self.comm_lp.Get_rank()) != 0:
+      tgt_mask                = None
+      src_key_padding_mask    = None
+      tgt_key_padding_mask    = None
+      memory_key_padding_mask = None
 
     t0_open_layer_time = time.time()
     z = self.compose(self.open_nn, src, tgt)
     t1_open_layer_time = time.time()
+
+    # if rank == 0:
+    #   assert                tgt_mask is not None \
+    #      and    src_key_padding_mask is not None \
+    #      and    tgt_key_padding_mask is not None \
+    #      and memory_key_padding_mask is not None, \
+    #      f'(I), rank: {rank}'
 
     t0_masks_comm_time = time.time()
     tgt_mask, src_key_padding_mask, tgt_key_padding_mask, \
@@ -445,6 +453,13 @@ class ParallelNet(nn.Module):
                                     memory_key_padding_mask], root=0
     )
     t1_masks_comm_time = time.time()
+
+    # assert                tgt_mask is not None \
+    #    and    src_key_padding_mask is not None \
+    #    and    tgt_key_padding_mask is not None \
+    #    and memory_key_padding_mask is not None, \
+    #    f'(II), rank: {rank}'
+
     
     lp_rank = self.comm_lp.Get_rank()
     # device = z.device
@@ -601,8 +616,8 @@ def parse_args():
                       help='Layer parallel coarsening factor (default: 4)')
   parser.add_argument('--lp-fine-fcf',action='store_true', default=False,
                       help='Layer parallel fine FCF for forward solve, on or off (default: False)')
-  parser.add_argument('--no-cuda', action='store_true', default=False,
-                      help='disables CUDA training')
+  parser.add_argument('--no-gpu', action='store_true', default=False,
+                      help='disables GPU training')#CUDA training')
   parser.add_argument('--warm-up', action='store_true', default=False,
                       help='Warm up for GPU timings (default: False)')
   parser.add_argument('--lp-user-mpi-buf',action='store_true', default=False,
@@ -618,7 +633,7 @@ def parse_args():
   parser.add_argument('--d_model'              , type=int  , default=  512    )
   parser.add_argument('--nhead'                , type=int  , default=    8    )
   parser.add_argument('--dim_feedforward'      , type=int  , default= 2048    )
-  parser.add_argument('--drop_last'            , type=bool , default=True     )
+  parser.add_argument('--skip_drop_last'            , action='store_false', dest='drop_last')
   parser.add_argument('--dropout'              , type=float, default=    0.1  )
   parser.add_argument('--gradient_accumulation', type=int  , default=   16    )
   parser.add_argument('--max_lr'               , type=float, default= 5e-4    )
@@ -627,10 +642,10 @@ def parse_args():
   parser.add_argument('--enforce_serial'       , action='store_true'          )
   parser.add_argument('--scale'                , action='store_true'          )
   parser.add_argument('--split_decoder'        , action='store_true'          )
-  parser.add_argument('--initialize_parameters', type=bool , default=True     )
+  parser.add_argument('--skip_initialize_parameters', action='store_false', dest='initialize_parameters')
   parser.add_argument('--tokenization'         , type=str  , default='unigram')
   parser.add_argument('--vocab_size'           , type=int  , default= 8000    )
-  parser.add_argument('--load'                 , type=bool , default=True     )
+  parser.add_argument('--skip_load'                 , action='store_false', dest='load')
   parser.add_argument('--num_training_batches' , type=int  , default=20000    )
   parser.add_argument('--serial_fwd'           , action='store_true'          )
 
