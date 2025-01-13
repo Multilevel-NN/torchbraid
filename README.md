@@ -1,5 +1,8 @@
-# TorchBraid
+<p align="center">
+<img src="TorchBraid-v0.1.png" width="300">
+</p>
 
+# TorchBraid
 This package implements a layer-parallel approach to training neural ODEs, and neural networks. 
 Algorithmically multigrid-in-time is used to expose parallelism in the forward and backward
 propagation phases used to compute the gradient. The neural network interface is build on
