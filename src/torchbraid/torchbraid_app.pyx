@@ -74,6 +74,7 @@ class BraidApp:
                spatial_ref_pair=None,user_mpi_buf=False,
                require_storage=False,abs_tol=1e-12):
 
+    self.residual_compute = 1
     self.start_time = time.time()
     self.prefix_str = prefix_str # prefix string for helping to debug hopefully
     self.tb_print_level = 0      # set print level internally to zero
@@ -399,6 +400,7 @@ class BraidApp:
     braid_SetAccessLevel(core,0)
     #braid_SetCRelaxWt(core, -1, 1.2)   # Turn on weighted relaxation, probably want to add command line argument
     braid_SetFileIOLevel(core, 0)       # Always turn off the braid.out.cycle file
+    braid_SetResidualComputation(core,self.residual_compute)
     if self.skip_downcycle==0:
       braid_SetSkip(core,0)
     else:
@@ -756,6 +758,14 @@ class BraidApp:
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetRevertedRanks(core,reverted)
     self.start_layer,self.end_layer = self.getStepBounds()
+
+  def setResidualCompute(self,residual_compute):
+    self.residual_compute = int(residual_compute)
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_SetResidualComputation(core,self.residual_compute)
+
+  def getResidualCompute(self):
+    return self.residual_compute
 
   def getUVector(self,level,t):
     cdef braid_Core core = (<PyBraid_Core> self.py_core).getCore()

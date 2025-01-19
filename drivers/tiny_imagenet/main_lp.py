@@ -157,7 +157,13 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mi
       total_time = 0.0
       cumulative_time = 0.0
 
-  root_print(rank, (format_str + ', fp={:.6f}, cm={:.6f}, bp={:.6f}').format(
+  # compute cuda memory highwater mark
+  cudamem = 0.
+  if str(device).startswith('cuda'):
+    cudamem = torch.cuda.max_memory_allocated(device)
+  
+  mb_scaling = 2**20
+  root_print(rank, (format_str + ', fp={:.6f}, cm={:.6f}, bp={:.6f}, cudamemHW={:.6f}').format(
     epoch,
     len(train_loader.dataset),
     len(train_loader.dataset),
@@ -169,6 +175,7 @@ def train(rank, args, model, train_loader, optimizer, epoch, compose, device, mi
     total_time_fp / len(train_loader.dataset),
     total_time_cm / len(train_loader.dataset),
     total_time_bp / len(train_loader.dataset),
+    cudamem / mb_scaling       # cuda memory to highwater mark, computed in MB
   ))
 
 
@@ -291,7 +298,7 @@ def main():
   torch.manual_seed(args.seed)
   np.random.seed(args.seed)
 
-  root_print(rank, 'TORCHBRAID REV: %s' % git_rev())
+  #root_print(rank, 'TORCHBRAID REV: %s' % git_rev())
 
   my_device, my_host = getDevice(comm)
 
@@ -423,30 +430,36 @@ def main():
 
   torch.manual_seed(args.seed)
   np.random.seed(args.seed)
+
+  if args.load_optimizer:
+    root_print(rank, f'Loading optimizer from \"{args.model_dir}\"')
+    optimizer.load_state_dict(torch.load(f'{args.model_dir}/optimizer.{rank}.mdl',weights_only=True))
+
   if args.lr_scheduler is not None:
-    # scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[10, 30], gamma=0.1, verbose=(rank == 0))
     scheduler = get_lr_scheduler(optimizer, args)
+    if args.load_lr_scheduler:
+      root_print(rank, f'Loading LR scheduler from \"{args.model_dir}\"')
+      scheduler.load_state_dict(torch.load(f'{args.model_dir}/scheduler.{rank}.mdl',weights_only=True))
 
   if args.load_model:
-    root_print(rank, f'Loading from \"{args.model_dir}\"')
+    root_print(rank, f'Loading model from \"{args.model_dir}\"')
     model.loadParams(rank, args.model_dir)
-    optimizer.load_state_dict(torch.load(f'{args.model_dir}/optimizer.{rank}.mdl'))
-    if args.lr_scheduler:
-      scheduler.load_state_dict(torch.load(f'{args.model_dir}/scheduler.{rank}.mdl'))
 
+  # Move the optimizer state to GPU
+  for state in optimizer.state.values():
+    for k, v in state.items():
+      if isinstance(v, torch.Tensor):
+        state[k] = v.to(my_device)
   model = model.to(my_device)
 
-  if rank == 0:
-    print('===============MODEL=============\n')
-  #print(model)
+  root_print(rank,'===============MODEL=============\n')
 
-  if rank == 0:
-    print('===============OPTIMIZER=============\n')
-    print(optimizer)
+  root_print(rank,'===============OPTIMIZER=============\n')
+  root_print(rank,optimizer)
 
-  if rank == 0:
-    print('===============SCHEDULER=============\n')
-    print(scheduler)
+  root_print(rank,'===============SCHEDULER=============\n')
+  root_print(rank,scheduler.state_dict())
+  root_print(rank,"")
 
   # Warm up gpu's (There has to be a cheaper way than calling a complete train call.
   # We just need one small run to "start" the gpu's.
@@ -476,7 +489,8 @@ def main():
   end_time = timer()
   test_times += [end_time - start_time]
     
-  root_print(rank, f'Learning rate for epoch 1: {args.lr}')
+  first_lr = optimizer.state_dict()['param_groups'][0]['lr']
+  root_print(rank, f'Learning rate for epoch 1: {first_lr}')
 
   torch.manual_seed(args.seed)
   np.random.seed(args.seed)
@@ -514,6 +528,19 @@ def main():
         torch.save(scheduler.state_dict(), f'{args.model_dir}/scheduler.{rank}.mdl')
       model.saveParams(rank, args.model_dir)
     # end args
+
+  if str(my_device).startswith('cuda'):
+    cudamem = torch.cuda.max_memory_allocated(my_device)
+    mb_scaling = 2**20
+    if args.use_serial:
+      print(f'CUDA Memory Highwater = {cudamem/mb_scaling:.6f} MB')
+    else:
+      cudamem_list = comm.gather(cudamem,root=0)
+      if rank==0:
+        print(f'CUDA Memory Highwater = {sum(cudamem_list)/mb_scaling:.6f} MB')
+        for p,mem in enumerate(cudamem_list):
+          print(f'   * rank={p}: {mem/mb_scaling:.6f} MB') 
+   
 
   if not args.use_serial:
     timer_str = model.parallel_nn.getTimersString()
