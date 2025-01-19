@@ -229,6 +229,10 @@ def get_model(rank, args, local_steps, num_procs, device, vocabs):
     model.parallel_nn.bwd_app.setTimerFile(
       f'b_bwd_s_{args.steps}_bs_{args.batch_size}_p_{num_procs}')
 
+    model.parallel_nn.setFwdResidualCompute(False)
+    model.parallel_nn.setBwdResidualCompute(False)
+
+
   elif num_procs == 1:
     root_print(rank, 'Building SerialNet...')
     model = SerialNet(
