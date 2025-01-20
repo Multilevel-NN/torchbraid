@@ -50,6 +50,8 @@ from network_architecture_v2 import ParallelNet
 from mpi4py import MPI
 from get_dataset import obtain_dataset
 from torch.utils.data import DataLoader
+from datasets import load_dataset
+from transformers import BertTokenizerFast, DataCollatorForLanguageModeling, get_linear_schedule_with_warmup
 
 ####################################################################################
 ####################################################################################
@@ -172,41 +174,54 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device, 
   bwd_times = []
   losses = []
 
+  comm = MPI.COMM_WORLD
+  procs = comm.Get_size()
+
   # Train the model
   model.train()
 
-  criterion = nn.CrossEntropyLoss(ignore_index=0)
+  # criterion = nn.CrossEntropyLoss(ignore_index=0)
+  criterion = nn.CrossEntropyLoss(ignore_index=-100)
 
   total_time = 0.0
 
   for batch_idx, batch_data in enumerate(train_loader):
-    data, target, segment_label, is_next = batch_data['bert_input'], batch_data['bert_label'], batch_data['segment_label'], batch_data['is_next']
+    optimizer.zero_grad()
+
+    # data, target, segment_label, is_next = batch_data['bert_input'], batch_data['bert_label'], batch_data['segment_label'], batch_data['is_next']
+    data, target, segment_label = batch_data['input_ids'], batch_data['labels'], batch_data['token_type_ids']
 
     start_time = timer()
-    data, target, segment_label, is_next = data.to(device), target.to(device), segment_label.to(device), is_next.to(device)
+    # data, target, segment_label, is_next = data.to(device), target.to(device), segment_label.to(device), is_next.to(device)
+    data, target, segment_label = data.to(device), target.to(device), segment_label.to(device)
 
     torch.cuda.synchronize()
     batch_fwd_pass_start = time.time()
-    mask_lm_output, next_sent_output = model(data, segment_label)
+    # mask_lm_output, next_sent_output = model(data, segment_label)
+    mask_lm_output = model(data, segment_label)
     torch.cuda.synchronize()
     batch_fwd_pass_end = time.time()
 
-    next_loss = compose(
-      criterion, next_sent_output, is_next
-    )
+    # next_loss = compose(
+    #   criterion, next_sent_output, is_next
+    # )
     mask_loss = compose(
       criterion, mask_lm_output.reshape(-1, mask_lm_output.shape[-1]), target.reshape(-1)
     )
 
-    loss = next_loss + mask_loss
-    scheduler.zero_grad()
-
+    # loss = next_loss + mask_loss
+    loss = mask_loss
+    
     torch.cuda.synchronize()
     batch_bwd_pass_start = time.time()
     loss.backward()
     torch.cuda.synchronize()
     batch_bwd_pass_end = time.time()
-    scheduler.step_and_update_lr()
+
+    # scheduler.step_and_update_lr() # Custom will auto step optimizer
+
+    optimizer.step()
+    scheduler.step()  # Update the learning rate
     
     stop_time = timer()
 
@@ -218,17 +233,37 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device, 
 
     # Generate new dropout mask 
     model.new_mask()
-    
-    if batch_idx % params.log_interval == 0:
-      root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tLR: {:.2e}'.format(
-        epoch, batch_idx * len(data), len(train_loader.dataset),
-               100. * batch_idx / len(train_loader), loss.item(), 
-               scheduler.get_current_lr()))
-      root_print(rank, f'\t Some times: {fwd_times[-4:-1]=} {bwd_times[-4:-1]=} {train_times[-4:-1]=}')
 
-  root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.2e}'.format(
-    epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
-           100. * (batch_idx + 1) / len(train_loader), loss.item()))
+    # Save data; note that 
+    if batch_idx % 1000 == 0:
+      checkpoint = {
+          'model_state_dict': model.state_dict(),
+          'optimizer_state_dict': optimizer.state_dict(),
+          'scheduler_state_dict': scheduler.state_dict()
+      }
+      torch.save(
+        checkpoint, 
+        f'bert-save-{procs}/model_checkpoint_{rank}_{batch_idx=}'
+      )
+
+    # 
+    if batch_idx % params.log_interval == 0:
+      # root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tLR: {:.2e}'.format(
+        # epoch, batch_idx * len(data), 50000,
+              #  100. * batch_idx / 50000, loss.item(), 
+              #  scheduler. get_last_lr()))
+      root_print(rank, f'Train Epoch: {epoch} {batch_idx} { loss.item()} {scheduler.get_last_lr()}')
+      # root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tLR: {:.2e}'.format(
+      #   epoch, batch_idx * len(data), len(train_loader.dataset),
+      #          100. * batch_idx / len(train_loader), loss.item(), 
+      #          scheduler.get_current_lr()))
+      root_print(rank, f'\t Some times: {fwd_times[-4:-1]=} {bwd_times[-4:-1]=} {train_times[-4:-1]=}')
+    if batch_idx == 100000 == 0:
+      break
+
+  # root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.2e}'.format(
+  #   epoch, (batch_idx + 1) * len(data), len(train_loader.dataset),
+  #          100. * (batch_idx + 1) / len(train_loader), loss.item()))
 
   return losses, train_times, fwd_times, bwd_times
 
@@ -336,16 +371,38 @@ def main():
 
   # Get dataloader
   sequence_length = args.seq_len
-  ds, vocab_size = obtain_dataset(percent_data = args.percent_data, seq_len=sequence_length)
-  train_size, test_size = int(len(ds) * 0.8), len(ds) - int(len(ds) * 0.8)  # 80/20 split by default
-  train_ds, test_ds = torch.utils.data.random_split(ds, [train_size, test_size])
-  print(f'{vocab_size=}')
-  print(train_ds[0])
+  # ds, vocab_size = obtain_dataset(percent_data = args.percent_data, seq_len=sequence_length)
+  # train_size, test_size = int(len(ds) * 0.8), len(ds) - int(len(ds) * 0.8)  # 80/20 split by default
+  # train_ds, test_ds = torch.utils.data.random_split(ds, [train_size, test_size])
+  # print(f'{vocab_size=}')
+  # print(train_ds[0])
+  # train_loader = DataLoader(
+  #   train_ds, batch_size=args.batch_size, shuffle=False, pin_memory=True, drop_last=True
+  # )
+  # test_loader = DataLoader(
+  #   test_ds, batch_size=args.batch_size, shuffle=False, pin_memory=True, drop_last=True
+  # )
+
+  # Load C4 Dataset
+  print('Loading dataset')
+  dataset = load_dataset("allenai/c4", "en", split="train", streaming=True)
+  dataset = dataset.remove_columns(['timestamp', 'url'])
+
+  # Load tokenizer
+  tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
+  vocab_size = tokenizer.vocab_size
+
+  # Tokenize the dataset
+  def tokenize_function(examples):
+      return tokenizer(examples["text"], truncation=True, padding="max_length", max_length=sequence_length)
+
+  tokenized_dataset = dataset.map(tokenize_function, batched=True, remove_columns=["text"])
+  tokenized_dataset = tokenized_dataset.with_format("torch")
+
+  # Collator; can do MLM with higher prob
+  data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=True, mlm_probability=0.20) # Doing higher 
   train_loader = DataLoader(
-    train_ds, batch_size=args.batch_size, shuffle=False, pin_memory=True, drop_last=True
-  )
-  test_loader = DataLoader(
-    test_ds, batch_size=args.batch_size, shuffle=False, pin_memory=True, drop_last=True
+     tokenized_dataset, batch_size=args.batch_size, collate_fn=data_collator, shuffle=False, pin_memory=True, drop_last=True
   )
 
   root_print(
@@ -391,12 +448,12 @@ def main():
 									user_mpi_buf=args.lp_user_mpi_buf).to(device)
   root_print(rank, 'Saving untrained.')
   model.saveSerialNet(f'serialnet_bert_{args.steps}')
-  # root_print(rank, 'Saved!!!')
   # model.saveSerialNet(f'serial_net_hf_bert_{args.steps}_{procs}_untrain')
   root_print(rank, 'Model created and saved; proceeding to train.')
   if args.serial_file:
     model.saveSerialNet(f'serialnet_bert_{args.steps}')
     print('Saved file')
+
     # Quit after saving? 
     import sys
     sys.exit()
@@ -408,12 +465,18 @@ def main():
   # print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
   # https://datascience.stackexchange.com/questions/64583/what-are-the-good-parameter-ranges-for-bert-hyperparameters-while-finetuning-it
   weight_decay=0.01
-  betas=(0.9, 0.999)
-  warmup_steps=1000
-  optimizer = optim.Adam(model.parameters(), lr=args.lr, betas=betas, weight_decay=weight_decay)
-  optim_schedule = ScheduledOptim(
-    optimizer, args.model_dimension, n_warmup_steps=warmup_steps
-  )
+  betas=(0.9, 0.98)
+  warmup_steps=10000 #50000
+  optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=betas, weight_decay=weight_decay, eps=1e-6)
+  # optim_schedule = ScheduledOptim(
+  #   optimizer, args.model_dimension, n_warmup_steps=warmup_steps
+  # )
+  optim_schedule = get_linear_schedule_with_warmup(
+    optimizer,
+    num_warmup_steps=warmup_steps,  # Number of warmup steps
+    num_training_steps=100000   # Total number of training steps
+)
+
   # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 
   root_print(rank, f'Training with {warmup_steps=} and {args.lr=}')
@@ -437,67 +500,67 @@ def main():
     forward_times += batch_f_times
     backward_times += batch_b_times
 
-    valid_loss = test(rank=rank, model=model, test_loader=test_loader, compose=model.compose, device=device)
+    # valid_loss = test(rank=rank, model=model, test_loader=test_loader, compose=model.compose, device=device)
 
-    test_losses.append(valid_loss)
+    # test_losses.append(valid_loss)
     
     epoch_time_end = time.time()
     if rank == 0: root_print(rank, f'Epoch time: {epoch_time_end - epoch_time_start} seconds')
 
-  if rank == 0:
-    _, ax1 = plt.subplots()
-    ax1.plot(batch_losses, color='b', linewidth=2)
-    ax1.grid(True, color='k', linestyle='-', linewidth=0.4)
-    ax1.set_xlabel(r"Batch number", fontsize=13)
-    ax1.set_ylabel(r"Loss", fontsize=13, color='b')
+  # if rank == 0:
+  #   _, ax1 = plt.subplots()
+  #   ax1.plot(batch_losses, color='b', linewidth=2)
+  #   ax1.grid(True, color='k', linestyle='-', linewidth=0.4)
+  #   ax1.set_xlabel(r"Batch number", fontsize=13)
+  #   ax1.set_ylabel(r"Loss", fontsize=13, color='b')
     
-    ax2 = ax1.twinx()
-    epoch_points = np.arange(1, len(test_losses)+1) * len(train_loader)
-    ax2.plot( epoch_points, test_losses, color='r', linestyle='dashed', linewidth=2, marker='o')
-    ax2.set_ylabel(r"Validation loss", fontsize=13, color='r')
-    plt.savefig(f'bert_layerparallel_training_{procs}_{args.steps}_{args.lp_fwd_max_iters}_{args.lp_max_levels}.png', bbox_inches="tight")
+  #   ax2 = ax1.twinx()
+  #   epoch_points = np.arange(1, len(test_losses)+1) * len(train_loader)
+  #   ax2.plot( epoch_points, test_losses, color='r', linestyle='dashed', linewidth=2, marker='o')
+  #   ax2.set_ylabel(r"Validation loss", fontsize=13, color='r')
+  #   plt.savefig(f'bert_layerparallel_training_{procs}_{args.steps}_{args.lp_fwd_max_iters}_{args.lp_max_levels}.png', bbox_inches="tight")
 
-    # Save to file
-    # Save the NumPy array to a file
-    np.save(f'test_losses_f{procs}_{args.steps}_{args.lp_fwd_max_iters}.npy', np.array(batch_losses))
-    np.save(f'valid_losses_f{procs}_{args.steps}_{args.lp_fwd_max_iters}.npy', np.array(test_losses))
+  #   # Save to file
+  #   # Save the NumPy array to a file
+  #   np.save(f'test_losses_f{procs}_{args.steps}_{args.lp_fwd_max_iters}.npy', np.array(batch_losses))
+  #   np.save(f'valid_losses_f{procs}_{args.steps}_{args.lp_fwd_max_iters}.npy', np.array(test_losses))
 
-    # )Plot and save timings to get approximate 
-    # Calculate means, ignoring the first few entries
-    mean_batch = np.mean(batch_times[3:])
-    mean_forward = np.mean(forward_times[3:])
-    mean_backward = np.mean(backward_times[3:])
+  #   # )Plot and save timings to get approximate 
+  #   # Calculate means, ignoring the first few entries
+  #   mean_batch = np.mean(batch_times[3:])
+  #   mean_forward = np.mean(forward_times[3:])
+  #   mean_backward = np.mean(backward_times[3:])
 
-    # Create figure and axes
-    _, axs = plt.subplots(3, 1, figsize=(10, 15))
+  #   # Create figure and axes
+  #   _, axs = plt.subplots(3, 1, figsize=(10, 15))
 
-    # Plotting
-    axs[0].plot(batch_times[3:], label='Batch Times', color='blue', marker='o')
-    axs[0].set_title(f'Mean Batch Time: {mean_batch:.2f}')
-    axs[0].set_xlabel('Batches')
-    axs[0].set_ylabel('Time')
-    axs[0].legend()
+  #   # Plotting
+  #   axs[0].plot(batch_times[3:], label='Batch Times', color='blue', marker='o')
+  #   axs[0].set_title(f'Mean Batch Time: {mean_batch:.2f}')
+  #   axs[0].set_xlabel('Batches')
+  #   axs[0].set_ylabel('Time')
+  #   axs[0].legend()
 
-    axs[1].plot(forward_times[3:], label='Forward Times', color='green', marker='o')
-    axs[1].set_title(f'Mean Forward Time: {mean_forward:.2f}')
-    axs[1].set_xlabel('Batches')
-    axs[1].set_ylabel('Time')
-    axs[1].legend()
+  #   axs[1].plot(forward_times[3:], label='Forward Times', color='green', marker='o')
+  #   axs[1].set_title(f'Mean Forward Time: {mean_forward:.2f}')
+  #   axs[1].set_xlabel('Batches')
+  #   axs[1].set_ylabel('Time')
+  #   axs[1].legend()
 
-    axs[2].plot(backward_times[3:], label='Backward Times', color='red', marker='o')
-    axs[2].set_title(f'Mean Backward Time: {mean_backward:.2f}')
-    axs[2].set_xlabel('Batches')
-    axs[2].set_ylabel('Time')
-    axs[2].legend()
+  #   axs[2].plot(backward_times[3:], label='Backward Times', color='red', marker='o')
+  #   axs[2].set_title(f'Mean Backward Time: {mean_backward:.2f}')
+  #   axs[2].set_xlabel('Batches')
+  #   axs[2].set_ylabel('Time')
+  #   axs[2].legend()
 
-    # Adjust layout
-    plt.tight_layout()
+  #   # Adjust layout
+  #   plt.tight_layout()
 
-    # Save the figure
-    plt.savefig(f'timing_data_plots_{procs}_{args.steps}_{args.lp_max_levels=}.png')
-    np.savez('timing_{procs=}_{args.steps=}_{args.lp_max_levels=}.npy', 
-            batch_times=np.array(batch_times), forward_times=np.array(forward_times), backward_times=np.array(backward_times)
-    )
+  #   # Save the figure
+  #   plt.savefig(f'timing_data_plots_{procs}_{args.steps}_{args.lp_max_levels=}.png')
+  #   np.savez('timing_{procs=}_{args.steps=}_{args.lp_max_levels=}.npy', 
+  #           batch_times=np.array(batch_times), forward_times=np.array(forward_times), backward_times=np.array(backward_times)
+  #   )
 
 
 if __name__ == '__main__':
