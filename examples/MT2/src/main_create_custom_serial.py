@@ -146,6 +146,8 @@ def train_epoch(
     if batch_idx == num_batches: break#2000: break
     if debug: break  # debug
 
+    break  # custom serial init
+
   mean_loss /= num_batches#len(training_data_loader)
   mean_loss = mean_loss.item()
 
@@ -274,7 +276,7 @@ def main():
                    f'-- fine fcf       = {args.lp_fine_fcf         }\n'
                    f'-- skip down      = {not args.lp_use_downcycle}\n')
   
-  if not args.enforce_serial:
+  if False:
     root_print(rank, 'Building ParallelNet...')
     # Create layer-parallel network
     # Note this can be done on only one processor, but will be slow
@@ -299,12 +301,12 @@ def main():
     ).to(device)
 
     # Detailed XBraid timings are output to these files for the forward and backward phases
-    model.parallel_nn.fwd_app.setBraidTimers(flag=1)
+    # model.parallel_nn.fwd_app.setBraidTimers(flag=1)
     model.parallel_nn.fwd_app.setTimerFile(
       #f'b_fwd_s_{args.steps}_bs_{args.batch_size}_p_{num_procs}'
       '/users/msalvado/fwd'
     )
-    model.parallel_nn.bwd_app.setBraidTimers(flag=1)
+    # model.parallel_nn.bwd_app.setBraidTimers(flag=1)
     model.parallel_nn.bwd_app.setTimerFile(
       #f'b_bwd_s_{args.steps}_bs_{args.batch_size}_p_{num_procs}'
       '/users/msalvado/bwd'
@@ -313,6 +315,28 @@ def main():
 
   else:
     assert num_procs == 1, 'If enforce_serial, num_procs must be 1'
+    assert (
+          args.lp_fwd_max_iters == 4 
+      and args.lp_bwd_max_iters == 2 
+      and args.max_lr == 5e-4 
+      and args.dropout == .1 
+      and args.steps == 6
+      and args.Tf == 6
+      and args.batch_size == 8
+      and args.lp_max_levels == 2
+      and args.lp_cfactor == 3
+      and args.d_model == 512
+      and args.nhead == 8
+      and args.dim_feedforward == 2048
+      and args.gradient_accumulation == 16
+      and args.num_warmup_steps == 8000
+      and args.debug == False
+      and args.scale == False
+      and args.tokenization == 'unigram'
+      and args.vocab_size == 8000
+      and args.num_training_batches == 20000
+      and args.serial_fwd == False
+    )
     root_print(rank, 'Building SerialNet...')
     model = SerialNet(
       args.d_model, args.nhead, args.dim_feedforward, args.dropout, 
@@ -348,7 +372,7 @@ def main():
 
   print(f'{args.load=}')
 
-  if args.load:#True: #(loading_path := args.load):
+  if False:#args.load:#True: #(loading_path := args.load):
     stored_models_list = os.listdir(f'../stored_models')
     stored_models_list = sorted(list(
       filter(lambda nm: nm.startswith('id'), stored_models_list)
@@ -417,15 +441,9 @@ def main():
 
     if not args.scale:
       t0 = time.time()
-      validation_loss, validation_bleu = validate(
-        rank=rank, model=model, criterion=criterion, 
-        label_smoother=label_smoother, src_vocab=source_vocabulary, 
-        tgt_vocab=target_vocabulary, data_loader=validation_data_loader, 
-        compose=model.compose, device=device, 
-        target_vocabulary=target_vocabulary, debug=args.debug, 
-        gradient_accumulation=args.gradient_accumulation,
-      )
+      validation_loss, validation_bleu = -1, 1000
       t1 = time.time()
+      
       root_print(rank, f'Validation time: {t1 - t0} seconds')
       root_print(rank, f'Validation loss: {validation_loss}, '
                        f'validation bleu: {validation_bleu}')
@@ -455,11 +473,19 @@ def main():
                'validation_data_loader': validation_data_loader,
                             'rng_state': torch.get_rng_state(),
         }
-        torch.save(checkpoint, f'../stored_models/id{run_id}_{model_id}_rank{rank}_cp1.pt')
-        torch.save(checkpoint, f'../stored_models/id{run_id}_{model_id}_rank{rank}_cp2.pt')
+        torch.save(checkpoint, f'../stored_models/dummy_serial.pt')
+        # torch.save(
+        #   checkpoint, 
+        #   f'../stored_models/' + (
+        #     f'id20250107122246_439261231_n2_f4_b2_lr0.0005_w8000_rank0_cp1.pt' 
+        #     if rank == 0 else 
+        #     f'id20250107122246_395644323_n2_f4_b2_lr0.0005_w8000_rank1_cp1.pt'
+        #   ),
+        # )
 
       # if epoch == 2: sys.exit()
       if args.debug: break
+    break# custom serial init
 
   root_print(rank, 'Training finished.')
 

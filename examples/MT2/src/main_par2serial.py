@@ -299,17 +299,20 @@ def main():
     ).to(device)
 
     # Detailed XBraid timings are output to these files for the forward and backward phases
-    model.parallel_nn.fwd_app.setBraidTimers(flag=1)
+    # model.parallel_nn.fwd_app.setBraidTimers(flag=1)
     model.parallel_nn.fwd_app.setTimerFile(
       #f'b_fwd_s_{args.steps}_bs_{args.batch_size}_p_{num_procs}'
       '/users/msalvado/fwd'
     )
-    model.parallel_nn.bwd_app.setBraidTimers(flag=1)
+    # model.parallel_nn.bwd_app.setBraidTimers(flag=1)
     model.parallel_nn.bwd_app.setTimerFile(
       #f'b_bwd_s_{args.steps}_bs_{args.batch_size}_p_{num_procs}'
       '/users/msalvado/bwd'
     )
     print('model.parallel_nn.bwd_app braid and timers initialized')
+
+    # model.parallel_nn.setFwdResidualCompute(False)
+    # model.parallel_nn.setBwdResidualCompute(False)
 
   else:
     assert num_procs == 1, 'If enforce_serial, num_procs must be 1'
@@ -348,49 +351,61 @@ def main():
 
   print(f'{args.load=}')
 
-  if args.load:#True: #(loading_path := args.load):
-    stored_models_list = os.listdir(f'../stored_models')
-    stored_models_list = sorted(list(
-      filter(lambda nm: nm.startswith('id'), stored_models_list)
-    ))
-    root_print(rank, f'There are currently {len(stored_models_list)//(2*num_procs)} stored models')
-    stored_models_list = list(
-      filter(lambda nm: model_id in nm, stored_models_list)
-    )
-    root_print(rank, f'...out of which {len(stored_models_list)//(2*num_procs)} coincide with n, fwd/bwd, lr/warmup.')
+  if True:
+    ## Local debug:
+    # model_copy_rank0 = f'../stored_models/id20250122105605_513206685_n2_f20_b20_lr0.0005_w8000_rank0_cp1.pt'
+    # model_copy_rank1 = f'../stored_models/id20250122105605_064996318_n2_f20_b20_lr0.0005_w8000_rank1_cp1.pt'
+    # dummy_serial_copy = f'../stored_models/id20250122105450_095036526_n1_f2_b1_lr0.0005_w8000_rank0_cp1.pt'
+    ## JZ:
+    model_copy_rank0 = f'../stored_models/id20250107122246_439261231_n2_f4_b2_lr0.0005_w8000_rank0_cp1.pt'
+    model_copy_rank1 = f'../stored_models/id20250107122246_395644323_n2_f4_b2_lr0.0005_w8000_rank1_cp1.pt'
+    dummy_serial_copy = f'../stored_models/dummy_serial.pt'
 
-    if len(stored_models_list) > 0:
-      print(f'rank: {rank}, stored-filter1: {stored_models_list}')
-      stored_models_list = stored_models_list[-2*num_procs:]
-      print(f'rank: {rank}, stored-filter2: {stored_models_list}')
-      stored_models_list = list(filter(
-        lambda nm: re.match(f'.*_rank{rank}_.*', nm), stored_models_list
-      ))
-      print(f'rank: {rank}, stored-filter3: {stored_models_list}')
-      assert len(stored_models_list) == 2, len(stored_models_list)
-      try: 
-        checkpoint = torch.load(f'../stored_models/{stored_models_list[0]}')
-      except: 
-        checkpoint = torch.load(f'../stored_models/{stored_models_list[1]}')
+    checkpoint0 = torch.load(model_copy_rank0)
+    checkpoint1 = torch.load(model_copy_rank1)
+    checkpointS = torch.load(dummy_serial_copy)
+    model_state0 = checkpoint0['model_state']
+    model_state1 = checkpoint1['model_state']
+    model_stateS = checkpointS['model_state']
+    # for k in model_stateS.keys():
+    #   print(k)
+    # sys.exit()
+    updated = []
+    layer_ids, layer_shift, layer_idx_pattern = set(), 0, '\.(\d+)\.layer\.layer\.'
+    for j, model_state in enumerate([model_state0, model_state1]):
+      assert layer_ids == set(range(len(layer_ids))), f'{layer_ids}'
+      layer_shift = len(layer_ids)
+      for k, v in model_state.items():
+        serial_k = k.replace('parallel_nn.local_layers', 'serial_nn').replace('.layer.', '.layer.layer.')
+        # assert serial_k in model_stateS, f'{serial_k} not in model_stateS'
+        if serial_k in model_stateS:
+          if '.layer.layer.' in serial_k:
+            layer_idx = int(re.search(layer_idx_pattern, serial_k)[1])
+            serial_k = serial_k.replace(f'.{layer_idx}.layer.layer.', f'.{layer_idx + layer_shift}.layer.layer.')
+            layer_ids.add(layer_idx + layer_shift)
+          model_stateS[serial_k] = v
+          updated.append(serial_k)
+    # for i in updated: print(i)
+    # sys.exit()
+    checkpoint = checkpoint0
+    # model.load_state_dict(checkpoint['model_state'])
+    # optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])#optimizer.load_state_dict(checkpoint['optimizer_state'])
+    optimizer.current_step_number = checkpoint['optimizer_csn']
 
-      model.load_state_dict(checkpoint['model_state'])
-      optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])#optimizer.load_state_dict(checkpoint['optimizer_state'])
-      optimizer.current_step_number = checkpoint['optimizer_csn']
+    training_losses   = checkpoint['training_losses']
+    training_bleus    = checkpoint['training_bleus' ]
+    training_times    = checkpoint['training_times' ]
+    validation_losses = checkpoint['validation_losses']
+    validation_bleus  = checkpoint['validation_bleus' ]
+    validation_times  = checkpoint['validation_times' ]
+    gradient_accumulation_ctr = checkpoint['gradient_accumulation_ctr']
+    best_bleu = checkpoint['best_bleu']
+    training_data_loader   = checkpoint['training_data_loader']
+    validation_data_loader = checkpoint['validation_data_loader']
+    rng_state = checkpoint['rng_state']
+    torch.set_rng_state(rng_state)
 
-      training_losses   = checkpoint['training_losses']
-      training_bleus    = checkpoint['training_bleus' ]
-      training_times    = checkpoint['training_times' ]
-      validation_losses = checkpoint['validation_losses']
-      validation_bleus  = checkpoint['validation_bleus' ]
-      validation_times  = checkpoint['validation_times' ]
-      gradient_accumulation_ctr = checkpoint['gradient_accumulation_ctr']
-      best_bleu = checkpoint['best_bleu']
-      training_data_loader   = checkpoint['training_data_loader']
-      validation_data_loader = checkpoint['validation_data_loader']
-      rng_state = checkpoint['rng_state']
-      torch.set_rng_state(rng_state)
-
-      print(f'Model and optimizer loaded successfully')
+    print(f'Model and optimizer loaded successfully')
 
   root_print(rank, 'Starting training...')
   for epoch in range(1, args.epochs+1):
