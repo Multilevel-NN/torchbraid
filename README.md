@@ -1,15 +1,25 @@
-# torchbraid
+<p align="center">
+<img src="TorchBraid-v0.1.png" width="300">
+</p>
 
-XBraid interface to PyTorch
+# TorchBraid
+This package implements a layer-parallel approach to training neural ODEs, and neural networks. 
+Algorithmically multigrid-in-time is used to expose parallelism in the forward and backward
+propagation phases used to compute the gradient. The neural network interface is build on
+PyTorch, while the backend uses XBraid (a C library) for multigrid-in-time.
 
-## Build torchbraid (pip):
+If you are having trouble with the GPU/MPI interaction, including low communication as a result
+of unneccessary host-device transfers (e.g. not using GPU aware MPI), please 
+see [GPU Direct Communication](#gpu-direct-communication).
+
+## Build TorchBraid: pip (recommended):
 
 1. Optional: create a new virtual environment
 
-   `python -m venv pip-test`  
-   `source pip-test/bin/activate`
+   `python -m venv tb-env`  
+   `source tb-env/bin/activate`
 
-1. Install using pip.  From inside torchbraid directory, do  
+1. Install using pip.  From inside TorchBraid directory, do  
   `pip install .`
 
     If a development environment is desired, do  
@@ -18,10 +28,30 @@ XBraid interface to PyTorch
     installation. Changes to .pyx files require a re-installation.
 
     You can also install directly from github using  
-    `pip install git+ssh://git@github.com/Multilevel-NN/torchbraid.git`  
-    or the HTTP equivalent. 
+    `pip install git+ssh://git@github.com/Multilevel-NN/TorchBraid.git`  
+    or the HTTP equivalent.
 
-1. Run unit tests (may need to install tox)  
+  1. Test the installation: See [Run Unit Tests](#run-unit-tests)
+
+## Build TorchBraid: Conda
+  
+With conda the easiest path is to use the pip install for TorchBraid
+
+```
+conda create -n tb-env python=3.10
+conda activate tb-env
+pip install git+ssh://git@github.com/Multilevel-NN/TorchBraid.git  # or local equivalent 
+```
+
+For testing see [Run Unit Tests](#run-unit-tests)
+
+## Run Unit Tests
+
+  * Make
+
+    `make tests tests-serial`
+
+  * TOX (may need to install tox)  
   `tox`
 
     The package tox is used for testing in a continuous integration sense and automatically
@@ -29,71 +59,19 @@ XBraid interface to PyTorch
     already satisfies the dependency requirements you can run the test commands directly
     using `tox-direct`. 
 
-    1. Install tox-direct
-      `pip install tox-direct'
+     1. Install tox-direct
+       `pip install tox-direct'
 
-    1. Run commands
-      `tox --direct`
+     1. Run commands
+       `tox --direct`
 
 1. Test run  
  `cd examples/mnist/`  
  `mpirun -n 2 python mnist_script.py --percent-data 0.01`
 
-## Build torchbraid (Makefile):
-
-### Requirements:
-  + python libs:
-    cython
-    mpi4py
-    pytorch
-  + build of xbraid
-  + MPI compiler
-
-Conda environments can be found in 'torchbraid/env' directories. These can be used too get a consistent conda enviroonement
-for using torchbraid. The one caveat, is that mpi4py should be installed consistently with the MPI compiler. In some cases
-doing a 'pip install mpi4py' is to be preferred to installing it through conda (conda installs an alternate MPI compiler and
-library. You might want mpi4py to use the native one on your platform).
-
-Note, virtual environments can be used instead of Conda.
-
-Note, the cython version is pretty important, particularly if torch layers are shipped directly by braid.
-
-### Setup for Conda (with native MPI support)
-  
-  ```
-  conda env create -f ${TORCHBRAID_DIR}/env/py37.env
-  conda activate py37
-  MPICC=path/to/mpicc pip install mpi4py
-  ```
-
-### Build xbraid:
-  1. Download from git@github.com:XBraid/xbraid.git
-  1. The master branch should work fine
-  1. From the xbraid directory run `make debug=no braid`
-
-
-### Build torchbraid
-  1. Copy makefile.inc.example to makefile.inc 
-  1. Modify makefile.inc to include your build specifics
-  1. Type make
-  1. You will need to add the torchbraid directory to your python path. E.g.:
-     1. `export PYTHONPATH=${PYTHONPATH}:/path/to/torchbraid/src`
-    This makes sure that the python search path for modules is setup.
-
-Take look at code in the examples directory.
-
-### To test:
-
- 1. `make tests`
- 1. `make tests-serial`
-
-### To clean the directory:
-
-   `make clean`
-
 ## GPU direct communication
 
-Torchbraid uses direct GPU communication when running simulations on GPUs. For this, Torchbraid requires a 
+TorchBraid uses direct GPU communication when running simulations on GPUs. For this, Torchbraid requires a 
 CUDA-aware MPI version ( see [here](https://developer.nvidia.com/blog/introduction-cuda-aware-mpi/)
 or [here](https://www.open-mpi.org/faq/?category=runcuda) for more information). A simple first test to determine if 
 your system supports CUDA-aware MPI is to execute the command
@@ -105,8 +83,92 @@ to check that this value is true. One way to test whether direct GPU communicati
 
 `make tests-direct-gpu`
 
-If the test works, your MPI version supports direct GPU communication. If the test throws an error (typically a 
-segmentation fault), your MPI version does not support direct GPU communication.
+If the test works, your MPI version supports direct GPU communication. You should see output that looks like (note
+that the output header that tries to explain how the test result should be interpreted).
+
+```
+
+******************************************************************
+* This script is to be run with two MPI ranks and                *
+* tests the availability of GPU/MPI direct                       *
+* communication. This is _required_ for TorchBraid when          *
+* GPUs are used. This test will fail if either:                  *
+*                                                                *
+*    1. Torch was not built with GPUs, or GPUs are unavailable   * 
+*    2. GPU aware MPI is not available (NVLINK with Nvidia)      *
+*                                                                *
+* If the test is successful, the last line on rank 0 will output *
+*                                                                *
+*    "PASSED: GPU aware MPI is available"                        *
+*                                                                *
+* While failures are indicated by:                               *
+*                                                                *
+*    "FAILED: GPU aware MPI is NOT available"                    *
+*                                                                *
+* Followed by a brief explaination of the type of failure seen.  *
+* It's possible that a segfault can occur on some untested.      *
+* platforms. That should be viewed as GPU aware MPI not being    *
+* available.                                                     *
+******************************************************************
+
+Check For GPU-Direct Support
+-- compile time: This MPI library has CUDA-aware support.
+-- run time:This MPI library has CUDA-aware support.
+
+Check For GPU-Direct Support
+-- compile time: This MPI library has CUDA-aware support.
+-- run time:This MPI library has CUDA-aware support.
+
+PASSED: GPU aware MPI is available
+```
+
+If the final line says FAILED then your MPI version does not support direct GPU communication.
+For instance, if you don't have CUDA enabled, then the error will look like:
+
+```
+
+******************************************************************
+* This script is to be run with two MPI ranks and                *
+* tests the availability of GPU/MPI direct                       *
+* communication. This is _required_ for TorchBraid when          *
+* GPUs are used. This test will fail if either:                  *
+*                                                                *
+*    1. Torch was not built with GPUs, or GPUs are unavailable   * 
+*    2. GPU aware MPI is not available (NVLINK with Nvidia)      *
+*                                                                *
+* If the test is successful, the last line on rank 0 will output *
+*                                                                *
+*    "PASSED: GPU aware MPI is available"                        *
+*                                                                *
+* While failures are indicated by:                               *
+*                                                                *
+*    "FAILED: GPU aware MPI is NOT available"                    *
+*                                                                *
+* Followed by a brief explaination of the type of failure seen.  *
+* It's possible that a segfault can occur on some untested.      *
+* platforms. That should be viewed as GPU aware MPI not being    *
+* available.                                                     *
+******************************************************************
+
+Check For GPU-Direct Support
+-- compile time: This MPI library does NOT have CUDA-aware support.
+-- run time:This MPI library does not have CUDA-aware support.
+
+Check For GPU-Direct Support
+-- compile time: This MPI library does NOT have CUDA-aware support.
+-- run time:This MPI library does not have CUDA-aware support.
+
+FAILED: GPU aware MPI is NOT available - "MPIX_Query_cuda_support" test failed.
+```
+
+We also check the `MPIX_Query_cuda_support` command available in most MPI libraries. Finally, it's 
+possible, due to the range of implementations, that the script will raise a seg fault
+if the GPU direct communication is not supported. If such a case arises, then feel free to reach out
+with a description of the MPI implementation and version, CUDA version, and the platform being run on.
+
+## Build TorchBraid: Makefile (advanced):
+
+[Link to the Make instructions](MAKEINSTRUCTIONS.md)
 
 ## Publications
 

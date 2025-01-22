@@ -189,13 +189,13 @@ class ParallelNet(nn.Module):
         # as bert-large-uncased
         config = BertConfig(
             vocab_size=30522,          # Vocabulary size of BERT
-            hidden_size=1024,           # Hidden size of the transformer layers
-            num_hidden_layers=4,       # (Not used) Number of transformer layers (encoder blocks)
-            num_attention_heads=16,    # Number of attention heads in each attention layer
-            intermediate_size=4096,     # Size of the "intermediate" (feed-forward) layer
+            hidden_size=768,           # Hidden size of the transformer layers
+            num_hidden_layers=32,       # (Not used) Number of transformer layers (encoder blocks)
+            num_attention_heads=12,    # Number of attention heads in each attention layer
+            intermediate_size=3072,     # Size of the "intermediate" (feed-forward) layer
             hidden_act="gelu",         # Activation function ("gelu" or "relu")
-            hidden_dropout_prob=0.1,   # Dropout probability for fully connected layers
-            attention_probs_dropout_prob=0.1,  # Dropout probability for attention probabilities
+            hidden_dropout_prob=0.05,   # Dropout probability for fully connected layers
+            attention_probs_dropout_prob=0.05,  # Dropout probability for attention probabilities
             max_position_embeddings=512,       # Maximum number of position embeddings
             type_vocab_size=2,         # Vocabulary size of token type IDs (for sentence A/B)
             initializer_range=0.02,    # Standard deviation of the truncated_normal_initializer
@@ -241,7 +241,7 @@ class ParallelNet(nn.Module):
         # by passing this through 'compose' (mean composition: e.g. OpenLayer o channels)
         # on processors not equal to 0, these will be None (there are no parameters to train there)
         self.open_nn = compose(OpenLayer, config)
-        self.close_nsp = compose(CloseLayerNSP, config)
+        # self.close_nsp = compose(CloseLayerNSP, config)
         self.close_mlm = compose(CloseLayerMLM, config)
         # self.close_nn_mlm = compose(CloseLayerMLM, model_dimension, vocab_size)
 
@@ -249,7 +249,7 @@ class ParallelNet(nn.Module):
         # Model can be reloaded in serial format with: model = torch.load(filename)
         serial_nn = self.parallel_nn.buildSequentialOnRoot()
         if self.comm_lp.Get_rank() == 0:
-            s_net = SerialNet(serial_nn=serial_nn, open_nn=self.open_nn, close_nn_nsp=self.close_nsp,
+            s_net = SerialNet(serial_nn=serial_nn, open_nn=self.open_nn,
                               close_nn_mlm=self.close_mlm)
             s_net.eval()
             torch.save(s_net, name)
@@ -260,23 +260,22 @@ class ParallelNet(nn.Module):
         
         # Start with (bs, seq_len) -> unsqueeze -> (bs, 1, seq_len) -> repeat -> (bs, seq_len, seq_len) -> unsqueeze -> (bs, 1, seq_len, seq_len)
         global mask
-        mask = (x > 0).unsqueeze(1).repeat(1, x.size(1), 1).unsqueeze(1).int()
+        # mask = (x > 0).unsqueeze(1).repeat(1, x.size(1), 1).unsqueeze(1).int()
+        # https://github.com/huggingface/transformers/blob/main/src/transformers/modeling_utils.py
+        # get_extended_attention_mask
+        mask = (1 - (x > 0)[:, None, None, :].to(dtype=torch.float32)) * torch.finfo(torch.float32).min
 
         # by passing this through 'o' (mean composition: e.g. self.open_nn o x)
         # this makes sure this is run on only processor 0
         x = self.compose(self.open_nn, x, segment_info)
-        # print("Finished open layer!")
-        # print(x)
 
-        # TODO: output mask to make sure this is fine
         x = self.parallel_nn(x)
 
         # Go through the classifier layers
-        # Note that because of the way compose work, in order to return multiple objects, we need multiple layers
-        out_nsp = self.compose(self.close_nsp, x)
+        # out_nsp = self.compose(self.close_nsp, x)
         out_mlm = self.compose(self.close_mlm, x)
 
-        return out_mlm, out_nsp
+        return out_mlm
     
     def new_mask(self, x=None): 
       """
@@ -290,14 +289,14 @@ class ParallelNet(nn.Module):
 
 # Serial Network Class (used by the saveSerialNet functionality in ParallelNet)
 class SerialNet(nn.Module):
-  def __init__(self, serial_nn=None, open_nn=None, close_nn_nsp=None, close_nn_mlm=None):
+  def __init__(self, serial_nn=None, open_nn=None, close_nn_mlm=None):
     super(SerialNet, self).__init__()
 
     self.open_nn = open_nn
 
     self.serial_nn = serial_nn
     
-    self.close_nn_nsp = close_nn_nsp
+    # self.close_nn_nsp = close_nn_nsp
     self.close_nn_mlm = close_nn_mlm
   def new_mask(self, x=None): 
     """
@@ -313,10 +312,10 @@ class SerialNet(nn.Module):
 
     x = self.open_nn(x, segment_info)
     x = self.serial_nn(x)
-    out_nsp = self.close_nn_nsp(x)
+    # out_nsp = self.close_nn_nsp(x)
     out_mlm = self.close_nn_mlm(x)
 
-    return out_mlm, out_nsp
+    return out_mlm
 
 from typing import List, Optional, Tuple, Union
 from transformers.modeling_outputs import SequenceClassifierOutput
@@ -332,16 +331,35 @@ class MyBertForSequenceClassification(nn.Module):
         self.problem_type = None
         self.dropout = nn.Dropout(classifier_dropout)
         # self.classifier = nn.Linear(config.hidden_size, num_labels)
-        self.classifier = nn.Linear(1024, num_labels) # TODO: make more flexible
+        self.classifier = nn.Linear(768, num_labels) # TODO: make more flexible
         self.use_return_dict = True
 
         # Obtain the model stuff
         self.open = trained_model.open_nn
         self.serial_nn = trained_model.serial_nn
-        try:
-            self.close = trained_model.close.pooler
-        except:
-            self.close = trained_model.close_nn_nsp.pooler
+
+        # We don't use BERT pooler as no NSP is done; need to create
+        # try:
+            # self.close = trained_model.close.pooler
+        # except:
+            # self.close = trained_model.close_nn_nsp.pooler
+        
+        config = BertConfig(
+            vocab_size=30522,          # Vocabulary size of BERT
+            hidden_size=768,           # Hidden size of the transformer layers
+            num_hidden_layers=32,       # (Not used) Number of transformer layers (encoder blocks)
+            num_attention_heads=12,    # Number of attention heads in each attention layer
+            intermediate_size=3072,     # Size of the "intermediate" (feed-forward) layer
+            hidden_act="gelu",         # Activation function ("gelu" or "relu")
+            hidden_dropout_prob=0.05,   # Dropout probability for fully connected layers
+            attention_probs_dropout_prob=0.05,  # Dropout probability for attention probabilities
+            max_position_embeddings=512,       # Maximum number of position embeddings
+            type_vocab_size=2,         # Vocabulary size of token type IDs (for sentence A/B)
+            initializer_range=0.02,    # Standard deviation of the truncated_normal_initializer
+            layer_norm_eps=1e-12       # Epsilon for layer normalization
+        )
+
+        self.close = BertPooler(config)
 
     def forward(
         self,

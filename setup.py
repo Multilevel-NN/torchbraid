@@ -57,13 +57,17 @@ extension = [Extension(
   library_dirs=[braid_dir],
   include_dirs=[braid_dir, numpy.get_include()],
 ),
-  Extension(
-    name="torchbraid.test_fixtures.test_cbs",
-    sources=["src/torchbraid/test_fixtures/test_cbs.pyx"],
-    libraries=["braid"],
-    library_dirs=[braid_dir],
-    include_dirs=[braid_dir, numpy.get_include()],
-  )
+Extension(
+  name="torchbraid.test_fixtures.test_cbs",
+  sources=["src/torchbraid/test_fixtures/test_cbs.pyx",],
+  libraries=["braid"],
+  library_dirs=[braid_dir],
+  include_dirs=[braid_dir, numpy.get_include()],
+),
+Extension(
+  name="torchbraid.test_fixtures.gpumpi_check",
+  sources=["src/torchbraid/test_fixtures/gpumpi_check.pyx",]
+)
 ]
 
 install_requires = [

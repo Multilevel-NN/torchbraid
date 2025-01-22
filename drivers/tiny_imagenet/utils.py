@@ -222,7 +222,7 @@ class SerialNet(nn.Module):
     torch.save(self.state_dict(),f'{model_dir}/serial_model.{rank}.mdl')
 
   def loadParams(self,rank,model_dir):
-    self.load_state_dict(torch.load(f'{model_dir}/serial_model.{rank}.mdl'))
+    self.load_state_dict(torch.load(f'{model_dir}/serial_model.{rank}.mdl',weights_only=True))
 
   def startStateCommunication(self):
     pass # no-op
@@ -264,6 +264,8 @@ class ParallelNet(nn.Module):
     self.parallel_nn.setCRelaxWt(CWt)
     self.parallel_nn.setFwdCRelaxWt(fwd_crelax_wt)
     self.parallel_nn.setMinCoarse(2)
+    self.parallel_nn.setFwdResidualCompute(False)
+    self.parallel_nn.setBwdResidualCompute(False)
 
     if fwd_finalrelax:
         self.parallel_nn.setFwdFinalFCRelax()
@@ -315,7 +317,7 @@ class ParallelNet(nn.Module):
     torch.save(self.state_dict(),f'{model_dir}/parallel_model.{rank}.mdl')
 
   def loadParams(self,rank,model_dir):
-    self.load_state_dict(torch.load(f'{model_dir}/parallel_model.{rank}.mdl'))
+    self.load_state_dict(torch.load(f'{model_dir}/parallel_model.{rank}.mdl',weights_only=True))
 
   def startStateCommunication(self):
     self.parallel_nn.startStateCommunication() 
@@ -348,6 +350,10 @@ def parse_args(mgopt_on=True):
                       help='Save the model to disk after each epoch (default: False)')
   parser.add_argument('--load-model',action='store_true', default=False,
                       help='Load the model from disk at startup (default: False)')
+  parser.add_argument('--load-optimizer',action='store_true', default=False,
+                      help='Load the optimizer from disk at startup (default: False)')
+  parser.add_argument('--load-lr-scheduler',action='store_true', default=False,
+                      help='Load the LR scheduler from disk at startup (default: False)')
   parser.add_argument('--model-dir',default='./',
                       help='Location to Save the model to (default: ./)')
   
