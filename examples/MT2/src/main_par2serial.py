@@ -274,7 +274,7 @@ def main():
                    f'-- fine fcf       = {args.lp_fine_fcf         }\n'
                    f'-- skip down      = {not args.lp_use_downcycle}\n')
   
-  if not args.enforce_serial:
+  if False:#True:#not args.enforce_serial:
     root_print(rank, 'Building ParallelNet...')
     # Create layer-parallel network
     # Note this can be done on only one processor, but will be slow
@@ -316,6 +316,28 @@ def main():
 
   else:
     assert num_procs == 1, 'If enforce_serial, num_procs must be 1'
+    assert (
+          args.lp_fwd_max_iters == 4 
+      and args.lp_bwd_max_iters == 2 
+      and args.max_lr == 5e-4 
+      and args.dropout == .1 
+      and args.steps == 6
+      and args.Tf == 6
+      and args.batch_size == 8
+      and args.lp_max_levels == 2
+      and args.lp_cfactor == 3
+      and args.d_model == 512
+      and args.nhead == 8
+      and args.dim_feedforward == 2048
+      and args.gradient_accumulation == 16
+      and args.num_warmup_steps == 8000
+      and args.debug == False
+      and args.scale == False
+      and args.tokenization == 'unigram'
+      and args.vocab_size == 8000
+      and args.num_training_batches == 20000
+      and args.serial_fwd == False
+    )
     root_print(rank, 'Building SerialNet...')
     model = SerialNet(
       args.d_model, args.nhead, args.dim_feedforward, args.dropout, 
@@ -385,10 +407,8 @@ def main():
             layer_ids.add(layer_idx + layer_shift)
           model_stateS[serial_k] = v
           updated.append(serial_k)
-    # for i in updated: print(i)
-    # sys.exit()
+    model.load_state_dict(model_stateS)
     checkpoint = checkpoint0
-    # model.load_state_dict(checkpoint['model_state'])
     # optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])#optimizer.load_state_dict(checkpoint['optimizer_state'])
     optimizer.current_step_number = checkpoint['optimizer_csn']
 

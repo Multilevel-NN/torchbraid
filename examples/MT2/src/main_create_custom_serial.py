@@ -226,10 +226,11 @@ def main():
   device, host = torchbraid.utils.getDevice(comm=comm)
 
   if args.no_gpu or not torch.cuda.is_available():
-    device = torch.device(
-      f'mps:{rank}' if not args.no_gpu and torch.backends.mps.is_available() else 
-      'cpu'
-    )
+    # device = torch.device(
+    #   f'mps:{rank}' if not args.no_gpu and torch.backends.mps.is_available() else 
+    #   'cpu'
+    # )
+    device = torch.device('cpu')
   root_print(rank, f'Run info rank: {rank}: Torch version: {torch.__version__} '
         f'| Device: {device} | Host: {host}')
 
@@ -276,7 +277,7 @@ def main():
                    f'-- fine fcf       = {args.lp_fine_fcf         }\n'
                    f'-- skip down      = {not args.lp_use_downcycle}\n')
   
-  if False:
+  if False:#True:
     root_print(rank, 'Building ParallelNet...')
     # Create layer-parallel network
     # Note this can be done on only one processor, but will be slow
