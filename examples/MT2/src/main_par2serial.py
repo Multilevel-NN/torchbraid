@@ -422,7 +422,7 @@ def main():
     best_bleu = checkpoint['best_bleu']
     training_data_loader   = checkpoint['training_data_loader']
     validation_data_loader = checkpoint['validation_data_loader']
-    rng_state = checkpoint['rng_state']
+    rng_state = checkpoint['rng_state'].cpu()
     torch.set_rng_state(rng_state)
 
     print(f'Model and optimizer loaded successfully')
