@@ -383,9 +383,9 @@ def main():
     model_copy_rank1 = f'../stored_models/id20250107122246_395644323_n2_f4_b2_lr0.0005_w8000_rank1_cp1.pt'
     dummy_serial_copy = f'../stored_models/dummy_serial.pt'
 
-    checkpoint0 = torch.load(model_copy_rank0)
-    checkpoint1 = torch.load(model_copy_rank1)
-    checkpointS = torch.load(dummy_serial_copy)
+    checkpoint0 = torch.load(model_copy_rank0, map_location=device)#torch.load(model_copy_rank0)
+    checkpoint1 = torch.load(model_copy_rank1, map_location=device)#torch.load(model_copy_rank0)
+    checkpointS = torch.load(dummy_serial_copy, map_location=device)#torch.load(dummy_serial_copy)
     model_state0 = checkpoint0['model_state']
     model_state1 = checkpoint1['model_state']
     model_stateS = checkpointS['model_state']
