@@ -167,7 +167,7 @@ def parse_args():
 ##
 # Train model for one epoch
 # Return values: per batch losses and training times, model parameters updated in-place
-def train(rank, params, model, train_loader, optimizer, epoch, compose, device, scheduler):
+def train(rank, params, model, train_loader, optimizer, epoch, compose, device, scheduler, model_resid=None):
   # note that we dont' call the optimizer directly, but use the scheduler instead
   train_times = []
   fwd_times = []
@@ -239,11 +239,14 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device, 
       checkpoint = {
           'model_state_dict': model.state_dict(),
           'optimizer_state_dict': optimizer.state_dict(),
-          'scheduler_state_dict': scheduler.state_dict()
+          'scheduler_state_dict': scheduler.state_dict(),
+          'data': data,
+          'target': target,
+          'segment_label': segment_label
       }
       torch.save(
         checkpoint, 
-        f'bert-save-{procs}/model_checkpoint_{rank}_{batch_idx=}'
+        f'bert-save-{procs}-serial/model_checkpoint_{rank}_{batch_idx=}'
       )
 
     # 
@@ -252,13 +255,13 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device, 
         # epoch, batch_idx * len(data), 50000,
               #  100. * batch_idx / 50000, loss.item(), 
               #  scheduler. get_last_lr()))
-      root_print(rank, f'Train Epoch: {epoch} {batch_idx} { loss.item()} {scheduler.get_last_lr()}')
+      root_print(rank, f'Train Epoch: {epoch} {batch_idx} {losses[-1]} {scheduler.get_last_lr()}')
       # root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tLR: {:.2e}'.format(
       #   epoch, batch_idx * len(data), len(train_loader.dataset),
       #          100. * batch_idx / len(train_loader), loss.item(), 
       #          scheduler.get_current_lr()))
       root_print(rank, f'\t Some times: {fwd_times[-4:-1]=} {bwd_times[-4:-1]=} {train_times[-4:-1]=}')
-    if batch_idx == 100000 == 0:
+    if batch_idx == 30000:
       break
 
   # root_print(rank, 'Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.2e}'.format(
@@ -446,6 +449,7 @@ def main():
 									Tf=args.Tf,
 									relax_only_cg=False,
 									user_mpi_buf=args.lp_user_mpi_buf).to(device)
+
   root_print(rank, 'Saving untrained.')
   model.saveSerialNet(f'serialnet_bert_{args.steps}')
   # model.saveSerialNet(f'serial_net_hf_bert_{args.steps}_{procs}_untrain')

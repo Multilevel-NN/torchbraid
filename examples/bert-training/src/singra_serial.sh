@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=lang-model-serial
-#SBATCH --time=80:30:00
+#SBATCH --time=90:00:00
 #SBATCH --output=ml_serial.out
 #SBATCH --error=ml_serial.err
 #SBATCH --nodelist=sn[5-16]
@@ -61,8 +61,8 @@ PDATA=2000
 #python main_serial.py --percent-data=$PDATA --steps 64 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --model_dimension 384 --num_heads 6
 #rm serialnet_bert_64
 
-mpirun -n 1 python main.py --serial-file True --percent-data=1000 --steps 36 --epochs=$EPOCHS --batch-size=$BATCH_SIZE 
-python main_serial.py --percent-data=$PDATA --steps 36 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --log-interval 1
+mpirun -n 1 python main.py --serial-file True --percent-data=1000 --steps 32 --seq-len 96 --epochs=$EPOCHS --batch-size=$BATCH_SIZE 
+python main_serial.py --percent-data=$PDATA --steps 32 --seq-len 96 --lr 5e-5 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --log-interval 1
 #rm serialnet_bert_32
 
 
