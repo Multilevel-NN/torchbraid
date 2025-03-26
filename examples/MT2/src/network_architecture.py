@@ -164,6 +164,7 @@ class StepLayer_dec(nn.Module):
                size=(max_sequence_length, batch_size, d_model), device=device)
 
   def forward(self, z):
+    # sys.exit()  # debug: enc-only
     # t0 = time.time()
     layer = self.decoder_layer
     x, y = z
@@ -172,6 +173,9 @@ class StepLayer_dec(nn.Module):
       + (mha_y := layer._mha_block(layer.norm2(y + sa_y), x,
                                    None, memory_key_padding_mask)) \
       + ( ff_y := layer._ff_block (layer.norm3(y + sa_y + mha_y)))
+    # y = ( sa_y := layer._sa_block (layer.norm1(y), 
+    #                                tgt_mask, tgt_key_padding_mask)) \
+    #   + ( ff_y := layer._ff_block (layer.norm3(y + sa_y)))
     # print('dec pre-sa')
     # sa_y = layer._sa_block (layer.norm1(y), 
     #                                tgt_mask, tgt_key_padding_mask)
@@ -200,6 +204,7 @@ class usual_StepLayer_dec(nn.Module):
                size=(max_sequence_length, batch_size, d_model), device=device)
 
   def forward(self, z):
+    # sys.exit()  # debug: enc-only
     # t0 = time.time()
     layer = self.decoder_layer
     x, y = z
@@ -209,6 +214,9 @@ class usual_StepLayer_dec(nn.Module):
       + (mha_y := layer._mha_block(layer.norm2(y + sa_y), x,
                                    None, memory_key_padding_mask)) \
       + ( ff_y := layer._ff_block (layer.norm3(y + sa_y + mha_y)))
+    # y = ( sa_y := layer._sa_block (layer.norm1(y),
+    #                                tgt_mask, tgt_key_padding_mask)) \
+    #   + ( ff_y := layer._ff_block (layer.norm3(y + sa_y)))
 
     z = torch.stack((self.zeros_tensor[:x.shape[0], :x.shape[1]], y))
     # t1 = time.time()
@@ -348,6 +356,7 @@ class ParallelNet(nn.Module):
                                      d_model, nhead, dim_feedforward, dropout, 
                                      batch_size, max_sequence_length, device)
       layers    = [   step_layer_enc   ,    step_layer_dec   ]
+      # layers    = [   step_layer_enc   ,    step_layer_enc   ]  # debug: enc-only
       num_steps = [local_steps*numprocs, local_steps*numprocs]
 
     else:
@@ -481,6 +490,7 @@ class ParallelNet(nn.Module):
 
     t0_close_layer_time = time.time()
     mem, y = z
+    # y = mem  # debug: enc-only
     y = self.compose(self.close_nn, y)
     t1_close_layer_time = time.time()
 
@@ -523,6 +533,7 @@ class SerialNet(nn.Module):
                                      d_model, nhead, dim_feedforward, dropout, 
                                      batch_size, max_sequence_length, device)
       layers    = [   step_layer_enc   ,    step_layer_dec   ]
+      # layers    = [   step_layer_enc   ,    step_layer_enc   ]  # debug: enc-only
       num_steps = [local_steps*numprocs, local_steps*numprocs]
 
     else:
@@ -566,6 +577,7 @@ class SerialNet(nn.Module):
     x = self.open_nn(src, tgt)
     x = self.serial_nn(x)
     mem, y = x
+    # y = mem  # debug: enc-only
     y = self.close_nn(y)
 
     return y
