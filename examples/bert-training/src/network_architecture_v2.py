@@ -218,6 +218,9 @@ class ParallelNet(nn.Module):
         self.parallel_nn = torchbraid.LayerParallel(comm_lp, step_layer, local_steps*numprocs, Tf,
                                                     max_fwd_levels=max_fwd_levels, max_bwd_levels=max_bwd_levels,
                                                     max_iters=2, user_mpi_buf=user_mpi_buf)
+        
+        print('SETTING RESIDUAL COMPUTKLJSaklsdjfl;asdfklj')
+        self.parallel_nn.setBwdResidualCompute(True)
         self.parallel_nn.setBwdMaxIters(bwd_max_iters)
         self.parallel_nn.setFwdMaxIters(fwd_max_iters)
         self.parallel_nn.setPrintLevel(print_level, True)

@@ -57,4 +57,4 @@ PDATA=300000
 #mpirun -n 4 python main.py --percent-data=$PDATA --steps 32 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --lp-max-levels "(2, 2)" --lp-bwd-max-iters 1 --lp-fwd-max-iters 2 --lp-cfactor 4 --lp-print-level 0 --lp-braid-print-level 0 --Tf 1
 
 
-mpirun -n 4 python main.py --percent-data=$PDATA --steps 64 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --lp-max-levels "(1, 2)" --lp-bwd-max-iters 1 --lp-fwd-max-iters 1 --lp-cfactor 4 --log-interval 1 --lp-print-level 0 --lp-braid-print-level 0 --Tf 1
+mpirun -n 4 python main.py --lr 5e-5 --percent-data=$PDATA --steps 32 --epochs=$EPOCHS --batch-size=$BATCH_SIZE --lp-max-levels "(1, 2)" --lp-bwd-max-iters 1 --lp-fwd-max-iters 1 --lp-cfactor 4 --log-interval 1 --lp-print-level 0 --lp-braid-print-level 0 --Tf 1

@@ -194,7 +194,10 @@ def train(rank, params, model, train_loader, optimizer, epoch, device, scheduler
       checkpoint = {
           'model_state_dict': model.state_dict(),
           'optimizer_state_dict': optimizer.state_dict(),
-          'scheduler_state_dict': scheduler.state_dict()
+          'scheduler_state_dict': scheduler.state_dict(),
+          'data': data,
+          'target': target,
+          'segment_label': segment_label
       }
       torch.save(checkpoint, f'bert-save-1/model_serial_checkpoint_{batch_idx=}')
 
