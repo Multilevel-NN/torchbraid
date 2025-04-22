@@ -90,10 +90,10 @@ def bwd(loss, optimizer, do_step, model, grads):
 
   if isinstance(model, ParallelNet):
     if not grads:
-      for i, p in enumerate(model.parameters()):
+      for i, p in enumerate(model.parallel_nn.parameters()):
         grads.append(p.grad.clone())
     else:
-      for i, p in enumerate(model.parameters()):
+      for i, p in enumerate(model.parallel_nn.parameters()):
         # print(f'{p.grad=}')
         grads[i] += p.grad.clone()
         p.grad = grads[i]  # grads[i]
@@ -364,7 +364,7 @@ def main():
 #       print(parameter.ravel()[:5].tolist(), parameter.ravel()[-5:].tolist())
 #     sys.exit()
 
-  # print(f'Model: {model}')
+  print(f'Model: {model}')
   # print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
   # Declare optimizer  
   optimizer = get_optimizer(model, args.num_warmup_steps, args.max_lr)#torch.optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-9, lr=5e-4)
