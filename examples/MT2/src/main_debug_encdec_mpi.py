@@ -83,9 +83,26 @@ print(f'Python version info: {sys.version_info}')
 
 # torch.set_default_dtype(torch.float64)
 
-def bwd(loss, optimizer, do_step):
+def bwd(loss, optimizer, do_step, model, grads):
   loss.backward()
-  # if do_step: optimizer.step(); optimizer.zero_grad()
+
+  # print(f'{grads=}')
+
+  if isinstance(model, ParallelNet):
+    if not grads:
+      for i, p in enumerate(model.parameters()):
+        grads.append(p.grad.clone())
+    else:
+      for i, p in enumerate(model.parameters()):
+        # print(f'{p.grad=}')
+        grads[i] += p.grad.clone()
+        p.grad = grads[i]  # grads[i]
+        # print(f'{p.grad=}')
+        # sys.exit()
+
+  if do_step:
+    optimizer.step()
+    optimizer.zero_grad()
 
 def fwd(batch, model, criterion, label_smoother, compose, device, rank, gradient_accumulation):
   src, tgt = batch
@@ -117,9 +134,10 @@ def train_epoch(
   model.train()
   mean_loss = None
   training_time = 0.
+  grads = []
   
   for batch_idx, batch in enumerate(training_data_loader):
-    print(batch)
+    # print(batch)
     # Before proceeding, get some new masks
     if not isinstance(model, SerialNet) and \
        gradient_accumulation_ctr%gradient_accumulation == 0:
@@ -135,9 +153,12 @@ def train_epoch(
 
     gradient_accumulation_ctr += 1
 
+    do_opt_step = (gradient_accumulation_ctr % gradient_accumulation == 0)
     batch_bwd_pass_start = time.time()
-    bwd(loss, optimizer, gradient_accumulation_ctr%gradient_accumulation == 0)
+    bwd(loss, optimizer, do_opt_step, model, grads)
     batch_bwd_pass_end = time.time()
+    if do_opt_step:
+      grads = []
 
     batch_fwd_pass_time = batch_fwd_pass_end - batch_fwd_pass_start
     batch_bwd_pass_time = batch_bwd_pass_end - batch_bwd_pass_start
@@ -151,7 +172,11 @@ def train_epoch(
     mean_loss = mean_loss + loss if mean_loss is not None else loss
     training_time += batch_fwd_pass_time + batch_bwd_pass_time
 
-    if batch_idx == num_batches: break#2000: break
+    root_print(rank, next(model.parameters()).grad)
+    # optimizer.zero_grad()
+
+    if batch_idx == num_batches - 1:
+      break
     # if debug: break  # debug
 
   mean_loss /= num_batches#len(training_data_loader)
@@ -444,12 +469,12 @@ def main():
   root_print(rank, f'Training loss: {training_losses[-1]}')#, '
                    # f'training bleu: {training_bleus[-1]}')
 
-  if args.enforce_serial:
-    print(f'{model.serial_nn}')
-  else:
-    print(f'{model.parallel_nn.local_layers=}')
-  print(f'{model.open_nn=}')
-  print(f'{model.close_nn=}')
+  # if args.enforce_serial:
+  #   print(f'{model.serial_nn}')
+  # else:
+  #   print(f'{model.parallel_nn.local_layers=}')
+  # print(f'{model.open_nn=}')
+  # print(f'{model.close_nn=}')
 
   # torch.save(
   #   training_losses[-1],
