@@ -364,7 +364,11 @@ def main():
                                               len(target_vocabulary), device)
 
   # Copy parameters ###################
-  tensors_id = f'{args.enforce_serial}_{args.lp_fwd_max_iters}_{args.lp_bwd_max_iters}_rank{rank}'
+  tensors_id = (
+    f'S'
+    if args.enforce_serial else
+    f'P_{args.lp_fwd_max_iters}_{args.lp_bwd_max_iters}_rank{rank}'
+  )
   torch.save(
     [
       p for p in model.parameters()
@@ -376,7 +380,7 @@ def main():
   #   2: (90+4, 90),
   #   3: (60+4, 66, 54),
   # }
-  x = torch.load(f'grads/firstparams_True_{args.lp_fwd_max_iters}_{args.lp_bwd_max_iters}_rank0.pt')
+  x = torch.load(f'grads/firstparams_S.pt')
   assert len(x) == 90 + 90 + 4
   if args.enforce_serial:
     for p, px in zip(model.parameters(), x):
@@ -390,7 +394,7 @@ def main():
         p = next(model_parameters)
         px = x[90*rank + i]
         assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
-        p.data = px.data
+        p.data = px.data.to(device)
 
     elif num_procs == 3:
       if rank == 0:
@@ -398,28 +402,28 @@ def main():
           p = next(model_parameters)
           px = x[i]
           assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
-          p.data = px.data
+          p.data = px.data.to(device)
 
       elif rank == 1:
         for i in range(66):
           p = next(model_parameters)
           px = x[60 + i]
           assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
-          p.data = px.data
+          p.data = px.data.to(device)
 
       elif rank == 2:
         for i in range(54):
           p = next(model_parameters)
           px = x[60 + 66 + i]
           assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
-          p.data = px.data
+          p.data = px.data.to(device)
   
     if rank == 0:
       for i in range(180, 184):
         p = next(model_parameters)
         px = x[i]
         assert p.shape == px.shape, f'{p.shape=}, {px.shape=}, {i=}'
-        p.data = px.data
+        p.data = px.data.to(device)
 
     assert next(model_parameters, None) is None
 
