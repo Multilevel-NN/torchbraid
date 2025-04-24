@@ -123,6 +123,7 @@ def train_epoch(
   training_data_loader, epoch, compose, device, target_vocabulary, debug, 
   scale, gradient_accumulation_ctr, gradient_accumulation, num_batches,
 ):
+  gradient_accumulation_ctr = 0
   model.train()
   mean_loss = None
   training_time = 0.
@@ -164,8 +165,9 @@ def train_epoch(
     mean_loss = mean_loss + loss if mean_loss is not None else loss
     training_time += batch_fwd_pass_time + batch_bwd_pass_time
 
-    if batch_idx == num_batches: break#2000: break
-    if debug: break  # debug
+    if batch_idx == num_batches - 1:
+      break
+    # if debug: break  # debug
 
   mean_loss /= num_batches#len(training_data_loader)
   mean_loss = mean_loss.item()
@@ -360,7 +362,71 @@ def main():
   criterion = nn.KLDivLoss(reduction='batchmean')
   label_smoother = LabelSmoothingDistribution(.1, target_vocabulary.pad_id, 
                                               len(target_vocabulary), device)
+
+  # Copy parameters ###################
+  tensors_id = f'{args.enforce_serial}_{args.lp_fwd_max_iters}_{args.lp_bwd_max_iters}_rank{rank}'
+  torch.save(
+    [
+      p for p in model.parameters()
+    ],
+    f'grads/firstparams_{tensors_id}.pt'
+  )
+
+  # parameters_partition = {
+  #   2: (90+4, 90),
+  #   3: (60+4, 66, 54),
+  # }
+  x = torch.load(f'grads/firstparams_True_{args.lp_fwd_max_iters}_{args.lp_bwd_max_iters}_rank0.pt')
+  assert len(x) == 90 + 90 + 4
+  if args.enforce_serial:
+    for p, px in zip(model.parameters(), x):
+      assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
+      p.data = px.data
+  else:
+    model_parameters = model.parameters()
+
+    if num_procs == 2:
+      for i in range(90):
+        p = next(model_parameters)
+        px = x[90*rank + i]
+        assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
+        p.data = px.data
+
+    elif num_procs == 3:
+      if rank == 0:
+        for i in range(60):
+          p = next(model_parameters)
+          px = x[i]
+          assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
+          p.data = px.data
+
+      elif rank == 1:
+        for i in range(66):
+          p = next(model_parameters)
+          px = x[60 + i]
+          assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
+          p.data = px.data
+
+      elif rank == 2:
+        for i in range(54):
+          p = next(model_parameters)
+          px = x[60 + 66 + i]
+          assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
+          p.data = px.data
   
+    if rank == 0:
+      for i in range(180, 184):
+        p = next(model_parameters)
+        px = x[i]
+        assert p.shape == px.shape, f'{p.shape=}, {px.shape=}, {i=}'
+        p.data = px.data
+
+    assert next(model_parameters, None) is None
+
+  if isinstance(model, SerialNet):
+    sys.exit()
+  #####################################
+
   # Carry out parallel training
   training_losses  , training_bleus  , training_times   = [], [], []
   validation_losses, validation_bleus, validation_times = [], [], []
