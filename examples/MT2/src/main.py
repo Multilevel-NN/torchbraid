@@ -130,6 +130,7 @@ def train_epoch(
   grads = []
   
   for batch_idx, batch in enumerate(training_data_loader):
+    # time.sleep(1)
     # print(batch)
     # Before proceeding, get some new masks
     if not isinstance(model, SerialNet) and \
