@@ -572,6 +572,7 @@ def main():
     for epoch in range(1, args.epochs+1):
         if epoch == 3:
             old_model = model
+            old_optimizer = optimizer
             model = ParallelNet(
                 args.d_model, args.nhead, args.dim_feedforward, args.dropout,
                 source_vocabulary, target_vocabulary, args.batch_size,
@@ -591,6 +592,10 @@ def main():
                 relax_only_cg=False,
                 user_mpi_buf=args.lp_user_mpi_buf,
             ).to(device)
+            optimizer = get_optimizer(model, args.num_warmup_steps, args.max_lr)
+            optimizer.current_step_number = old_optimizer.current_step_number
+            optimizer.coefficient = old_optimizer.coefficient
+
 
             # Detailed XBraid timings are output to these files for the
             # forward and backward phases
