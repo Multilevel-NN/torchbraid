@@ -428,8 +428,8 @@ def main():
 
     assert next(model_parameters, None) is None
 
-  if isinstance(model, SerialNet):
-    sys.exit()
+  # if isinstance(model, SerialNet):
+  #   sys.exit()
   #####################################
 
   # Carry out parallel training
