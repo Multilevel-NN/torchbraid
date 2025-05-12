@@ -664,6 +664,8 @@ def parse_args():
   parser.add_argument('--manual_load'          , type=str  , default=''       )
   parser.add_argument('--num_training_batches' , type=int  , default=20000    )
   parser.add_argument('--serial_fwd'           , action='store_true'          )
+  parser.add_argument('--load_model_rank0_nm'  , type=str  , default=''       )
+  parser.add_argument('--load_model_rank1_nm'  , type=str  , default=''       )
 
 
   ##
