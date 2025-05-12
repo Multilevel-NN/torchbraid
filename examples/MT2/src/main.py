@@ -381,52 +381,53 @@ def main():
   #   2: (90+4, 90),
   #   3: (60+4, 66, 54),
   # }
-  x = torch.load(f'grads/firstparams_S.pt')
-  assert len(x) == 90 + 90 + 4
-  if args.enforce_serial:
-    for p, px in zip(model.parameters(), x):
-      assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
-      p.data = px.data
-  else:
-    model_parameters = model.parameters()
-
-    if num_procs == 2:
-      for i in range(90):
-        p = next(model_parameters)
-        px = x[90*rank + i]
+  if not args.scale and not args.debug:
+    x = torch.load(f'grads/firstparams_S.pt')
+    assert len(x) == 90 + 90 + 4
+    if args.enforce_serial:
+      for p, px in zip(model.parameters(), x):
         assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
-        p.data = px.data.to(device)
+        p.data = px.data
+    else:
+      model_parameters = model.parameters()
 
-    elif num_procs == 3:
+      if num_procs == 2:
+        for i in range(90):
+          p = next(model_parameters)
+          px = x[90*rank + i]
+          assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
+          p.data = px.data.to(device)
+
+      elif num_procs == 3:
+        if rank == 0:
+          for i in range(60):
+            p = next(model_parameters)
+            px = x[i]
+            assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
+            p.data = px.data.to(device)
+
+        elif rank == 1:
+          for i in range(66):
+            p = next(model_parameters)
+            px = x[60 + i]
+            assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
+            p.data = px.data.to(device)
+
+        elif rank == 2:
+          for i in range(54):
+            p = next(model_parameters)
+            px = x[60 + 66 + i]
+            assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
+            p.data = px.data.to(device)
+    
       if rank == 0:
-        for i in range(60):
+        for i in range(180, 184):
           p = next(model_parameters)
           px = x[i]
-          assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
+          assert p.shape == px.shape, f'{p.shape=}, {px.shape=}, {i=}'
           p.data = px.data.to(device)
 
-      elif rank == 1:
-        for i in range(66):
-          p = next(model_parameters)
-          px = x[60 + i]
-          assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
-          p.data = px.data.to(device)
-
-      elif rank == 2:
-        for i in range(54):
-          p = next(model_parameters)
-          px = x[60 + 66 + i]
-          assert p.shape == px.shape, f'{p.shape=}, {px.shape=}'
-          p.data = px.data.to(device)
-  
-    if rank == 0:
-      for i in range(180, 184):
-        p = next(model_parameters)
-        px = x[i]
-        assert p.shape == px.shape, f'{p.shape=}, {px.shape=}, {i=}'
-        p.data = px.data.to(device)
-
-    assert next(model_parameters, None) is None
+      assert next(model_parameters, None) is None
 
   # if isinstance(model, SerialNet):
   #   sys.exit()

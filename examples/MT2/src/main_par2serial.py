@@ -55,6 +55,7 @@
 
 from timeit import default_timer as timer
 
+import copy
 import datetime as dt
 import numpy as np
 import os
@@ -81,9 +82,31 @@ print(f'Python version info: {sys.version_info}')
 
 # torch.set_default_dtype(torch.float64)
 
-def bwd(loss, optimizer, do_step):
+# def bwd(loss, optimizer, do_step):
+#   loss.backward()
+#   if do_step: optimizer.step(); optimizer.zero_grad()
+
+def bwd(loss, optimizer, do_step, model, grads):
   loss.backward()
-  if do_step: optimizer.step(); optimizer.zero_grad()
+
+  # print(f'{grads=}')
+
+  if isinstance(model, ParallelNet):
+    if not grads:
+      for i, p in enumerate(model.parallel_nn.parameters()):
+        grads.append(p.grad.clone())
+    else:
+      for i, p in enumerate(model.parallel_nn.parameters()):
+        # print(f'{p.grad=}')
+        grads[i] += p.grad.clone()
+        p.grad = grads[i]  # grads[i]
+        # print(f'{p.grad=}')
+        # sys.exit()
+
+  if do_step:
+    optimizer.step()
+    optimizer.zero_grad()
+
 
 def fwd(batch, model, criterion, label_smoother, compose, device, rank, gradient_accumulation):
   src, tgt = batch
@@ -99,6 +122,7 @@ def fwd(batch, model, criterion, label_smoother, compose, device, rank, gradient
   return output, loss, src, input_tgt, output_tgt
 
 ##
+  gradient_accumulation_ctr = 0
 # Train model for one epoch
 # Return values: per batch losses and training times, model parameters updated in-place
 def train_epoch(
@@ -106,9 +130,11 @@ def train_epoch(
   training_data_loader, epoch, compose, device, target_vocabulary, debug, 
   scale, gradient_accumulation_ctr, gradient_accumulation, num_batches,
 ):
+  gradient_accumulation_ctr = 0
   model.train()
   mean_loss = None
   training_time = 0.
+  grads = []
   
   for batch_idx, batch in enumerate(training_data_loader):
     # print(batch)
@@ -127,9 +153,12 @@ def train_epoch(
 
     gradient_accumulation_ctr += 1
 
+    do_opt_step = (gradient_accumulation_ctr % gradient_accumulation == 0)
     batch_bwd_pass_start = time.time()
-    bwd(loss, optimizer, gradient_accumulation_ctr%gradient_accumulation == 0)
+    bwd(loss, optimizer, do_opt_step, model, grads)
     batch_bwd_pass_end = time.time()
+    if do_opt_step:
+      grads = []
 
     batch_fwd_pass_time = batch_fwd_pass_end - batch_fwd_pass_start
     batch_bwd_pass_time = batch_bwd_pass_end - batch_bwd_pass_start
@@ -143,8 +172,9 @@ def train_epoch(
     mean_loss = mean_loss + loss if mean_loss is not None else loss
     training_time += batch_fwd_pass_time + batch_bwd_pass_time
 
-    if batch_idx == num_batches: break#2000: break
-    if debug: break  # debug
+    if batch_idx == num_batches - 1:
+      break
+    # if debug: break  # debug
 
   mean_loss /= num_batches#len(training_data_loader)
   mean_loss = mean_loss.item()
@@ -274,70 +304,71 @@ def main():
                    f'-- fine fcf       = {args.lp_fine_fcf         }\n'
                    f'-- skip down      = {not args.lp_use_downcycle}\n')
   
-  if False:#True:#not args.enforce_serial:
-    root_print(rank, 'Building ParallelNet...')
-    # Create layer-parallel network
-    # Note this can be done on only one processor, but will be slow
-    model = ParallelNet(
-      args.d_model, args.nhead, args.dim_feedforward, args.dropout,
-      source_vocabulary, target_vocabulary, args.batch_size, 
-      max_sequence_length, device, args.split_decoder,
-      local_steps=local_steps,
-      max_levels=args.lp_max_levels,
-      serial_fwd=args.serial_fwd,
-      bwd_max_iters=args.lp_bwd_max_iters,
-      fwd_max_iters=args.lp_fwd_max_iters,
-      print_level=args.lp_print_level,
-      braid_print_level=args.lp_braid_print_level,
-      cfactor=args.lp_cfactor,
-      fine_fcf=args.lp_fine_fcf,
-      skip_downcycle=not args.lp_use_downcycle,
-      fmg=False, 
-      Tf=args.Tf,
-      relax_only_cg=False,
-      user_mpi_buf=args.lp_user_mpi_buf,
-    ).to(device)
+  # if False:#True:#not args.enforce_serial:
+  #   root_print(rank, 'Building ParallelNet...')
+  #   # Create layer-parallel network
+  #   # Note this can be done on only one processor, but will be slow
+  #   model = ParallelNet(
+  #     args.d_model, args.nhead, args.dim_feedforward, args.dropout,
+  #     source_vocabulary, target_vocabulary, args.batch_size, 
+  #     max_sequence_length, device, args.split_decoder,
+  #     local_steps=local_steps,
+  #     max_levels=args.lp_max_levels,
+  #     serial_fwd=args.serial_fwd,
+  #     bwd_max_iters=args.lp_bwd_max_iters,
+  #     fwd_max_iters=args.lp_fwd_max_iters,
+  #     print_level=args.lp_print_level,
+  #     braid_print_level=args.lp_braid_print_level,
+  #     cfactor=args.lp_cfactor,
+  #     fine_fcf=args.lp_fine_fcf,
+  #     skip_downcycle=not args.lp_use_downcycle,
+  #     fmg=False, 
+  #     Tf=args.Tf,
+  #     relax_only_cg=False,
+  #     user_mpi_buf=args.lp_user_mpi_buf,
+  #   ).to(device)
 
-    # Detailed XBraid timings are output to these files for the forward and backward phases
-    # model.parallel_nn.fwd_app.setBraidTimers(flag=1)
-    model.parallel_nn.fwd_app.setTimerFile(
-      #f'b_fwd_s_{args.steps}_bs_{args.batch_size}_p_{num_procs}'
-      '/users/msalvado/fwd'
-    )
-    # model.parallel_nn.bwd_app.setBraidTimers(flag=1)
-    model.parallel_nn.bwd_app.setTimerFile(
-      #f'b_bwd_s_{args.steps}_bs_{args.batch_size}_p_{num_procs}'
-      '/users/msalvado/bwd'
-    )
-    print('model.parallel_nn.bwd_app braid and timers initialized')
+  #   # Detailed XBraid timings are output to these files for the forward and backward phases
+  #   # model.parallel_nn.fwd_app.setBraidTimers(flag=1)
+  #   model.parallel_nn.fwd_app.setTimerFile(
+  #     #f'b_fwd_s_{args.steps}_bs_{args.batch_size}_p_{num_procs}'
+  #     '/users/msalvado/fwd'
+  #   )
+  #   # model.parallel_nn.bwd_app.setBraidTimers(flag=1)
+  #   model.parallel_nn.bwd_app.setTimerFile(
+  #     #f'b_bwd_s_{args.steps}_bs_{args.batch_size}_p_{num_procs}'
+  #     '/users/msalvado/bwd'
+  #   )
+  #   print('model.parallel_nn.bwd_app braid and timers initialized')
 
-    # model.parallel_nn.setFwdResidualCompute(False)
-    # model.parallel_nn.setBwdResidualCompute(False)
+  #   # model.parallel_nn.setFwdResidualCompute(False)
+  #   # model.parallel_nn.setBwdResidualCompute(False)
 
-  else:
-    assert num_procs == 1, 'If enforce_serial, num_procs must be 1'
-    assert (
-          args.lp_fwd_max_iters == 4 
-      and args.lp_bwd_max_iters == 2 
-      and args.max_lr == 5e-4 
-      and args.dropout == .1 
-      and args.steps == 6
-      and args.Tf == 6
-      and args.batch_size == 8
-      and args.lp_max_levels == 2
-      and args.lp_cfactor == 3
-      and args.d_model == 512
-      and args.nhead == 8
-      and args.dim_feedforward == 2048
-      and args.gradient_accumulation == 16
-      and args.num_warmup_steps == 8000
-      and args.debug == False
-      and args.scale == False
-      and args.tokenization == 'unigram'
-      and args.vocab_size == 8000
-      and args.num_training_batches == 20000
-      and args.serial_fwd == False
-    )
+  # else:
+  if 1:
+    # assert num_procs == 1, 'If enforce_serial, num_procs must be 1'
+    # assert (
+    #   #     args.lp_fwd_max_iters == 4 
+    #   # and args.lp_bwd_max_iters == 2 
+    #   and args.max_lr == 5e-4 
+    #   and args.dropout == .1 
+    #   and args.steps == 6
+    #   and args.Tf == 6
+    #   and args.batch_size == 8
+    #   and args.lp_max_levels == 2
+    #   and args.lp_cfactor == 3
+    #   and args.d_model == 512
+    #   and args.nhead == 8
+    #   and args.dim_feedforward == 2048
+    #   # and args.gradient_accumulation == 16
+    #   and args.num_warmup_steps == 8000
+    #   and args.debug == False
+    #   and args.scale == False
+    #   and args.tokenization == 'unigram'
+    #   and args.vocab_size == 8000
+    #   and args.num_training_batches == 20000
+    #   # and args.serial_fwd == False
+    # )
     root_print(rank, 'Building SerialNet...')
     model = SerialNet(
       args.d_model, args.nhead, args.dim_feedforward, args.dropout, 
@@ -356,7 +387,7 @@ def main():
 #       print(parameter.ravel()[:5].tolist(), parameter.ravel()[-5:].tolist())
 #     sys.exit()
 
-  # print(f'Model: {model}')
+  print(f'Model: {model}')
   # print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
   # Declare optimizer  
   optimizer = get_optimizer(model, args.num_warmup_steps, args.max_lr)#torch.optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-9, lr=5e-4)
@@ -379,16 +410,21 @@ def main():
     # model_copy_rank1 = f'../stored_models/id20250122105605_064996318_n2_f20_b20_lr0.0005_w8000_rank1_cp1.pt'
     # dummy_serial_copy = f'../stored_models/id20250122105450_095036526_n1_f2_b1_lr0.0005_w8000_rank0_cp1.pt'
     ## JZ:
-    model_copy_rank0 = f'../stored_models/id20250107122246_439261231_n2_f4_b2_lr0.0005_w8000_rank0_cp1.pt'
-    model_copy_rank1 = f'../stored_models/id20250107122246_395644323_n2_f4_b2_lr0.0005_w8000_rank1_cp1.pt'
-    dummy_serial_copy = f'../stored_models/dummy_serial.pt'
+    # model_copy_rank0 = f'../stored_models/id20250107122246_439261231_n2_f4_b2_lr0.0005_w8000_rank0_cp1.pt'
+    # model_copy_rank1 = f'../stored_models/id20250107122246_395644323_n2_f4_b2_lr0.0005_w8000_rank1_cp1.pt'
+    # dummy_serial_copy = f'../stored_models/dummy_serial.pt'
+    assert args.load_model_rank0_nm and args.load_model_rank1_nm
+
+    model_copy_rank0 = f'../stored_models/{args.load_model_rank0_nm}'
+    model_copy_rank1 = f'../stored_models/{args.load_model_rank1_nm}'
+
 
     checkpoint0 = torch.load(model_copy_rank0, map_location=device)#torch.load(model_copy_rank0)
     checkpoint1 = torch.load(model_copy_rank1, map_location=device)#torch.load(model_copy_rank0)
-    checkpointS = torch.load(dummy_serial_copy, map_location=device)#torch.load(dummy_serial_copy)
+    # checkpointS = torch.load(dummy_serial_copy)
     model_state0 = checkpoint0['model_state']
     model_state1 = checkpoint1['model_state']
-    model_stateS = checkpointS['model_state']
+    model_stateS = copy.deepcopy(model.state_dict())  # checkpointS['model_state']
     # for k in model_stateS.keys():
     #   print(k)
     # sys.exit()
@@ -425,7 +461,7 @@ def main():
     rng_state = checkpoint['rng_state'].cpu()
     torch.set_rng_state(rng_state)
 
-    print(f'Model and optimizer loaded successfully')
+    print(f'Models {args.load_model_rank0_nm} and {args.load_model_rank1_nm} and optimizer loaded successfully')
 
   root_print(rank, 'Starting training...')
   for epoch in range(1, args.epochs+1):
