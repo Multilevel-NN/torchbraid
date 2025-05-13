@@ -445,7 +445,23 @@ def main():
           updated.append(serial_k)
     model.load_state_dict(model_stateS)
     checkpoint = checkpoint0
-    # optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])#optimizer.load_state_dict(checkpoint['optimizer_state'])
+
+    optimizer = get_optimizer(model, args.num_warmup_steps, args.max_lr)
+    optimizer_state0 = checkpoint0['optimizer_state']
+    optimizer_state1 = checkpoint1['optimizer_state']
+    optimizer_state1['state'] = {
+      k + len(optimizer_state0['state']) - 4: v
+      for (k, v) in optimizer_state1['state'].items()
+    }
+    l = len(optimizer_state0['state'])
+    for j in range(4):
+      k = l - 4 + j
+      optimizer_state0['state'][180 + j] = optimizer_state0['state'][k]
+    optimizer_state0.update(optimizer_state1)
+    # optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])  # optimizer.load_state_dict(checkpoint['optimizer_state'])
+    optimizer_state0['param_groups'][0]['params'] = list(range(184))
+    optimizer.optimizer.load_state_dict(optimizer_state0)
+
     optimizer.current_step_number = checkpoint['optimizer_csn']
 
     training_losses   = checkpoint['training_losses']
