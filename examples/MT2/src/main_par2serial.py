@@ -404,10 +404,13 @@ def main():
 
   print(f'{args.load=}')
 
-  print('PARAMETERS BEFORE')
-  for p in model.parameters():
-    print(p.ravel()[:10], p.ravel()[:-10])
-  print()
+  # print('PARAMETERS BEFORE')
+  # for p in model.parameters():
+  #   print(f'{rank=}', p.ravel()[:10], p.ravel()[:-10])
+  # print()
+
+  # for p in model.parameters():
+  #   p.data = p.data.fill_(3)
 
   if True:
     ## Local debug:
@@ -434,20 +437,23 @@ def main():
     #   print(k)
     # sys.exit()
     updated = []
-    layer_ids, layer_shift, layer_idx_pattern = set(), 0, '\.(\d+)\.layer\.layer\.'
+    layer_ids, layer_idx_pattern = set(), '\.(\d+)\.layer\.layer\.'
+    layer_idx = 0
     for j, model_state in enumerate([model_state0, model_state1]):
       assert layer_ids == set(range(len(layer_ids))), f'{layer_ids}'
       layer_shift = len(layer_ids)
+      serial_k = None
       for k, v in model_state.items():
         serial_k = k.replace('parallel_nn.local_layers', 'serial_nn').replace('.layer.', '.layer.layer.')
         # assert serial_k in model_stateS, f'{serial_k} not in model_stateS'
-        if serial_k in model_stateS:
+        if 'dropout' not in serial_k:  # 1 or serial_k in model_stateS:
           if '.layer.layer.' in serial_k:
             layer_idx = int(re.search(layer_idx_pattern, serial_k)[1])
             serial_k = serial_k.replace(f'.{layer_idx}.layer.layer.', f'.{layer_idx + layer_shift}.layer.layer.')
             layer_ids.add(layer_idx + layer_shift)
           model_stateS[serial_k] = v
           updated.append(serial_k)
+        # print(j, layer_idx, serial_k)
     model.load_state_dict(model_stateS)
     checkpoint = checkpoint0
 
@@ -462,7 +468,7 @@ def main():
     for j in range(4):
       k = l - 4 + j
       optimizer_state0['state'][180 + j] = optimizer_state0['state'][k]
-    optimizer_state0.update(optimizer_state1)
+    optimizer_state0['state'].update(optimizer_state1['state'])
     # optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])  # optimizer.load_state_dict(checkpoint['optimizer_state'])
     optimizer_state0['param_groups'][0]['params'] = list(range(184))
     optimizer.optimizer.load_state_dict(optimizer_state0)
@@ -484,11 +490,11 @@ def main():
 
     print(f'Models {args.load_model_rank0_nm} and {args.load_model_rank1_nm} and optimizer loaded successfully')
 
-  print('PARAMETERS AFTER')
-  for p in model.parameters():
-    print(p.ravel()[:10], p.ravel()[:-10])
+  # print(f'S: PARAMETERS AFTER')
+  # for p in model.parameters():
+  #   print(p.ravel()[:10], p.ravel()[:-10])
 
-  sys.exit()
+  # sys.exit()
 
   root_print(rank, 'Starting training...')
   for epoch in range(0, args.epochs+1):

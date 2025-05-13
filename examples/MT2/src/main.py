@@ -441,6 +441,9 @@ def main():
 
   print(f'{args.load=}')
 
+  # for p in model.parameters():
+  #   p.data = p.data.fill_(2)
+
   if args.load:#True: #(loading_path := args.load):
     stored_models_list = os.listdir(f'../stored_models')
     stored_models_list = sorted(list(
@@ -462,9 +465,9 @@ def main():
       print(f'rank: {rank}, stored-filter3: {stored_models_list}')
       assert len(stored_models_list) == 2, len(stored_models_list)
       try: 
-        checkpoint = torch.load(f'../stored_models/{stored_models_list[0]}')
+        checkpoint = torch.load(f'../stored_models/{stored_models_list[0]}', map_location=device)
       except: 
-        checkpoint = torch.load(f'../stored_models/{stored_models_list[1]}')
+        checkpoint = torch.load(f'../stored_models/{stored_models_list[1]}', map_location=device)
 
       model.load_state_dict(checkpoint['model_state'])
       optimizer.optimizer.load_state_dict(checkpoint['optimizer_state'])#optimizer.load_state_dict(checkpoint['optimizer_state'])
@@ -484,6 +487,12 @@ def main():
       torch.set_rng_state(rng_state)
 
       print(f'Model and optimizer loaded successfully')
+
+  # print(f'{rank=}: PARAMETERS AFTER')
+  # for p in model.parameters():
+  #   print(p.ravel()[:10], p.ravel()[:-10])
+
+  # sys.exit()
 
   root_print(rank, 'Starting training...')
   for epoch in range(1, args.epochs+1):
