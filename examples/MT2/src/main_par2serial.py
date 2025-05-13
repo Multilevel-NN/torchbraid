@@ -404,6 +404,11 @@ def main():
 
   print(f'{args.load=}')
 
+  print('PARAMETERS BEFORE')
+  for p in model.parameters():
+    print(p.ravel()[:10], p.ravel()[:-10])
+  print()
+
   if True:
     ## Local debug:
     # model_copy_rank0 = f'../stored_models/id20250122105605_513206685_n2_f20_b20_lr0.0005_w8000_rank0_cp1.pt'
@@ -478,6 +483,12 @@ def main():
     torch.set_rng_state(rng_state)
 
     print(f'Models {args.load_model_rank0_nm} and {args.load_model_rank1_nm} and optimizer loaded successfully')
+
+  print('PARAMETERS AFTER')
+  for p in model.parameters():
+    print(p.ravel()[:10], p.ravel()[:-10])
+
+  sys.exit()
 
   root_print(rank, 'Starting training...')
   for epoch in range(0, args.epochs+1):
