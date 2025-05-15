@@ -445,15 +445,30 @@ def main():
   #   p.data = p.data.fill_(2)
 
   if args.load:#True: #(loading_path := args.load):
-    stored_models_list = os.listdir(f'../stored_models')
-    stored_models_list = sorted(list(
-      filter(lambda nm: nm.startswith('id'), stored_models_list)
-    ))
-    root_print(rank, f'There are currently {len(stored_models_list)//(2*num_procs)} stored models')
-    stored_models_list = list(
-      filter(lambda nm: model_id in nm, stored_models_list)
-    )
-    root_print(rank, f'...out of which {len(stored_models_list)//(2*num_procs)} coincide with n, fwd/bwd, lr/warmup.')
+    if not args.load_model_rank0_nm:
+      stored_models_list = os.listdir(f'../stored_models')
+      stored_models_list = sorted(list(
+        filter(lambda nm: nm.startswith('id'), stored_models_list)
+      ))
+      root_print(rank, f'There are currently {len(stored_models_list)//(2*num_procs)} stored models')
+      stored_models_list = list(
+        filter(lambda nm: model_id in nm, stored_models_list)
+      )
+      root_print(rank, f'...out of which {len(stored_models_list)//(2*num_procs)} coincide with n, fwd/bwd, lr/warmup.')
+
+    else:
+      root_print(rank, 'Model to load is specified')
+      stored_models_list = [
+        args.load_model_rank0_nm,
+        args.load_model_rank0_nm.replace('_cp1.pt', '_cp2.pt'),
+      ]
+      # assert num_procs == 1  # Assuming serial; can be later modified
+      assert (num_procs == 1) ^ (args.load_model_rank1_nm)
+      if args.load_model_rank1_nm:
+        stored_models_list.extend([
+          args.load_model_rank1_nm,
+          args.load_model_rank1_nm.replace('_cp1.pt', '_cp2.pt'),
+        ])
 
     if len(stored_models_list) > 0:
       print(f'rank: {rank}, stored-filter1: {stored_models_list}')
