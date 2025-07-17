@@ -40,11 +40,12 @@ cimport mpi4py.libmpi as libmpi
 from cpython.ref cimport PyObject
 from libc.stdio cimport FILE
 
-ctypedef PyObject _braid_App_struct
-ctypedef _braid_App_struct * braid_App
+cdef extern from *:
+  ctypedef PyObject _braid_App_struct
+#  ctypedef _braid_App_struct * braid_App
 
-ctypedef PyObject _braid_Vector_struct
-ctypedef _braid_Vector_struct *braid_Vector
+  ctypedef PyObject _braid_Vector_struct
+#  ctypedef _braid_Vector_struct *braid_Vector
 
 cdef extern from "status.h":
     ##
@@ -155,6 +156,9 @@ cdef extern from "braid.h":
         _braid_Grid          ** grids
 
     ctypedef _braid_Core_struct *braid_Core
+
+    ctypedef _braid_App_struct *braid_App
+    ctypedef _braid_Vector_struct *braid_Vector
 
     ##
     # Wrap all the function pointers that User's can define
