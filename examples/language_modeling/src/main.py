@@ -37,6 +37,7 @@ from timeit import default_timer as timer
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import sys
 import time
 import torch
 import torch.nn as nn
@@ -45,12 +46,19 @@ import torch.optim as optim
 import torchbraid
 import torchbraid.utils
 from torch.utils.data import Dataset, DataLoader
-import sys
 
 from network_architecture import parse_args, ParallelNet
 from mpi4py import MPI
 
 import data
+
+try:
+    from MacTmp import CPU_Temp
+    temp_check = True
+except Exception:
+    temp_check = False
+print(f'CPU temperature check: {temp_check}')
+
 
 # torch.set_default_dtype(torch.float64)
 
@@ -73,11 +81,18 @@ def init_weights(module):
   elif isinstance(module, nn.Embedding):
     nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
+def check_T():
+    if temp_check:
+        T = float(CPU_Temp().split()[0])
+        while T >= 75:
+            time.sleep(1.)
+            T = float(CPU_Temp().split()[0])
+
 ##
 # Train model for one epoch
 # Return values: per batch losses and training times, model parameters updated in-place
 def train(rank, params, model, train_data, optimizer, epoch, compose, device, context_window, batch_size, criterion,
-  train_loader, scheduler):
+  train_loader, scheduler, scale):
   train_times = []
   losses = []
   total_time = 0.0
@@ -85,6 +100,9 @@ def train(rank, params, model, train_data, optimizer, epoch, compose, device, co
 
   model.train()
   for batch_idx, (data, target) in enumerate(train_loader):
+    # time.sleep(.1)
+    check_T()
+
     # print(batch_idx, data.shape, target.shape)
     start_time = timer()
     data, target = data.to(device), target.to(device)
@@ -103,6 +121,15 @@ def train(rank, params, model, train_data, optimizer, epoch, compose, device, co
     stop_time = timer()
     optimizer.step()
     scheduler.step()
+
+    batch_fwd_pass_time = batch_fwd_pass_end - batch_fwd_pass_start
+    batch_bwd_pass_time = batch_bwd_pass_end - batch_bwd_pass_start
+
+    if scale:
+        print(f'rank={rank}, Batch idx: {batch_idx}')
+        print(f'rank={rank}, Batch fwd pass time: {batch_fwd_pass_time}')
+        print(f'rank={rank}, Batch bwd pass time: {batch_bwd_pass_time}')
+        if batch_idx == 11: sys.exit()
 
     total_time += stop_time - start_time
     train_times.append(stop_time - start_time)
@@ -130,9 +157,10 @@ def test(rank, model, test_loader, compose, device):
 
   with torch.no_grad():
     for (data, target) in test_loader:
-      data, target = data.to(device), target.to(device)
-      output = model(data)
-      test_loss += compose(criterion, output.reshape(-1, output.shape[-1]), target.reshape(-1)).item()
+        check_T()
+        data, target = data.to(device), target.to(device)
+        output = model(data)
+        test_loss += compose(criterion, output.reshape(-1, output.shape[-1]), target.reshape(-1)).item()
 
   test_loss /= len(test_loader)
   model.train()
@@ -215,7 +243,7 @@ def main():
 
   # Diagnostic information
   root_print(rank, '-- procs    = {}\n'
-                   '-- channels = {}\n'
+                   # '-- channels = {}\n'
                    '-- Tf       = {}\n'
                    '-- steps    = {}\n'
                    '-- max_levels     = {}\n'
@@ -223,7 +251,8 @@ def main():
                    '-- max_fwd_iters  = {}\n'
                    '-- cfactor        = {}\n'
                    '-- fine fcf       = {}\n'
-                   '-- skip down      = {}\n'.format(procs, args.channels, 
+                   '-- skip down      = {}\n'.format(procs,
+                                                    # args.channels, 
                                                      args.Tf, args.steps,
                                                      args.lp_max_levels,
                                                      args.lp_bwd_max_iters,
@@ -261,9 +290,11 @@ def main():
 
   # Detailed XBraid timings are output to these files for the forward and backward phases
   model.parallel_nn.fwd_app.setTimerFile(
-    f'b_fwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
+    # f'b_fwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
+    f'b_fwd_s_{args.steps}_bs_{args.batch_size}_p_{procs}')
   model.parallel_nn.bwd_app.setTimerFile(
-    f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
+    # f'b_bwd_s_{args.steps}_c_{args.channels}_bs_{args.batch_size}_p_{procs}')
+    f'b_bwd_s_{args.steps}_bs_{args.batch_size}_p_{procs}')
 
   # Declare optimizer  
   print(f'rank {rank}: len(list(model.parameters())) {len(list(model.parameters()))}')
@@ -281,7 +312,8 @@ def main():
   if args.warm_up:
     warm_up_timer = timer()
     train(rank=rank, params=args, model=model, train_data=train_data, optimizer=optimizer, epoch=0,
-          compose=model.compose, device=device, context_window=args.context_window, batch_size=args.batch_size, criterion=criterion)
+          compose=model.compose, device=device, context_window=args.context_window, batch_size=args.batch_size, criterion=criterion,
+          scale=args.scale)
     model.parallel_nn.timer_manager.resetTimers()
     model.parallel_nn.fwd_app.resetBraidTimer()
     model.parallel_nn.bwd_app.resetBraidTimer()
@@ -305,7 +337,7 @@ def main():
     start_time = timer()
     [losses, train_times] = train(rank=rank, params=args, model=model, train_data=train_data, optimizer=optimizer, epoch=epoch,
           compose=model.compose, device=device, context_window=args.context_window, batch_size=args.batch_size, criterion=criterion,
-          train_loader=train_loader, scheduler=scheduler)
+          train_loader=train_loader, scheduler=scheduler, scale=args.scale)
     epoch_times += [timer() - start_time]
     batch_losses += losses
     batch_times += train_times

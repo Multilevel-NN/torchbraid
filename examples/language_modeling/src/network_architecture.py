@@ -248,6 +248,7 @@ def parse_args():
   parser.add_argument('--num_heads', type=int, default=6)
 
   parser.add_argument('--enforce_serial', action='store_true')
+  parser.add_argument('--scale'         , action='store_true')
 
   ##
   # Do some parameter checking
