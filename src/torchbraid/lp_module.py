@@ -185,6 +185,12 @@ class LPModule(nn.Module):
   def setBwdCFactor(self,cfactor):
     self.bwd_app.setCFactor(cfactor)
 
+  def setFwdResidualCompute(self,residual_compute):
+    self.fwd_app.setResidualCompute(residual_compute)
+
+  def setBwdResidualCompute(self,residual_compute):
+    self.bwd_app.setResidualCompute(residual_compute)
+
   def setSkipDowncycle(self,skip):
     self.fwd_app.setSkipDowncycle(skip)
     self.bwd_app.setSkipDowncycle(skip)

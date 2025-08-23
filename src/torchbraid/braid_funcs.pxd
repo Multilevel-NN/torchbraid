@@ -40,11 +40,12 @@ cimport mpi4py.libmpi as libmpi
 from cpython.ref cimport PyObject
 from libc.stdio cimport FILE
 
-ctypedef PyObject _braid_App_struct
-ctypedef _braid_App_struct * braid_App
+cdef extern from *:
+  ctypedef PyObject _braid_App_struct
+#  ctypedef _braid_App_struct * braid_App
 
-ctypedef PyObject _braid_Vector_struct
-ctypedef _braid_Vector_struct *braid_Vector
+  ctypedef PyObject _braid_Vector_struct
+#  ctypedef _braid_Vector_struct *braid_Vector
 
 cdef extern from "status.h":
     ##
@@ -156,6 +157,9 @@ cdef extern from "braid.h":
 
     ctypedef _braid_Core_struct *braid_Core
 
+    ctypedef _braid_App_struct *braid_App
+    ctypedef _braid_Vector_struct *braid_Vector
+
     ##
     # Wrap all the function pointers that User's can define
     ctypedef int (*braid_PtFcnStep)(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Vector u,
@@ -237,6 +241,7 @@ cdef extern from "braid.h":
     int braid_SetTimerFile(braid_Core core, int length, const char *filestem)
     int braid_ResetTimer(braid_Core core)
     int braid_SetTimings(braid_Core core, int timing_level)
+    int braid_SetResidualComputation(braid_Core core,int resid_compute)
 
     ##
     # Braid Test Routines

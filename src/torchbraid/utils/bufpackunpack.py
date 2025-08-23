@@ -66,7 +66,8 @@ def pack_buffer(tens):
     if t is None:
       continue
     end += t.shape.numel()
-    buf[beg:end] = t.view(-1)[:]
+    arr = t.view(-1)
+    buf[beg:end] = np.asarray(arr)
     beg = end
 
   return buf

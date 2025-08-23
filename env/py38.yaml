@@ -1,9 +1,0 @@
-name: py38
-channels:
-  - pytorch
-  - defaults
-dependencies:
-  - cython=0.29.32
-  - python=3.8.10
-  - pytorch=2.0.1
-  - torchvision=0.15.2

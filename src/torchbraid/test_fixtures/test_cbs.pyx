@@ -33,7 +33,7 @@
 # cython: linetrace=True
 
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
-from cpython.ref cimport PyObject
+# from cpython.ref cimport braid_App
 
 import torch
 
@@ -45,7 +45,7 @@ include "../torchbraid_app.pyx"
 # This frees a an initial vector
 # using the `my_free` function. 
 def freeVector(app,u):
-  cdef braid_App c_app = <PyObject*>app
+  cdef braid_App c_app = <braid_App> app
   cdef braid_Vector c_u = <braid_Vector> u
 
   my_free(c_app,c_u)
@@ -53,7 +53,7 @@ def freeVector(app,u):
 # This builds a close of the initial vector
 # using the `my_init` function called from 'c'
 def cloneInitVector(app):
-  cdef braid_App c_app = <PyObject*>app
+  cdef braid_App c_app = <braid_App>app
   cdef braid_Vector v_vec
   my_init(c_app,0.0,&v_vec)
   return <object> v_vec
@@ -62,7 +62,7 @@ def cloneInitVector(app):
 # using the `my_clone` 
 def cloneVector(app,x):
 
-  cdef braid_App c_app = <PyObject*>app
+  cdef braid_App c_app = <braid_App> app
   cdef braid_Vector c_x = <braid_Vector> x
   cdef braid_Vector v 
   my_clone(c_app,c_x,&v)
@@ -73,7 +73,7 @@ def addVector(app,alpha,ten_x,beta,ten_y):
   x = BraidVector(ten_x)
   y = BraidVector(ten_y)
 
-  cdef braid_App c_app = <PyObject*>app
+  cdef braid_App c_app = <braid_App> app
   cdef double dalpha = alpha
   cdef braid_Vector c_x = <braid_Vector>x
   cdef double dbeta  = beta
@@ -84,7 +84,7 @@ def addVector(app,alpha,ten_x,beta,ten_y):
 def vectorNorm(app,ten_x):
   x = BraidVector(ten_x)
 
-  cdef braid_App c_app = <PyObject*>app
+  cdef braid_App c_app = <braid_App>app
   cdef braid_Vector c_x = <braid_Vector>x
   cdef double [1] norm = [ 0.0 ]
   
@@ -93,7 +93,7 @@ def vectorNorm(app,ten_x):
   return norm[0]
 
 def bufSize(app):
-  cdef braid_App c_app = <PyObject*>app
+  cdef braid_App c_app = <braid_App>app
   cdef int [1] sz = [0]
   cdef _braid_BufferStatus_struct status
   
@@ -140,7 +140,7 @@ cdef class MemoryBlock:
       self.app.removeBufferEntry(addr=addr)
 
 def pack(app,vec,block,level):
-  cdef braid_App c_app    = <PyObject*>app
+  cdef braid_App c_app    = <braid_App> app
   cdef braid_Vector c_vec = <braid_Vector> vec
   cdef _braid_BufferStatus_struct status
   cdef MemoryBlock blk = <MemoryBlock> block
@@ -148,7 +148,7 @@ def pack(app,vec,block,level):
   my_bufpack(c_app, c_vec, blk.data,&status)
 
 def unpack(app,block):
-  cdef braid_App c_app    = <PyObject*>app
+  cdef braid_App c_app    = <braid_App> app
   cdef braid_Vector c_vec    
   cdef MemoryBlock blk = <MemoryBlock> block
   cdef _braid_BufferStatus_struct status
