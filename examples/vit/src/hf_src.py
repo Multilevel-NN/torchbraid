@@ -282,7 +282,9 @@ class ViTLayer(nn.Module):
         self.attention = ViTAttention(config)
         self.intermediate = ViTIntermediate(config)
         self.layernorm_before = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        # self.layernorm_before = nn.Identity(config.hidden_size, eps=config.layer_norm_eps)
         self.layernorm_after = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        # self.layernorm_after = nn.Identity(config.hidden_size, eps=config.layer_norm_eps)
 
         # ViTOutput parameters
         self.dense = nn.Linear(config.intermediate_size, config.hidden_size)
@@ -337,6 +339,7 @@ class ViTModel(ViTPreTrainedModel):
         self.encoder = ViTEncoder(config)
 
         self.layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        # self.layernorm = nn.Identity(config.hidden_size, eps=config.layer_norm_eps)
         self.pooler = ViTPooler(config) if add_pooling_layer else None
 
         # Initialize weights and apply final processing

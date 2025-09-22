@@ -30,37 +30,32 @@
 # @HEADER
 
 
-import argparse
-import sys
-import time
+# ************************************************************************
+# This is for continuing the training; we load the weights and training
+# data from previous and continue! 
+# ************************************************************************
+
+import statistics as stats
 from timeit import default_timer as timer
 
 import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm
-
+import argparse
+import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import DataLoader
-
 import torchbraid
 import torchbraid.utils
+import sys
 
-from mpi4py import MPI
-
+# from network_architecture import ParallelNet
 from network_architecture import ParallelNet
-
+from mpi4py import MPI
+from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
-from datasets import load_dataset
-
-from transformers import (AdamW, 
-                          get_cosine_schedule_with_warmup, 
-                          ViTForImageClassification, 
-                          ViTConfig, 
-                          AutoImageProcessor, 
-                          DefaultDataCollator)
+from transformers import get_cosine_schedule_with_warmup
 
 ####################################################################################
 ####################################################################################
@@ -192,19 +187,14 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device, 
   criterion = nn.CrossEntropyLoss()
 
   total_time = 0.0
-  correct = 0
-  total = 0
 
   for batch_idx, batch_data in enumerate(train_loader):
     optimizer.zero_grad()
 
-    # images, labels = batch_data
-    images = batch_data['pixel_values'].to(device)
-    labels = batch_data['labels'].to(device)
-
+    images, labels = batch_data
 
     start_time = timer()
-    # images, labels = images.to(device), labels.to(device)
+    images, labels = images.to(device), labels.to(device)
 
     torch.cuda.synchronize()
     batch_fwd_pass_start = time.time()
@@ -223,11 +213,6 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device, 
     torch.cuda.synchronize()
     batch_bwd_pass_end = time.time()
 
-    if rank == 0:
-      _, predicted = torch.max(output, 1)
-      correct += (predicted == labels).sum().item()
-    total += labels.size(0)
-
     # scheduler.step_and_update_lr() # Custom will auto step optimizer
     if (batch_idx + 1) % params.log_interval == 0:
       optimizer.step()  # Update weights
@@ -243,32 +228,31 @@ def train(rank, params, model, train_loader, optimizer, epoch, compose, device, 
     losses.append(loss.item())
 
     # Save data; note that 
-    # if batch_idx % 1000 == 0:
-    #   checkpoint = {
-    #       'model_state_dict': model.state_dict(),
-    #       'optimizer_state_dict': optimizer.state_dict(),
-    #       'scheduler_state_dict': scheduler.state_dict(),
-    #       'images': images,
-    #       'labels': labels,
-    #   }
-      #torch.save(
-      #  checkpoint, 
-      #  f'vit-save-parallel-{procs}/model_checkpoint_{rank}_{batch_idx=}'
-      #)
+    if batch_idx % 1000 == 0:
+      checkpoint = {
+          'model_state_dict': model.state_dict(),
+          'optimizer_state_dict': optimizer.state_dict(),
+          'scheduler_state_dict': scheduler.state_dict(),
+          'images': images,
+          'labels': labels,
+      }
+      torch.save(
+        checkpoint, 
+        f'vit-save-continue-{procs}/model_checkpoint_{rank}_{batch_idx=}'
+      )
 
     # 
     if batch_idx % params.log_interval == 0:
       root_print(rank, f'Train Epoch: {epoch} {batch_idx} {losses[-1]} {scheduler.get_last_lr()}')
       root_print(rank, f'\t Some times: {fwd_times[-4:-1]=} {bwd_times[-4:-1]=} {train_times[-4:-1]=}')
 
-  root_print(rank, f"Train Accuracy: {correct/total:.4f}")
   return losses, train_times, fwd_times, bwd_times
-
 
 # Parallel printing helper function  
 def root_print(rank, s):
   if rank == 0:
     print(s, flush='True')
+
 
 def main():
   # Begin setting up run-time environment 
@@ -291,7 +275,7 @@ def main():
   # Compute number of steps in ResNet per processor
   local_steps = int(args.steps / procs)
 
-  # -------------- Load MNIST -------------------------
+  # Load MNIST
   # transform = transforms.Compose([
   #     transforms.Grayscale(3),  # Convert grayscale to 3 channels (required for ViT)
   #     transforms.Resize((224, 224)),  # Resize images to 224x224 (ViT input size)
@@ -305,137 +289,20 @@ def main():
   #                           shuffle=False, pin_memory=True, drop_last=True,
   #                           batch_size=args.batch_size, 
   #                           )
-  # -------------- Load MNIST -------------------------
-
-
-  # ------------------------ Load ImageNet --------------------
-  # transform = transforms.Compose([
-  #     transforms.Resize((224, 224)),  # Resize images to 224x224 (ViT input size)
-  #     transforms.ToTensor(),  # Convert images to tensors
-  # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize using ImageNet statistics
-  # ])
-
-  # # Load training and validation datasets
-  # train_dataset = datasets.ImageNet(root="~/", transform=transform)
+  # Load ImageNet
+  transform = transforms.Compose([
+      transforms.Resize((224, 224)),  # Resize images to 224x224 (ViT input size)
+      transforms.ToTensor(),  # Convert images to tensors
+  transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize using ImageNet statistics
+  ])
+  
+  # Load training and validation datasets
+  train_dataset = datasets.ImageNet(root="~/", transform=transform)
   # test_dataset = datasets.ImageNet(root="~/", train=False, transform=transform, download=True)
-
-    
+  
   # Create data loaders
-  # train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True)
-  # val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,drop_last=True)
-  # ------------------------ Load ImageNet --------------------
-
-  # ------------------------ Load TinyImageNet --------------------
-  # Load the Tiny ImageNet dataset
-  # dataset = load_dataset("zh-plus/tiny-imagenet")
-  # image_processor = AutoImageProcessor.from_pretrained("google/vit-base-patch16-224", use_fast=True)
-  # normalize = transforms.Normalize(mean=image_processor.image_mean, std=image_processor.image_std)
-
-  # _transforms = transforms.Compose([
-  #     transforms.RandomResizedCrop(image_processor.size["height"]),
-  #     transforms.RandomHorizontalFlip(),
-  #     transforms.ToTensor(),
-  #     normalize,
-  # ])
-  # def preprocess_images(examples):
-  #   # Apply transformations to each image
-  #   examples["pixel_values"] = [_transforms(image.convert("RGB")) for image in examples["image"]]
-  #   return examples
-
-  # # Apply transformations to the 'train' split
-  # processed_train_dataset = dataset["train"].map(preprocess_images, batched=True, remove_columns=["image"], num_proc=8)
-  # processed_valid_dataset = dataset["valid"].map(preprocess_images, batched=True, remove_columns=["image"], num_proc=8)
-
-  # # 3. Create a data collator
-  # data_collator = DefaultDataCollator(return_tensors="pt")
-
-  # train_loader = DataLoader(
-  #     processed_train_dataset,
-  #     shuffle=True,
-  #     batch_size=128, # You can adjust this batch size
-  #     collate_fn=data_collator,
-  #     num_workers=8,
-  #     pin_memory=True,
-  #     drop_last=True
-  # )
-
-  # val_loader = DataLoader(
-  #     processed_valid_dataset,
-  #     shuffle=True,
-  #     batch_size=128, # You can adjust this batch size
-  #     collate_fn=data_collator,
-  #     num_workers=8,
-  #     pin_memory=True,
-  #     drop_last=True
-  # )
-
-  # config = ViTConfig.from_pretrained("google/vit-base-patch16-224")
-  # config.num_labels = 200
-  # config.attention_probs_dropout_prob = 0
-  # config.hidden_dropout_prob = 0
-
-  # ------------------------ Load TinyImageNet --------------------
-
-  # ----------------- Load CIFAR10 --------------------------------
-  dataset = load_dataset("cifar10")
-  train_transform = transforms.Compose([transforms.RandomHorizontalFlip(),
-                                      transforms.RandomResizedCrop((32,32),scale=(0.8,1.0),ratio=(0.9,1.1)),
-                                      transforms.ToTensor(),
-                                      transforms.Normalize([0.49139968, 0.48215841, 0.44653091], [0.24703223, 0.24348513, 0.26158784])
-                                     ])
-
-  # Don't need to transform for tests
-  test_transform = transforms.Compose([transforms.ToTensor(),
-                                      transforms.Normalize([0.49139968, 0.48215841, 0.44653091], [0.24703223, 0.24348513, 0.26158784])
-                                      ])
-
-  def preprocess_train_images(examples):
-      examples["pixel_values"] = [train_transform(image.convert("RGB")) for image in examples["img"]]
-      return examples
-      
-  def preprocess_test_images(examples):
-      examples["pixel_values"] = [test_transform(image.convert("RGB")) for image in examples["img"]]
-      return examples
-
-
-  # Apply transformations to the 'train' split
-  processed_train_dataset = dataset["train"].map(preprocess_train_images, batched=True, remove_columns=["img"])
-  processed_valid_dataset = dataset["test"].map(preprocess_test_images, batched=True, remove_columns=["img"])
-
-  # 3. Create a data collator
-  data_collator = DefaultDataCollator(return_tensors="pt")
-
-  train_loader = DataLoader(
-      processed_train_dataset,
-      shuffle=True,
-      batch_size=128, # You can adjust this batch size
-      collate_fn=data_collator,
-      num_workers=4,
-      pin_memory=True,
-      drop_last=True,
-  )
-
-  val_loader = DataLoader(
-      processed_valid_dataset,
-      shuffle=True,
-      batch_size=128, # You can adjust this batch size
-      collate_fn=data_collator,
-      num_workers=4,
-      pin_memory=True,
-      drop_last=True,
-  )
-  config = ViTConfig.from_pretrained("google/vit-base-patch16-224")
-  config.num_labels = 10
-  config.encoder_stride = 4 # Unsure if this is used
-  config.image_size = 32 # CIFAR10 is smaller 
-  config.patch_size = 4
-  config.attention_probs_dropout_prob = 0.0
-  config.hidden_dropout_prob = 0.0
-  config.hidden_size = 128
-  config.intermediate_size = 256
-  config.num_attention_heads = 8
-  # ----------------- Load CIFAR10 --------------------------------
-
+  train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+  # val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
   
   root_print(
     rank, f'Data processed. Proceeding to train. {len(train_loader)}'
@@ -453,7 +320,7 @@ def main():
 										'-- skip down      = {}\n'.format(procs, 
 																											args.Tf, args.steps,
 																											args.lp_max_levels,
-                                                      args.lp_bwd_max_iters,
+                                                                                                                                                                                                                        args.lp_bwd_max_iters,
 																											args.lp_fwd_max_iters,
 																											args.lp_cfactor,
 																											args.lp_fine_fcf,
@@ -461,7 +328,7 @@ def main():
 
 	# Create layer-parallel network
 	# Note this can be done on only one processor, but will be slow
-  model = ParallelNet(config,
+  model = ParallelNet(
                   local_steps=local_steps,
                   max_levels=args.lp_max_levels,
                   bwd_max_iters=args.lp_bwd_max_iters,
@@ -476,65 +343,24 @@ def main():
                   relax_only_cg=False,
                   user_mpi_buf=args.lp_user_mpi_buf).to(device)
 
+
   model.parallel_nn.fwd_app.setBraidTimers(flag=1)
   model.parallel_nn.fwd_app.setTimerFile(
       f'timing_test_p_{procs}')
-  
-  # Once parallel model is created 
-  if args.serial_file:
-    model.saveSerialNet(f'serialnet_{args.steps}_{args.Tf}')
-    import sys
-    sys.exit()
-  # --- Imagenet ------
-  # betas=(0.9, 0.999)
-  # warmup_steps=10_000 #50000
-  # optimizer = optim.AdamW(
-  #   model.parameters(), 
-  #   lr=args.lr, 
-  #   betas=betas, weight_decay=0.01
-  # )
-  # optim_schedule = get_cosine_schedule_with_warmup(
-  #   optimizer,
-  #   num_warmup_steps=warmup_steps,  # Number of warmup steps
-  #   num_training_steps=1000000   # Total number of training steps
-  # )
-  # --- Imagenet ------
 
-  # ----- Tiny Imagenet -----
-  # Define optimizer and loss function
-  # optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
-
-  # # Define the number of total training steps and warmup steps
-  # total_steps = len(train_loader) * args.epochs  # Total number of training steps
-  # # warmup_steps = int(0.1 * total_steps)  # 10% of total steps for warmup
-  # warmup_steps = 200
-
-  # # Create the learning rate scheduler
-  # optim_schedule = get_cosine_schedule_with_warmup(
-  #     optimizer=optimizer,
-  #     num_warmup_steps=warmup_steps,
-  #     num_training_steps=total_steps,
-  # )
-  # ----- Tiny Imagenet -----
-
-  # -------------- CIFAR10 ----------------
-    # Define optimizer and loss function
-  optimizer = AdamW(model.parameters(), lr=5e-4, weight_decay=0.01)
-
-  # Define the number of total training steps and warmup steps
-  num_epochs = 30  # Adjust as needed
-  total_steps = len(train_loader) * num_epochs  # Total number of training steps
-  warmup_steps = int(0.05 * total_steps)  # 5% of total steps for warmup
-
-  # Create the learning rate scheduler
-  optim_schedule = get_cosine_schedule_with_warmup(
-      optimizer=optimizer,
-      num_warmup_steps=warmup_steps,
-      num_training_steps=total_steps,
+  betas=(0.9, 0.999)
+  warmup_steps=10_000 #50000
+  optimizer = optim.AdamW(
+    model.parameters(), 
+    lr=args.lr, 
+    betas=betas, weight_decay=0.01
   )
-  # ----------------- CIFAR10 ---------------
+  optim_schedule = get_cosine_schedule_with_warmup(
+    optimizer,
+    num_warmup_steps=warmup_steps,  # Number of warmup steps
+    num_training_steps=1000000   # Total number of training steps
+)
 
-  
   root_print(rank, f'Training with {warmup_steps=} and {args.lr=}')
 	# Carry out parallel training
   batch_losses = [] 
@@ -543,19 +369,22 @@ def main():
   forward_times = []
   backward_times = []
 
-  torch.manual_seed(0)
+  # Loading model 
+  checkpoint = torch.load(f'vit-save-parallel-2/model_checkpoint_{rank}_batch_idx={6000}')
+  model.load_state_dict(checkpoint['model_state_dict'])  # Adjust the key if necessary
+  optimizer.load_state_dict(
+    checkpoint['optimizer_state_dict']
+  )
+  root_print(rank, 'f{optim_schedule=}')
+  optim_schedule.load_state_dict(
+     checkpoint['scheduler_state_dict']
+  )
+  root_print(rank, 'f{optim_schedule=}')
   for epoch in range(1, args.epochs + 1):
     epoch_time_start = time.time()
     [losses, train_times, batch_f_times, batch_b_times] = train(rank=rank, params=args, model=model, train_loader=train_loader, optimizer=optimizer, epoch=epoch,
           compose=model.compose, device=device, scheduler=optim_schedule)
-  
     checkpoint = {    'model_state': model.state_dict()}
-    if args.lp_max_levels == (1, 1):
-      root_print(rank, 'Saving serial')
-      torch.save(checkpoint, f'cifar-models-serial/checkpoint_{procs=}_{rank}_{epoch=}_{args.Tf}')
-    else:
-      root_print(rank, 'Saving parallel')
-      torch.save(checkpoint, f'cifar-models-parallel/checkpoint_{procs=}_{rank}_{epoch=}_{args.Tf}')
 
     batch_losses += losses
     batch_times += train_times
