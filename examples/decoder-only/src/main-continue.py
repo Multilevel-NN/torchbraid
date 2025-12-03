@@ -354,11 +354,19 @@ def main():
                      for name, param in model.named_parameters() if param.requires_grad}
     accumulate_flag = False
 
+    # Now we load the model from before 
+    root_print(rank, 'Loading model')
+    checkpoint = torch.load(f'full-gpt-saves/parallel-model_checkpoint_{rank}_iter_num={int(16 * 1000)}', weights_only=False)
+    model.load_state_dict(checkpoint['model_state_dict'])  # Adjust the key if necessary
+    optimizer.load_state_dict(
+        checkpoint['optimizer_state_dict']
+    )
+    root_print(rank, 'Model Loaded')
 
     model.train()
     while True:
-        if iter_num == 16 * 2001: # Early stopping;
-            break
+        # if iter_num == 16 * 2001: # Early stopping;
+        #     break
 
         if iter_num % eval_interval == 0:
             root_print(rank, 'Evaluating loss on validation.')
@@ -457,11 +465,6 @@ def main():
             root_print(rank, f"{iter_num} Loss: {np.sum(np.array(all_loss[-args.log_interval:])):.3e} Forward time: {forward_time:.3e} Backward Time: {backward_time:.3e} Total time: {total_time:.3e}")        
         if iter_num > max_iters:
             break
-
-
-        
-    # epoch_time_end = time.time()
-    # if rank == 0: root_print(rank, f'Epoch time: {epoch_time_end - epoch_time_start} seconds')
 
 
 if __name__ == '__main__':

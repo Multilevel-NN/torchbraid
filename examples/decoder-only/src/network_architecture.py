@@ -198,6 +198,11 @@ class StepLayer(nn.Module):
         self.attn = CausalSelfAttention(config)
         self.ln_2 = LayerNorm(config.n_embd, bias=config.bias)
         self.mlp = MLP(config)
+
+        if config.periln:
+            self.ln_11 = LayerNorm(config.n_embd, bias=config.bias)
+            self.ln_22 = LayerNorm(config.n_embd, bias=config.bias)
+        self.config = config
         
         # init all weights
         self.apply(self._init_weights)
@@ -208,8 +213,13 @@ class StepLayer(nn.Module):
 
 
     def forward(self, x, dt: float=1.0):
-        x = x + dt/2 * self.attn(self.ln_1(x))
-        x = x + dt/2 * self.mlp(self.ln_2(x))
+        if self.config.periln:
+            x = x + dt/2 * self.ln_11(self.attn(self.ln_1(x)))
+            x = x + dt/2 * self.ln_22(self.mlp(self.ln_2(x)))
+        else:
+            x = x + dt/2 * self.attn(self.ln_1(x))
+            x = x + dt/2 * self.mlp(self.ln_2(x))
+
         return x
     
     def _init_weights(self, module):
@@ -233,6 +243,7 @@ class GPTConfig:
     dropout: float = 0.0
     bias: bool = True # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
     buffer_layers: bool = False
+    periln: bool = False
 
 
 # Parallel network class

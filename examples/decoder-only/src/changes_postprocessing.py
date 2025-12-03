@@ -262,8 +262,6 @@ def main():
     model.train()
     for iter_num in range(0, 90001):
         if should_save(iter_num=iter_num):
-          if iter_num > 200:
-             model.parallel_nn.setBwdMaxIters(5)
           root_print(rank, f'Processing iteration number {iter_num}')
 
           # Load stuff 
