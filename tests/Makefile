@@ -10,6 +10,7 @@ tests test:
 	$(MPIRUN) -n 3 $(PYTHON) test_composite.py
 	$(MPIRUN) -n 3 $(PYTHON) test_grad_update.py
 	$(MPIRUN) -n 3 $(PYTHON) test_gru_layer_parallel.py
+	$(MPIRUN) -n 3 $(PYTHON) test_torch_mgrit.py
 	$(PYTHON) test_ContextTimer.py
 	$(PYTHON) test_mean_initial_guess.py
 
@@ -21,6 +22,7 @@ tests-serial test-serial:
 	$(MPIRUN) -n 1 $(PYTHON) test_composite.py
 	$(MPIRUN) -n 1 $(PYTHON) test_grad_update.py
 	$(MPIRUN) -n 1 $(PYTHON) test_gru_layer_parallel.py
+	$(MPIRUN) -n 1 $(PYTHON) test_torch_mgrit.py
 	$(PYTHON) test_ContextTimer.py
 	$(PYTHON) test_mean_initial_guess.py
 
