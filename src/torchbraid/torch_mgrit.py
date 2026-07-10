@@ -44,10 +44,11 @@ A100s this is 1.2-1.5x faster end-to-end than the XBraid path at 2-8 ranks
 and matches its solution to floating-point roundoff.
 
 Current restrictions (assertions guard them):
-  - constant state shape across time steps (no opening/closing layers)
+  - constant state shape across the parallel block (opening/closing layers
+    can be composed around it by replicating them on every rank; see
+    examples/mnist/mnist_torch_mgrit.py)
   - global_steps divisible by ranks; local steps divisible by cfactor
   - two levels (or one for sequential integration on a single rank)
-  - one backward iteration (no adjoint tau restriction implemented)
 """
 
 import atexit
@@ -94,7 +95,7 @@ class MGRIT2Solver:
                fwd_iters, bwd_iters, device, levels=2, coarse_replicas=None):
     assert levels in (1, 2)
     assert fwd_iters >= 1
-    assert bwd_iters == 1, 'adjoint tau restriction not implemented'
+    assert bwd_iters >= 1
     if levels == 2:
       assert local_steps % cfactor == 0, 'local steps must be divisible by cfactor'
     else:
@@ -117,6 +118,8 @@ class MGRIT2Solver:
     # the first (tau-free) coarse solve runs replicated on every rank instead
     # of as a serial cross-rank relay (identical arithmetic, no hop chain)
     self.coarse_replicas = coarse_replicas
+    # False skips graph recording and adjoint preparation (inference)
+    self.record_adjoint = True
 
   # ---- elementary operations ----------------------------------------------
 
@@ -225,12 +228,14 @@ class MGRIT2Solver:
     n, m, K = self.n, self.m, self.K
     self.state_shape = tuple(x0.shape)
 
+    record = self.record_adjoint
+
     if self.levels == 1:
       # sequential fine integration (exactness reference path)
       u = [None] * (n + 1)
       u[0] = x0.detach()
       for j in range(n):
-        u[j + 1] = self._fine_step(j, u[j], record=True)
+        u[j + 1] = self._fine_step(j, u[j], record=record)
       self.u = u
       return u[n] if self.rank == self.nprocs - 1 else None
 
@@ -256,40 +261,77 @@ class MGRIT2Solver:
       if it < self.fwd_iters - 1:
         self._frelax(u)
 
-    # final FC-relaxation: recompute every owned step recording its graph
-    self._frelax(u, record=True)
-    self._crelax(u, record=True)
+    # final FC-relaxation: recompute every owned step, recording its graph
+    # when a backward solve will follow
+    self._frelax(u, record=record)
+    self._crelax(u, record=record)
 
-    # neighbor exchange of the C-relaxed boundary value: the adjoint's coarse
-    # vjp linearizes at the stored C-point state, which for the left boundary
-    # is produced by the left neighbor's C-relaxation (as in XBraid)
-    if self.nprocs > 1:
-      ops = []
-      if self.rank < self.nprocs - 1:
-        ops.append(dist.P2POp(dist.isend, u[n], self.rank + 1))
-      left = None
-      if self.rank > 0:
-        left = torch.empty(self.state_shape, device=self.device)
-        ops.append(dist.P2POp(dist.irecv, left, self.rank - 1))
-      for req in dist.batch_isend_irecv(ops):
-        req.wait()
-      if self.rank > 0:
-        u[0] = left
+    if record:
+      # neighbor exchange of the C-relaxed boundary value: the adjoint's
+      # coarse vjp linearizes at the stored C-point state, which for the left
+      # boundary is produced by the left neighbor's C-relaxation (as in XBraid)
+      if self.nprocs > 1:
+        ops = []
+        if self.rank < self.nprocs - 1:
+          ops.append(dist.P2POp(dist.isend, u[n], self.rank + 1))
+        left = None
+        if self.rank > 0:
+          left = torch.empty(self.state_shape, device=self.device)
+          ops.append(dist.P2POp(dist.irecv, left, self.rank - 1))
+        for req in dist.batch_isend_irecv(ops):
+          req.wait()
+        if self.rank > 0:
+          u[0] = left
 
-    # pre-build the coarse-propagator graphs the adjoint relay differentiates:
-    # this is rank-parallel work here, whereas rebuilding them in backward()
-    # would sit on the serial cross-rank relay chain
-    self.coarse_graphs = []
-    for k in range(K):
-      x = u[k * m].detach().requires_grad_(True)
-      with torch.enable_grad():
-        y = x + (m * self.dt) * self.layers[k * m](x)
-      self.coarse_graphs.append((x, y))
+      # pre-build the coarse-propagator graphs the adjoint relay
+      # differentiates: this is rank-parallel work here, whereas rebuilding
+      # them in backward() would sit on the serial cross-rank relay chain
+      self.coarse_graphs = []
+      for k in range(K):
+        x = u[k * m].detach().requires_grad_(True)
+        with torch.enable_grad():
+          y = x + (m * self.dt) * self.layers[k * m](x)
+        self.coarse_graphs.append((x, y))
 
     self.u = u
     return u[n] if self.rank == self.nprocs - 1 else None
 
   # ---- adjoint solve ---------------------------------------------------------
+
+  def _adjoint_fine_vjp(self, j, wn):
+    # vjp through step j's recorded graph, state gradient only (no parameter
+    # accumulation); the graph may be revisited on later iterations
+    x, y = self.graphs[j]
+    return torch.autograd.grad(y, x, wn, retain_graph=True)[0]
+
+  def _adjoint_coarse_vjp(self, k, wn):
+    xk, yk = self.coarse_graphs[k]
+    return torch.autograd.grad(yk, xk, wn, retain_graph=True)[0]
+
+  def _adjoint_frelax(self, w):
+    # adjoint F-points from adjoint C-points, right-to-left in each interval
+    for k in range(self.K):
+      base = k * self.m
+      wn = w[base + self.m]
+      for j in reversed(range(base + 1, base + self.m)):
+        wn = self._adjoint_fine_vjp(j, wn)
+        w[j] = wn
+
+  def _adjoint_coarse_relay(self, w_end, tau):
+    # serial coarse solve of the adjoint problem, right to left
+    if self.rank == self.nprocs - 1:
+      v = w_end.detach()
+    else:
+      v = self._recv(self.rank + 1)
+    vs = [v]
+    for k in reversed(range(self.K)):
+      v = self._adjoint_coarse_vjp(k, v)
+      if tau is not None:
+        v = v + tau[k]
+      vs.append(v)
+    if self.rank > 0:
+      _send(v, self.rank - 1)
+    return vs    # right-to-left: vs[i] is w at point n - i*cfactor
 
   def backward(self, w_end=None):
     """w_end: dL/dy at t=Tf (given on the last rank). Accumulates parameter
@@ -308,26 +350,30 @@ class MGRIT2Solver:
 
     w = [None] * (n + 1)
 
-    # adjoint coarse relay, right to left (the only backward iteration:
-    # bwd_iters=1 with skip-downcycle has no restriction phase)
-    if self.rank == self.nprocs - 1:
-      v = w_end.detach()
-    else:
-      v = self._recv(self.rank + 1)
-    w[n] = v
-    for k in reversed(range(K)):
-      # vjp through the graph pre-built in forward(); only the backward pass
-      # sits on the serial relay chain (no parameter grads, like _coarse_vjp)
-      xk, yk = self.coarse_graphs[k]
-      v = torch.autograd.grad(yk, xk, v)[0]
-      w[k * m] = v
-    if self.rank > 0:
-      _send(v, self.rank - 1)
-    self.coarse_graphs = []
+    # the adjoint problem gets the same MGRIT cycles as the forward solve
+    # (skip-downcycle: the first cycle has no restriction phase)
+    for it in range(self.bwd_iters):
+      if it == 0:
+        tau = None
+      else:
+        tau = []
+        for k in reversed(range(K)):
+          # adjoint FAS residual for interval k: fine adjoint chain minus
+          # coarse adjoint step, both applied to the current right C-value
+          chain = self._adjoint_fine_vjp(k * m, w[k * m + 1])
+          tau.append(chain - self._adjoint_coarse_vjp(k, w[(k + 1) * m]))
+        tau.reverse()
+      vs = self._adjoint_coarse_relay(w_end, tau)
+      for k in range(K + 1):
+        w[n - k * m] = vs[k]
+      # the last iteration's adjoint F-relax is recomputed identically by the
+      # final accumulation sweep below
+      if it < self.bwd_iters - 1:
+        self._adjoint_frelax(w)
 
     # final adjoint FC-relaxation with parameter gradients: each owned layer's
     # recorded graph is backpropped exactly once (F-points right-to-left within
-    # each interval, then the C-point step)
+    # each interval, then the C-point step); the last use frees the graphs
     for k in range(K):
       base = k * m
       wn = w[base + m]                          # adjoint C-point (relay value)
@@ -343,6 +389,7 @@ class MGRIT2Solver:
       x.grad = None
 
     self.graphs = {}
+    self.coarse_graphs = []
     return w[0] if self.rank == 0 else None
 
 
@@ -354,6 +401,8 @@ class _MGRITFunction(torch.autograd.Function):
   @staticmethod
   def forward(ctx, module, x, *params):
     solver = module.solver
+    # in eval mode, skip graph recording and adjoint preparation entirely
+    solver.record_adjoint = module.training
     y = solver.forward(x)
 
     # make the final state available on every rank so loss computation (and
@@ -364,15 +413,25 @@ class _MGRITFunction(torch.autograd.Function):
       dist.broadcast(y, src=solver.nprocs - 1)
 
     ctx.module = module
+    ctx.x_shape = tuple(x.shape)
     return y
 
   @staticmethod
   def backward(ctx, grad_output):
     solver = ctx.module.solver
+    assert solver.graphs, 'backward called on a forward pass run in eval mode'
 
     # the adjoint accumulates into p.grad via torch.autograd.backward; hand
     # the results to the autograd engine instead (it does the accumulation)
     grad_x = solver.backward(grad_output)
+
+    # dL/dx0 lands on rank 0; share it so replicated serial layers upstream
+    # (e.g. an opening layer built identically on every rank) receive the
+    # same gradient everywhere and stay in sync under identical optimizers
+    if solver.nprocs > 1 and ctx.needs_input_grad[1]:
+      if grad_x is None:
+        grad_x = torch.empty(ctx.x_shape, device=solver.device)
+      dist.broadcast(grad_x, src=0)
 
     grads = []
     for p in ctx.module.solver_params:

@@ -54,14 +54,14 @@ class TestTorchMGRIT(unittest.TestCase):
     torch.manual_seed(1234)
     return torch.randn(BATCH, CHANNELS, IMG, IMG)
 
-  def _run_layer_parallel(self, comm, x):
+  def _run_layer_parallel(self, comm, x, bwd_iters=BWD_ITERS):
     rank, nprocs = comm.Get_rank(), comm.Get_size()
     LAYER_COUNTER[0] = xbraid_start_layer(STEPS, nprocs, rank)
     model = torchbraid.LayerParallel(comm, StepLayer, STEPS, TF,
                                      max_fwd_levels=2, max_bwd_levels=2,
                                      max_iters=FWD_ITERS)
     model.setFwdMaxIters(FWD_ITERS)
-    model.setBwdMaxIters(BWD_ITERS)
+    model.setBwdMaxIters(bwd_iters)
     model.setPrintLevel(0)
     model.setCFactor(CFACTOR)
     model.setSkipDowncycle(True)
@@ -80,11 +80,11 @@ class TestTorchMGRIT(unittest.TestCase):
     loss_val = comm.bcast(loss.item() if rank == 0 else None, root=0)
     return loss_val, total_sq**0.5
 
-  def _run_torch_mgrit(self, comm, x):
+  def _run_torch_mgrit(self, comm, x, bwd_iters=BWD_ITERS):
     rank, nprocs = comm.Get_rank(), comm.Get_size()
     LAYER_COUNTER[0] = rank * (STEPS // nprocs)
     model = TorchMGRIT(comm, StepLayer, STEPS, TF, cfactor=CFACTOR,
-                       fwd_iters=FWD_ITERS, bwd_iters=BWD_ITERS,
+                       fwd_iters=FWD_ITERS, bwd_iters=bwd_iters,
                        device=torch.device('cpu'))
     y = model(x)
     loss = y.square().mean()
@@ -106,6 +106,18 @@ class TestTorchMGRIT(unittest.TestCase):
     mg_loss, mg_gnorm = self._run_torch_mgrit(comm, x)
 
     self.assertGreater(lp_loss, 0.0)
+    self.assertGreater(lp_gnorm, 0.0)
+    self.assertAlmostEqual(mg_loss / lp_loss, 1.0, places=5)
+    self.assertAlmostEqual(mg_gnorm / lp_gnorm, 1.0, places=3)
+
+  def test_parity_bwd_iters_2(self):
+    """Two backward iterations exercise the adjoint tau restriction."""
+    comm = MPI.COMM_WORLD
+    x = self._input()
+
+    lp_loss, lp_gnorm = self._run_layer_parallel(comm, x, bwd_iters=2)
+    mg_loss, mg_gnorm = self._run_torch_mgrit(comm, x, bwd_iters=2)
+
     self.assertGreater(lp_gnorm, 0.0)
     self.assertAlmostEqual(mg_loss / lp_loss, 1.0, places=5)
     self.assertAlmostEqual(mg_gnorm / lp_gnorm, 1.0, places=3)
