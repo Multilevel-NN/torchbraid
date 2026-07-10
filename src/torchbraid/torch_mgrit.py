@@ -91,7 +91,7 @@ class MGRIT2Solver:
   reproduces XBraid's drive loop for skip=1, nrelax(0)=0, finalFCrelax=1."""
 
   def __init__(self, layers, rank, nprocs, local_steps, Tf, cfactor,
-               fwd_iters, bwd_iters, device, levels=2):
+               fwd_iters, bwd_iters, device, levels=2, coarse_replicas=None):
     assert levels in (1, 2)
     assert fwd_iters >= 1
     assert bwd_iters == 1, 'adjoint tau restriction not implemented'
@@ -113,6 +113,10 @@ class MGRIT2Solver:
     self.graphs = {}                    # local step j -> (x, y) recorded pair
     self.coarse_graphs = []             # per-interval coarse-propagator graphs
     self.u = None                       # fine state, indices 0..n (0 = left boundary)
+    # replica modules of every OTHER rank's coarse-point layers; when present,
+    # the first (tau-free) coarse solve runs replicated on every rank instead
+    # of as a serial cross-rank relay (identical arithmetic, no hop chain)
+    self.coarse_replicas = coarse_replicas
 
   # ---- elementary operations ----------------------------------------------
 
@@ -166,6 +170,53 @@ class MGRIT2Solver:
       _send(v, self.rank + 1)
     return vs
 
+  def _coarse_solve_replicated(self, x0):
+    """Tau-free coarse solve computed redundantly on every rank: gather the
+    coarse-point layer parameters (small) plus x0, then integrate the coarse
+    grid locally up to this rank's segment. Removes the (ranks-1)-hop serial
+    latency chain of the relay at the cost of redundant coarse compute; the
+    arithmetic sequence is identical to the relay's, so results are bit-equal."""
+    K, m = self.K, self.m
+
+    # everyone needs rank 0's input (module contract: values come from rank 0)
+    v = x0.detach()
+    if self.rank != 0:
+      v = torch.empty(self.state_shape, device=self.device)
+    dist.broadcast(v, src=0)
+
+    # gather the current parameters of every rank's coarse-point layers into
+    # the local replicas (all coarse layers share one architecture, so the
+    # flattened per-rank chunks are equal-sized)
+    own = torch.cat([p.detach().flatten()
+                     for k in range(K) for p in self.layers[k * m].parameters()])
+    chunks = [torch.empty_like(own) for _ in range(self.nprocs)]
+    dist.all_gather(chunks, own)
+    with torch.no_grad():
+      for r, chunk in enumerate(chunks):
+        if r == self.rank:
+          continue
+        off = 0
+        for k in range(K):
+          for p in self.coarse_replicas[r * K + k].parameters():
+            p.copy_(chunk[off:off + p.numel()].view_as(p))
+            off += p.numel()
+
+    # integrate the coarse grid locally through the end of this rank's
+    # segment, keeping the K+1 values of the own segment (entry + C-points)
+    vs = []
+    with torch.no_grad():
+      for g in range((self.rank + 1) * K):
+        if g == self.rank * K:
+          vs.append(v)                       # entry value of the own segment
+        if g // K == self.rank:
+          layer = self.layers[(g % K) * m]
+        else:
+          layer = self.coarse_replicas[g]
+        v = v + (m * self.dt) * layer(v)
+        if g >= self.rank * K:
+          vs.append(v)
+    return vs
+
   # ---- forward solve ---------------------------------------------------------
 
   def forward(self, x0):
@@ -194,7 +245,10 @@ class MGRIT2Solver:
           for k in range(K):
             chi = self._fine_step(k * m + m - 1, u[k * m + m - 1])
             tau.append(chi - self._coarse_step(k, u[k * m]))
-      vs = self._coarse_relay_fwd(x0, tau)
+      if tau is None and self.coarse_replicas is not None:
+        vs = self._coarse_solve_replicated(x0)
+      else:
+        vs = self._coarse_relay_fwd(x0, tau)
       for k in range(K + 1):
         u[k * m] = vs[k]
       # the last iteration's F-relax is recomputed identically by the
@@ -340,7 +394,8 @@ class TorchMGRIT(nn.Module):
   """
 
   def __init__(self, comm, layer_block, global_steps, Tf, cfactor=4,
-               fwd_iters=2, bwd_iters=1, levels=2, device=None):
+               fwd_iters=2, bwd_iters=1, levels=2, device=None,
+               replicate_coarse=True):
     super().__init__()
     rank, nprocs = comm.Get_rank(), comm.Get_size()
     assert global_steps % nprocs == 0, 'global steps must be divisible by ranks'
@@ -358,9 +413,28 @@ class TorchMGRIT(nn.Module):
     self.comm = comm
     self.local_layers = nn.ModuleList(
         [layer_block().to(device) for _ in range(local_steps)])
+
+    # replicas of every rank's coarse-point layers let the first coarse solve
+    # run locally on each rank instead of as a serial relay chain. Plain list,
+    # NOT a ModuleList: the replicas mirror other ranks' parameters and must
+    # stay invisible to parameters()/optimizers. Layers with buffers (e.g.
+    # batchnorm) are not mirrored by the parameter gather, so fall back.
+    coarse_replicas = None
+    if (replicate_coarse and levels == 2 and nprocs > 1
+        and len(list(self.local_layers[0].buffers())) == 0):
+      K = local_steps // cfactor
+      coarse_replicas = []
+      for g in range(nprocs * K):
+        if g // K == rank:
+          coarse_replicas.append(None)      # own layer used directly
+        else:
+          replica = layer_block().to(device).requires_grad_(False)
+          coarse_replicas.append(replica)
+
     self.solver = MGRIT2Solver(list(self.local_layers), rank, nprocs,
                                local_steps, Tf, cfactor, fwd_iters, bwd_iters,
-                               device, levels=levels)
+                               device, levels=levels,
+                               coarse_replicas=coarse_replicas)
     self.solver_params = [p for l in self.local_layers for p in l.parameters()]
 
   def forward(self, x):
