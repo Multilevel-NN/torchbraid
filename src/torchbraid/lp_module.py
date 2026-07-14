@@ -185,6 +185,14 @@ class LPModule(nn.Module):
   def setBwdCFactor(self,cfactor):
     self.bwd_app.setCFactor(cfactor)
 
+  def setCommDtype(self,dtype):
+    """
+    Reduced-precision MPI wire format (e.g. torch.bfloat16) for both the
+    forward and backward solves. GPU only; compute precision is unchanged.
+    """
+    self.fwd_app.setCommDtype(dtype)
+    self.bwd_app.setCommDtype(dtype)
+
   def setFwdResidualCompute(self,residual_compute):
     self.fwd_app.setResidualCompute(residual_compute)
 

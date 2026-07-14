@@ -434,7 +434,10 @@ class ForwardODENetApp(BraidApp):
   def beginUpdateWeights(self):
     with self.timer("beginUpdateWeights"):
       if self.use_cuda:
-        torch.cuda.synchronize()
+        # weights are mutated on the current stream (optimizer); MPI is not
+        # stream aware so the sends need them complete, but other streams
+        # need not be drained
+        torch.cuda.current_stream().synchronize()
 
       # don't recommunicate the layer parameters
       if self.requests is None:
@@ -460,8 +463,7 @@ class ForwardODENetApp(BraidApp):
     self.extra_args = extra_args
     self.extra_kwargs = extra_kwargs
 
-    # run the braid solver
-    self.getMPIComm().Barrier()
+    # run the braid solver (braid handles its own synchronization, no barrier needed)
     with self.timer("runBraid"):
 
       y = self.runBraid(x)
@@ -554,7 +556,6 @@ class ForwardODENetApp(BraidApp):
         t_x = self.spatial_coarsen(t_x, l)
 
     x = t_x.detach()
-    y = t_x.detach().clone()
 
     self.layers_data_structure.updateLayerDoneFlag(level==0 and done)
 
@@ -648,20 +649,19 @@ class BackwardODENetApp(BraidApp):
       # preserve the layerwise structure, to ease communication
       # - note the prection of the 'None' case, this is so that individual layers
       # - can have gradient's turned off
+      # the gradient tensors are handed off to the caller (not cloned), so
+      # detach them from the parameters rather than zeroing them
       for sublist in self.fwd_app.parameters():
-        sub_gradlist = [] 
+        sub_gradlist = []
         for item in sublist:
           if item.grad is not None:
-            sub_gradlist += [ item.grad.clone() ] 
+            sub_gradlist += [ item.grad ]
+            item.grad = None
           else:
             sub_gradlist += [ None ]
 
         self.grads += [ sub_gradlist ]
       # end for sublist
-
-      for l in self.fwd_app.layer_models:
-         if l==None: continue
-         l.zero_grad()
 
     except:
       print('\n**** Torchbraid Internal Exception ****\n')
@@ -741,7 +741,10 @@ class BackwardODENetApp(BraidApp):
         # this little bit of pytorch magic ensures the gradient isn't
         # stored too long in this calculation (in particulcar setting
         # the grad to None after saving it and returning it to braid)
-        w.replaceTensor(t_x.grad.detach().clone()) 
+        # detaching the grad from t_x hands sole ownership to the braid
+        # vector, so no clone is needed (autograd allocates a fresh .grad
+        # on the next backward)
+        w.replaceTensor(t_x.grad.detach())
         t_x.grad = None
 
         for p,s in zip(layer.parameters(),required_grad_state):

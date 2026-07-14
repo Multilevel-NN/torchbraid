@@ -50,6 +50,12 @@ from cython cimport view
 
 __float_alloc_type__ = torch.float32
 
+def comm_dtype(pyApp):
+  """MPI wire dtype for GPU buffers. Reduced precision (e.g. torch.bfloat16,
+     set via BraidApp.setCommDtype) halves the per-hop communication cost."""
+  dt = getattr(pyApp, 'comm_dtype', None)
+  return dt if dt is not None else __float_alloc_type__
+
 def output_exception(label):
   s = traceback.format_exc()
   print('\n**** Torchbraid Callbacks::{} Exception ****\n{}'.format(label,s))
@@ -106,8 +112,9 @@ cdef int my_step(braid_App app, braid_Vector ustop, braid_Vector fstop, braid_Ve
       # modify the state vector in place
       pyApp.eval(u,tstart,tstop,level,done)
 
-      # store final step
-      if level==0 and tstop==pyApp.Tf:
+      # store final step (only the done pass matters, the final FC-relax
+      # guarantees one; cloning on every fine pass wastes a state copy)
+      if level==0 and done and tstop==pyApp.Tf:
         pyApp.x_final = u.clone()
       pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time()-pyApp.start_time, method=f'my_step_{level}')
   except:
@@ -133,7 +140,7 @@ cdef int my_init(braid_App app, double t, braid_Vector *u_ptr):
 
       # finish the step computation
       if pyApp.use_cuda:
-        torch.cuda.synchronize()
+        torch.cuda.current_stream().synchronize()
     pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time() - pyApp.start_time, method=f'my_init')
   except:
     output_exception("my_init")
@@ -232,7 +239,7 @@ cdef int my_bufsize(braid_App app, int *size_ptr, braid_BufferStatus status):
     start = time.time() - pyApp.start_time
     float_type = float # on CPU
     if pyApp.user_mpi_buf:
-      float_type = __float_alloc_type__ # on CUDA
+      float_type = comm_dtype(pyApp) # on CUDA
     with pyApp.timer("bufsize"):
       shapes = pyApp.getFeatureShapes(tidx,level) + pyApp.getParameterShapes(tidx,level)
 
@@ -311,8 +318,9 @@ cdef int my_bufpack_cuda(braid_App app, braid_Vector u, void *buffer,int tidx, i
         app_buffer[start:start + size] = flat
         start += size
 
-      # finish the data movement
-      torch.cuda.synchronize()
+      # finish the data movement (only the stream carrying the copies,
+      # a device-wide synchronize stalls unrelated streams)
+      torch.cuda.current_stream().synchronize()
 
   except:
     output_exception(f"my_bufpack_cuda: time index = {tidx}, level = {level}")
@@ -345,7 +353,12 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,int 
   try:
     pyApp = <object> app
     with pyApp.timer("bufunpack"):
-      strm = torch.cuda.Stream(device=pyApp.device)
+      # cache the stream on the app: stream creation per call is expensive
+      strm = getattr(pyApp, 'unpack_stream', None)
+      if strm is None:
+        strm = torch.cuda.Stream(device=pyApp.device)
+        pyApp.unpack_stream = strm
+      strm.wait_stream(torch.cuda.current_stream())
       with torch.cuda.stream(strm):
         addr = <uintptr_t> buffer
         app_buffer = pyApp.getBuffer(addr = addr)
@@ -357,13 +370,15 @@ cdef int my_bufunpack_cuda(braid_App app, void *buffer, braid_Vector *u_ptr,int 
         start = 0
         for s in size_vt:
           size = s.numel()
-          vt.append(torch.reshape(app_buffer[start:start+size].detach().clone(), s))
+          # copy out of the MPI buffer, casting back to the compute dtype if
+          # a reduced-precision wire format is in use
+          vt.append(torch.reshape(app_buffer[start:start+size].detach().to(dtype=__float_alloc_type__, copy=True), s))
           start += size
-  
+
         wt = []
         for s in size_wt:
           size = s.numel()
-          wt.append(torch.reshape(app_buffer[start:start+size].detach().clone(), s))
+          wt.append(torch.reshape(app_buffer[start:start+size].detach().to(dtype=__float_alloc_type__, copy=True), s))
           start += size
   
         u_obj = BraidVector(tensor = vt, send_flag = True)
@@ -466,15 +481,13 @@ cdef int my_bufalloc(braid_App app, void **buffer, int nbytes, braid_BufferStatu
   with pyApp.timer("bufalloc"):
     if pyApp.use_cuda:
       # convert nbytes to number of elements
-      elements = math.ceil(nbytes / get_bytes(__float_alloc_type__))
+      buf_dtype = comm_dtype(pyApp)
+      elements = math.ceil(nbytes / get_bytes(buf_dtype))
 
-      strm = torch.cuda.Stream(device=pyApp.device)
-      with torch.cuda.stream(strm):
-        addr = pyApp.addBufferEntry(tensor=torch.empty(elements, dtype=__float_alloc_type__, device=pyApp.device))
+      # allocation queues no work, so no dedicated stream or sync is needed
+      addr = pyApp.addBufferEntry(tensor=torch.empty(elements, dtype=buf_dtype, device=pyApp.device))
 
-        buffer[0]=<void *> addr
-
-      strm.synchronize()
+      buffer[0]=<void *> addr
     else:
       buffer[0] = malloc(nbytes)
   pyApp.printRuntimeFuncCall(t_start=start, t_stop=time.time() - pyApp.start_time, method=f'my_bufalloc')

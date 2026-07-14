@@ -140,6 +140,8 @@ class BraidApp:
 
     self.device = None
     self.use_cuda = False
+    self.unpack_stream = None
+    self.comm_dtype = None
   # end __init__
 
   def getNumSteps(self):
@@ -442,6 +444,9 @@ class BraidApp:
     if self.use_cuda:
       self.user_mpi_buf = True
       braid_SetBufAllocFree(core, b_bufalloc, b_buffree)
+      if self.unpack_stream is None:
+        # cached stream used by bufunpack; creating one per call is expensive
+        self.unpack_stream = torch.cuda.Stream(device=self.device)
 
   def buildLayersSendList(self):
     """
@@ -643,9 +648,10 @@ class BraidApp:
     except:
       output_exception('runBraid')
 
-    # make sure all the computationas are completed
-    if torch.cuda.is_available():
-      torch.cuda.synchronize()
+    # make sure all the computations queued by this solve are completed
+    # (current stream only: a device-wide synchronize stalls unrelated streams)
+    if self.use_cuda:
+      torch.cuda.current_stream().synchronize()
     self.printRuntimeFuncCall(t_start=start, t_stop=time.time() - self.start_time, method='runBraid')
     return fin
 
@@ -727,6 +733,17 @@ class BraidApp:
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetCRelaxWt(core, -1, CWt)
 
+  def setCommDtype(self, dtype):
+    """
+    Set a reduced-precision wire format (e.g. torch.bfloat16) for the MPI
+    buffers exchanged between ranks. Only used on the GPU (CUDA) path.
+    States are packed with a cast to this dtype and cast back to float32 on
+    unpack, halving the per-message communication cost at the expense of
+    message precision. The compute precision is unchanged. Pass None to
+    restore full-precision messages.
+    """
+    self.comm_dtype = dtype
+
   def setRelaxOnlyCG(self, flag):
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetRelaxOnlyCG(core, flag)
@@ -743,6 +760,15 @@ class BraidApp:
   def setBraidTimers(self, flag):
     core = (<PyBraid_Core> self.py_core).getCore()
     braid_SetTimings(core, flag)
+
+  def printBraidTimers(self):
+    """
+    Write XBraid's internal timers (MPI wait, coarse solve, user routines)
+    to the file set by setTimerFile, one file per rank. Requires
+    setBraidTimers(2) before the solve.
+    """
+    core = (<PyBraid_Core> self.py_core).getCore()
+    braid_PrintTimers(core)
 
   def setSkipDowncycle(self,skip):
     if skip:

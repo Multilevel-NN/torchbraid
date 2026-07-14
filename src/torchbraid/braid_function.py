@@ -118,7 +118,7 @@ class BraidFunction(torch.autograd.Function):
     if num_ranks>1:
       if my_rank==0:
         if ctx.fwd_app.use_cuda:
-          torch.cuda.synchronize()
+          torch.cuda.current_stream().synchronize()
         req = comm.Isend(grad_output,dest=num_ranks-1)
         req.Wait()
       elif my_rank==num_ranks-1: 
