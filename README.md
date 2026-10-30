@@ -170,6 +170,10 @@ with a description of the MPI implementation and version, CUDA version, and the 
 
 [Link to the Make instructions](MAKEINSTRUCTIONS.md)
 
+## Build TorchBraid: CMake
+
+[Link to the CMake instructions](CMAKEINSTRUCTIONS.md)
+
 ## Publications
 
 1. Cyr, Eric C., Jens Hahne, Nicholas S. Moore, Jacob B. Schroder, Ben S. Southworth, and David A. Vargas. "TorchBraid: High-Performance Layer-Parallel Training of Deep Neural Networks with MPI and GPU Acceleration." ACM Transactions on Mathematical Software (2025). [Link](https://doi.org/10.1145/3759244)
