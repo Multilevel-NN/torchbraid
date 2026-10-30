@@ -37,13 +37,7 @@ class myMake(build_ext):
     print('building xbraid...')
     subprocess.check_call(['make', 'debug=no', 'braid'], cwd='./src/xbraid')
 
-
-braid_sources = ['access.c', 'adjoint.c', 'base.c', 'braid.c', 'braid_status.c',
-                 'braid_test.c', 'communication.c', 'distribution.c', 'drive.c',
-                 'grid.c', 'hierarchy.c', 'interp.c', 'mpistubs.c', 'norm.c', 'refine.c',
-                 'relax.c', 'residual.c', 'restrict.c', 'space.c', 'step.c', 'tape.c',
-                 'util.c', 'uvector.c']
-braid_sources = ['src/xbraid/braid/' + item for item in braid_sources]
+braid_sources = []
 
 extension = [Extension(
   name="torchbraid.torchbraid_app",
