@@ -54,3 +54,5 @@ examples/mnist/mnist_layerparallel_training.png
 examples/mnist/mnist_layerparallel_dataparallel_training_*.png
 examples/UCI_HAR_Recurrent/UCI\ HAR\ Dataset/
 examples/UCI_HAR_Recurrent/UCI-HAR_layerparallel_training.png
+
+src/torchbraid/test_fixtures/gpumpi_check.c
