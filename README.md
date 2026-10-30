@@ -47,9 +47,9 @@ For testing see [Run Unit Tests](#run-unit-tests)
 
 ## Run Unit Tests
 
-  * Make
+  * CMake (see [CMake instructions](CMAKEINSTRUCTIONS.md#run-unit-tests))
 
-    `make tests tests-serial`
+    `ctest --test-dir build/cmake --output-on-failure`
 
   * TOX (may need to install tox)  
   `tox`
@@ -81,7 +81,9 @@ your system supports CUDA-aware MPI is to execute the command
 This command returns a string with true or false at the end. However, in our experiments, it was not always sufficient 
 to check that this value is true. One way to test whether direct GPU communication works on your system is to run:
 
-`make tests-direct-gpu`
+`mpirun -n 2 python tests/test_gpu_direct_commu.py`
+
+or, with a CMake build configured with `-DTORCHBRAID_ENABLE_GPU_TESTS=ON`, `ctest --test-dir build/cmake -L gpu -V`.
 
 If the test works, your MPI version supports direct GPU communication. You should see output that looks like (note
 that the output header that tries to explain how the test result should be interpreted).
@@ -165,10 +167,6 @@ We also check the `MPIX_Query_cuda_support` command available in most MPI librar
 possible, due to the range of implementations, that the script will raise a seg fault
 if the GPU direct communication is not supported. If such a case arises, then feel free to reach out
 with a description of the MPI implementation and version, CUDA version, and the platform being run on.
-
-## Build TorchBraid: Makefile (advanced):
-
-[Link to the Make instructions](MAKEINSTRUCTIONS.md)
 
 ## Build TorchBraid: CMake
 

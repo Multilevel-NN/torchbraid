@@ -1,7 +1,7 @@
 # Building with CMake
 
-TorchBraid can also be built with CMake. This is independent of the [PIP Install](README.md#build-torchbraid-pip-recommended)
-and the [Make build](MAKEINSTRUCTIONS.md): all generated files (Cython C sources, the XBraid library, and the
+TorchBraid can also be built with CMake. This is independent of the [PIP Install](README.md#build-torchbraid-pip-recommended):
+all generated files (Cython C sources, the XBraid library, and the
 compiled extensions) go into the build directory, and nothing is written into `src/`.
 
 ## Requirements:

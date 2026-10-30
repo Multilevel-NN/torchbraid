@@ -2,9 +2,9 @@ cmake_minimum_required(VERSION 3.18)
 
 project(torchbraid VERSION 0.1 LANGUAGES C)
 
-# A CMake build path for TorchBraid, independent of the pip (setup.py) and
-# make (makefile.inc) paths. Everything is written to the build tree; nothing
-# is generated inside src/. See CMAKEINSTRUCTIONS.md.
+# A CMake build path for TorchBraid, independent of the pip (setup.py) path.
+# Everything is written to the build tree; nothing is generated inside src/.
+# See CMAKEINSTRUCTIONS.md.
 
 option(TORCHBRAID_ENABLE_TESTS     "Register the unit tests with CTest"                  ON)
 option(TORCHBRAID_ENABLE_GPU_TESTS "Register the GPU-direct MPI test with CTest"         OFF)
@@ -157,13 +157,11 @@ endif()
 set(TORCHBRAID_SOURCE_ROOT "${PROJECT_SOURCE_DIR}/src")
 set(TORCHBRAID_PYTHON_DIR  "${PROJECT_BINARY_DIR}/python")
 
-# The legacy distutils setup.py files belong to the make path and are not part of the package
 file(GLOB_RECURSE package_files CONFIGURE_DEPENDS RELATIVE "${TORCHBRAID_SOURCE_ROOT}"
   "${TORCHBRAID_SOURCE_ROOT}/torchbraid/*.py"
   "${TORCHBRAID_SOURCE_ROOT}/torchbraid/*.pyx"
   "${TORCHBRAID_SOURCE_ROOT}/torchbraid/*.pxd"
   "${TORCHBRAID_SOURCE_ROOT}/torchbraid/*.h")
-list(FILTER package_files EXCLUDE REGEX "(^|/)setup\\.py$")
 
 set(staged_files)
 foreach(file IN LISTS package_files)
@@ -240,7 +238,7 @@ install(DIRECTORY "${TORCHBRAID_PYTHON_DIR}/torchbraid"
         PATTERN "__pycache__" EXCLUDE)
 
 ######################################################################
-# Tests (mirrors tests/Makefile and tox.ini)
+# Tests (mirrors tox.ini, with the MPI tests also run on 1 rank)
 ######################################################################
 
 if(TORCHBRAID_ENABLE_TESTS)
