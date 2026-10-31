@@ -1,4 +1,0 @@
-recursive-include src *.h
-recursive-include src *.a
-recursive-include src *.pyx
-recursive-include src *.pxd

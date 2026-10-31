@@ -1,3 +1,28 @@
 [build-system]
-requires = ["setuptools","mpi4py","cython>=0.29.32","numpy","torch>=2.0.1"]
-build-backend = "setuptools.build_meta"
+requires = ["scikit-build-core>=0.10", "cython>=0.29.32", "numpy", "mpi4py"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "torchbraid"
+version = "0.1"
+description = "Layer parallel training of deep neural networks"
+readme = "README.md"
+authors = [{ name = "Eric C. Cyr", email = "eccyr@sandia.gov" }]
+requires-python = ">=3.8"
+dependencies = [
+  "mpi4py",
+  "numpy",
+  "torch>=2.0.1",
+  "torchvision>=0.15.2",
+  "matplotlib",
+]
+
+[tool.scikit-build]
+# The build is CMakeLists.txt; options are passed through with, e.g.,
+#   pip install . -C cmake.define.TORCHBRAID_XBRAID_ROOT=/path/to/xbraid/braid
+# See CMAKEINSTRUCTIONS.md for the available options.
+minimum-version = "build-system.requires"
+# keep the CMake build tree between installs (build/ is gitignored)
+build-dir = "build/{wheel_tag}"
+# the python sources come from here; CMake installs the compiled extensions
+wheel.packages = ["src/torchbraid"]

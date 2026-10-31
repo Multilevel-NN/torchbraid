@@ -2,11 +2,17 @@ cmake_minimum_required(VERSION 3.18)
 
 project(torchbraid VERSION 0.1 LANGUAGES C)
 
-# A CMake build path for TorchBraid, independent of the pip (setup.py) path.
-# Everything is written to the build tree; nothing is generated inside src/.
+# The TorchBraid build. It is used directly with cmake, and by pip through
+# scikit-build-core (see pyproject.toml), which sets SKBUILD. Everything is
+# written to the build tree; nothing is generated inside src/.
 # See CMAKEINSTRUCTIONS.md.
 
-option(TORCHBRAID_ENABLE_TESTS     "Register the unit tests with CTest"                  ON)
+if(SKBUILD)
+  set(tests_default OFF)
+else()
+  set(tests_default ON)
+endif()
+option(TORCHBRAID_ENABLE_TESTS     "Register the unit tests with CTest"                  ${tests_default})
 option(TORCHBRAID_ENABLE_GPU_TESTS "Register the GPU-direct MPI test with CTest"         OFF)
 
 set(TORCHBRAID_XBRAID_ROOT "" CACHE PATH
@@ -36,7 +42,7 @@ include(GNUInstallDirs)
 ######################################################################
 
 find_package(MPI REQUIRED COMPONENTS C)
-find_package(Python 3.7 REQUIRED COMPONENTS Interpreter Development.Module NumPy)
+find_package(Python 3.8 REQUIRED COMPONENTS Interpreter Development.Module NumPy)
 
 function(torchbraid_python_query out_var code what)
   execute_process(
@@ -219,6 +225,11 @@ function(torchbraid_add_extension module)
     target_link_libraries(${target} PRIVATE xbraid)
   endif()
   add_dependencies(${target} torchbraid_python)
+
+  if(SKBUILD)
+    # pip build: the python sources come from wheel.packages in pyproject.toml
+    install(TARGETS ${target} LIBRARY DESTINATION "${module_dir}")
+  endif()
 endfunction()
 
 torchbraid_add_extension(torchbraid.torchbraid_app LINK_XBRAID)
@@ -229,13 +240,16 @@ torchbraid_add_extension(torchbraid.test_fixtures.gpumpi_check)
 # Install
 ######################################################################
 
-set(TORCHBRAID_INSTALL_PYTHONDIR
-    "${CMAKE_INSTALL_LIBDIR}/python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}/site-packages"
-    CACHE PATH "Directory (relative to CMAKE_INSTALL_PREFIX, or absolute) where the torchbraid package is installed")
+# pip builds install the extensions into the wheel in torchbraid_add_extension
+if(NOT SKBUILD)
+  set(TORCHBRAID_INSTALL_PYTHONDIR
+      "${CMAKE_INSTALL_LIBDIR}/python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}/site-packages"
+      CACHE PATH "Directory (relative to CMAKE_INSTALL_PREFIX, or absolute) where the torchbraid package is installed")
 
-install(DIRECTORY "${TORCHBRAID_PYTHON_DIR}/torchbraid"
-        DESTINATION "${TORCHBRAID_INSTALL_PYTHONDIR}"
-        PATTERN "__pycache__" EXCLUDE)
+  install(DIRECTORY "${TORCHBRAID_PYTHON_DIR}/torchbraid"
+          DESTINATION "${TORCHBRAID_INSTALL_PYTHONDIR}"
+          PATTERN "__pycache__" EXCLUDE)
+endif()
 
 ######################################################################
 # Tests (mirrors tox.ini, with the MPI tests also run on 1 rank)

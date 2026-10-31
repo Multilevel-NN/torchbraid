@@ -31,6 +31,15 @@ see [GPU Direct Communication](#gpu-direct-communication).
     `pip install git+ssh://git@github.com/Multilevel-NN/TorchBraid.git`  
     or the HTTP equivalent.
 
+    The pip install runs the CMake build (through scikit-build-core), which needs an MPI
+    compiler; CMake itself is downloaded if a recent enough version is not found. Build options
+    are passed through with `-C cmake.define.<OPTION>=<value>`. By default XBraid is built from source; to use
+    an XBraid you have already built, point at the directory containing `braid.h` and `libbraid.a`:  
+    `pip install . -C cmake.define.TORCHBRAID_XBRAID_ROOT=/path/to/xbraid/braid`  
+    Options are remembered in pip's build directory (`build/<wheel tag>`) for later installs; see
+    [Using a prebuilt XBraid](CMAKEINSTRUCTIONS.md#using-a-prebuilt-xbraid) for details and the
+    [CMake instructions](CMAKEINSTRUCTIONS.md#options) for all options.
+
   1. Test the installation: See [Run Unit Tests](#run-unit-tests)
 
 ## Build TorchBraid: Conda
