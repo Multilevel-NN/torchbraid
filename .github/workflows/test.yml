@@ -10,7 +10,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-24.04]
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.12", "3.13", "3.14"]
         include:
           - os: ubuntu-26.04
             python-version: "3.14"
@@ -34,14 +34,39 @@ jobs:
           restore-keys: |
             ${{ matrix.os }}-pip-
       - name: Install dependencies
-        if: ${{ matrix.python-version != '3.14' }}
         run: |
           pip install .
           pip install tox
           pip install tox-direct
 
+      - name: Test with tox / nose
+        run: |
+          tox --direct
+
+  spackiepath:
+    name: SpackiePath (Python 3.14)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install openmpi
+        run: sudo apt update && sudo apt install -y openmpi-bin libopenmpi-dev
+
+      - name: Cache pip
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip # This path is specific to Ubuntu
+          key: ubuntu-24.04-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ubuntu-24.04-pip-
+
       - name: Install with SpackiePath
-        if: ${{ matrix.python-version == '3.14' }}
         shell: bash
         run: |
           pip install scikit-build-core cython numpy mpi4py torch torchvision matplotlib
@@ -54,13 +79,7 @@ jobs:
           pip install scikit-build-core cython numpy mpi4py torch torchvision matplotlib tox tox-direct
           SKBUILD_CMAKE_DEFINE="TORCHBRAID_SPACKIEPATH_PREFIX=${RUNNER_TEMP}/torchbraid-spackiepath-prefix" pip install "${GITHUB_WORKSPACE}" --no-build-isolation
 
-      - name: Test with tox / nose
-        if: ${{ matrix.python-version != '3.14' }}
-        run: |
-          tox --direct
-
       - name: Test with tox / nose via SpackiePath
-        if: ${{ matrix.python-version == '3.14' }}
         shell: bash
         run: |
           source "${RUNNER_TEMP}/torchbraid-spackiepath-venv/bin/activate"
