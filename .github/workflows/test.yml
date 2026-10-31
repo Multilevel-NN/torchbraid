@@ -34,11 +34,34 @@ jobs:
           restore-keys: |
             ${{ matrix.os }}-pip-
       - name: Install dependencies
+        if: ${{ matrix.python-version != '3.14' }}
         run: |
           pip install .
           pip install tox
           pip install tox-direct
 
-      - name: Test with tox / nose
+      - name: Install with SpackiePath
+        if: ${{ matrix.python-version == '3.14' }}
+        shell: bash
         run: |
+          pip install scikit-build-core cython numpy mpi4py torch torchvision matplotlib
+          cmake -S . -B build/spackiepath -DPython_EXECUTABLE="$(python -c 'import sys; print(sys.executable)')"
+          cmake --build build/spackiepath -j
+          cmake --install build/spackiepath --prefix "${RUNNER_TEMP}/torchbraid-spackiepath-prefix"
+          python -m venv "${RUNNER_TEMP}/torchbraid-spackiepath-venv"
+          source "${RUNNER_TEMP}/torchbraid-spackiepath-venv/bin/activate"
+          pip install --upgrade pip
+          pip install scikit-build-core cython numpy mpi4py torch torchvision matplotlib tox tox-direct
+          SKBUILD_CMAKE_DEFINE="TORCHBRAID_SPACKIEPATH_PREFIX=${RUNNER_TEMP}/torchbraid-spackiepath-prefix" pip install "${GITHUB_WORKSPACE}" --no-build-isolation
+
+      - name: Test with tox / nose
+        if: ${{ matrix.python-version != '3.14' }}
+        run: |
+          tox --direct
+
+      - name: Test with tox / nose via SpackiePath
+        if: ${{ matrix.python-version == '3.14' }}
+        shell: bash
+        run: |
+          source "${RUNNER_TEMP}/torchbraid-spackiepath-venv/bin/activate"
           tox --direct

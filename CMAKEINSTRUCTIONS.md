@@ -10,13 +10,19 @@ go into the build directory, and nothing is written into `src/`.
 Any of the [options](#options) below can be given to `pip install` with `-C cmake.define.<OPTION>=<value>`, e.g.
 
    `pip install . -C cmake.define.TORCHBRAID_XBRAID_ROOT=/path/to/xbraid/braid`  
-   `pip install . -C cmake.define.TORCHBRAID_XBRAID_BUILD=make`
+   `pip install . -C cmake.define.TORCHBRAID_XBRAID_BUILD=make`  
+   `pip install . -C cmake.define.TORCHBRAID_SPACKIEPATH_PREFIX=/path/to/prefix`
 
 or through the environment, which also works when pip is called by other tools such as tox:
 
-   `SKBUILD_CMAKE_DEFINE="TORCHBRAID_XBRAID_ROOT=/path/to/xbraid/braid" pip install .`
+   `SKBUILD_CMAKE_DEFINE="TORCHBRAID_XBRAID_ROOT=/path/to/xbraid/braid" pip install .`  
+   `SKBUILD_CMAKE_DEFINE="TORCHBRAID_SPACKIEPATH_PREFIX=/path/to/spack/prefix" pip install . --no-build-isolation`
+
+If `pip` reports `no such option: -C`, it is too old for `--config-settings`. Use the
+`SKBUILD_CMAKE_DEFINE=... pip install ${TORCHBRAID_SOURCE_DIR}` form instead, or upgrade pip.
 
 See [Using a prebuilt XBraid](#using-a-prebuilt-xbraid) for what `TORCHBRAID_XBRAID_ROOT` must point at.
+See [SpackiePath](#spackiepath) for the Spack/CMake-first workflow.
 
 pip keeps its CMake build tree in `build/<wheel tag>`, so reinstalling only rebuilds what changed. Options are
 stored in that tree's CMake cache, so they stay in effect for later installs until they are passed with a new
@@ -41,6 +47,18 @@ To build against an mpi4py you have already installed, use `pip install --no-bui
 
 CMake uses the python found by `FindPython`; an activated virtual environment is preferred. To pick a specific
 interpreter pass `-DPython_EXECUTABLE=/path/to/python`.
+
+For a direct CMake build, the selected Python must have at least:
+
+   `pip install cython numpy mpi4py`
+
+For a full TorchBraid environment, including examples and tests, install:
+
+   `pip install cython numpy mpi4py torch torchvision matplotlib`
+
+For pip/uv builds without build isolation, also install the build backend first:
+
+   `pip install scikit-build-core cython numpy mpi4py torch torchvision matplotlib`
 
 ## Build TorchBraid
   1. Configure:
@@ -92,6 +110,97 @@ The value is stored in the CMake cache of the build directory, and pip reuses it
 the prebuilt XBraid. To build XBraid from source again, pass it empty (`-DTORCHBRAID_XBRAID_ROOT=` or
 `-C cmake.define.TORCHBRAID_XBRAID_ROOT=`), or delete the build directory.
 
+### SpackiePath
+
+SpackiePath supports a two-step workflow for HPC users:
+
+  1. Build and install TorchBraid with CMake into a Spack or site prefix.
+  1. Install into a Python environment with `pip` or `uv` by repackaging that installed TorchBraid without
+     recompiling it.
+
+SpackiePath is intended for environments where the native build must be owned by Spack or a site-managed CMake
+workflow, but the final Python installation should still be done with `pip` or `uv`.
+
+#### What SpackiePath reuses
+
+SpackiePath reuses the compiled TorchBraid extension modules from the installed prefix:
+
+  + `torchbraid_app`
+  + `test_fixtures/test_cbs`
+  + `test_fixtures/gpumpi_check`
+
+Those binaries are copied into the wheel. The Python sources still come from the current source tree.
+
+#### What must match
+
+The Spack-installed TorchBraid and the target Python environment must agree on:
+
+  + Python major/minor version and ABI
+  + MPI stack used by `mpi4py` and the compiled TorchBraid extensions
+  + Torch/Python runtime compatibility
+  + TorchBraid source revision, since the Python files come from the current checkout
+
+If these do not match, installation can fail at configure time or later at import/runtime.
+
+#### Step 1: Build and install TorchBraid into a prefix
+
+In the Spack or site-managed build environment:
+
+   `pip install cython numpy mpi4py torch torchvision matplotlib`  
+   `cmake -S . -B build/cmake -DPython_EXECUTABLE=/path/to/spack/python`  
+   `cmake --build build/cmake -j`  
+   `cmake --install build/cmake --prefix /path/to/spack/prefix`
+
+This creates a TorchBraid installation under a path like:
+
+   `/path/to/spack/prefix/lib/pythonX.Y/site-packages/torchbraid`
+
+TorchBraid derives that path automatically from the prefix and the active Python version during the later `pip` or
+`uv` install.
+
+#### Step 2: Repackage that install into the target Python environment
+
+In the target environment:
+
+   `pip install scikit-build-core cython numpy mpi4py torch torchvision matplotlib`  
+   `pip install ${TORCHBRAID_SOURCE_DIR} --no-build-isolation -C cmake.define.TORCHBRAID_SPACKIEPATH_PREFIX=/path/to/spack/prefix`
+
+If that `pip install` reports `no such option: -C`, use:
+
+   `SKBUILD_CMAKE_DEFINE="TORCHBRAID_SPACKIEPATH_PREFIX=/path/to/spack/prefix" pip install ${TORCHBRAID_SOURCE_DIR} --no-build-isolation`
+
+or with `uv`:
+
+   `uv pip install ${TORCHBRAID_SOURCE_DIR} --no-build-isolation -C cmake.define.TORCHBRAID_SPACKIEPATH_PREFIX=/path/to/spack/prefix`
+
+TorchBraid derives the installed package path as
+`<prefix>/<libdir>/pythonX.Y/site-packages/torchbraid` using the active Python version. The prefix must contain a
+TorchBraid installation for that same Python version.
+
+SpackiePath only repackages those prebuilt extension modules into the wheel. The Python sources still come from
+`${TORCHBRAID_SOURCE_DIR}`, so that source checkout and the installed prefix should come from the same TorchBraid
+revision.
+If they do not, installation may succeed but imports can fail later due to Python code and extension modules being out
+of sync.
+
+SpackiePath is only supported for pip/uv builds. A direct CMake build should still use `cmake --install`.
+
+#### Why `--no-build-isolation` is recommended
+
+With pip's default build isolation, `mpi4py` may be built in a temporary environment against a different MPI than the
+one used by the Spack-built TorchBraid. `--no-build-isolation` keeps the build tied to the already prepared HPC Python
+environment.
+
+#### Troubleshooting
+
+If SpackiePath fails, check these first:
+
+  + `numpy`, `mpi4py`, and `cython` are importable from the target Python
+  + `mpi4py` was built against the same MPI as the loaded MPI/compiler environment
+  + the prefix really contains `lib/pythonX.Y/site-packages/torchbraid` or `lib64/pythonX.Y/site-packages/torchbraid`
+  + the prefix was built with the same Python version as the target environment
+  + the current TorchBraid source tree matches the prefix that was installed earlier
+
 ## Options
 
 | Option | Default | Description |
@@ -102,6 +211,7 @@ the prebuilt XBraid. To build XBraid from source again, pass it empty (`-DTORCHB
 | `TORCHBRAID_XBRAID_SOURCE_DIR` | `src/xbraid` | XBraid checkout to compile from |
 | `TORCHBRAID_XBRAID_GIT_REPOSITORY` | XBraid GitHub | Repository to fetch XBraid from |
 | `TORCHBRAID_XBRAID_GIT_TAG` | `master` | Branch, tag, or commit to fetch |
+| `TORCHBRAID_SPACKIEPATH_PREFIX` | empty | Repackage a TorchBraid already installed under this prefix into the wheel without rebuilding |
 | `TORCHBRAID_INSTALL_PYTHONDIR` | `lib/pythonX.Y/site-packages` | Install location of the package (not used by pip) |
 | `TORCHBRAID_ENABLE_TESTS` | `ON` (`OFF` with pip) | Register the unit tests with CTest |
 | `TORCHBRAID_ENABLE_GPU_TESTS` | `OFF` | Register the GPU-direct MPI test |

@@ -14,6 +14,12 @@ else()
 endif()
 option(TORCHBRAID_ENABLE_TESTS     "Register the unit tests with CTest"                  ${tests_default})
 option(TORCHBRAID_ENABLE_GPU_TESTS "Register the GPU-direct MPI test with CTest"         OFF)
+set(TORCHBRAID_SPACKIEPATH_PREFIX "" CACHE PATH
+    "Previously installed TorchBraid prefix to repackage into a wheel without rebuilding")
+
+if(TORCHBRAID_SPACKIEPATH_PREFIX AND NOT SKBUILD)
+  message(FATAL_ERROR "TORCHBRAID_SPACKIEPATH_PREFIX is only supported for pip/uv builds")
+endif()
 
 set(TORCHBRAID_XBRAID_ROOT "" CACHE PATH
     "Prebuilt xbraid/braid directory containing braid.h and libbraid.a. If empty, XBraid is built from source.")
@@ -37,13 +43,6 @@ endif()
 
 include(GNUInstallDirs)
 
-######################################################################
-# Dependencies
-######################################################################
-
-find_package(MPI REQUIRED COMPONENTS C)
-find_package(Python 3.8 REQUIRED COMPONENTS Interpreter Development.Module NumPy)
-
 function(torchbraid_python_query out_var code what)
   execute_process(
     COMMAND "${Python_EXECUTABLE}" -c "${code}"
@@ -56,6 +55,79 @@ function(torchbraid_python_query out_var code what)
   set(${out_var} "${value}" PARENT_SCOPE)
 endfunction()
 
+find_package(Python 3.8 REQUIRED COMPONENTS Interpreter)
+
+if(SKBUILD AND TORCHBRAID_SPACKIEPATH_PREFIX)
+  set(python_version_dir "python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}")
+  set(spackie_candidates
+      "${TORCHBRAID_SPACKIEPATH_PREFIX}/${CMAKE_INSTALL_LIBDIR}/${python_version_dir}/site-packages/torchbraid"
+      "${TORCHBRAID_SPACKIEPATH_PREFIX}/lib/${python_version_dir}/site-packages/torchbraid"
+      "${TORCHBRAID_SPACKIEPATH_PREFIX}/lib64/${python_version_dir}/site-packages/torchbraid")
+  list(REMOVE_DUPLICATES spackie_candidates)
+
+  message(STATUS "SpackiePath: deriving installed package path from prefix ${TORCHBRAID_SPACKIEPATH_PREFIX}")
+
+  set(TORCHBRAID_SPACKIEPATH_PACKAGE_DIR "")
+  foreach(candidate IN LISTS spackie_candidates)
+    if(EXISTS "${candidate}/__init__.py")
+      if(TORCHBRAID_SPACKIEPATH_PACKAGE_DIR)
+        message(FATAL_ERROR
+                "TORCHBRAID_SPACKIEPATH_PREFIX=${TORCHBRAID_SPACKIEPATH_PREFIX} matches more than one "
+                "torchbraid package directory; set up a prefix with only one install for ${python_version_dir}")
+      endif()
+      set(TORCHBRAID_SPACKIEPATH_PACKAGE_DIR "${candidate}")
+    endif()
+  endforeach()
+
+  if(NOT TORCHBRAID_SPACKIEPATH_PACKAGE_DIR)
+    message(FATAL_ERROR
+            "TORCHBRAID_SPACKIEPATH_PREFIX=${TORCHBRAID_SPACKIEPATH_PREFIX} does not contain "
+            "${python_version_dir}/site-packages/torchbraid")
+  endif()
+
+  message(STATUS "SpackiePath: using installed package directory ${TORCHBRAID_SPACKIEPATH_PACKAGE_DIR}")
+
+  torchbraid_python_query(TORCHBRAID_EXT_SUFFIX
+    "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX') or '')"
+    "Python EXT_SUFFIX")
+  if(NOT TORCHBRAID_EXT_SUFFIX)
+    message(FATAL_ERROR "Could not determine Python EXT_SUFFIX for ${Python_EXECUTABLE}")
+  endif()
+
+  set(spackie_module_dir      "${TORCHBRAID_SPACKIEPATH_PACKAGE_DIR}")
+  set(spackie_fixture_dir     "${TORCHBRAID_SPACKIEPATH_PACKAGE_DIR}/test_fixtures")
+  set(spackie_main_module     "${spackie_module_dir}/torchbraid_app${TORCHBRAID_EXT_SUFFIX}")
+  set(spackie_test_cbs_module "${spackie_fixture_dir}/test_cbs${TORCHBRAID_EXT_SUFFIX}")
+  set(spackie_gpumpi_module   "${spackie_fixture_dir}/gpumpi_check${TORCHBRAID_EXT_SUFFIX}")
+
+  foreach(module IN ITEMS
+          "${spackie_main_module}"
+          "${spackie_test_cbs_module}"
+          "${spackie_gpumpi_module}")
+    if(NOT EXISTS "${module}")
+      message(FATAL_ERROR
+              "SpackiePath expected the prebuilt module ${module}. Make sure the prefix was installed with the "
+              "same Python version as ${Python_EXECUTABLE}")
+    endif()
+  endforeach()
+
+  message(STATUS "SpackiePath: repackaging prebuilt TorchBraid from ${TORCHBRAID_SPACKIEPATH_PACKAGE_DIR}")
+
+  add_custom_target(torchbraid_spackiepath ALL
+                    COMMENT "SpackiePath: repackaging prebuilt TorchBraid extensions")
+
+  install(FILES "${spackie_main_module}" DESTINATION "torchbraid")
+  install(FILES "${spackie_test_cbs_module}" "${spackie_gpumpi_module}"
+          DESTINATION "torchbraid/test_fixtures")
+else()
+
+######################################################################
+# Dependencies
+######################################################################
+
+find_package(MPI REQUIRED COMPONENTS C)
+find_package(Python 3.8 REQUIRED COMPONENTS Interpreter Development.Module)
+
 torchbraid_python_query(CYTHON_VERSION "import Cython; print(Cython.__version__)" "Cython")
 if(CYTHON_VERSION VERSION_LESS 0.29.32)
   message(FATAL_ERROR "Cython >= 0.29.32 is required, found ${CYTHON_VERSION}")
@@ -65,6 +137,11 @@ message(STATUS "Found Cython: ${CYTHON_VERSION}")
 # torchbraid_app.pyx does 'cimport mpi4py.MPI', so mpi4py must be visible to Cython
 torchbraid_python_query(MPI4PY_INCLUDE_DIR "import mpi4py; print(mpi4py.get_include())" "mpi4py")
 message(STATUS "Found mpi4py: ${MPI4PY_INCLUDE_DIR}")
+
+# The generated Cython C sources include NumPy headers. Query them from the
+# selected interpreter instead of relying on FindPython's NumPy component.
+torchbraid_python_query(NUMPY_INCLUDE_DIR "import numpy; print(numpy.get_include())" "NumPy")
+message(STATUS "Found NumPy: ${NUMPY_INCLUDE_DIR}")
 
 ######################################################################
 # XBraid
@@ -219,8 +296,9 @@ function(torchbraid_add_extension module)
     LIBRARY_OUTPUT_DIRECTORY "$<1:${TORCHBRAID_PYTHON_DIR}/${module_dir}>")
   target_include_directories(${target} PRIVATE
     "${TORCHBRAID_SOURCE_ROOT}/${module_dir}"
-    "${MPI4PY_INCLUDE_DIR}")
-  target_link_libraries(${target} PRIVATE Python::NumPy MPI::MPI_C)
+    "${MPI4PY_INCLUDE_DIR}"
+    "${NUMPY_INCLUDE_DIR}")
+  target_link_libraries(${target} PRIVATE MPI::MPI_C)
   if(arg_LINK_XBRAID)
     target_link_libraries(${target} PRIVATE xbraid)
   endif()
@@ -293,4 +371,5 @@ if(TORCHBRAID_ENABLE_TESTS)
   if(TORCHBRAID_ENABLE_GPU_TESTS)
     torchbraid_add_mpi_test(test_gpu_direct_commu 2 gpu)
   endif()
+endif()
 endif()
