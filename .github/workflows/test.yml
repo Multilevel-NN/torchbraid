@@ -5,10 +5,16 @@ on: [push]
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental || false }}
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [ubuntu-24.04]
         python-version: ["3.11", "3.12", "3.13", "3.14"]
+        include:
+          - os: ubuntu-26.04
+            python-version: "3.14"
+            experimental: true
 
     steps:
       - uses: actions/checkout@v5
@@ -24,10 +30,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.cache/pip # This path is specific to Ubuntu
-          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          key: ${{ matrix.os }}-pip-${{ hashFiles('pyproject.toml') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
-            ${{ runner.os }}-
+            ${{ matrix.os }}-pip-
       - name: Install dependencies
         run: |
           pip install .
