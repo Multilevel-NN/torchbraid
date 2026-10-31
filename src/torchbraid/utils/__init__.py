@@ -132,7 +132,7 @@ def getDevice(comm):
   Only works on a single node at the moment (easy to change, use modulo arithmetic).
   """
   my_host    = torch.device('cpu')
-  if torch.cuda.is_available(): 
+  if torch.cuda.is_available() and False: 
     dev_cnt = torch.cuda.device_count() # this assumes all nodes have the same number of devices
     dev_rank = comm.Get_rank() % dev_cnt
     if comm.Get_rank()==0:
